@@ -194,8 +194,64 @@ fn rejects_conflicting_serializers() {
     relative(&mut bytes, 0x1c83, 0x2140);
     put32(&mut bytes, 0x1c96, 0x100);
     put32(&mut bytes, 0x2e04, 0x1d00);
+    put32(&mut bytes, 0x124, 12);
     assert_eq!(
         discover(PeFile::from_bytes(&bytes).unwrap()).unwrap_err(),
         "ambiguous mLocalizeDescTag signature"
+    );
+}
+
+#[test]
+fn excludes_neighboring_serializers_but_keeps_chained_fragments() {
+    let mut bytes = super::super::tests::fixture(0, 1);
+    emit(&mut bytes, 0x1bd0, "8b 47 08 48 c1 e8 05 48 89 44 24 28");
+    let image = PeFile::from_bytes(&bytes).unwrap();
+    assert_eq!(helper_range(image, 0x1b00).unwrap(), 0x1b00..0x1b80);
+    assert_eq!(discover(image).unwrap().1, expected(0).1);
+
+    emit(&mut bytes, 0x1b60, "8b 47 08 48 c1 e8 05 48 89 44 24 28");
+    assert_eq!(
+        discover(PeFile::from_bytes(&bytes).unwrap()).unwrap_err(),
+        "ambiguous StoreManifest entry count signature"
+    );
+}
+
+#[test]
+fn handles_nested_unwind_chains_and_odd_code_counts() {
+    let mut bytes = super::super::tests::fixture(0, 1);
+    bytes[0x2f12] = 1;
+    bytes.copy_within(0x2e0c..0x2e18, 0x2f18);
+    put32(&mut bytes, 0x2e2c, 0x2f40);
+    bytes[0x2f40] = 1 | (4 << 3);
+    bytes.copy_within(0x2e18..0x2e24, 0x2f44);
+    assert_eq!(
+        helper_range(PeFile::from_bytes(&bytes).unwrap(), 0x1b00).unwrap(),
+        0x1b00..0x1c00
+    );
+}
+
+#[test]
+fn rejects_invalid_unwind_boundaries_instead_of_scanning_neighbors() {
+    let original = super::super::tests::fixture(0, 1);
+    for (offset, value) in [(0x2f14, 0x1b30), (0x2f18, 0x1b40), (0x2f1c, 0x2f10)] {
+        let mut bytes = original.clone();
+        put32(&mut bytes, offset, value);
+        assert_eq!(
+            helper_range(PeFile::from_bytes(&bytes).unwrap(), 0x1b00).unwrap_err(),
+            "invalid manifest unwind chain"
+        );
+    }
+    let mut bytes = original.clone();
+    bytes[0x2f10] = 3 | (4 << 3);
+    assert_eq!(
+        helper_range(PeFile::from_bytes(&bytes).unwrap(), 0x1b00).unwrap_err(),
+        "unsupported manifest chained unwind info"
+    );
+    let mut bytes = original;
+    put32(&mut bytes, 0x2e1c, 0x2100);
+    put32(&mut bytes, 0x124, 36);
+    assert_eq!(
+        helper_range(PeFile::from_bytes(&bytes).unwrap(), 0x1b00).unwrap_err(),
+        "manifest unwind chain exceeds bounds"
     );
 }

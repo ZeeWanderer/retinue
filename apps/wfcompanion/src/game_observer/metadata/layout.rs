@@ -111,11 +111,25 @@ mod tests {
         );
         put32(&mut bytes, 0x104, 16);
         put32(&mut bytes, 0x120, 0x2e00);
-        put32(&mut bytes, 0x124, 24);
-        put32(&mut bytes, 0x2e00, (code + 0x900) as u32);
-        put32(&mut bytes, 0x2e04, (code + 0xa10) as u32);
-        put32(&mut bytes, 0x2e0c, (code + 0xd00) as u32);
-        put32(&mut bytes, 0x2e10, (code + 0xd80) as u32);
+        put32(&mut bytes, 0x124, 60);
+        for (index, (start, end)) in [
+            (code + 0x900, code + 0xa10),
+            (code + 0xb00, code + 0xb30),
+            (code + 0xb30, code + 0xb80),
+            (code + 0xb80, code + 0xc00),
+            (code + 0xd00, code + 0xd80),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            put32(&mut bytes, 0x2e00 + index * 12, start as u32);
+            put32(&mut bytes, 0x2e04 + index * 12, end as u32);
+            put32(&mut bytes, 0x2e08 + index * 12, 0x2f00);
+        }
+        bytes[0x2f00] = 1;
+        put32(&mut bytes, 0x2e20, 0x2f10);
+        bytes[0x2f10] = 1 | (4 << 3);
+        bytes.copy_within(0x2e0c..0x2e18, 0x2f14);
         put32(&mut bytes, code + 26, hash);
         emit(
             &mut bytes,

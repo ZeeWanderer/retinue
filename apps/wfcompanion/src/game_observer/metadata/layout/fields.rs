@@ -1,3 +1,4 @@
+use pelite::pe64::image::{RUNTIME_FUNCTION, UNW_FLAG_CHAININFO, UNWIND_INFO};
 use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
 
@@ -131,11 +132,12 @@ pub(super) fn discover(image: PeFile<'_>) -> Result<(StoreFields, ManifestFields
             named("mStoreItems")
         ),
     )?;
+    let store_range = helper_range(image, store[2])?;
     let store_entry = signature_in::<3>(
         image,
         "StoreManifest entries",
         "4c 8d 05 ${'} 48 8b d6 48 8b cb e8 ???? 48 83 c3 u1 48 3b df 75 ?",
-        helper_range(image, store[2])?,
+        store_range.clone(),
     )?;
     let (store_type, _) = descriptor(image, "StoreItem", "/Lotus/Types/Game/")?;
     if u64::from(store_entry[1]) != store_type {
@@ -145,7 +147,7 @@ pub(super) fn discover(image: PeFile<'_>) -> Result<(StoreFields, ManifestFields
         image,
         "StoreManifest entry count",
         "8b 47 08 48 c1 e8 u1 48 89 44 24 ?",
-        helper_range(image, store[2])?,
+        store_range.clone(),
     )?;
     if !(3..7).contains(&count[1]) || store_entry[2] != 1 << count[1] {
         return Err("StoreManifest entry sizes disagree".into());
@@ -154,7 +156,7 @@ pub(super) fn discover(image: PeFile<'_>) -> Result<(StoreFields, ManifestFields
         image,
         "StoreManifest vector header",
         "48 8b 1f 8b 7f 08 48 03 fb",
-        helper_range(image, store[2])?,
+        store_range,
     )?;
 
     let variants = signature::<3>(
@@ -165,19 +167,20 @@ pub(super) fn discover(image: PeFile<'_>) -> Result<(StoreFields, ManifestFields
             named("mWeaponVariantMap")
         ),
     )?;
+    let variant_range = helper_range(image, variants[2])?;
     let variant_entry = signature_in::<3>(
         image,
         "VariantManifest entries",
         "48 8b 03 48 8d 53 u1 48 8d 4d ? 48 89 45 ? e8 ????
          48 8d 55 ? 48 8b ce e8 ???? 48 8b 06 48 8b ce ff 50 60
          48 8d 4d ? e8 ???? 48 83 c3 u1 48 3b df 75 ?",
-        helper_range(image, variants[2])?,
+        variant_range.clone(),
     )?;
     signature_in::<1>(
         image,
         "VariantManifest vector header",
         "48 8b 1f 8b 7f 08 48 03 fb",
-        helper_range(image, variants[2])?,
+        variant_range,
     )?;
     let vectors = ManifestFields {
         store_vector: store[1].into(),
@@ -204,13 +207,60 @@ pub(super) fn discover(image: PeFile<'_>) -> Result<(StoreFields, ManifestFields
 
 fn helper_range(image: PeFile<'_>, start: u32) -> Result<std::ops::Range<u32>, String> {
     let code = image.headers().code_range();
-    let end = start
-        .checked_add(0x400)
-        .filter(|_| code.contains(&start))
-        .map(|end| end.min(code.end))
-        .ok_or("manifest serializer outside executable code")?;
-    // Unwind metadata splits these helpers at exception-handling boundaries.
-    Ok(start..end)
+    let mut range = function_range(image, start)?;
+    if range.start != start || !code.contains(&start) || range.end > code.end {
+        return Err("manifest serializer outside executable code".into());
+    }
+    if range.end - start > 0x10000 {
+        return Err("manifest unwind chain exceeds bounds".into());
+    }
+    let table = image.exception().map_err(|error| error.to_string())?;
+    let rows = table.image();
+    let first = rows.partition_point(|row| row.BeginAddress < start);
+    let unwind = |rva| {
+        image
+            .derva::<UNWIND_INFO>(rva)
+            .map_err(|error| format!("manifest unwind header: {error}"))
+    };
+    let root = unwind(rows[first].UnwindData)?;
+    if !matches!(root.VersionFlags & 7, 1 | 2) || root.VersionFlags >> 3 & UNW_FLAG_CHAININFO != 0 {
+        return Err("unsupported manifest entry unwind info".into());
+    }
+    // Chained records belong to this helper; adjacent serializers do not.
+    for (index, row) in rows.iter().enumerate().skip(first + 1) {
+        let info = unwind(row.UnwindData)?;
+        let flags = info.VersionFlags >> 3;
+        if flags & UNW_FLAG_CHAININFO == 0 {
+            break;
+        }
+        if !matches!(info.VersionFlags & 7, 1 | 2) || flags != UNW_FLAG_CHAININFO {
+            return Err("unsupported manifest chained unwind info".into());
+        }
+        let parent_rva = row
+            .UnwindData
+            .checked_add(4 + (u32::from(info.CountOfCodes) + 1) / 2 * 4)
+            .ok_or("manifest unwind address overflow")?;
+        let parent = image
+            .derva::<RUNTIME_FUNCTION>(parent_rva)
+            .map_err(|error| format!("manifest unwind parent: {error}"))?;
+        let parent_index = rows.partition_point(|entry| entry.BeginAddress < parent.BeginAddress);
+        if !rows.get(parent_index).is_some_and(|entry| {
+            entry.BeginAddress == parent.BeginAddress
+                && entry.EndAddress == parent.EndAddress
+                && entry.UnwindData == parent.UnwindData
+        }) || parent_index >= index
+        {
+            return Err("invalid manifest unwind chain".into());
+        }
+        if parent_index < first {
+            break;
+        }
+        if index - first >= 64 || row.EndAddress > code.end || row.EndAddress - start > 0x10000 {
+            return Err("manifest unwind chain exceeds bounds".into());
+        }
+        range.end = row.EndAddress;
+    }
+    Ok(range)
 }
 
 #[cfg(test)]
