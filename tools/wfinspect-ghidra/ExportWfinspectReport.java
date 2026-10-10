@@ -11,6 +11,7 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.InstructionIterator;
 import ghidra.program.model.mem.Memory;
+import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.scalar.Scalar;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceIterator;
@@ -19,6 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +47,7 @@ public class ExportWfinspectReport extends GhidraScript {
         try {
             for (int index = 1; index < args.length; index++) {
                 queries.add(runQuery(args[index], decompiler));
+                monitor.checkCancelled();
             }
         } finally {
             decompiler.dispose();
@@ -88,8 +93,11 @@ public class ExportWfinspectReport extends GhidraScript {
         String value = argument.substring(separator + 1);
         return switch (kind) {
             case "function" -> exportFunction(value, decompiler);
+            case "graph" -> exportGraph(value);
             case "xrefs" -> exportXrefs(value);
+            case "lea", "branches" -> exportRelativeReferences(kind, value);
             case "string" -> exportString(value);
+            case "bytes" -> exportBytes("bytes", value, HexFormat.of().parseHex(value));
             case "scalar" -> exportScalar(value);
             case "pointers" -> exportPointers(value);
             default -> throw new IllegalArgumentException("unknown query kind: " + kind);
@@ -141,10 +149,219 @@ public class ExportWfinspectReport extends GhidraScript {
         return query;
     }
 
+    private Map<String, Object> exportRelativeReferences(String kind, String value) throws Exception {
+        if (!currentProgram.getLanguageID().toString().startsWith("x86:LE:64:")) {
+            throw new IllegalArgumentException("relative reference search requires x86-64");
+        }
+        boolean lea = kind.equals("lea");
+        int length = lea ? 7 : 5;
+        Address target = toAddr(value);
+        List<Map<String, Object>> matches = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        boolean truncated = false;
+        for (MemoryBlock block : currentProgram.getMemory().getBlocks()) {
+            if (!block.isExecute() || !block.isInitialized()) {
+                continue;
+            }
+            if (block.getSize() > 64 * 1024 * 1024) {
+                skipped.add(block.getName());
+                continue;
+            }
+            byte[] bytes = new byte[(int) block.getSize()];
+            block.getBytes(block.getStart(), bytes);
+            for (int index = 0; index + length <= bytes.length; index++) {
+                if ((index & 0xffff) == 0) {
+                    monitor.checkCancelled();
+                }
+                int opcode = Byte.toUnsignedInt(bytes[index]);
+                if (lea ? (opcode != 0x48 && opcode != 0x4c)
+                        || bytes[index + 1] != (byte) 0x8d
+                        || (Byte.toUnsignedInt(bytes[index + 2]) & 0xc7) != 5
+                        : opcode != 0xe8 && opcode != 0xe9) {
+                    continue;
+                }
+                int offset = index + length - 4;
+                int displacement = Byte.toUnsignedInt(bytes[offset])
+                    | (Byte.toUnsignedInt(bytes[offset + 1]) << 8)
+                    | (Byte.toUnsignedInt(bytes[offset + 2]) << 16)
+                    | (bytes[offset + 3] << 24);
+                Address from = block.getStart().add(index);
+                if (!from.getAddressSpace().equals(target.getAddressSpace())
+                        || from.getOffset() + length + displacement != target.getOffset()) {
+                    continue;
+                }
+                if (matches.size() == MAX_RESULTS) {
+                    truncated = true;
+                    break;
+                }
+                Map<String, Object> match = addressRecord(from);
+                match.put("operation", lea ? "lea" : opcode == 0xe8 ? "call" : "jump");
+                matches.add(match);
+            }
+            if (truncated) {
+                break;
+            }
+        }
+        Map<String, Object> query = query(kind, value);
+        query.put("candidates", matches);
+        query.put("skipped_blocks", skipped);
+        query.put("truncated", truncated);
+        return query;
+    }
+
+    private Map<String, Object> exportGraph(String value) throws Exception {
+        String[] fields = value.split(":", -1);
+        if (fields.length != 3) {
+            throw new IllegalArgumentException("graph query requires ADDRESS:DEPTH:MAX_FUNCTIONS");
+        }
+        int maxDepth = Integer.decode(fields[1]);
+        int maxFunctions = Integer.decode(fields[2]);
+        if (maxDepth < 0 || maxDepth > 16 || maxFunctions < 1 || maxFunctions > 1024) {
+            throw new IllegalArgumentException("graph depth must be 0..16 and function limit 1..1024");
+        }
+        Function root = getFunctionContaining(toAddr(fields[0]));
+        Map<String, Object> query = query("graph", value);
+        query.put("found", root != null);
+        if (root == null) {
+            return query;
+        }
+
+        record Pending(Function function, int depth) {}
+        ArrayDeque<Pending> pending = new ArrayDeque<>();
+        HashSet<Address> scheduled = new HashSet<>();
+        Map<Address, String> frontier = new LinkedHashMap<>();
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<Map<String, Object>> edges = new ArrayList<>();
+        pending.add(new Pending(root, 0));
+        scheduled.add(root.getEntryPoint());
+        int scanned = 0;
+        int unresolved = 0;
+        int incomplete = 0;
+        boolean truncated = false;
+        while (!pending.isEmpty() && nodes.size() < maxFunctions && scanned < MAX_RESULTS) {
+            monitor.checkCancelled();
+            Pending next = pending.removeFirst();
+            Function function = next.function();
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("entry", function.getEntryPoint().toString());
+            node.put("name", function.getName());
+            node.put("depth", next.depth());
+            node.put("body_bytes", function.getBody().getNumAddresses());
+            List<String> missingFlows = new ArrayList<>();
+            nodes.add(node);
+            InstructionIterator instructions =
+                currentProgram.getListing().getInstructions(function.getBody(), true);
+            int startCount = scanned;
+            while (instructions.hasNext() && scanned < MAX_RESULTS) {
+                monitor.checkCancelled();
+                Instruction instruction = instructions.next();
+                scanned++;
+                if (!function.getBody().contains(instruction.getMaxAddress())) {
+                    missingFlows.add(instruction.getAddress().toString());
+                }
+                Address fallthrough = instruction.getFallThrough();
+                if (fallthrough != null && (!function.getBody().contains(fallthrough)
+                        || getInstructionAt(fallthrough) == null)) {
+                    missingFlows.add(fallthrough.toString());
+                }
+                Address[] targets = instruction.getFlows();
+                boolean call = instruction.getFlowType().isCall();
+                boolean jump = instruction.getFlowType().isJump();
+                if (jump) {
+                    for (Address target : targets) {
+                        if (getFunctionAt(target) == null &&
+                                (!function.getBody().contains(target)
+                                 || getInstructionAt(target) == null)) {
+                            missingFlows.add(target.toString());
+                        }
+                    }
+                }
+                if ((call || jump) && instruction.getFlowType().isComputed()
+                        && targets.length == 0) {
+                    Map<String, Object> edge = graphEdge(function, instruction,
+                        call ? "indirect_call" : "indirect_jump");
+                    edge.put("resolution", "unresolved");
+                    edges.add(edge);
+                    unresolved++;
+                }
+                boolean tail = instruction.getFlowType().isJump()
+                    && instruction.getFlowType().isUnConditional()
+                    && !instruction.getFlowType().isComputed();
+                if (!call && !tail) {
+                    continue;
+                }
+                for (Address target : targets) {
+                    if (tail && function.getBody().contains(target)) {
+                        continue;
+                    }
+                    Map<String, Object> edge = graphEdge(function, instruction,
+                        call ? "call" : "tail_jump");
+                    edge.put("target", target.toString());
+                    Function callee = getFunctionAt(target);
+                    edge.put("resolution", callee == null ? "undefined_function" : "analyzed");
+                    edges.add(edge);
+                    if (callee == null) {
+                        unresolved++;
+                    } else if (!scheduled.contains(target)) {
+                        if (next.depth() == maxDepth) {
+                            frontier.put(target, "depth_limit");
+                        } else {
+                            scheduled.add(target);
+                            frontier.remove(target);
+                            pending.addLast(new Pending(callee, next.depth() + 1));
+                        }
+                    }
+                }
+            }
+            node.put("instructions_truncated", instructions.hasNext());
+            node.put("instructions_scanned", scanned - startCount);
+            if (scanned == startCount && !function.getBody().isEmpty()) {
+                missingFlows.add(function.getEntryPoint().toString());
+            }
+            node.put("unexplored_flow", missingFlows);
+            if (!missingFlows.isEmpty()) {
+                incomplete++;
+            }
+            truncated |= instructions.hasNext();
+        }
+        for (Pending next : pending) {
+            frontier.put(next.function().getEntryPoint(),
+                scanned >= MAX_RESULTS ? "instruction_limit" : "function_limit");
+        }
+        query.put("root", root.getEntryPoint().toString());
+        query.put("limits", Map.of("depth", maxDepth, "functions", maxFunctions,
+            "instructions", MAX_RESULTS));
+        query.put("nodes", nodes);
+        query.put("edges", edges);
+        query.put("instructions_scanned", scanned);
+        query.put("unresolved_edges", unresolved);
+        query.put("incomplete_functions", incomplete);
+        query.put("frontier", frontier.entrySet().stream().map(entry -> Map.of(
+            "entry", entry.getKey().toString(), "reason", entry.getValue())).toList());
+        query.put("truncated", truncated || !frontier.isEmpty());
+        return query;
+    }
+
+    private Map<String, Object> graphEdge(Function function, Instruction instruction, String kind) {
+        Map<String, Object> edge = new LinkedHashMap<>();
+        edge.put("from", function.getEntryPoint().toString());
+        edge.put("site", instruction.getAddress().toString());
+        edge.put("instruction", instruction.toString());
+        edge.put("kind", kind);
+        edge.put("computed", instruction.getFlowType().isComputed());
+        return edge;
+    }
+
     private Map<String, Object> exportString(String value) throws Exception {
-        Map<String, Object> query = query("string", value);
+        return exportBytes("string", value, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Map<String, Object> exportBytes(String kind, String value, byte[] needle) throws Exception {
+        if (needle.length == 0 || needle.length > 4096) {
+            throw new IllegalArgumentException("search pattern must contain 1..4096 bytes");
+        }
+        Map<String, Object> query = query(kind, value);
         Memory memory = currentProgram.getMemory();
-        byte[] needle = value.getBytes(StandardCharsets.UTF_8);
         List<Map<String, Object>> matches = new ArrayList<>();
         Address cursor = memory.getMinAddress();
         while (cursor != null && matches.size() < MAX_RESULTS && !monitor.isCancelled()) {
@@ -152,8 +369,7 @@ public class ExportWfinspectReport extends GhidraScript {
             if (found == null) {
                 break;
             }
-            Map<String, Object> match = new LinkedHashMap<>();
-            match.put("address", found.toString());
+            Map<String, Object> match = addressRecord(found);
             match.put("references", referencesTo(found));
             matches.add(match);
             cursor = found.equals(memory.getMaxAddress()) ? null : found.next();
@@ -258,6 +474,20 @@ public class ExportWfinspectReport extends GhidraScript {
             result.put("function", function.getName());
         }
         return result;
+    }
+
+    private Map<String, Object> addressRecord(Address address) {
+        Map<String, Object> record = new LinkedHashMap<>();
+        record.put("address", address.toString());
+        MemoryBlock block = currentProgram.getMemory().getBlock(address);
+        if (block != null && block.isExecute()) {
+            record.put("analyzed_boundary", getInstructionAt(address) != null);
+            var functions = currentProgram.getFunctionManager().getFunctions(address, false);
+            if (functions.hasNext()) {
+                record.put("preceding_function", functions.next().getEntryPoint().toString());
+            }
+        }
+        return record;
     }
 
     private Map<String, Object> query(String kind, String input) {

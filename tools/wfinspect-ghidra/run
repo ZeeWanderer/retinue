@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n ${GHIDRA_HOME:-} ]]; then
+    headless="$GHIDRA_HOME/support/analyzeHeadless"
+elif command -v analyzeHeadless >/dev/null 2>&1; then
+    headless="$(command -v analyzeHeadless)"
+elif command -v brew >/dev/null 2>&1 && prefix="$(brew --prefix ghidra 2>/dev/null)"; then
+    headless="$prefix/libexec/support/analyzeHeadless"
+else
+    printf 'Install Ghidra and set GHIDRA_HOME to its distribution directory.\n' >&2
+    exit 1
+fi
+if [[ ! -x $headless ]]; then
+    printf 'Ghidra headless launcher not found: %s\n' "$headless" >&2
+    exit 1
+fi
+exec "$headless" "$@" -scriptPath "$directory"
