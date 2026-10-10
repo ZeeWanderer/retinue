@@ -8,19 +8,27 @@ use super::{
     ScriptInfo,
     analysis::*,
     corpus::{self, Snapshot},
+    evidence::{self, Evidence, PropertyState},
     info,
     profile::Profile,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub schema: u8,
     pub features: BTreeMap<String, Feature>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Feature {
+    #[serde(default)]
     pub scripts: Vec<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub properties: Vec<String>,
     #[serde(default)]
     pub native: Vec<String>,
     #[serde(default)]
@@ -29,15 +37,50 @@ pub struct Feature {
 
 impl Manifest {
     pub fn builtin() -> Self {
-        serde_json::from_str(include_str!("features.json")).expect("checked-in feature manifest")
+        let value: Self = serde_json::from_str(include_str!("features.json"))
+            .expect("checked-in feature manifest");
+        value.order().expect("valid feature dependencies");
+        value
     }
 
     pub fn load(path: &Path) -> Result<Self, String> {
         let value: Self = corpus::read_json(path)?;
-        if value.schema != 1 {
+        value.order()?;
+        Ok(value)
+    }
+
+    fn order(&self) -> Result<Vec<String>, String> {
+        if self.schema != 1 {
             return Err("unsupported feature manifest schema".into());
         }
-        Ok(value)
+        let mut pending: BTreeSet<_> = self.features.keys().cloned().collect();
+        let mut done = BTreeSet::new();
+        let mut order = Vec::new();
+        for (id, feature) in &self.features {
+            for dependency in &feature.depends_on {
+                if !self.features.contains_key(dependency) {
+                    return Err(format!("{id}: unknown feature dependency {dependency}"));
+                }
+            }
+        }
+        while !pending.is_empty() {
+            let ready = pending
+                .iter()
+                .find(|id| {
+                    self.features[*id]
+                        .depends_on
+                        .iter()
+                        .all(|d| done.contains(d))
+                })
+                .cloned();
+            let Some(id) = ready else {
+                return Err(format!("feature dependency cycle: {pending:?}"));
+            };
+            pending.remove(&id);
+            done.insert(id.clone());
+            order.push(id);
+        }
+        Ok(order)
     }
 }
 
@@ -49,6 +92,7 @@ pub struct Report {
     pub baseline_profile_sha256: String,
     pub target_profile_sha256: String,
     pub candidate_profiles: bool,
+    pub evidence_errors: BTreeMap<String, String>,
     pub capture_errors: BTreeMap<String, BTreeMap<String, String>>,
     pub summary: BTreeMap<String, usize>,
     pub scripts: BTreeMap<String, Change>,
@@ -95,10 +139,21 @@ impl Change {
 
 #[derive(Debug, Serialize)]
 pub struct Impact {
+    pub changed: bool,
     pub review_required: bool,
     pub scripts: BTreeMap<String, String>,
-    pub native_review: Vec<String>,
+    pub native: BTreeMap<String, String>,
+    pub properties: BTreeMap<String, PropertyChange>,
+    pub dependency_review: Vec<String>,
     pub data_not_tracked: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PropertyChange {
+    pub changed: bool,
+    pub status: String,
+    pub before: PropertyState,
+    pub after: PropertyState,
 }
 
 pub fn compare(
@@ -106,7 +161,8 @@ pub fn compare(
     before: &Snapshot,
     after: &Snapshot,
     manifest: &Manifest,
-) -> Report {
+) -> Result<Report, String> {
+    let order = manifest.order()?;
     let mut report = Report {
         schema: 1,
         baseline: before.name.clone(),
@@ -115,6 +171,7 @@ pub fn compare(
         target_profile_sha256: fingerprint(&json!(after.profile)),
         candidate_profiles: before.profile.status != "reviewed"
             || after.profile.status != "reviewed",
+        evidence_errors: BTreeMap::new(),
         capture_errors: BTreeMap::new(),
         summary: BTreeMap::new(),
         scripts: BTreeMap::new(),
@@ -138,9 +195,75 @@ pub fn compare(
         *report.summary.entry(change.status.clone()).or_default() += 1;
         report.scripts.insert(path.clone(), change);
     }
-    for (name, feature) in &manifest.features {
+    let mut load_evidence = |snapshot: &Snapshot| match evidence::load(workspace, snapshot) {
+        Ok(value) => value,
+        Err(error) => {
+            report.evidence_errors.insert(snapshot.name.clone(), error);
+            None
+        }
+    };
+    let old_evidence = load_evidence(before);
+    let new_evidence = load_evidence(after);
+    let executable_changed = before.profile.executable_sha256 != after.profile.executable_sha256;
+    for name in order {
+        let feature = &manifest.features[&name];
         let mut visited = BTreeSet::new();
         let mut pending = feature.scripts.clone();
+        let mut properties = BTreeMap::new();
+        let roots: BTreeSet<String> = feature
+            .properties
+            .iter()
+            .flat_map(|root| {
+                if root.ends_with('/') {
+                    let matches: BTreeSet<_> = old_evidence
+                        .iter()
+                        .chain(new_evidence.iter())
+                        .flat_map(|e| e.properties.keys())
+                        .filter(|p| p.starts_with(root))
+                        .cloned()
+                        .collect();
+                    if matches.is_empty() {
+                        BTreeSet::from([root.clone()])
+                    } else {
+                        matches
+                    }
+                } else {
+                    BTreeSet::from([root.clone()])
+                }
+            })
+            .collect();
+        for root in &roots {
+            let old = evidence::property(old_evidence.as_ref(), root);
+            let new = evidence::property(new_evidence.as_ref(), root);
+            pending.extend(
+                old.script_candidates
+                    .iter()
+                    .chain(&new.script_candidates)
+                    .cloned(),
+            );
+            let decoder_changed = match (&old_evidence, &new_evidence) {
+                (Some(a), Some(b)) => a.decoders != b.decoders,
+                _ => false,
+            };
+            let status = if old.sha256 != new.sha256 {
+                "record_or_parent_changed_review"
+            } else if !old.gaps.is_empty() || !new.gaps.is_empty() {
+                "incomplete"
+            } else if decoder_changed {
+                "decoder_changed_review"
+            } else {
+                "unchanged"
+            };
+            properties.insert(
+                root.clone(),
+                PropertyChange {
+                    changed: old.sha256 != new.sha256,
+                    status: status.into(),
+                    before: old,
+                    after: new,
+                },
+            );
+        }
         let mut scripts = BTreeMap::new();
         while let Some(path) = pending.pop() {
             if !visited.insert(path.clone()) {
@@ -155,27 +278,85 @@ pub fn compare(
                 scripts.insert(path, "not_captured".into());
             }
         }
-        let native_review = if before.profile.executable_sha256 != after.profile.executable_sha256 {
-            feature.native.clone()
-        } else {
-            Vec::new()
-        };
+        let native: BTreeMap<_, _> = feature
+            .native
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    native_status(
+                        old_evidence.as_ref(),
+                        new_evidence.as_ref(),
+                        id,
+                        executable_changed,
+                    )
+                    .into(),
+                )
+            })
+            .collect();
+        let dependency_review: Vec<_> = feature
+            .depends_on
+            .iter()
+            .filter(|id| report.features[*id].review_required)
+            .cloned()
+            .collect();
+        let changed = properties.values().any(|p| p.changed)
+            || (!feature.native.is_empty() && executable_changed)
+            || native
+                .values()
+                .any(|status| status == "instructions_or_binding_changed_review")
+            || feature
+                .depends_on
+                .iter()
+                .any(|id| report.features[id].changed)
+            || visited.iter().any(|path| {
+                let raw_changed = before.scripts.get(path).map(|s| &s.sha256)
+                    != after.scripts.get(path).map(|s| &s.sha256);
+                raw_changed
+                    && report
+                        .scripts
+                        .get(path)
+                        .is_none_or(|c| c.status != "opcode_encoding_only")
+            });
         let review_required = !scripts.is_empty()
-            || !native_review.is_empty()
+            || native.values().any(|status: &String| status != "unchanged")
+            || properties.values().any(|p| p.status != "unchanged")
+            || !dependency_review.is_empty()
             || !feature.data.is_empty()
             || report.candidate_profiles
-            || !report.capture_errors.is_empty();
+            || !report.capture_errors.is_empty()
+            || !report.evidence_errors.is_empty();
         report.features.insert(
             name.clone(),
             Impact {
+                changed,
                 review_required,
                 scripts,
-                native_review,
+                native,
+                properties,
+                dependency_review,
                 data_not_tracked: feature.data.clone(),
             },
         );
     }
-    report
+    Ok(report)
+}
+
+fn native_status(
+    before: Option<&Evidence>,
+    after: Option<&Evidence>,
+    id: &str,
+    executable_changed: bool,
+) -> &'static str {
+    match (
+        before.and_then(|e| e.native.get(id)),
+        after.and_then(|e| e.native.get(id)),
+    ) {
+        (Some(a), Some(b)) if a.sha256 != b.sha256 => "instructions_or_binding_changed_review",
+        (Some(_), Some(_)) if executable_changed => "body_unchanged_external_dependencies_review",
+        (Some(_), Some(_)) => "unchanged",
+        _ => "not_captured",
+    }
 }
 
 fn compare_script(
@@ -440,5 +621,153 @@ mod tests {
         let archimedea = &manifest.features["archimedea.weekly-loadout"];
         assert!(archimedea.native.iter().any(|name| name.contains("PCG")));
         assert!(!archimedea.data.is_empty());
+        let calculator = &manifest.features["calculator.direct-fire"];
+        assert!(calculator.depends_on.contains(&"calculator.mesa".into()));
+        assert!(
+            manifest.features["calculator.mesa"]
+                .scripts
+                .iter()
+                .any(|name| name.ends_with("CowgirlPassive.lua"))
+        );
+        assert!(!manifest.features["calculator.upgrades"].native.is_empty());
+        assert!(!manifest.features["calculator.upgrades"].data.is_empty());
+        assert!(
+            manifest.features["calculator.primary-crux"]
+                .scripts
+                .iter()
+                .any(|name| name.ends_with("StatusAndAmmoEfficiencyOnWeakpointHit.lua"))
+        );
+    }
+
+    #[test]
+    fn dependency_graph_rejects_unknown_ids_and_cycles() {
+        assert!(
+            serde_json::from_value::<Manifest>(json!({"schema":1,
+            "features":{"a":{"depend_on":["b"]}}}))
+            .is_err()
+        );
+        let parse = |value| serde_json::from_value::<Manifest>(value).unwrap();
+        assert!(
+            parse(json!({"schema":1,"features":{"a":{"depends_on":["b"]}}}))
+                .order()
+                .is_err()
+        );
+        assert!(
+            parse(json!({"schema":1,"features":{"a":{"depends_on":["b"]},
+            "b":{"depends_on":["a"]}}}))
+            .order()
+            .is_err()
+        );
+        let m = parse(json!({"schema":1,"features":{"a":{"depends_on":["b"]},"b":{}}}));
+        assert_eq!(m.order().unwrap(), vec!["b", "a"]);
+    }
+
+    #[test]
+    fn contact_stage_tracks_eligibility_without_claiming_public_integration() {
+        let manifest = Manifest::builtin();
+        let contact = &manifest.features["calculator.contact-packet"];
+        for id in [
+            "damage.contact-controller",
+            "damage.hit-proxy-selection",
+            "damage.hit-proxy-modifiers",
+            "damage.ignore-headshot",
+            "damage.deferred-scalar",
+            "damage.critical-factor",
+            "damage.weakpoint-predicate",
+            "damage.weapon-upgrades",
+            "upgrade.manager",
+            "upgrade.bucket-filter",
+            "upgrade.damage-type-filter",
+            "upgrade.deferred-mode",
+            "upgrade.type-identities",
+            "damage.critical-context",
+            "damage.critical-source",
+            "upgrade.weapon-scalar",
+            "upgrade.weapon-presence",
+            "upgrade.critical-mode",
+            "damage.forced-proc-counter",
+            "damage.packet-origin",
+            "upgrade.weapon-integer",
+            "damage.critical-source-handle",
+            "damage.critical-source-policy",
+            "damage.player-reference-valid",
+            "reference.nonnull",
+        ] {
+            assert!(contact.native.iter().any(|name| name == id));
+        }
+        assert!(!contact.data.is_empty());
+        for resource in [
+            "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod",
+            "/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod",
+            "/Lotus/Upgrades/Mods/Sets/Hunter/CompanionHunterSynergyMod",
+            "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastCullTheWeakMod",
+        ] {
+            assert!(contact.properties.iter().any(|name| name == resource));
+        }
+        assert!(contact.depends_on.contains(&"calculator.upgrades".into()));
+        assert!(
+            !manifest.features["calculator.direct-fire.core"]
+                .depends_on
+                .contains(&"calculator.contact-packet".into())
+        );
+    }
+
+    #[test]
+    fn companion_critical_research_tracks_scripts_without_enabling_effects() {
+        let manifest = Manifest::builtin();
+        for (feature, script) in [
+            ("calculator.cats-eye", "CatbrowCatsEyeAbility.lua"),
+            ("calculator.tenacious-bond", "TenaciousPartner.lua"),
+        ] {
+            let effect = &manifest.features[feature];
+            assert!(effect.scripts.iter().any(|path| path.ends_with(script)));
+            assert!(!effect.properties.is_empty());
+            assert!(!effect.data.is_empty());
+            assert!(effect.depends_on.contains(&"calculator.upgrades".into()));
+            for public in ["calculator.direct-fire", "calculator.direct-fire.core"] {
+                assert!(
+                    !manifest.features[public]
+                        .depends_on
+                        .iter()
+                        .any(|id| id == feature)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_body_equality_is_not_external_dependency_equality() {
+        let mut a = Evidence::default();
+        a.native.insert(
+            "scalar".into(),
+            evidence::Native {
+                entry: "140001000".into(),
+                sha256: "a".repeat(64),
+                instructions: 2,
+            },
+        );
+        let mut b = Evidence::default();
+        b.native.insert(
+            "scalar".into(),
+            evidence::Native {
+                entry: "140001000".into(),
+                sha256: "a".repeat(64),
+                instructions: 2,
+            },
+        );
+        assert_eq!(
+            native_status(Some(&a), Some(&b), "scalar", false),
+            "unchanged"
+        );
+        assert_eq!(
+            native_status(Some(&a), Some(&b), "scalar", true),
+            "body_unchanged_external_dependencies_review"
+        );
+        b.native.get_mut("scalar").unwrap().sha256 = "b".repeat(64);
+        assert_eq!(
+            native_status(Some(&a), Some(&b), "scalar", false),
+            "instructions_or_binding_changed_review"
+        );
+        assert_eq!(native_status(None, None, "scalar", false), "not_captured");
     }
 }

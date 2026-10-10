@@ -4,7 +4,7 @@ use clap::{Args, Subcommand};
 use serde_json::json;
 use wfcompanion::inspect::{
     cache,
-    luau::{corpus, infer, profile::Profile, tracking},
+    luau::{corpus, evidence, infer, profile::Profile, tracking},
 };
 
 use super::support::*;
@@ -40,6 +40,12 @@ pub enum Script {
         workspace: PathBuf,
         name: String,
         manifest: PathBuf,
+    },
+    /// Attach immutable Packages/native evidence from a JSON binding manifest.
+    Evidence {
+        workspace: PathBuf,
+        name: String,
+        bindings: PathBuf,
     },
     /// List retained snapshots and extraction/decode coverage.
     Snapshots { workspace: PathBuf },
@@ -184,6 +190,16 @@ impl Script {
                 name,
                 manifest,
             } => return captured(&corpus::import(&workspace, &name, &manifest)?),
+            Self::Evidence {
+                workspace,
+                name,
+                bindings,
+            } => {
+                let evidence = evidence::import(&workspace, &name, &bindings)?;
+                return print_json(&json!({"snapshot": evidence.snapshot,
+                    "properties": evidence.properties.len(), "native": evidence.native.len(),
+                    "packages_sha256": evidence.packages_sha256}));
+            }
             Self::Snapshots { workspace } => return print_json(&corpus::list(&workspace)?),
             Self::Coverage {
                 workspace,
@@ -240,7 +256,7 @@ impl Script {
                     .map(tracking::Manifest::load)
                     .transpose()?
                     .unwrap_or_else(tracking::Manifest::builtin);
-                let report = tracking::compare(&pair.workspace, &before, &after, &manifest);
+                let report = tracking::compare(&pair.workspace, &before, &after, &manifest)?;
                 print_json(&report)?;
                 if check
                     && (report.features.values().any(|f| f.review_required)

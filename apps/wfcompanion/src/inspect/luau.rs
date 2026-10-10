@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 mod analysis;
 pub mod corpus;
+pub mod evidence;
 pub mod infer;
 pub mod profile;
 pub mod tracking;

@@ -26,6 +26,36 @@ including their inventory sync ID, directly from the running game.
 without launching Warframe. The live probe checks each domain separately.
 `--list` lists historical layouts retained for old capture replay.
 
+## Native Weapon Equipment
+
+Inspect an explicit native weapon instance from the current process or a saved
+capture. This reads the weapon's attached upgrades, not cached account inventory.
+
+```bash
+wfinspect game equipment --weapon 0x123400 --pid 12345
+wfinspect game equipment --weapon 0x123400 --capture research/equipment
+```
+
+Replace the example address with a weapon instance verified in that session.
+Omitting `--pid` discovers the running game, not the local player's weapon.
+Addresses become invalid when objects are replaced or the game restarts.
+
+Output includes native asset paths, object/holder addresses and discovered
+bindings. Attached upgrades can include holster customizations and generated
+SubMods; they are not all installed cards. `raw_rank` is unavailable: reference
+counters are not mod ranks.
+
+The reader discovers virtual slots from the named native caller and decodes the
+selected weapon's accessors. It validates weapon ancestry, executable identity,
+code, pointers and vector bounds, with at most 128 attachments and 32 ancestry
+links. Identity, vector contents and header are reread; this is not atomic.
+Changed or unsupported layouts fail without guessed offsets.
+
+Capture replay requires the matching executable at its recorded path and all
+referenced object, vtable, accessor-code, descriptor and string pages. A root-only
+memory capture may omit these; missing evidence produces an error, not an empty
+equipment list.
+
 ## Memory and UI
 
 Memory queries discover the running Warframe process by default. Add
@@ -64,6 +94,41 @@ Supplying search terms selects a broader heap/text graph capture; this is also t
 fallback when typed discovery fails. Graph captures can omit deeper objects.
 `ui movies` recomputes discovery from available bytes; `ui replay` also includes
 the recorded acquisition snapshot for comparison.
+
+## Memory Recording
+
+```bash
+wfinspect game memory watch research/fields.jsonl --range 0x123000:64 --seconds 60
+wfinspect game memory replay research/fields.jsonl
+wfinspect game memory replay research/fields.jsonl --sample 20
+```
+
+Watch explicit ranges without rescanning the process. Files contain timestamped
+byte changes, read errors and a final summary. Replay selects the last retained
+sample at or before the requested poll index. Reads across ranges are not atomic;
+changes between polls can be missed.
+
+## Combat Recording
+
+```bash
+wfinspect game combat probe
+wfinspect game combat watch research/combat.jsonl --seconds 180
+wfinspect game combat replay research/combat.jsonl
+wfinspect game combat replay research/combat.jsonl --events
+```
+
+Combat recording requires a supported executable, an active mission HUD and
+modern damage numbers. Enter a mission or Simulacrum before starting it.
+Discovery runs once; `--owner ADDRESS` bypasses scanning, while `--scope`,
+`--range` and `--max-bytes` constrain it. Wait for `READY` before the experiment.
+Raw display records preserve amounts, critical tiers and glyph tokens. Replay
+uses the same decoder and reports detected gaps, revisions and unsettled records.
+These are HUD observations, not lossless damage packets or verified target IDs.
+
+Both recorders default to 50 ms sampling and a 64 MiB file limit. Adjust with
+`--interval-ms` and `--record-bytes`; duration is capped at 30 minutes. Files are
+private and never overwritten. Ctrl+C leaves retained records readable, but an
+interrupted recording has no final summary and replay reports it as incomplete.
 
 ## Resources and Scripts
 
@@ -135,15 +200,49 @@ wfinspect game script features > features.json
 wfinspect game script profiles BUILD > profile.json
 ```
 
-`compare --features FILE` selects a feature manifest. Script dependencies include
-possible literal module references, not a complete dynamic call graph. Native
-behavior and external data remain explicit coverage gaps, not proven unchanged.
+`compare --features FILE` selects a feature manifest. `depends_on` links shared
+mechanics; their review requirements propagate to dependents. Script dependencies
+include possible literal module references, not a complete dynamic call graph.
 Profiles can supply atom names in `symbols` (decimal hash keys); raw IDs remain
 in `info` and comparison. `script import` accepts `{ "profile": {...}, "scripts":
 { "/resource.lua": "bytecode-file" } }`; file paths are relative to the manifest.
 `coverage` indexes opcode/atom usage and incomplete prototypes, with example
 resource paths. Opcode counts stop at unknown boundaries; AUX bytes are not
 guessed to be instructions.
+
+### Property And Native Evidence
+
+Attach retained property and [Ghidra](../tools/wfinspect-ghidra/README.md) reports
+to each snapshot with `wfinspect game script evidence WORKSPACE NAME bindings.json`:
+
+```json
+{
+  "schema": 1,
+  "executable_sha256": "<snapshot executable SHA-256>",
+  "packages": "Packages.bin.raw",
+  "properties": ["properties.json"],
+  "native": {"upgrade.accumulator": {"report": "functions.json", "query": 0}}
+}
+```
+
+Paths are relative to the bindings file. Property reports use version `46`,
+`stats.aligned`, `packages_sha256`, `decoder_sha256`, `requested`, `duplicate_paths`
+and `types` keyed by resource path. Each type retains `parent` and `ownText`, or
+`missing: true`. Supply freshly extracted Packages data from the same game build.
+Import checks its hash, native executable identity and extraction completeness;
+retained evidence is immutable. Truncated native queries are rejected.
+
+Feature `properties` entries select exact roots or captured paths under a trailing
+`/` prefix. Comparison includes parent records and candidate `Script=` references.
+New fields remain part of the fingerprint. Missing records, changed decoders and
+dependency cycles cannot pass as unchanged. Prefixes cover captured records, not
+the entire catalog; other resource references require explicit roots.
+
+Native fingerprints retain instruction addresses and operands. Matching bodies
+across executable updates still require review of globals, callees and dispatch.
+Reports detect drift; they do not certify semantic equivalence or update formulas.
+`changed` distinguishes observed drift from existing coverage gaps;
+`review_required` includes both. Keep unresolved coverage in the feature's `data` list.
 
 ## Runtime Evidence
 

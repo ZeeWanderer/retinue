@@ -1,6 +1,172 @@
 {
   "schema": 1,
   "features": {
+    "calculator.warframe.core": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Interface/Components/StatCompare.lua"],
+      "properties": [
+        "/Lotus/Types/Game/PowerSuits/PlayerPowerSuit",
+        "/Lotus/Types/Player/TennoMainMenuDamageController",
+        "/Lotus/Powersuits/Cowgirl/Cowgirl", "/Lotus/Powersuits/Cowgirl/MesaPrime",
+        "/Lotus/Powersuits/AntiMatter/Anti", "/Lotus/Powersuits/AntiMatter/NovaPrime",
+        "/Lotus/Powersuits/Excalibur/Excalibur"
+      ],
+      "data": ["PublicExport unranked properties; native controller getters, rank installation and overshield cap dispatch"]
+    },
+    "calculator.molecular-prime": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Powersuits/AntiMatter/Abilities/MolecularPrime.lua"],
+      "properties": ["/Lotus/Powersuits/AntiMatter/Abilities/MolecularPrimeAbility"],
+      "data": ["PvE cast preview only; target resistance, detonations and augments require review"]
+    },
+    "calculator.direct-fire": {
+      "depends_on": [
+        "calculator.direct-fire.core", "calculator.mesa", "calculator.topaz",
+        "calculator.combo", "calculator.secondary-outburst", "calculator.primary-crux",
+        "calculator.evolutions", "calculator.nourish"
+      ]
+    },
+    "calculator.direct-fire.core": {
+      "depends_on": ["calculator.upgrades", "calculator.elements", "calculator.armor", "calculator.timing",
+                     "calculator.status-chance", "calculator.health-packet"],
+      "scripts": ["/Lotus/Scripts/Libs/WeaponStatsLib.lua", "/Lotus/Interface/Components/StatsUtil.lua"],
+      "properties": [
+        "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol",
+        "/Lotus/Weapons/Tenno/Pistol/RevolverPistol",
+        "/Lotus/Weapons/Tenno/Pistols/PrimeVasto/AkPrimeVasto/AkPrimeVastoPistol",
+        "/Lotus/Weapons/Tenno/Rifle/Rifle", "/Lotus/Weapons/Tenno/Rifle/BratonPrime",
+        "/Lotus/Weapons/Grineer/LongGuns/GrineerM16Homage/GrineerM16Rifle",
+        "/Lotus/Weapons/Tenno/Shotgun/QuadShotgun", "/Lotus/Weapons/Tenno/Shotgun/FullAutoShotgun",
+        "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar"
+      ],
+      "data": ["PublicExport attack data; non-parent resource references and native defaults"]
+    },
+    "calculator.health-packet": {
+      "depends_on": ["calculator.upgrades", "calculator.elements", "calculator.armor"],
+      "native": ["damage.packet-init", "damage.channel-rescale", "damage.hit-normalization",
+                 "damage.critical-factor", "damage.health-channels", "damage.health-conversion"],
+      "data": ["Normal physical source weights and export correspondence; ordinary body-hit eligibility",
+               "Critical RNG globals and contextual extra-tier dispatch; multi-projectile packet grouping"]
+    },
+    "calculator.contact-packet": {
+      "depends_on": ["calculator.upgrades"],
+      "native": ["damage.packet-init", "damage.hit-proxy-selection", "damage.hit-proxy-region",
+                 "damage.contact-controller", "damage.hit-proxy-dispatch", "damage.hit-proxy-modifiers",
+                 "damage.headshot-world", "damage.headshot-rules", "damage.headshot-mode",
+                 "damage.source-weapon", "damage.impact-behavior", "damage.ignore-headshot",
+                 "damage.deferred-scalar", "damage.critical-factor", "damage.weakpoint-predicate",
+                 "damage.weapon-upgrades", "upgrade.manager", "upgrade.bucket-filter",
+                 "upgrade.damage-type-filter", "upgrade.deferred-mode", "upgrade.type-identities",
+                 "damage.critical-context", "damage.critical-source", "upgrade.weapon-scalar",
+                 "upgrade.weapon-presence", "upgrade.critical-mode",
+                 "damage.forced-proc-counter", "damage.packet-origin", "upgrade.weapon-integer",
+                 "damage.critical-source-handle", "damage.critical-source-policy",
+                 "damage.player-reference-valid", "reference.nonnull"],
+      "properties": [
+        "/Lotus/Upgrades/Mods/Sets/Vigilante/VigilanteSetMod",
+        "/Lotus/Upgrades/Mods/Sets/Hunter/PrimaryHunterMunitionsMod",
+        "/Lotus/Upgrades/Mods/Sets/Hunter/CompanionHunterSynergyMod",
+        "/Lotus/Upgrades/Mods/Sentinel/Kubrow/BeastWeapon/BeastCullTheWeakMod",
+        "/Lotus/Upgrades/Evolutions/Pistol/EvoPistolDamageOnNonCritHits",
+        "/Lotus/Upgrades/Evolutions/Rifle/EvoRifleDamageOnNonCritHits",
+        "/Lotus/Upgrades/Evolutions/Shotgun/EvoShotgunDamageOnNonCritHits",
+        "/Lotus/Upgrades/Evolutions/Rifle/EvoRifleCritDamageLowProcs"
+      ],
+      "data": ["Selected hit-proxy resource ancestry, layout, modifiers and hit-type policy",
+               "Runtime head factor and scalar settling mode; owner, world, rules and impact virtual dispatch",
+               "Weakpoint target/weapon manager identity, owner posture, live entries, filters and scale policy",
+               "Subentity overrides, channel conversion and proc flags",
+               "Critical modifier activation, companion crit-link/per-proc inputs and origin inventory side payload",
+               "Source role/player bindings and virtual dispatch, weapon upgrade activation and runtime RNG stream state"]
+    },
+    "calculator.cats-eye": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Types/Friendly/Pets/CatbrowPetBehaviors/CatbrowCatsEyeAbility.lua"],
+      "properties": ["/Lotus/Types/Friendly/Pets/CatbrowPetPrecepts/CatbrowCatsEyePrecept"],
+      "data": ["Script rank binding, tagged upgrade API, eligible owner/ally weapon types, range and uptime"]
+    },
+    "calculator.tenacious-bond": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Types/Sentinels/SentinelAbilities/TenaciousPartner.lua"],
+      "properties": [
+        "/Lotus/Types/Sentinels/SentinelPrecepts/VoidBond/TenaciousPartner",
+        "/Lotus/Types/Sentinels/SentinelPrecepts/VoidBond/TenaciousPartnerHeadshotSubmod",
+        "/Lotus/Types/Friendly/Pets/BeastWeapons/AdarzaPetWeapon",
+        "/Lotus/Upgrades/Mods/Sentinel/Kubrow/KubrowCritMod"
+      ],
+      "data": ["Script rank binding, equipped pet/weapon identity, native critical getter, linked weapon and life-state gates"]
+    },
+    "calculator.upgrades": {
+      "native": ["upgrade.accumulator", "upgrade.finalizer", "upgrade.rank"],
+      "properties": ["/Lotus/Types/Game/LotusArtifactUpgrade", "/Lotus/Upgrades/Mods/",
+                     "/Lotus/Upgrades/CosmeticEnhancers/"],
+      "data": ["Sampled upgrade definitions; event predicates and resource-reference closure"]
+    },
+    "calculator.elements": {
+      "depends_on": ["calculator.upgrades"],
+      "native": ["damage.channel-mixer", "damage.element-pairs"]
+    },
+    "calculator.armor": {
+      "native": ["damage.armor"],
+      "data": ["NPC armor native defaults and target dispatch"]
+    },
+    "calculator.timing": {
+      "depends_on": ["calculator.upgrades"],
+      "native": ["weapon.fire-rate", "weapon.reload"],
+      "data": ["Normal hitscan state scheduling and ammunition consumption"]
+    },
+    "calculator.status-chance": {
+      "depends_on": ["calculator.upgrades"],
+      "native": ["weapon.status-per-pellet", "weapon.base-fire-iterations", "weapon.impact-packet"],
+      "data": ["Native per-pellet conversion flag; PublicExport uses per-pellet status units"]
+    },
+    "calculator.mesa": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Powersuits/Cowgirl/CowgirlPassive.lua"],
+      "properties": ["/Lotus/Powersuits/Cowgirl/MesaPrime", "/Lotus/Powersuits/Cowgirl/Cowgirl"]
+    },
+    "calculator.topaz": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Scripts/Mods/UpgradeMaxCritOnKill.lua"],
+      "properties": [
+        "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWeaponCritBoostFromHeat",
+        "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/ArchonCrystalUpgradeWeaponCritBoostFromHeatMythic",
+        "/Lotus/Upgrades/Invigorations/ArchonCrystalUpgrades/On5HeatKillCondition"
+      ]
+    },
+    "calculator.combo": {
+      "depends_on": ["calculator.upgrades"],
+      "native": ["melee.combo"],
+      "scripts": ["/Lotus/Upgrades/CosmeticEnhancers/Offensive/PermaComboUpgrade.lua"],
+      "properties": ["/Lotus/Weapons/Tenno/Melee/Dagger/CeramicDagger",
+                     "/Lotus/Upgrades/CosmeticEnhancers/Offensive/PermaComboOnFinisher"]
+    },
+    "calculator.secondary-outburst": {
+      "depends_on": ["calculator.combo"],
+      "scripts": ["/Lotus/Upgrades/CosmeticEnhancers/Offensive/MultishotForCombo.lua"],
+      "properties": ["/Lotus/Upgrades/CosmeticEnhancers/Offensive/MultishotForCombo"]
+    },
+    "calculator.primary-crux": {
+      "depends_on": ["calculator.upgrades", "calculator.timing"],
+      "scripts": ["/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit.lua"],
+      "properties": ["/Lotus/Upgrades/CosmeticEnhancers/Offensive/StatusAndAmmoEfficiencyOnWeakpointHit"]
+    },
+    "calculator.nourish": {
+      "depends_on": ["calculator.upgrades", "calculator.elements"],
+      "scripts": ["/Lotus/Powersuits/Devourer/Abilities/DevourerConsume.lua"],
+      "properties": ["/Lotus/Powersuits/Devourer/Abilities/DevourerConsumeAbility"],
+      "data": ["Ability rank below max equipment rank; retaliation, energy and target eligibility outside reviewed weapons"]
+    },
+    "calculator.evolutions": {
+      "depends_on": ["calculator.upgrades"],
+      "scripts": ["/Lotus/Interface/Components/EvolutionList.lua", "/Lotus/Scripts/Mods/UnlockAltFire.lua"],
+      "properties": [
+        "/Lotus/Weapons/Tenno/Pistol/VastoIncarnonEvolutions/",
+        "/Lotus/Weapons/Tenno/Shotgun/BoarIncarnonEvolutions/",
+        "/Lotus/Weapons/Tenno/Melee/Dagger/CeramicDaggerIncarnonEvolutions/"
+      ],
+      "data": ["Sampled evolution definitions; non-parent resource references"]
+    },
     "archimedea.weekly-loadout": {
       "scripts": [
         "/Lotus/Interface/Libs/DeepArchimedeaMissionGenerator.lua",
