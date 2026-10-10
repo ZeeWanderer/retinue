@@ -111,7 +111,8 @@ colorize_dt_tags(Str, Acc) ->
                     Color = dt_color_code(Tag),
                     Colored = case Color of
                         "" -> Word;
-                        _ -> Color ++ Word ++ binary_to_list(io_ansi:reset())
+                        % Reset styling only; io_ansi:reset/0 also resets the character set.
+                        _ -> Color ++ Word ++ "\e[0m"
                     end,
                     colorize_dt_tags(Tail, [Colored, Prefix | Acc])
             end

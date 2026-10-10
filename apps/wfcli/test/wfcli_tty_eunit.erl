@@ -38,6 +38,16 @@ colorize_dt_tags_semicolon_test() ->
     Output = wfcli_tty:colorize_dt_tags("+15% <DT_POISON_COLOR>Toxin;"),
     ?assert(re:run(Output, "Toxin\\x1b\\[0m;", []) =/= nomatch).
 
+colorize_dt_tags_table_width_test() ->
+    Plain = "+15% Toxin; +30% Toxin",
+    Output = wfcli_tty:colorize_dt_tags(
+      "+15% <DT_POISON_COLOR>Toxin; +30% <DT_POISON_COLOR>Toxin"),
+    Width = wfcli_tty:display_width(Plain),
+    [Line] = wfcli_table_text:wrap_cell(Output, Width, true),
+    ?assertEqual(Plain, wfcli_tty:strip_ansi(Line)),
+    ?assertEqual(Width, wfcli_tty:display_width(Line)),
+    ?assertEqual(2, length(binary:matches(list_to_binary(Output), <<"\e[0m">>))).
+
 colorize_special_tags_test() ->
     Output = wfcli_tty:colorize_dt_tags("Adds <LOWER_IS_BETTER>6 <ENERGY>"),
     ?assert(string:find(Output, "(lower is better) 6 Energy") =/= nomatch).
