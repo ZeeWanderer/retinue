@@ -3,7 +3,7 @@
 %%%-------------------------------------------------------------------
 -module(wfcli_exports).
 
--export([load_mods/1, load_items/2, mod_source/1, item_sources/2,
+-export([load_mods/1, load_items/2, load_raw_items/2, mod_source/1, item_sources/2,
          default_item_exports/0]).
 -import(wfcli_text, [to_list/1]).
 
@@ -21,6 +21,15 @@ load_mods(ExportsDir) ->
 load_items(ExportsDir, Files0) ->
     Sources = item_sources(ExportsDir, Files0),
     load_item_sources(Sources, []).
+
+-spec load_raw_items(file:filename_all() | undefined, string()) ->
+    {ok, [map()]} | {error, term()}.
+load_raw_items(ExportsDir, File) ->
+    Path = export_path(File, ExportsDir),
+    case read_json(Path) of
+        {ok, Map} -> {ok, export_list(Map, export_list_key(File))};
+        {error, Reason} -> {error, {export_unavailable, File, Path, Reason}}
+    end.
 
 -doc "Resolve mod export source path for daemon cache signatures.".
 -spec mod_source(file:filename_all() | undefined) -> file:filename_all().

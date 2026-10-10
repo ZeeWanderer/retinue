@@ -128,6 +128,48 @@ Physical targets are resolved from current player equipment when read or planned
 by group revision, target fingerprint, and source catalog identity; completion rechecks all three.
 Missing targets retain their groups but require retargeting before calculation.
 
+Build-stat requests share the monitored build worker pool but neither depend on Overframe nor
+cache mutable player results. `wfcli_stat_buildset` resolves slot-keyed owned selectors or inline
+normalized builds. `wfcli_stat_profiles` validates reviewed attacks against PublicExport;
+`wfcli_stat_rules` and `wfcli_stat_upgrades` describe reviewed mechanics and ranged mods.
+`wfcli_stat_effects` compiles source/target-filtered contributions and their dependencies.
+`wfcli_stat_math` evaluates numeric
+stages; `wfcli_build_stats` coordinates inputs and reports coverage. CLI and native clients use
+the `build_stats` interface. Clients never interpret raw game slot order or apply combat formulas.
+`scalar/2` evaluates an ordered upgrade bucket, stopping at its first `SET`.
+`scalar_updates/2` applies successive accumulator writes; later `SET` writes replace earlier ones.
+Its `settle` marker evaluates and resets accumulator state at a native stage boundary;
+do not collapse intermediate modifiers to floats before that boundary.
+Keep traversal policy separate from arithmetic when composing hit-proxy or packet stages.
+
+A buildset can contain one item or the equipment for every slot. Ownership is optional for inline
+builds; a target selects the evaluated item. Effects retain source identity, target scope and
+activation conditions. Inactive, explicit and lower/upper states use the same evaluator. Unknown
+contextual effects are coverage gaps, not assumed absent. Held-state bounds do not establish
+combat uptime or prove that all maxima coexist.
+Attack profiles require native evidence; a trigger label alone does not establish hitscan or
+reload behavior. PublicExport damage is per projectile; apply multishot once. Respect upgrade
+family and class filters, including nested conditional entries. Only primary elements pair;
+compound-element mods retain their own channels.
+Ability buffs evaluate after their source strength/duration modifiers and declare those
+dependencies. Unknown ability ranks are coverage gaps, not implicit max-rank defaults.
+Frame properties use their own profile and stat output; ability results carry units and
+variants, not a universal damage scalar. Reuse shared operators and declarative rule data.
+Add a mechanic adapter only for distinct script/native behavior, not for another item
+using the same operations. Active abilities come from PublicExport; a Helminth override
+replaces its native slot. Never infer all ability values scale linearly with strength.
+New conditional rules must define valid endpoints; conflicting or non-monotonic effects cannot
+use simultaneous caps as an automatic damage maximum.
+
+New effects require source evidence, rank/activation rules and deterministic tests. Unknown
+inputs remain visible as incomplete coverage; missing base stats are errors. Preserve rule and
+game fingerprints, and declare research dependencies in the wfinspect feature manifest. Matching
+fingerprints do not establish live damage parity.
+Rules expose their mechanic ID in result provenance. Shared operations belong in shared mechanic
+dependencies; retain property inheritance and unresolved resource references in update reviews.
+The daemon never runs extractors or Ghidra during a calculation. Research tools detect drift;
+reviewed code implements the formulas.
+
 The daemon supplies executable operations and complete normalized loadouts, including final
 slots, polarities and drain. Clients use the shared topology renderer, without source-specific
 repairs. `forma_cost` is the weighted search objective; `forma_count` and `forma_requirements`

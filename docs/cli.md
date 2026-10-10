@@ -44,6 +44,7 @@ Advanced operations have dedicated guides:
 
 - [`query` and `watch`](query.md): cross-dataset expressions and subscriptions
 - [`forma-plan` and `visualize`](forma-plan.md): polarity planning
+- [`build-stats`](build-stats.md): experimental direct-fire estimates
 - [`daemon`](daemon.md): service lifecycle and updates
 - [`companion`](companion.md): game observer and overlay control
 - [`mcp`](mcp.md): structured stdio integration

@@ -5,7 +5,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, submit/2, status/0, revision/2, revision/3,
+-export([start_link/0, submit/2, submit_cli/2, status/0, revision/2, revision/3,
          groups/0, group/1, create_group/2, update_group/4, delete_group/2,
          add_source_member/5, add_config_member/5, remove_member/3,
          plan_group/3,
@@ -27,6 +27,10 @@ start_link() ->
 -spec submit(pid(), map()) -> {ok, reference()} | {error, term()}.
 submit(Client, Request) when is_pid(Client), is_map(Request) ->
     gen_server:call(?SERVER, {submit, Client, Request}).
+
+-spec submit_cli(pid(), map()) -> {ok, reference()} | {error, term()}.
+submit_cli(Client, Request) when is_pid(Client), is_map(Request) ->
+    gen_server:call(?SERVER, {submit_cli, Client, Request}).
 
 -doc "Return build worker, cache, and repository state.".
 -spec status() -> map().
@@ -116,16 +120,18 @@ init([]) ->
            plan_jobs => #{}, plan_keys => #{}, forma_owner => undefined,
            worker_limit => worker_limit()}}.
 
-handle_call({submit, Client, Request0}, _From, State) ->
+handle_call({Kind, Client, Request0}, _From, State)
+  when Kind =:= submit; Kind =:= submit_cli ->
+    Tag = case Kind of submit -> wfcli_build; submit_cli -> wfcli_daemon end,
     case normalize_request(Request0) of
         {ok, Request} ->
             Ref = make_ref(),
             case cached_reply(Request, State) of
                 {ok, Reply} ->
-                    Client ! {wfcli_build, Ref, {ok, Reply}},
+                    Client ! {Tag, Ref, {ok, Reply}},
                     {reply, {ok, Ref}, State};
                 miss ->
-                    {reply, {ok, Ref}, add_request(Client, Ref, Request, State)}
+                    {reply, {ok, Ref}, add_request(Client, Ref, Tag, Request, State)}
             end;
         {error, _Reason} = Error -> {reply, Error, State}
     end;
@@ -360,6 +366,11 @@ migrate_state(State, LoadError) ->
                 catalog_refresh => maps:get(catalog_refresh, State, undefined),
                 worker_limit => maps:get(worker_limit, State, worker_limit())}}.
 
+normalize_request(#{source := build_stats, options := Options}) ->
+    case wfcli_build_stats:validate(Options) of
+        ok -> {ok, #{source => build_stats, action => stats, options => Options}};
+        Error -> Error
+    end;
 normalize_request(#{source := overframe, action := search} = Request) ->
     Query = maps:get(query, Request, <<>>),
     Class = maps:get(class, Request, <<"all">>),
@@ -378,10 +389,10 @@ normalize_request(#{source := overframe, action := detail} = Request) ->
     {ok, maps:with([source, action, id, refresh], Request)};
 normalize_request(_Request) -> {error, unsupported_build_request}.
 
-add_request(Client, Ref, Request, State) ->
+add_request(Client, Ref, Tag, Request, State) ->
     Key = request_key(Request),
     Monitor = erlang:monitor(process, Client),
-    Waiter = #{client => Client, monitor => Monitor},
+    Waiter = #{client => Client, monitor => Monitor, reply_tag => Tag},
     ClientMonitors = maps:get(client_monitors, State),
     State1 = State#{client_monitors =>
                         ClientMonitors#{Monitor => {Key, Ref}}},
@@ -391,8 +402,10 @@ add_request(Client, Ref, Request, State) ->
             put_pending(Key, Pending#{waiters => Waiters#{Ref => Waiter}}, State1);
         undefined ->
             Pending0 = #{request => Request, waiters => #{Ref => Waiter}},
-            case catalog(State1) of
-                undefined ->
+            case {maps:get(action, Request), catalog(State1)} of
+                {stats, _} ->
+                    enqueue(Key, put_pending(Key, Pending0#{phase => queued}, State1));
+                {_, undefined} ->
                     State2 = put_pending(Key, Pending0#{phase => blocked}, State1),
                     ensure_catalog_refresh(State2);
                 _Catalog ->
@@ -440,6 +453,8 @@ schedule(Slots, State) ->
             end
     end.
 
+run_request(#{action := stats, options := Options} = Request, _Catalog) ->
+    source_call(Request, undefined, fun() -> wfcli_build_stats:run(Options) end);
 run_request(#{action := search, query := Query, class := Class, limit := Limit},
             Catalog) ->
     source_call(#{action => search, query => Query, class => Class, limit => Limit},
@@ -465,8 +480,8 @@ complete_request(Key, Reply0, State) ->
             {Reply, State1} = retain_reply(maps:get(request, Pending), Reply0,
                                            State#{pending => PendingMap}),
             maps:foreach(
-              fun(Ref, #{client := Client, monitor := Monitor}) ->
-                  Client ! {wfcli_build, Ref, Reply},
+              fun(Ref, #{client := Client, monitor := Monitor} = Waiter) ->
+                  Client ! {maps:get(reply_tag, Waiter, wfcli_build), Ref, Reply},
                   erlang:demonitor(Monitor, [flush])
               end, maps:get(waiters, Pending)),
             ClientMonitors = lists:foldl(
@@ -476,6 +491,7 @@ complete_request(Key, Reply0, State) ->
             State1#{client_monitors => ClientMonitors}
     end.
 
+retain_reply(#{action := stats}, Reply, State) -> {Reply, State};
 retain_reply(Request = #{action := detail}, {ok, Revision}, State) ->
     Store0 = maps:get(store, State),
     Identity = maps:get(<<"identity">>, Revision),
@@ -506,6 +522,7 @@ public_revision(Revision, Store) ->
     end,
     maps:remove(<<"raw">>, Presented).
 
+cached_reply(#{action := stats}, _State) -> miss;
 cached_reply(Request, State) ->
     case maps:get(refresh, Request, false) of
         true -> miss;
@@ -532,6 +549,7 @@ cache_ttl(#{action := detail}) -> 900000.
 request_key(#{source := overframe} = Request) ->
     {overframe, wfcli_overframe_source:module_info(md5),
      maps:remove(refresh, Request)};
+request_key(#{action := stats}) -> make_ref();
 request_key(Request) -> maps:remove(refresh, Request).
 
 ensure_catalog_refresh(State = #{catalog_refresh := Refresh})

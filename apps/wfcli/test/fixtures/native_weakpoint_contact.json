@@ -1,0 +1,3451 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "scope": "Native weakpoint scalar constructor, target then weapon upgrade managers, bonus addition and proxy/head stages; declared eligibility, ownerless managers, filtered entries, optional manager scaling. No runtime resource routing, critical selection, defenses, live reads or writes.",
+  "evidence_sha256": {
+    "check-weakpoint-upgrades.py": "ce199490e2c8ac59c19bc849a97e78b77de99073bf7fed060518a2a0c80cf8ed",
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "hit-proxy-controller-body-match.json": "a11f359c133364633335832d948d8fdcea2d73d86db028dd1fb623be55c5705d",
+    "hit-proxy-dispatch-body-match.json": "7cc3231616c257ce31dea4b8255a496d12f0df2dceca0bb074ba2f8d44bbc3a8",
+    "hit-proxy-modifier-body-match.json": "dd71498f18b2c81ca0c436c81669444a0d7c475848cb25201c22e095236c9f30",
+    "headshot-ignore-body-match.json": "d8dbedbb60757c0198d01395e40dc8d42a71fef22f37eb665229ba1885b9d5c4",
+    "accumulator-settle-caller-match.json": "45c88793f0e1cd0e45e69a62799bb8eeacde4a86d665b31b28c07207a1e4d538",
+    "weakpoint-manager-body-match.json": "796308b1940e66ecf1c40f6ce6319935f3eeb7528b12af6daf94394cd4a16945",
+    "weakpoint-bucket-body-match.json": "99cc60cc4930254f6ed6978bce2fb9d872b0fd4e9a4630019a521c77e35d87d3",
+    "weakpoint-damage-filter-match.json": "44338522140ee760a9ae84a9a7a9e4c77bfdac04bdce6c6810bd6a7135fa11f7",
+    "native-weakpoint-upgrades-first.json": "41c7002ad68a22ddf517c0dd262369f26eb6f774819f771bc999008effb529b6"
+  },
+  "packet": {
+    "scalar": 29,
+    "critical_chance": 0.25,
+    "critical_multiplier": 2,
+    "status_chance": 0.5,
+    "channels": [
+      [
+        "impact",
+        0.45
+      ],
+      [
+        "puncture",
+        0.3
+      ],
+      [
+        "slash",
+        0.25
+      ]
+    ]
+  },
+  "updates": [
+    [
+      "add",
+      0.17
+    ],
+    [
+      "add_base",
+      0.31
+    ],
+    [
+      "stacking_multiply",
+      0.15
+    ],
+    [
+      "multiply",
+      1.7
+    ]
+  ],
+  "proxy": {
+    "damage_multiplier": 2,
+    "hit_type_multiplier": 1,
+    "critical_chance_add": 0,
+    "critical_multiplier": 2,
+    "status_multiplier": 1,
+    "channel_add": {},
+    "channel_multiply": {}
+  },
+  "head_factor": 1.5,
+  "expected_fields": [
+    "scalar",
+    "critical_chance",
+    "critical_multiplier",
+    "status_chance"
+  ],
+  "profiles": {
+    "empty": {
+      "target": null,
+      "weapon": null
+    },
+    "target": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.25
+          ]
+        ]
+      },
+      "weapon": null
+    },
+    "weapon": {
+      "target": null,
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.5
+          ]
+        ]
+      }
+    },
+    "both": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.25
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.5
+          ]
+        ]
+      }
+    },
+    "negative": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            -0.8
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.2
+          ]
+        ]
+      }
+    },
+    "set_then_add": {
+      "target": {
+        "entries": [
+          [
+            "set",
+            0.5
+          ],
+          [
+            "add",
+            100.0
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.25
+          ]
+        ]
+      }
+    },
+    "add_then_set": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.25
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "set",
+            0.5
+          ],
+          [
+            "add",
+            100.0
+          ]
+        ]
+      }
+    },
+    "set_base": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.25
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "set_base",
+            0.5
+          ]
+        ]
+      }
+    },
+    "clamp": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.8
+          ],
+          [
+            "set_max",
+            0.4
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.3
+          ]
+        ]
+      }
+    },
+    "minimum": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            -0.8
+          ],
+          [
+            "set_min",
+            -0.3
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.2
+          ]
+        ]
+      }
+    },
+    "scaled": {
+      "target": {
+        "entries": [
+          [
+            "add",
+            0.17
+          ],
+          [
+            "multiply",
+            1.7
+          ]
+        ],
+        "scale": 0.6
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add_base",
+            0.31
+          ],
+          [
+            "stacking_multiply",
+            0.15
+          ]
+        ],
+        "scale": 1.3
+      }
+    },
+    "filtered_scaled": {
+      "target": {
+        "entries": [
+          [
+            "set",
+            0.5
+          ]
+        ]
+      },
+      "weapon": {
+        "entries": [],
+        "scale": 1.5
+      }
+    },
+    "filtered_empty": {
+      "target": {
+        "entries": []
+      },
+      "weapon": {
+        "entries": [
+          [
+            "add",
+            0.5
+          ]
+        ]
+      }
+    }
+  },
+  "contexts": {
+    "body_weakpoint": {
+      "head": false,
+      "suppressed": false,
+      "enabled": true,
+      "treat_head_as_normal": false
+    },
+    "head": {
+      "head": true,
+      "suppressed": false,
+      "enabled": true,
+      "treat_head_as_normal": false
+    },
+    "radial_head": {
+      "head": true,
+      "suppressed": true,
+      "enabled": true,
+      "treat_head_as_normal": false
+    },
+    "normal_radial_head": {
+      "head": true,
+      "suppressed": true,
+      "enabled": true,
+      "treat_head_as_normal": true
+    },
+    "disabled_proxy": {
+      "head": true,
+      "suppressed": false,
+      "enabled": false,
+      "treat_head_as_normal": false
+    }
+  },
+  "cases": [
+    {
+      "profile": "empty",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        87.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        43.5,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        97.875,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        54.375,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        119.625,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        76.125,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        87.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        43.5,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        119.625,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        76.125,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        78.30000305175781,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        117.45000457763672,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        78.30000305175781,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        73.95000457763672,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        63.80000305175781,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        95.70000457763672,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        63.80000305175781,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        52.20000457763672,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        78.95780944824219,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        118.43671417236328,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        78.95780944824219,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        74.93670654296875,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        119.625,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        76.125,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": false,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        172.77012634277344,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        86.38506317138672,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        123.64920806884766,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        185.47381591796875,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        123.64920806884766,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        99.0887451171875,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        198.177490234375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        111.79243469238281,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        210.88119506835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        124.49612426757812,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        172.77012634277344,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        86.38506317138672,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        210.88119506835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        124.49612426757812,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        198.177490234375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        111.79243469238281,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        198.177490234375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        111.79243469238281,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        138.89364624023438,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        208.34046936035156,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        138.89364624023438,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        121.95538330078125,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        121.95539093017578,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        182.93309020996094,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        121.95539093017578,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        96.54801177978516,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        139.66204833984375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        209.49307250976562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        139.66204833984375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        123.1080093383789,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        210.88119506835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        124.49612426757812,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        198.177490234375,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": false,
+      "expected": [
+        111.79243469238281,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        87.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        43.5,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        97.875,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        54.375,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        119.625,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        76.125,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        87.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        43.5,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        119.625,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        79.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        76.125,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        69.60000610351562,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        104.4000015258789,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        69.60000610351562,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        60.89999771118164,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        87.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        58.0,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        43.5,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        78.24603271484375,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        117.3690414428711,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        78.24603271484375,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        73.8690414428711,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "body_weakpoint",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        108.75,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        29.0,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "normal_radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        72.5,
+        0.25,
+        4.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "disabled_proxy",
+      "pending": false,
+      "deferred_scalar": true,
+      "expected": [
+        65.25,
+        0.25,
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        172.7701416015625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "empty",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        86.38507080078125,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        123.64920806884766,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        185.4738311767578,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        123.64920806884766,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "target",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        99.08875274658203,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        198.17750549316406,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "weapon",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        111.79244232177734,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        210.88119506835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "both",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        124.49612426757812,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        172.7701416015625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "negative",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        86.38507080078125,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        198.17750549316406,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_then_add",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        111.79244232177734,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        198.17750549316406,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "add_then_set",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        111.79244232177734,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        210.88119506835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        140.58746337890625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "set_base",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        124.49612426757812,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        128.73068237304688,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        193.09603881835938,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        128.73068237304688,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "clamp",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        106.7109603881836,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        172.7701416015625,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        115.18008422851562,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "minimum",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        86.38507080078125,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        138.83059692382812,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        208.2458953857422,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        138.83059692382812,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "scaled",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        121.8608169555664,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        198.17750549316406,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_scaled",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        111.79244232177734,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "body_weakpoint",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        198.17750549316406,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        57.59004211425781,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "normal_radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        132.1183319091797,
+        1.3838000297546387,
+        9.610099792480469,
+        0.5
+      ]
+    },
+    {
+      "profile": "filtered_empty",
+      "context": "disabled_proxy",
+      "pending": true,
+      "deferred_scalar": true,
+      "expected": [
+        111.79244232177734,
+        1.3838000297546387,
+        4.805049896240234,
+        0.5
+      ]
+    }
+  ]
+}

@@ -39,6 +39,7 @@ command() ->
 
 groups() ->
     [{"Tools", [{"forma-plan", wfcli_forma_plan:command()},
+                {"build-stats", wfcli_build_stats_cli:command()},
                 {"visualize", wfcli_visualize:command()},
                 {"notifications", wfcli_notification_cli:command()},
                 {"watch", wfcli_worldstate_cli:watch_command()}]},

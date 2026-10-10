@@ -1,0 +1,372 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "bindings_sha256": {
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "critical-factor-body-match.json": "69ad3d9ca9057112b42217f8b60e19e2a2ca27154e5ef8e53ca736aca13ab1eb"
+  },
+  "source": "Native critical factor helper with explicit existing tier",
+  "scope": "Declared multiplier/factor; zero chance and null source; no RNG selection or weakspot resolution",
+  "cases": [
+    {
+      "multiplier": 0.75,
+      "factor": 0.0,
+      "tier": 0,
+      "expected": 0.0
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 0.0,
+      "tier": 1,
+      "expected": -0.25
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 0.0,
+      "tier": 2,
+      "expected": -0.5
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 0.0,
+      "tier": 3,
+      "expected": -0.75
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 0.0,
+      "tier": 255,
+      "expected": -63.75
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 1.0,
+      "tier": 0,
+      "expected": 1.0
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 1.0,
+      "tier": 1,
+      "expected": 0.75
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 1.0,
+      "tier": 2,
+      "expected": 0.5
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 1.0,
+      "tier": 3,
+      "expected": 0.25
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 1.0,
+      "tier": 255,
+      "expected": -62.75
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 3.0,
+      "tier": 0,
+      "expected": 3.0
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 3.0,
+      "tier": 1,
+      "expected": 2.75
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 3.0,
+      "tier": 2,
+      "expected": 2.5
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 3.0,
+      "tier": 3,
+      "expected": 2.25
+    },
+    {
+      "multiplier": 0.75,
+      "factor": 3.0,
+      "tier": 255,
+      "expected": -60.75
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 0.0,
+      "tier": 0,
+      "expected": 0.0
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 0.0,
+      "tier": 1,
+      "expected": 0.5003664493560791
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 0.0,
+      "tier": 2,
+      "expected": 1.0007328987121582
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 0.0,
+      "tier": 3,
+      "expected": 1.5010993480682373
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 0.0,
+      "tier": 255,
+      "expected": 127.59344482421875
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 1.0,
+      "tier": 0,
+      "expected": 1.0
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 1.0,
+      "tier": 1,
+      "expected": 1.500366449356079
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 1.0,
+      "tier": 2,
+      "expected": 2.000732898712158
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 1.0,
+      "tier": 3,
+      "expected": 2.5010993480682373
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 1.0,
+      "tier": 255,
+      "expected": 128.59344482421875
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 3.0,
+      "tier": 0,
+      "expected": 3.0
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 3.0,
+      "tier": 1,
+      "expected": 3.500366449356079
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 3.0,
+      "tier": 2,
+      "expected": 4.000732898712158
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 3.0,
+      "tier": 3,
+      "expected": 4.501099586486816
+    },
+    {
+      "multiplier": 1.500366449356079,
+      "factor": 3.0,
+      "tier": 255,
+      "expected": 130.59344482421875
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 0.0,
+      "tier": 0,
+      "expected": 0.0
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 0.0,
+      "tier": 1,
+      "expected": 4.997558116912842
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 0.0,
+      "tier": 2,
+      "expected": 9.995116233825684
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 0.0,
+      "tier": 3,
+      "expected": 14.992673873901367
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 0.0,
+      "tier": 255,
+      "expected": 1274.3773193359375
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 1.0,
+      "tier": 0,
+      "expected": 1.0
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 1.0,
+      "tier": 1,
+      "expected": 5.997558116912842
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 1.0,
+      "tier": 2,
+      "expected": 10.995116233825684
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 1.0,
+      "tier": 3,
+      "expected": 15.992673873901367
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 1.0,
+      "tier": 255,
+      "expected": 1275.3773193359375
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 3.0,
+      "tier": 0,
+      "expected": 3.0
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 3.0,
+      "tier": 1,
+      "expected": 7.997558116912842
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 3.0,
+      "tier": 2,
+      "expected": 12.995116233825684
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 3.0,
+      "tier": 3,
+      "expected": 17.992673873901367
+    },
+    {
+      "multiplier": 5.997558116912842,
+      "factor": 3.0,
+      "tier": 255,
+      "expected": 1277.3773193359375
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 0.0,
+      "tier": 0,
+      "expected": 0.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 0.0,
+      "tier": 1,
+      "expected": 77.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 0.0,
+      "tier": 2,
+      "expected": 155.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 0.0,
+      "tier": 3,
+      "expected": 232.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 0.0,
+      "tier": 255,
+      "expected": 19762.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 1.0,
+      "tier": 0,
+      "expected": 1.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 1.0,
+      "tier": 1,
+      "expected": 78.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 1.0,
+      "tier": 2,
+      "expected": 156.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 1.0,
+      "tier": 3,
+      "expected": 233.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 1.0,
+      "tier": 255,
+      "expected": 19763.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 3.0,
+      "tier": 0,
+      "expected": 3.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 3.0,
+      "tier": 1,
+      "expected": 80.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 3.0,
+      "tier": 2,
+      "expected": 158.0
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 3.0,
+      "tier": 3,
+      "expected": 235.5
+    },
+    {
+      "multiplier": 78.5,
+      "factor": 3.0,
+      "tier": 255,
+      "expected": 19765.5
+    }
+  ]
+}

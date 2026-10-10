@@ -1,0 +1,367 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "bindings_sha256": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+  "source": "Native critical accumulator setter, packet normalization, scalar finalizer",
+  "scope": "Declared accumulators; offline non-FMA native path, no live calls",
+  "cases": [
+    {
+      "name": "-1.0",
+      "base": -1.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": -1.0
+    },
+    {
+      "name": "0.0",
+      "base": 0.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 0.0
+    },
+    {
+      "name": "1.0",
+      "base": 1.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 1.0
+    },
+    {
+      "name": "1.5",
+      "base": 1.5,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 1.5
+    },
+    {
+      "name": "2.0",
+      "base": 2.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 2.0
+    },
+    {
+      "name": "2.4",
+      "base": 2.4,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 2.4000000953674316
+    },
+    {
+      "name": "31.999",
+      "base": 31.999,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 31.999000549316406
+    },
+    {
+      "name": "32.0",
+      "base": 32.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 32.0
+    },
+    {
+      "name": "40.0",
+      "base": 40.0,
+      "entries": [],
+      "policy": "unquantized",
+      "expected": 40.0
+    },
+    {
+      "name": "flat_before_stack",
+      "base": 1.5,
+      "entries": [
+        [
+          "add_base",
+          0.73
+        ],
+        [
+          "stacking_multiply",
+          1.2
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 4.906000137329102
+    },
+    {
+      "name": "stack_after_quantization",
+      "base": 2.4,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 6.0
+    },
+    {
+      "name": "final_multiply",
+      "base": 2.4,
+      "entries": [
+        [
+          "add",
+          0.73
+        ],
+        [
+          "multiply",
+          1.2
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 3.756000280380249
+    },
+    {
+      "name": "override_base",
+      "base": 2.4,
+      "entries": [
+        [
+          "set_base",
+          1.23
+        ],
+        [
+          "add_base",
+          0.07
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 1.9500000476837158
+    },
+    {
+      "name": "set",
+      "base": 2.4,
+      "entries": [
+        [
+          "add_base",
+          0.73
+        ],
+        [
+          "set",
+          1.23
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 1.2300000190734863
+    },
+    {
+      "name": "minimum",
+      "base": 1.5,
+      "entries": [
+        [
+          "set_min",
+          2.1
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 2.0999999046325684
+    },
+    {
+      "name": "maximum",
+      "base": 2.4,
+      "entries": [
+        [
+          "set_max",
+          1.23
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 1.2300000190734863
+    },
+    {
+      "name": "large_bonus",
+      "base": 2.4,
+      "entries": [
+        [
+          "stacking_multiply",
+          20.0
+        ]
+      ],
+      "policy": "unquantized",
+      "expected": 50.400001525878906
+    },
+    {
+      "name": "-1.0",
+      "base": -1.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 0.0
+    },
+    {
+      "name": "0.0",
+      "base": 0.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 0.0
+    },
+    {
+      "name": "1.0",
+      "base": 1.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 1.0002442598342896
+    },
+    {
+      "name": "1.5",
+      "base": 1.5,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 1.500366449356079
+    },
+    {
+      "name": "2.0",
+      "base": 2.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 2.000488519668579
+    },
+    {
+      "name": "2.4",
+      "base": 2.4,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 2.3990232944488525
+    },
+    {
+      "name": "31.999",
+      "base": 31.999,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 32.0
+    },
+    {
+      "name": "32.0",
+      "base": 32.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 32.0
+    },
+    {
+      "name": "40.0",
+      "base": 40.0,
+      "entries": [],
+      "policy": "quantized",
+      "expected": 32.0
+    },
+    {
+      "name": "flat_before_stack",
+      "base": 1.5,
+      "entries": [
+        [
+          "add_base",
+          0.73
+        ],
+        [
+          "stacking_multiply",
+          1.2
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 4.899633884429932
+    },
+    {
+      "name": "stack_after_quantization",
+      "base": 2.4,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 5.997558116912842
+    },
+    {
+      "name": "final_multiply",
+      "base": 2.4,
+      "entries": [
+        [
+          "add",
+          0.73
+        ],
+        [
+          "multiply",
+          1.2
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 3.7548282146453857
+    },
+    {
+      "name": "override_base",
+      "base": 2.4,
+      "entries": [
+        [
+          "set_base",
+          1.23
+        ],
+        [
+          "add_base",
+          0.07
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 1.9457876682281494
+    },
+    {
+      "name": "set",
+      "base": 2.4,
+      "entries": [
+        [
+          "add_base",
+          0.73
+        ],
+        [
+          "set",
+          1.23
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 1.2300000190734863
+    },
+    {
+      "name": "minimum",
+      "base": 1.5,
+      "entries": [
+        [
+          "set_min",
+          2.1
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 2.0999999046325684
+    },
+    {
+      "name": "maximum",
+      "base": 2.4,
+      "entries": [
+        [
+          "set_max",
+          1.23
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 1.2300000190734863
+    },
+    {
+      "name": "large_bonus",
+      "base": 2.4,
+      "entries": [
+        [
+          "stacking_multiply",
+          20.0
+        ]
+      ],
+      "policy": "quantized",
+      "expected": 50.37948989868164
+    }
+  ]
+}

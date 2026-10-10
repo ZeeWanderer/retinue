@@ -11,6 +11,7 @@
            mods_query_range/1,
            mods_boolean_query/1,
          mods_effects_output/1,
+         mods_raw_fields/1,
          mods_colorization/1,
          mods_raw_table/1,
          mods_format_alias/1,
@@ -34,6 +35,7 @@ all() ->
        mods_query_range,
        mods_boolean_query,
      mods_effects_output,
+     mods_raw_fields,
      mods_colorization,
      mods_raw_table,
      mods_format_alias,
@@ -126,6 +128,20 @@ mods_effects_output(_Config) ->
     Output = wfcli_tty:strip_ansi(Output0),
     ?assert(re:run(Output, "\\+15%\\s*Toxin", []) =/= nomatch),
     ?assert(re:run(Output, "\\+30%\\s*Toxin", []) =/= nomatch).
+
+mods_raw_fields(_Config) ->
+    Dir = fixture_dir(),
+    {ok, Bin} = file:read_file(filename:join(Dir, "ExportUpgrades_en.json")),
+    Expected = maps:get(<<"ExportUpgrades">>, jsone:decode(Bin, [{object_format, map}])),
+    {ok, RawMods} = wfcli_exports:load_raw_items(Dir, "ExportUpgrades_en.json"),
+    ?assertEqual(Expected, RawMods),
+    [Raw] = [M || M <- RawMods, maps:get(<<"name">>, M) =:= <<"Venom Strike">>],
+    {ok, Mods} = wfcli_exports:load_mods(Dir),
+    [Mod] = [M || M <- Mods, maps:get(name, M) =:= "Venom Strike"],
+    ?assertEqual(maps:get(<<"levelStats">>, Raw), maps:get(levelStats, Mod)),
+    ?assertEqual(["+15% <DT_POISON_COLOR>Toxin", "+30% <DT_POISON_COLOR>Toxin"],
+                 maps:get(effects, Mod)),
+    ?assertEqual(["+30% <DT_POISON_COLOR>Toxin"], maps:get(max_stats, Mod)).
 
 mods_colorization(_Config) ->
     Dir = fixture_dir(),

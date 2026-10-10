@@ -1,0 +1,7227 @@
+{
+  "source": "Native critical wrapper after tier selection, with native forced-proc counter and integer getter",
+  "scope": "Resolved source upgrade values and target status presence; no origin inventory side payload",
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "replay_sha256": "dd23803b1c39bbbda5165f026153594cd5ea1e622a4caf815f5a714b084b2d43",
+  "cases": [
+    {
+      "name": "gates:0:False:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.625,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:0:False:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:False:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:0:True:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:False:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:False:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:False:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:False:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:False:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:1:False:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:1:False:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:1:False:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:1:True:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:1:True:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:False:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:False:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:False:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:False:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:False:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 3,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:3:False:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 3,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:3:False:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 3,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:3:False:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 3.174999952316284,
+        "tier": 3,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "gates:3:True:False:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:False:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:False:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:False:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": false,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:True:0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:True:0:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:True:7:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 0,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "gates:3:True:True:7:30",
+      "hit": {
+        "factor": 2.375,
+        "tier": 3,
+        "hit_type": 7,
+        "proc_type": 30,
+        "self_hit": true,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 1.25,
+        "slash_chance": 1,
+        "low_status_bonus": 0.8,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 3,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:-0.10000000149011612:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:-0.10000000149011612:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:-0.10000000149011612:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:0.0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:0.0:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:0.0:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:0:1.4901161193847656e-08:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.4901161193847656e-08:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.4901161193847656e-08:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:5.960464477539063e-08:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:5.960464477539063e-08:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:5.960464477539063e-08:2",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 2,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:5.960464477539063e-08:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.10000000149011612:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.10000000149011612:1677720",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677720,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.10000000149011612:1677721",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677721,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.10000000149011612:1677722",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677722,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.10000000149011612:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.5:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.5:8388607",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388607,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.5:8388608",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388608,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.5:8388609",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388609,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.5:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.9999999403953552:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.9999999403953552:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:0.9999999403953552:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.0:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.0:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.2000000476837158:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.2000000476837158:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:0:1.2000000476837158:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.4984567165374756,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:-0.10000000149011612:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:-0.10000000149011612:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:-0.10000000149011612:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": -0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": -0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:0.0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:0.0:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:0.0:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "roll:1:1.4901161193847656e-08:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.4901161193847656e-08:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.4901161193847656e-08:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.4901161193847656e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.4901161193847656e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:5.960464477539063e-08:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:5.960464477539063e-08:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:5.960464477539063e-08:2",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 2,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:5.960464477539063e-08:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 5.960464477539063e-08,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 5.960464477539063e-08,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.10000000149011612:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.10000000149011612:1677720",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677720,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.10000000149011612:1677721",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677721,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.10000000149011612:1677722",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 1677722,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.10000000149011612:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.10000000149011612,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.10000000149011612,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.5:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.5:8388607",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388607,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.5:8388608",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388608,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.5:8388609",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 8388609,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.5:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.5,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.5,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.9999999403953552:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.9999999403953552:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:0.9999999403953552:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 0.9999999403953552,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 0.9999999403953552,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.0:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.0:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.0:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.0,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.2000000476837158:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.2000000476837158:16777214",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777214,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "roll:1:1.2000000476837158:16777215",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 16777215,
+      "effects": {
+        "noncritical_chance": 1.2000000476837158,
+        "noncritical_bonus": 0.123456789,
+        "slash_chance": 1.2000000476837158,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "forced:0",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 1,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 1
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "forced:1",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 1
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 1,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 2
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "forced:254",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 254
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 1,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 255
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "forced:255",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 255
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 1,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 255
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "threshold:-1:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:1:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:13:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 13
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:14:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 14
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:-1.9:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": -1
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:0.9:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 0
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:2.9:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 2
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[0]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[12]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          12
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[13]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          13
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.831789016723633,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[0, 1, 2]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "threshold:3.1:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29
+        ],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0.456789,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:-1:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -3.5,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:-1:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -2.5,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:-1:0",
+      "hit": {
+        "factor": 0,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -1.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:-1:0",
+      "hit": {
+        "factor": 0,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:-1:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.9999998807907104,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:-1:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 1.9999998807907104,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:-1:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777215.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:-1:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": -1,
+        "slash_chance": 0,
+        "low_status_bonus": -1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -2.5,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -2.5,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0:0",
+      "hit": {
+        "factor": 0,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0:0",
+      "hit": {
+        "factor": 0,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 1.9999998807907104,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 1.9999998807907104,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0.1:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -2.4000000953674316,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0.1:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": -2.4000000953674316,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0.1:0",
+      "hit": {
+        "factor": 0,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.10000000149011612,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0.1:0",
+      "hit": {
+        "factor": 0,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 0.10000000149011612,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0.1:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.0999999046325684,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0.1:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.0999999046325684,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:0.1:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:0.1:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 0.1,
+        "slash_chance": 0,
+        "low_status_bonus": 0.1,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:16777216:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777214.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:16777216:-2.5",
+      "hit": {
+        "factor": -2.5,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777214.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:16777216:0",
+      "hit": {
+        "factor": 0,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:16777216:0",
+      "hit": {
+        "factor": 0,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777216.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:16777216:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777218.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:16777216:1.9999999",
+      "hit": {
+        "factor": 1.9999999,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 16777218.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "amount:0:16777216:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 0,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 33554432.0,
+        "tier": 0,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": true
+      }
+    },
+    {
+      "name": "amount:1:16777216:16777216",
+      "hit": {
+        "factor": 16777216,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 1,
+        "noncritical_bonus": 16777216,
+        "slash_chance": 0,
+        "low_status_bonus": 16777216,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 33554432.0,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    },
+    {
+      "name": "absent",
+      "hit": {
+        "factor": 2.375,
+        "tier": 1,
+        "hit_type": 0,
+        "proc_type": 30,
+        "self_hit": false,
+        "has_weapon": true,
+        "active_status_types": [],
+        "forced_procs": {
+          "2": 0
+        }
+      },
+      "roll": 0,
+      "effects": {
+        "noncritical_chance": 0,
+        "noncritical_bonus": 0,
+        "slash_chance": 0,
+        "low_status_bonus": 0,
+        "low_status_limit": 3
+      },
+      "expected": {
+        "factor": 2.375,
+        "tier": 1,
+        "forced_procs": {
+          "2": 0
+        },
+        "roll_consumed": false
+      }
+    }
+  ]
+}

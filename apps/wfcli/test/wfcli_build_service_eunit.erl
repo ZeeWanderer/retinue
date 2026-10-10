@@ -11,6 +11,43 @@ hot_update_clears_derived_cache_test() ->
                     old, #{cache => Cached, pending => #{}}, []),
     ?assertEqual(#{}, maps:get(cache, State)).
 
+stats_do_not_fetch_overframe_or_cache_player_results_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{calls := Calls}) -> fun() ->
+         Test = self(),
+         application:set_env(wfdaemon, build_catalog_fun,
+                             fun() -> error(unexpected_overframe_fetch) end),
+         application:set_env(wfdaemon, build_source_fun,
+           fun(#{action := stats, options := Options}, undefined) ->
+               Count = ets:update_counter(Calls, count, 1),
+               Test ! {stats_started, self()},
+               receive finish_stats -> ok end,
+               wfcli_build_stats:calculate(Options,
+                   (wfcli_build_stats_eunit:equipment())#{<<"player_revision">> => Count},
+                   [wfcli_build_stats_eunit:weapon()])
+           end),
+         Request = #{source => build_stats,
+                     options => wfcli_build_stats_eunit:options()},
+         {ok, NativeRef} = wfcli_build_service:submit(self(), Request),
+         FirstWorker = receive {stats_started, W1} -> W1
+                       after 2000 -> error(stats_not_started) end,
+         {ok, CliRef} = wfcli_build_service:submit_cli(self(), Request),
+         SecondWorker = receive {stats_started, W2} -> W2
+                        after 2000 -> error(stats_unexpectedly_coalesced) end,
+         FirstWorker ! finish_stats,
+         SecondWorker ! finish_stats,
+         First = receive {wfcli_build, NativeRef, {ok, R1}} -> R1
+                 after 2000 -> error(stats_timeout) end,
+         Second = receive {wfcli_daemon, CliRef, {ok, R2}} -> R2
+                  after 2000 -> error(stats_timeout) end,
+         ?assertEqual(1, maps:get(player_revision, First)),
+         ?assertEqual(2, maps:get(player_revision, Second)),
+         ?assertEqual(0, maps:get(cache_entries, wfcli_build_service:status())),
+         ?assertEqual(false, maps:get(catalog_refresh, wfcli_build_service:status())),
+         ?assertEqual({error, invalid_stat_request}, wfcli_build_service:submit(
+             self(), #{source => build_stats, options => #{}}))
+     end end}.
+
 coalesces_requests_and_stores_revision_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(State) -> fun() -> exercise(State) end end}.

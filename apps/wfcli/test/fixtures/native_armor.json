@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "source": "Native NPC armor arithmetic after integer getter, before helper epilogue",
+  "scope": "Resolved nonnegative armor; reviewed NPC defaults and zero armor-type modifier",
+  "evidence_sha256": {
+    "armor-helper-body-match.json": "6e5134dca778d445e12c95902e2709e663c623a3180adc54cfdc27b6a29209f8"
+  },
+  "defaults": {
+    "constant_bits": "3b5a740e",
+    "shift": 1,
+    "exponent": 0.5,
+    "peak": 2700
+  },
+  "range": {
+    "start": 0,
+    "end": 2700,
+    "float32_le_sha256": "398961e324fa8a1385e56043537d31699eb176c31856ba7b313593429d936b22"
+  },
+  "cases": [
+    {
+      "armor": 0,
+      "reduction": 0.0
+    },
+    {
+      "armor": 1,
+      "reduction": 0.017320508137345314
+    },
+    {
+      "armor": 2,
+      "reduction": 0.024494895711541176
+    },
+    {
+      "armor": 10,
+      "reduction": 0.05477225407958031
+    },
+    {
+      "armor": 100,
+      "reduction": 0.17320507764816284
+    },
+    {
+      "armor": 200,
+      "reduction": 0.24494898319244385
+    },
+    {
+      "armor": 300,
+      "reduction": 0.30000001192092896
+    },
+    {
+      "armor": 500,
+      "reduction": 0.3872983157634735
+    },
+    {
+      "armor": 616,
+      "reduction": 0.4298836886882782
+    },
+    {
+      "armor": 1000,
+      "reduction": 0.5477225184440613
+    },
+    {
+      "armor": 2699,
+      "reduction": 0.8998333215713501
+    },
+    {
+      "armor": 2700,
+      "reduction": 0.8999999761581421
+    },
+    {
+      "armor": 2701,
+      "reduction": 0.9000332951545715
+    },
+    {
+      "armor": 3000,
+      "reduction": 0.9090909361839294
+    },
+    {
+      "armor": 5700,
+      "reduction": 0.949999988079071
+    },
+    {
+      "armor": 10000,
+      "reduction": 0.9708737730979919
+    },
+    {
+      "armor": 100000,
+      "reduction": 0.9970089793205261
+    },
+    {
+      "armor": 9999999,
+      "reduction": 0.999970018863678
+    },
+    {
+      "armor": 10000000,
+      "reduction": 0.999970018863678
+    }
+  ]
+}

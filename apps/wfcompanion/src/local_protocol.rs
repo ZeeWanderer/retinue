@@ -44,6 +44,7 @@ mod tests {
             names,
             [
                 "assets",
+                "build_stats",
                 "builds",
                 "datasets",
                 "diagnostics",

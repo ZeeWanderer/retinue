@@ -1,0 +1,57 @@
+[
+  {
+    "uniqueName": "/Lotus/Powersuits/Excalibur/Excalibur",
+    "name": "Excalibur", "productCategory": "Suits",
+    "health": 270, "shield": 270, "armor": 240, "power": 100, "sprintSpeed": 1,
+    "abilities": [
+      {"abilityUniqueName": "/Lotus/Powersuits/Excalibur/Abilities/SlashDashNewAbility", "abilityName": "Slash Dash"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Excalibur/Abilities/RadialBlindAbility", "abilityName": "Radial Blind"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Excalibur/Abilities/RadialJavelinAbility", "abilityName": "Radial Javelin"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Excalibur/Abilities/SwordOfDoomAbility", "abilityName": "Exalted Blade"}
+    ]
+  },
+  {
+    "uniqueName": "/Lotus/Powersuits/Cowgirl/MesaPrime",
+    "name": "Mesa Prime", "productCategory": "Suits",
+    "health": 400, "shield": 180, "armor": 135, "power": 140, "sprintSpeed": 1.1,
+    "abilities": [
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/BallisticBatteryAbility", "abilityName": "Ballistic Battery"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/RussianRouletteAbility", "abilityName": "Shooting Gallery"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/RicochetArmorAbility", "abilityName": "Shatter Shield"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/GunFuAbility", "abilityName": "Peacemaker"}
+    ]
+  },
+  {
+    "uniqueName": "/Lotus/Powersuits/Cowgirl/Cowgirl",
+    "name": "Mesa", "productCategory": "Suits",
+    "health": 365, "shield": 180, "armor": 105, "power": 100, "sprintSpeed": 1.1,
+    "abilities": [
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/BallisticBatteryAbility", "abilityName": "Ballistic Battery"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/RussianRouletteAbility", "abilityName": "Shooting Gallery"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/RicochetArmorAbility", "abilityName": "Shatter Shield"},
+      {"abilityUniqueName": "/Lotus/Powersuits/Cowgirl/Abilities/GunFuAbility", "abilityName": "Peacemaker"}
+    ]
+  },
+  {
+    "uniqueName": "/Lotus/Powersuits/AntiMatter/NovaPrime",
+    "name": "Nova Prime", "productCategory": "Suits",
+    "health": 270, "shield": 270, "armor": 135, "power": 215, "sprintSpeed": 1.2,
+    "abilities": [
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/NullStarAbility", "abilityName": "Null Star"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/AntiMatterDrop", "abilityName": "Antimatter Drop"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/WormHoleAbility", "abilityName": "Wormhole"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/MolecularPrimeAbility", "abilityName": "Molecular Prime"}
+    ]
+  },
+  {
+    "uniqueName": "/Lotus/Powersuits/AntiMatter/Anti",
+    "name": "Nova", "productCategory": "Suits",
+    "health": 270, "shield": 180, "armor": 105, "power": 175, "sprintSpeed": 1.2,
+    "abilities": [
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/NullStarAbility", "abilityName": "Null Star"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/AntiMatterDrop", "abilityName": "Antimatter Drop"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/WormHoleAbility", "abilityName": "Wormhole"},
+      {"abilityUniqueName": "/Lotus/Powersuits/AntiMatter/Abilities/MolecularPrimeAbility", "abilityName": "Molecular Prime"}
+    ]
+  }
+]

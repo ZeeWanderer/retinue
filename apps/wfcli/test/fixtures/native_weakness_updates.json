@@ -1,0 +1,1194 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "bindings_sha256": {
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "hit-proxy-modifier-body-match.json": "dd71498f18b2c81ca0c436c81669444a0d7c475848cb25201c22e095236c9f30",
+    "hit-proxy-weakness-body-match.json": "3273704ea7032e94aa62c3cc74212ea93e8a03fcfaf561a4951b48dd23e88c28",
+    "hit-proxy-weakness-override-body-match.json": "4eb00aff7ab18b62a2b7ffd91b120a0eaa5fd1fb2f9c3f35a55cd15722588af7"
+  },
+  "source": "Native hit-proxy modifier and weakness functions; explicit synthetic records in private emulator",
+  "scope": "Native Weakness accumulator with explicit base, proxy override and per-subentity overrides; no target or pool inference",
+  "cases": [
+    {
+      "base": 0,
+      "entries": [],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add_base",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add_base",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "multiply",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "multiply",
+          0.25
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "stacking_multiply",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_base",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_base",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_min",
+          0
+        ]
+      ],
+      "expected": 1.1754943508222875e-38
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_min",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_min",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_max",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set_max",
+          1.5
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "add",
+          0.1
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.20000000298023224
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "set",
+          0.75
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set",
+          0.5
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.05,
+      "entries": [],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add",
+          0.25
+        ]
+      ],
+      "expected": 0.30000001192092896
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add",
+          1.5
+        ]
+      ],
+      "expected": 1.5499999523162842
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add_base",
+          0
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add_base",
+          0.25
+        ]
+      ],
+      "expected": 0.30000001192092896
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5499999523162842
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "multiply",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "multiply",
+          0.25
+        ]
+      ],
+      "expected": 0.012500000186264515
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 0.07500000298023224
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "stacking_multiply",
+          0
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ]
+      ],
+      "expected": 0.0625
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "expected": 0.125
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_base",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_base",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_min",
+          0
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_min",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_min",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_max",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set_max",
+          1.5
+        ]
+      ],
+      "expected": 0.05000000074505806
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "add",
+          0.1
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "set",
+          0.75
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set",
+          0.5
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.05,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "expected": 0.08749999850988388
+    },
+    {
+      "base": 0.5,
+      "entries": [],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add",
+          0.25
+        ]
+      ],
+      "expected": 0.75
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add",
+          1.5
+        ]
+      ],
+      "expected": 2
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add_base",
+          0
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add_base",
+          0.25
+        ]
+      ],
+      "expected": 0.75
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add_base",
+          1.5
+        ]
+      ],
+      "expected": 2
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "multiply",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "multiply",
+          0.25
+        ]
+      ],
+      "expected": 0.125
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 0.75
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "stacking_multiply",
+          0
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ]
+      ],
+      "expected": 0.625
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "expected": 1.25
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_base",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_base",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_min",
+          0
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_min",
+          0.25
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_min",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_max",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set_max",
+          1.5
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "add",
+          0.1
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "set",
+          0.75
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set",
+          0.5
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 0.5,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "expected": 0.875
+    },
+    {
+      "base": 1,
+      "entries": [],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add",
+          0.25
+        ]
+      ],
+      "expected": 1.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add",
+          1.5
+        ]
+      ],
+      "expected": 2.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add_base",
+          0
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add_base",
+          0.25
+        ]
+      ],
+      "expected": 1.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add_base",
+          1.5
+        ]
+      ],
+      "expected": 2.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "multiply",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "multiply",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "stacking_multiply",
+          0
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ]
+      ],
+      "expected": 1.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "stacking_multiply",
+          1.5
+        ]
+      ],
+      "expected": 2.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_base",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_base",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_base",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_min",
+          0
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_min",
+          0.25
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_min",
+          1.5
+        ]
+      ],
+      "expected": 1.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_max",
+          0
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set_max",
+          1.5
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "add",
+          0.1
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set_max",
+          0.25
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "set",
+          0.75
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "set",
+          0.5
+        ]
+      ],
+      "expected": 0.5
+    },
+    {
+      "base": 1,
+      "entries": [
+        [
+          "stacking_multiply",
+          0.25
+        ],
+        [
+          "stacking_multiply",
+          0.5
+        ]
+      ],
+      "expected": 1.75
+    }
+  ]
+}

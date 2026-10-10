@@ -17,6 +17,7 @@
 -define(INTERFACE_RELICS, 1).
 -define(INTERFACE_ASSETS, 1).
 -define(INTERFACE_BUILDS, 1).
+-define(INTERFACE_BUILD_STATS, 1).
 -define(INTERFACE_DIAGNOSTICS, 1).
 
 -doc "Version of the JSON-lines handshake and framing envelope.".
@@ -36,6 +37,7 @@ interfaces() ->
       <<"relics">> => ?INTERFACE_RELICS,
       <<"assets">> => ?INTERFACE_ASSETS,
       <<"builds">> => ?INTERFACE_BUILDS,
+      <<"build_stats">> => ?INTERFACE_BUILD_STATS,
       <<"diagnostics">> => ?INTERFACE_DIAGNOSTICS}.
 
 -doc "Optional Unix-socket features offered by wfdaemon.".

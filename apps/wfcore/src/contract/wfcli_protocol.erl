@@ -19,6 +19,7 @@ interfaces() ->
       query => 2,
       metadata => 1,
       forma => 1,
+      build_stats => 1,
       player => 1,
       market => 1,
       notifications => 1,
@@ -82,6 +83,7 @@ owner(#{source := exports}) -> wfcli_exports_store;
 owner(#{source := query}) -> wfcli_query_service;
 owner(#{source := metadata}) -> wfcli_source_manager;
 owner(#{source := forma}) -> wfcli_forma_service;
+owner(#{source := build_stats}) -> wfcli_build_service;
 owner(#{source := market}) -> wfcli_market_service;
 owner(#{source := companion_diagnostics}) -> wfcli_local_api;
 owner(_) -> undefined.

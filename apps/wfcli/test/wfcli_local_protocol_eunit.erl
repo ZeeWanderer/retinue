@@ -19,8 +19,9 @@ invalid_json_is_data_error_test() ->
 contract_exposes_versioned_interfaces_test() ->
     ?assertEqual(1, wfcli_local_protocol:envelope_version()),
     Interfaces = wfcli_local_protocol:interfaces(),
-    ?assertEqual(11, map_size(Interfaces)),
+    ?assertEqual(12, map_size(Interfaces)),
     ?assertEqual(2, maps:get(<<"player">>, Interfaces)),
+    ?assertEqual(1, maps:get(<<"build_stats">>, Interfaces)),
     ?assertEqual(2, maps:get(<<"game_metadata">>, Interfaces)),
     ?assertEqual(1, maps:get(<<"assets">>, Interfaces)),
     ?assert(lists:member(<<"companion.command">>,

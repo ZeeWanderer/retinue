@@ -298,6 +298,8 @@ safe_submit(Client, Request) ->
                                      fun() -> wfcli_source_manager:submit(Client, Request) end);
         forma -> safe_worker_call(wfcli_forma_service,
                                   fun() -> wfcli_forma_service:submit(Client, Request) end);
+        build_stats -> safe_worker_call(wfcli_build_service,
+                                         fun() -> wfcli_build_service:submit_cli(Client, Request) end);
         market -> safe_worker_call(wfcli_market_service,
                                    fun() -> wfcli_market_service:submit(Client, Request) end);
         companion_diagnostics -> safe_worker_call(wfcli_local_api,

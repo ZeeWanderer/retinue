@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "source": "Reviewed first normal physical AttackData; native legacy constructor and hit normalization",
+  "scope": "Declared normal-mode packets only; not contact eligibility or projectile grouping",
+  "evidence_sha256": {
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "public-packet-init-body-match.json": "15304293b3afbaecd8824a832233a8465809cc2138e08f5e0e6a2cf4b9a47cc8",
+    "ranged-properties.json": "cb82252012cf14499bad269051ad2b36a7a9da34db368a7796c876534ca0039f",
+    "calculator-properties.json": "dc6792de015d088f45a46a29a79923f5c5cbc041be390b0140823cec5a2d0243"
+  },
+  "cases": [
+    {"definition_id":"/Lotus/Weapons/Tenno/Pistols/PrimeVasto/PrimeVastoPistol","scalar":110,"weights":{"impact":0.15000000596046448,"puncture":0.15000000596046448,"slash":0.699999988079071},"hit_weights":{"impact":0.15625,"puncture":0.15625,"slash":0.6875},"base_critical_multiplier":2.4000001,"hit_critical_multiplier":2.3990232944488525},
+    {"definition_id":"/Lotus/Weapons/Tenno/Pistol/RevolverPistol","scalar":90,"weights":{"impact":0.25,"puncture":0.25,"slash":0.5},"hit_weights":{"impact":0.25,"puncture":0.25,"slash":0.5},"base_critical_multiplier":1.8,"hit_critical_multiplier":1.797313928604126},
+    {"definition_id":"/Lotus/Weapons/Tenno/Pistols/PrimeVasto/AkPrimeVasto/AkPrimeVastoPistol","scalar":110,"weights":{"impact":0.15000000596046448,"puncture":0.15000000596046448,"slash":0.699999988079071},"hit_weights":{"impact":0.15625,"puncture":0.15625,"slash":0.6875},"base_critical_multiplier":2.4000001,"hit_critical_multiplier":2.3990232944488525},
+    {"definition_id":"/Lotus/Weapons/Tenno/Rifle/Rifle","scalar":24,"weights":{"impact":0.33000001311302185,"puncture":0.33000001311302185,"slash":0.3399999737739563},"hit_weights":{"impact":0.34375,"puncture":0.34375,"slash":0.34375},"base_critical_multiplier":1.6,"hit_critical_multiplier":1.6019537448883057},
+    {"definition_id":"/Lotus/Weapons/Tenno/Rifle/BratonPrime","scalar":35,"weights":{"impact":0.05000000074505806,"puncture":0.3499999940395355,"slash":0.6000000238418579},"hit_weights":{"impact":0.0625,"puncture":0.34375,"slash":0.59375},"base_critical_multiplier":2,"hit_critical_multiplier":2.000488519668579},
+    {"definition_id":"/Lotus/Weapons/Grineer/LongGuns/GrineerM16Homage/GrineerM16Rifle","scalar":29,"weights":{"impact":0.44999998807907104,"puncture":0.30000001192092896,"slash":0.25},"hit_weights":{"impact":0.4375,"puncture":0.3125,"slash":0.25},"base_critical_multiplier":1.5,"hit_critical_multiplier":1.500366449356079},
+    {"definition_id":"/Lotus/Weapons/Tenno/Shotgun/QuadShotgun","scalar":75,"weights":{"impact":0.15000000596046448,"puncture":0.6499999761581421,"slash":0.20000004768371582},"hit_weights":{"impact":0.15625,"puncture":0.65625,"slash":0.1875},"base_critical_multiplier":2,"hit_critical_multiplier":2.000488519668579},
+    {"definition_id":"/Lotus/Weapons/Tenno/Shotgun/FullAutoShotgun","scalar":22,"weights":{"impact":0.550000011920929,"puncture":0.15000000596046448,"slash":0.2999999523162842},"hit_weights":{"impact":0.5625,"puncture":0.15625,"slash":0.3125},"base_critical_multiplier":1.5,"hit_critical_multiplier":1.500366449356079},
+    {"definition_id":"/Lotus/Weapons/Tenno/Shotgun/PrimeBoar","scalar":40,"weights":{"impact":0.6499999761581421,"puncture":0.15000000596046448,"slash":0.20000004768371582},"hit_weights":{"impact":0.65625,"puncture":0.15625,"slash":0.1875},"base_critical_multiplier":2,"hit_critical_multiplier":2.000488519668579}
+  ]
+}

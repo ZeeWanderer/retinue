@@ -16,6 +16,18 @@ selected_instances_use_the_same_normalized_state_test() ->
     ?assertEqual([], maps:get(<<"instances">>, Empty)),
     ?assertEqual([], maps:get(<<"definitions">>, Empty)).
 
+preserves_incarnon_choices_test() ->
+    Snapshot = snapshot(),
+    Data = maps:get(data, Snapshot),
+    Inventory = maps:get(<<"inventory">>, Data),
+    Raw = maps:get(<<"raw">>, Inventory),
+    [Exalted | Rest] = maps:get(<<"SpecialItems">>, Raw),
+    Updated = Snapshot#{data => Data#{<<"inventory">> => Inventory#{<<"raw">> =>
+        Raw#{<<"SpecialItems">> => [Exalted#{<<"SkillTree">> => <<"0102">>} | Rest]}}}},
+    View = wfcli_build_equipment:from_snapshot(Updated, catalog()),
+    [Item] = [I || I <- maps:get(<<"instances">>, View), maps:get(<<"id">>, I) =:= <<"exalted-1">>],
+    ?assertEqual(<<"0102">>, maps:get(<<"skill_tree">>, Item)).
+
 normalizes_definitions_instances_and_exalted_items_test() ->
     View = wfcli_build_equipment:from_snapshot(snapshot(), catalog()),
     ?assertEqual(7, maps:get(<<"player_revision">>, View)),

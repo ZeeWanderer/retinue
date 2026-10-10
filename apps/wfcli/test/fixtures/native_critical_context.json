@@ -1,0 +1,5404 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "scope": "Native contact and resolved ordered critical manager buckets, chance cap and inclusive low-chance multiplier branch. Declared ownerless managers and eligibility; no companion/per-proc/stealth resolution, critical RNG, post-roll effects, defenses or live access.",
+  "evidence_sha256": {
+    "check-critical-context.py": "03b7e318635c99be65d4d6167d3db0344b1568ed11bdd681dc88e2ecdf498374",
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "hit-proxy-controller-body-match.json": "a11f359c133364633335832d948d8fdcea2d73d86db028dd1fb623be55c5705d",
+    "hit-proxy-dispatch-body-match.json": "7cc3231616c257ce31dea4b8255a496d12f0df2dceca0bb074ba2f8d44bbc3a8",
+    "hit-proxy-modifier-body-match.json": "dd71498f18b2c81ca0c436c81669444a0d7c475848cb25201c22e095236c9f30",
+    "headshot-ignore-body-match.json": "d8dbedbb60757c0198d01395e40dc8d42a71fef22f37eb665229ba1885b9d5c4",
+    "accumulator-settle-caller-match.json": "45c88793f0e1cd0e45e69a62799bb8eeacde4a86d665b31b28c07207a1e4d538",
+    "weakpoint-manager-body-match.json": "796308b1940e66ecf1c40f6ce6319935f3eeb7528b12af6daf94394cd4a16945",
+    "weakpoint-bucket-body-match.json": "99cc60cc4930254f6ed6978bce2fb9d872b0fd4e9a4630019a521c77e35d87d3",
+    "weakpoint-damage-filter-match.json": "44338522140ee760a9ae84a9a7a9e4c77bfdac04bdce6c6810bd6a7135fa11f7",
+    "critical-context-body-match.json": "be68ea89a043b0a90b2f830044149d2ca3eafc70bdd42361db5e14b99a6a0825",
+    "native-critical-context-verified.json": "92b8a98ad2fd73cfa09b25f14ab34d39558cca73608e481b22ce264e368d4912"
+  },
+  "packet": {
+    "scalar": 29,
+    "critical_chance": 0.25,
+    "critical_multiplier": 2,
+    "status_chance": 0.5,
+    "channels": [
+      [
+        "impact",
+        0.45
+      ],
+      [
+        "puncture",
+        0.3
+      ],
+      [
+        "slash",
+        0.25
+      ]
+    ]
+  },
+  "updates": [
+    [
+      "add",
+      0.17
+    ],
+    [
+      "add_base",
+      0.31
+    ],
+    [
+      "stacking_multiply",
+      0.15
+    ],
+    [
+      "multiply",
+      1.7
+    ]
+  ],
+  "proxy": {
+    "damage_multiplier": 2,
+    "hit_type_multiplier": 1,
+    "critical_chance_add": 0.15,
+    "critical_multiplier": 1.7,
+    "status_multiplier": 1,
+    "channel_add": {},
+    "channel_multiply": {}
+  },
+  "head_factor": 1.5,
+  "expected_fields": [
+    "scalar",
+    "critical_chance",
+    "critical_multiplier",
+    "status_chance"
+  ],
+  "accumulator_modes": {
+    "False": {
+      "scalar": false,
+      "chance": true,
+      "multiplier": true
+    },
+    "True": {
+      "scalar": true,
+      "chance": true,
+      "multiplier": true
+    }
+  },
+  "profiles": {
+    "scaled": {
+      "chance": [
+        {
+          "entries": [
+            [
+              "add_base",
+              0.4
+            ],
+            [
+              "multiply",
+              2
+            ]
+          ]
+        },
+        {
+          "entries": [
+            [
+              "add",
+              0.15
+            ]
+          ]
+        }
+      ],
+      "multiplier": [
+        {
+          "entries": [
+            [
+              "add_base",
+              0.6
+            ],
+            [
+              "multiply",
+              1.4
+            ]
+          ]
+        }
+      ]
+    },
+    "set": {
+      "chance": [
+        {
+          "entries": [
+            [
+              "set",
+              0.7
+            ],
+            [
+              "add",
+              100
+            ]
+          ]
+        },
+        {
+          "entries": [
+            [
+              "add",
+              0.1
+            ]
+          ]
+        }
+      ],
+      "multiplier": [
+        {
+          "entries": [
+            [
+              "set",
+              3
+            ],
+            [
+              "add",
+              100
+            ]
+          ]
+        },
+        {
+          "entries": [
+            [
+              "multiply",
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    "clamp": {
+      "chance": [
+        {
+          "entries": [
+            [
+              "add",
+              0.2
+            ],
+            [
+              "set_min",
+              1.3
+            ]
+          ]
+        },
+        {
+          "entries": [],
+          "scale": 1.2
+        }
+      ],
+      "multiplier": [
+        null,
+        {
+          "entries": [
+            [
+              "add_base",
+              0.15
+            ],
+            [
+              "set_max",
+              4.2
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "low_multiplier": {
+    "entries": [
+      [
+        "add_base",
+        1.25
+      ],
+      [
+        "multiply",
+        1.15
+      ]
+    ]
+  },
+  "cases": [
+    {
+      "name": "scaled:body:False:False:None:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:above:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.9000000953674316,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:below:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.8999998569488525,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.8999998569488525,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:equal:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.899999976158142,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:None:below",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.8999998569488525,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:None:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:None:above",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.9000000953674316,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:zero:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:False:negative:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:None:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:above:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.9000000953674316,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:below:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.8999998569488525,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.8999998569488525,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:equal:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.899999976158142,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:None:below",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.8999998569488525,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:None:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:None:above",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.9000000953674316,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:zero:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:False:negative:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:None:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:above:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.600000023841858,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:below:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.5999997854232788,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999997854232788,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:equal:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.5999999046325684,
+      "threshold": 1.5999999046325684,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:None:below",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.5999997854232788,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:None:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.5999999046325684,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:None:above",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.600000023841858,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:zero:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:False:negative:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:None:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:above:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:below:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:equal:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:None:below",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:None:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:None:above",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:zero:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:False:negative:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:None:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:above:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:below:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:equal:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:None:below",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:None:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:None:above",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:zero:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:False:negative:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:None:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:above:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:below:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:equal:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:None:below",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:None:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:None:above",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:zero:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:False:negative:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:None:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:above:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:below:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999998331069946,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:equal:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:None:below",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:None:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:None:above",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:zero:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:False:negative:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:None:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:above:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:below:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999998331069946,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:equal:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:None:below",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:None:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:None:above",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:zero:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:False:negative:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:None:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:above:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:below:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999998331069946,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:equal:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:None:below",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:None:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:None:above",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:zero:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:False:negative:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:None:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:above:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.351600646972656,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:below:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.35159969329834,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.35159969329834,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:equal:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.351600170135498,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:None:below",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.35159969329834,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:None:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:None:above",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.351600646972656,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:zero:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:False:negative:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:None:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:above:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.351600646972656,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:below:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.35159969329834,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        5.35159969329834,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:equal:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 5.351600170135498,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:None:below",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.35159969329834,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:None:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:None:above",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 5.351600646972656,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:zero:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.0,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:False:negative:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        -0.25,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:None:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:above:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 4.8416008949279785,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:below:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 4.841599941253662,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.841599941253662,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:equal:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 4.84160041809082,
+      "threshold": 4.84160041809082,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:None:below",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 4.841599941253662,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:None:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 4.84160041809082,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:None:above",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 4.8416008949279785,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:zero:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:False:negative:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:None:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:above:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:below:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:equal:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:None:below",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:None:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:None:above",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:zero:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:False:negative:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:None:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:above:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:below:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:equal:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:None:below",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:None:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:None:above",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:zero:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:False:negative:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:None:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:above:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:below:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:equal:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:None:below",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:None:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:None:above",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:zero:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:False:negative:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:None:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:above:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.374560594558716,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:below:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.3745601177215576,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745601177215576,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:equal:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.3745603561401367,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:None:below",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.3745601177215576,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:None:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:None:above",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.374560594558716,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:zero:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:False:negative:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:None:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:above:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.374560594558716,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:below:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.3745601177215576,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        2.3745601177215576,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:equal:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.3745603561401367,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:None:below",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.3745601177215576,
+      "low_applied": false,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:None:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:None:above",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.374560594558716,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:zero:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:False:negative:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.77012634277344,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:None:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:above:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.0685603618621826,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:below:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.0685598850250244,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685598850250244,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:equal:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 2.0685601234436035,
+      "threshold": 2.0685601234436035,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:None:below",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.0685598850250244,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:None:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.0685601234436035,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:None:above",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": null,
+      "threshold": 2.0685603618621826,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:zero:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:False:negative:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": false,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:None:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:above:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.9000000953674316,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:below:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.8999998569488525,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.8999998569488525,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:equal:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.899999976158142,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:None:below",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.8999998569488525,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:None:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:None:above",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.9000000953674316,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:zero:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:False:True:negative:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:None:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:above:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.9000000953674316,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:below:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.8999998569488525,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.8999998569488525,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:equal:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.899999976158142,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:None:below",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.8999998569488525,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        6.188000202178955,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:None:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.899999976158142,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:None:above",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.9000000953674316,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.899999976158142,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:zero:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:False:True:negative:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        10.537449836730957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:None:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:above:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.600000023841858,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:below:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.5999997854232788,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999997854232788,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:equal:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.5999999046325684,
+      "threshold": 1.5999999046325684,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:None:below",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.5999997854232788,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        3.6399998664855957,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:None:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.5999999046325684,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:None:above",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.600000023841858,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.5999999046325684,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:zero:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:False:True:negative:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        6.19849967956543,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:None:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:above:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:below:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:equal:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:None:below",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:None:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:None:above",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:zero:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:False:True:negative:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:None:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:above:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:below:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:equal:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:None:below",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:None:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:None:above",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:zero:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:False:True:negative:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:None:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:above:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:below:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:equal:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:None:below",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:None:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:None:above",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:zero:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:False:True:negative:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:None:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:above:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:below:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999998331069946,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:equal:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:None:below",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:None:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:None:above",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:zero:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:False:True:negative:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        58.0,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:None:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:above:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:below:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999998331069946,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:equal:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:None:below",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        3.6550002098083496,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:None:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:None:above",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        1.2999999523162842,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:zero:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:False:True:negative:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        87.0,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:None:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:above:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.3000000715255737,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:below:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999998331069946,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999998331069946,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:equal:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 1.2999999523162842,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:None:below",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999998331069946,
+      "low_applied": false,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        2.1500000953674316,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:None:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.2999999523162842,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:None:above",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 1.3000000715255737,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        1.2999999523162842,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:zero:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        0.0,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:False:True:negative:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": false,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        29.0,
+        -0.25,
+        3.9100000858306885,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:None:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:above:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.351600646972656,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:below:None",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.35159969329834,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.35159969329834,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:equal:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.351600170135498,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:None:below",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.35159969329834,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:None:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:None:above",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.351600646972656,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:zero:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:body:True:True:negative:equal",
+      "profile": "scaled",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:None:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:above:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.351600646972656,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:below:None",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.35159969329834,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        5.35159969329834,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:equal:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 5.351600170135498,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:None:below",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.35159969329834,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        14.22775936126709,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:None:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.351600170135498,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:None:above",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 5.351600646972656,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        5.351600170135498,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:zero:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.0,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:head:True:True:negative:equal",
+      "profile": "scaled",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        -0.25,
+        23.050464630126953,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:None:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:above:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 4.8416008949279785,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:below:None",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 4.841599941253662,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.841599941253662,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:equal:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 4.84160041809082,
+      "threshold": 4.84160041809082,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:None:below",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 4.841599941253662,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        8.369270324707031,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:None:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 4.84160041809082,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:None:above",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 4.8416008949279785,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        4.84160041809082,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:zero:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "scaled:radial_head:True:True:negative:equal",
+      "profile": "scaled",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        13.559098243713379,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:None:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:above:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:below:None",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:equal:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:None:below",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:None:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:None:above",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:zero:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:body:True:True:negative:equal",
+      "profile": "set",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:None:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:above:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:below:None",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:equal:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:None:below",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:None:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:None:above",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:zero:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:head:True:True:negative:equal",
+      "profile": "set",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:None:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:above:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.7000000476837158,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:below:None",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.6999999284744263,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.6999999284744263,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:equal:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.699999988079071,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:None:below",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.6999999284744263,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:None:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.699999988079071,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:None:above",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 0.7000000476837158,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.699999988079071,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:zero:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "set:radial_head:True:True:negative:equal",
+      "profile": "set",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        3.0,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:None:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:above:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.374560594558716,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:below:None",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.3745601177215576,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745601177215576,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:equal:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.3745603561401367,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:None:below",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.3745601177215576,
+      "low_applied": false,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:None:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:None:above",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.374560594558716,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:zero:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:body:True:True:negative:equal",
+      "profile": "clamp",
+      "contact": "body",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        115.18008422851562,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:None:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:above:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.374560594558716,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:below:None",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.3745601177215576,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        2.3745601177215576,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:equal:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.3745603561401367,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:None:below",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.3745601177215576,
+      "low_applied": false,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:None:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.3745603561401367,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:None:above",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.374560594558716,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        2.3745603561401367,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:zero:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:head:True:True:negative:equal",
+      "profile": "clamp",
+      "contact": "head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        172.7701416015625,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:None:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:above:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.0685603618621826,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:below:None",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.0685598850250244,
+      "threshold": null,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685598850250244,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:equal:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 2.0685601234436035,
+      "threshold": 2.0685601234436035,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:None:below",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.0685598850250244,
+      "low_applied": false,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:None:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.0685601234436035,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:None:above",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": null,
+      "threshold": 2.0685603618621826,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        2.0685601234436035,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:zero:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": 0.0,
+      "threshold": 0.0,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        0.0,
+        4.199999809265137,
+        0.5
+      ]
+    },
+    {
+      "name": "clamp:radial_head:True:True:negative:equal",
+      "profile": "clamp",
+      "contact": "radial_head",
+      "pending": true,
+      "deferred_scalar": true,
+      "cap": -0.25,
+      "threshold": -0.25,
+      "low_applied": true,
+      "expected": [
+        57.59004211425781,
+        -0.25,
+        4.199999809265137,
+        0.5
+      ]
+    }
+  ]
+}

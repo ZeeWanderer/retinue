@@ -108,6 +108,73 @@ diagnostic_command(Socket) ->
     {ok, Message} = wfcli_local_protocol:decode(string:trim(Line)),
     Message.
 
+build_stats_socket_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         application:set_env(wfdaemon, build_source_fun,
+           fun(#{action := stats, options := Options}, undefined) ->
+               wfcli_build_stats:calculate(Options, wfcli_build_stats_eunit:equipment(),
+                   [wfcli_build_stats_eunit:weapon() | wfcli_stat_frames_eunit:exports()])
+           end),
+         Socket = connect_client(Path, <<"test">>, #{}),
+         ok = socket:send(Socket, wfcli_local_protocol:encode(
+             #{<<"op">> => <<"build_stats">>, <<"id">> => 2,
+               <<"options">> => (wfcli_build_stats_eunit:options())#{<<"armor">> => 2700,
+                                                                   <<"bounds">> => true}})),
+         Reply = receive_response(Socket, 2, <<>>),
+         ?assertEqual(true, maps:get(<<"ok">>, Reply)),
+         Data = maps:get(<<"data">>, Reply),
+         ?assertMatch(#{<<"schema">> := 1, <<"stats">> := #{}}, Data),
+         #{<<"stats">> := #{<<"projectile_outcomes">> := Outcomes,
+                             <<"source_packet">> := #{<<"channels">> := Channels}}} = Data,
+         ?assert(is_map(Channels)),
+         ?assertMatch([#{<<"tier">> := _, <<"probability">> := _,
+                         <<"raw_damage">> := _, <<"health_damage">> := _} | _], Outcomes),
+         ?assert(lists:all(fun(#{<<"health_damage">> := D}) -> is_integer(D) end, Outcomes)),
+         ?assertEqual(101, maps:get(<<"player_revision">>, Data)),
+         ?assertMatch(#{<<"lower">> := #{}, <<"upper">> := #{}}, maps:get(<<"bounds">>, Data)),
+         ?assert(is_list(maps:get(<<"effect_graph">>, Data))),
+         ok = socket:send(Socket, wfcli_local_protocol:encode(
+             #{<<"op">> => <<"build_stats">>, <<"id">> => 3,
+               <<"options">> => (wfcli_build_stats_eunit:options())#{<<"armor">> => -1}})),
+         ?assertEqual(false, maps:get(<<"ok">>, receive_response(Socket, 3, <<>>))),
+         Nourish = <<"/Lotus/Powersuits/Devourer/Abilities/DevourerConsumeAbility">>,
+         Frame = #{<<"definition_id">> => <<"/Lotus/Powersuits/Cowgirl/MesaPrime">>,
+                   <<"class">> => <<"warframe">>,
+                   <<"config">> => #{<<"upgrade_slots">> => [],
+                       <<"ability_override">> => #{<<"Ability">> => Nourish, <<"Index">> => 0},
+                       <<"ability_ranks">> => #{Nourish => 3}}},
+         Options = wfcli_build_stats_eunit:options(),
+         Builds = maps:get(<<"buildset">>, Options),
+         ok = socket:send(Socket, wfcli_local_protocol:encode(
+             #{<<"op">> => <<"build_stats">>, <<"id">> => 4,
+               <<"options">> => Options#{<<"buildset">> => Builds#{
+                   <<"warframe">> => #{<<"build">> => Frame}},
+                   <<"effects">> => #{<<"warframe/nourish">> => 1}}})),
+         AbilityReply = receive_response(Socket, 4, <<>>),
+         ?assertEqual(true, maps:get(<<"ok">>, AbilityReply)),
+         [Ability] = [N || N = #{<<"kind">> := <<"ability">>} <-
+             maps:get(<<"effect_graph">>, maps:get(<<"data">>, AbilityReply))],
+         ?assertEqual(<<"explicit">>, maps:get(<<"rank_source">>, Ability)),
+         ?assertMatch(#{<<"active_stacks">> := 1,
+                        <<"effects">> := [#{<<"element">> := <<"viral">>,
+                                           <<"target">> := <<"weapon">>}]},
+                      maps:get(<<"selected">>, maps:get(<<"states">>, Ability))),
+         ok = socket:send(Socket, wfcli_local_protocol:encode(
+             #{<<"op">> => <<"build_stats">>, <<"id">> => 5,
+               <<"options">> => (wfcli_stat_frames_eunit:request(<<"Nova Prime">>, 30, []))#{
+                   <<"bounds">> => true}})),
+         FrameReply = receive_response(Socket, 5, <<>>),
+         ?assertEqual(true, maps:get(<<"ok">>, FrameReply)),
+         FrameData = maps:get(<<"data">>, FrameReply),
+         ?assertEqual(<<"warframe">>, maps:get(<<"kind">>, FrameData)),
+         ?assertEqual(370.0, maps:get(<<"health">>, maps:get(<<"stats">>, FrameData))),
+         [Prime] = maps:get(<<"selected">>, maps:get(<<"abilities">>, FrameData)),
+         ?assertMatch(#{<<"crowd_control">> := #{<<"variants">> := #{<<"slow">> := 0.5, <<"speed">> := 1.5}}},
+                      maps:get(<<"outputs">>, Prime)),
+         ok = socket:close(Socket)
+     end end}.
+
 backend_restart_disconnects_and_restores_events_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(#{socket := Path}) -> fun() ->

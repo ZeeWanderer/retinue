@@ -146,7 +146,7 @@ instance(Item, Class, CatalogItem, Catalog, Loadouts) ->
                   Base,
                   wfcli_build_topology:project(Class, CatalogItem, Catalog, Item)),
     copy_present([<<"mod_slot_purchases">>, <<"customization_slot_purchases">>,
-                  <<"modular_parts">>, <<"focus_lens">>], Item, Projected).
+                  <<"modular_parts">>, <<"focus_lens">>, <<"skill_tree">>], Item, Projected).
 
 loadout_index(Projection) ->
     Loadouts = maps:from_list(

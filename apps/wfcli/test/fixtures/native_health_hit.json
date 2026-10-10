@@ -1,0 +1,1250 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "source": "Native e546 packet normalization, captured Tusk Heavy Gunner controller, health and HUD conversion",
+  "scope": "Declared physical noncritical body-hit packets; scalar varied, retained target unchanged",
+  "bindings_sha256": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+  "body_match_sha256": "f63ca800f30f76c62a0598a84e90d655b13138ac7a5452d707a80625ec888e8d",
+  "cases": [
+    {
+      "packet": {
+        "scalar": 0,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0,
+        "health_amount": 0,
+        "display_amount": null
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.001,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.0012250000145286322,
+        "health_amount": 0,
+        "display_amount": 0
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.25,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.3062499761581421,
+        "health_amount": 0,
+        "display_amount": 0
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.6124999523162842,
+        "health_amount": 1,
+        "display_amount": 1
+      }
+    },
+    {
+      "packet": {
+        "scalar": 1,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 1.2249999046325684,
+        "health_amount": 1,
+        "display_amount": 1
+      }
+    },
+    {
+      "packet": {
+        "scalar": 1.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 1.8250000476837158,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 2,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.0999999046325684,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 2.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.375,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 3,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.804485321044922,
+        "health_amount": 3,
+        "display_amount": 3
+      }
+    },
+    {
+      "packet": {
+        "scalar": 4,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 3.539313793182373,
+        "health_amount": 4,
+        "display_amount": 4
+      }
+    },
+    {
+      "packet": {
+        "scalar": 5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 3.924142360687256,
+        "health_amount": 4,
+        "display_amount": 4
+      }
+    },
+    {
+      "packet": {
+        "scalar": 6,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 4.335180282592773,
+        "health_amount": 4,
+        "display_amount": 4
+      }
+    },
+    {
+      "packet": {
+        "scalar": 8,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 5.587139129638672,
+        "health_amount": 6,
+        "display_amount": 6
+      }
+    },
+    {
+      "packet": {
+        "scalar": 12,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 8.380708694458008,
+        "health_amount": 8,
+        "display_amount": 8
+      }
+    },
+    {
+      "packet": {
+        "scalar": 29,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 20.253379821777344,
+        "health_amount": 20,
+        "display_amount": 20
+      }
+    },
+    {
+      "packet": {
+        "scalar": 47.9818,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 33.510128021240234,
+        "health_amount": 34,
+        "display_amount": 34
+      }
+    },
+    {
+      "packet": {
+        "scalar": 68.14999389648438,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 47.59543991088867,
+        "health_amount": 48,
+        "display_amount": 48
+      }
+    },
+    {
+      "packet": {
+        "scalar": 87.13179,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 60.8521842956543,
+        "health_amount": 61,
+        "display_amount": 61
+      }
+    },
+    {
+      "packet": {
+        "scalar": 106.11359,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 74.10892486572266,
+        "health_amount": 74,
+        "display_amount": 74
+      }
+    },
+    {
+      "packet": {
+        "scalar": 125.0954,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "unquantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 87.36567687988281,
+        "health_amount": 87,
+        "display_amount": 87
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0,
+        "health_amount": 0,
+        "display_amount": null
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.001,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.0012187501415610313,
+        "health_amount": 0,
+        "display_amount": 0
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.25,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.3046875,
+        "health_amount": 0,
+        "display_amount": 0
+      }
+    },
+    {
+      "packet": {
+        "scalar": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 0.609375,
+        "health_amount": 1,
+        "display_amount": 1
+      }
+    },
+    {
+      "packet": {
+        "scalar": 1,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 1.21875,
+        "health_amount": 1,
+        "display_amount": 1
+      }
+    },
+    {
+      "packet": {
+        "scalar": 1.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 1.828125,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 2,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.125,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 2.5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.40625,
+        "health_amount": 2,
+        "display_amount": 2
+      }
+    },
+    {
+      "packet": {
+        "scalar": 3,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 2.8099164962768555,
+        "health_amount": 3,
+        "display_amount": 3
+      }
+    },
+    {
+      "packet": {
+        "scalar": 4,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 3.4965553283691406,
+        "health_amount": 3,
+        "display_amount": 3
+      }
+    },
+    {
+      "packet": {
+        "scalar": 5,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 3.870694160461426,
+        "health_amount": 4,
+        "display_amount": 4
+      }
+    },
+    {
+      "packet": {
+        "scalar": 6,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 4.313800811767578,
+        "health_amount": 4,
+        "display_amount": 4
+      }
+    },
+    {
+      "packet": {
+        "scalar": 8,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 5.558633804321289,
+        "health_amount": 6,
+        "display_amount": 6
+      }
+    },
+    {
+      "packet": {
+        "scalar": 12,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 8.337950706481934,
+        "health_amount": 8,
+        "display_amount": 8
+      }
+    },
+    {
+      "packet": {
+        "scalar": 29,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 20.150047302246094,
+        "health_amount": 20,
+        "display_amount": 20
+      }
+    },
+    {
+      "packet": {
+        "scalar": 47.9818,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 33.33915710449219,
+        "health_amount": 33,
+        "display_amount": 33
+      }
+    },
+    {
+      "packet": {
+        "scalar": 68.14999389648438,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 47.35260772705078,
+        "health_amount": 47,
+        "display_amount": 47
+      }
+    },
+    {
+      "packet": {
+        "scalar": 87.13179,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 60.54171371459961,
+        "health_amount": 61,
+        "display_amount": 61
+      }
+    },
+    {
+      "packet": {
+        "scalar": 106.11359,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 73.73081970214844,
+        "health_amount": 74,
+        "display_amount": 74
+      }
+    },
+    {
+      "packet": {
+        "scalar": 125.0954,
+        "channels": [
+          [
+            "impact",
+            0.45
+          ],
+          [
+            "puncture",
+            0.3
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ],
+        "quantization": "quantized"
+      },
+      "target": {
+        "multipliers": {
+          "impact": 1.5
+        },
+        "armor_reduction": 0.4298836886882782
+      },
+      "expected": {
+        "raw_amount": 86.91993713378906,
+        "health_amount": 87,
+        "display_amount": 87
+      }
+    }
+  ]
+}

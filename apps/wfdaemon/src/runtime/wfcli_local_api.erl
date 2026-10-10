@@ -541,6 +541,10 @@ handle_request(#{<<"op">> := <<"build_equipment">>} = Request, State) ->
     Id = request_id(Request),
     {ok, start_local_request(Id, <<"build_equipment">>,
                              fun wfcli_build_equipment:snapshot/0, State)};
+handle_request(#{<<"op">> := <<"build_stats">>} = Request, State) ->
+    submit_build(request_id(Request), <<"build_stats">>,
+                 #{source => build_stats, options => maps:get(<<"options">>, Request, #{})},
+                 State);
 handle_request(#{<<"op">> := <<"build_search">>} = Request, State) ->
     BuildRequest = #{source => overframe, action => search,
                      query => maps:get(<<"query">>, Request, <<>>),

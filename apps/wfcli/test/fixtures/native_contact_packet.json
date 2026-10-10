@@ -1,0 +1,3861 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "scope": "Numeric contact stage and fixed ordinary critical tiers; excludes weakpoint upgrades, channel conversion, subentity overrides, proc flags, critical context/RNG and health routing",
+  "evidence_sha256": {
+    "native-headshot-stages.json": "5fe845b48b4ca8e31d4a88b37ff69480c3df67d4cdb2f78c678335b80c343af7",
+    "native-contact-pipeline-first.json": "77c42217c258b1519a8cc0ae86be21ade43ef4c96ca374832604393e54a80f24",
+    "report.json": "14e61893048dfbf668db0cd2dccc4f59424742b4eff94d520ca729c7d5e51fd3"
+  },
+  "native_case_counts": {
+    "contact": 72,
+    "combined": 342
+  },
+  "headshot_source": "Native controller save/apply/settle/head-branch instructions in private emulator",
+  "combined_source": "Captured native proxy selection, head eligibility/application and explicit ordinary critical tiers; weakpoint/critical upgrade buckets excluded, no health routing, no live writes or fired-hit claim",
+  "declared_crt_route": 0,
+  "packets": {
+    "settled": {
+      "scalar": 29,
+      "critical_chance": 0.25,
+      "critical_multiplier": 2,
+      "status_chance": 0.5,
+      "channels": [
+        [
+          "impact",
+          0.45
+        ],
+        [
+          "puncture",
+          0.3
+        ],
+        [
+          "slash",
+          0.25
+        ]
+      ]
+    },
+    "pending": {
+      "scalar": 29,
+      "critical_chance": 0.25,
+      "critical_multiplier": 2,
+      "status_chance": 0.5,
+      "channels": [
+        [
+          "impact",
+          0.45
+        ],
+        [
+          "puncture",
+          0.3
+        ],
+        [
+          "slash",
+          0.25
+        ]
+      ],
+      "pending_updates": {
+        "scalar": [
+          [
+            "add",
+            0.17
+          ],
+          [
+            "add_base",
+            0.31
+          ],
+          [
+            "stacking_multiply",
+            0.15
+          ],
+          [
+            "multiply",
+            1.7
+          ]
+        ],
+        "critical_chance": [
+          [
+            "add",
+            0.17
+          ],
+          [
+            "add_base",
+            0.31
+          ],
+          [
+            "stacking_multiply",
+            0.15
+          ],
+          [
+            "multiply",
+            1.7
+          ]
+        ],
+        "critical_multiplier": [
+          [
+            "add",
+            0.17
+          ],
+          [
+            "add_base",
+            0.31
+          ],
+          [
+            "stacking_multiply",
+            0.15
+          ],
+          [
+            "multiply",
+            1.7
+          ]
+        ]
+      }
+    }
+  },
+  "proxies": {
+    "grineer_head": {
+      "damage_multiplier": 2.0,
+      "hit_type_multiplier": 1,
+      "critical_chance_add": 0,
+      "critical_multiplier": 2.0,
+      "status_multiplier": 1,
+      "channel_add": {
+        "impact": 0,
+        "puncture": 0,
+        "slash": 0
+      },
+      "channel_multiply": {
+        "impact": 1,
+        "puncture": 1,
+        "slash": 1
+      }
+    },
+    "mixed": {
+      "damage_multiplier": 1.3,
+      "hit_type_multiplier": 1,
+      "critical_chance_add": 0.15,
+      "critical_multiplier": 1.7,
+      "status_multiplier": 1.8,
+      "channel_add": {
+        "impact": 0.07,
+        "puncture": 0,
+        "slash": 0
+      },
+      "channel_multiply": {
+        "impact": 1,
+        "puncture": 1,
+        "slash": 0.6
+      }
+    },
+    "captured_head": {
+      "damage_multiplier": 2.0,
+      "hit_type_multiplier": 1,
+      "critical_chance_add": 0.0,
+      "critical_multiplier": 2.0,
+      "status_multiplier": 1.0,
+      "channel_add": {
+        "impact": 0.0,
+        "puncture": 0.0,
+        "slash": 0.0
+      },
+      "channel_multiply": {
+        "impact": 1.0,
+        "puncture": 1.0,
+        "slash": 1.0
+      }
+    },
+    "captured_body": {
+      "damage_multiplier": 1.0,
+      "hit_type_multiplier": 1,
+      "critical_chance_add": 0.0,
+      "critical_multiplier": 1.0,
+      "status_multiplier": 1.0,
+      "channel_add": {
+        "impact": 0.0,
+        "puncture": 0.0,
+        "slash": 0.0
+      },
+      "channel_multiply": {
+        "impact": 1.0,
+        "puncture": 1.0,
+        "slash": 1.0
+      }
+    }
+  },
+  "contact_cases": [
+    {
+      "name": "body:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:settled:grineer_head:False",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 43.5,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 56.54999542236328,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 56.54999542236328,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:settled:mixed:False",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 43.5,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:pending:grineer_head:False",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 86.38506317138672,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 112.30058288574219,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 112.30058288574219,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:pending:mixed:False",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "expected": {
+        "scalar": 86.38506317138672,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:settled:grineer_head:True",
+      "packet": "settled",
+      "proxy": "grineer_head",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 43.5,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 56.54999923706055,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 56.54999923706055,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 37.69999694824219,
+        "critical_chance": 0.4000000059604645,
+        "critical_multiplier": 3.4000000953674316,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:settled:mixed:True",
+      "packet": "settled",
+      "proxy": "mixed",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 43.5,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 115.18008422851562,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:pending:grineer_head:True",
+      "packet": "pending",
+      "proxy": "grineer_head",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 86.38507080078125,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "name": "body:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "head:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 112.30058288574219,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_head:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_head:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pvp_flag_in_pve:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 112.30058288574219,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_pvp_head:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "radial_treated_normal:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "ignored_treated_normal:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": true,
+      "treat_head_as_normal": true,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 74.86705780029297,
+        "critical_chance": 1.638800024986267,
+        "critical_multiplier": 8.168584823608398,
+        "status_chance": 0.8999999761581421,
+        "channels": [
+          [
+            "impact",
+            0.5199999809265137
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.15000000596046448
+          ]
+        ]
+      }
+    },
+    {
+      "name": "proxy_disabled_head:pending:mixed:True",
+      "packet": "pending",
+      "proxy": "mixed",
+      "enabled": false,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "expected": {
+        "scalar": 86.38507080078125,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    }
+  ],
+  "combined_cases": [
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 4.0,
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 348.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 7.0,
+      "expected": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 609.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 4.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 2.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 3.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 9.610099792480469,
+      "expected": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 1660.338134765625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 18.220199584960938,
+      "expected": {
+        "scalar": 172.77012634277344,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 3147.90625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 4.805049896240234,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 276.7230224609375,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 8.610099792480469,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 495.85601806640625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 1,
+      "critical_factor": 9.610099792480469,
+      "expected": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 1660.3382568359375,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 2,
+      "critical_factor": 18.220199584960938,
+      "expected": {
+        "scalar": 172.7701416015625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 3147.906494140625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 9.610099792480469,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 1,
+      "critical_factor": 4.805049896240234,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 276.7230224609375,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "pending",
+      "proxy": "captured_head",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": true,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": true
+      },
+      "tier": 2,
+      "critical_factor": 8.610099792480469,
+      "expected": {
+        "scalar": 57.59004211425781,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 495.85601806640625,
+        "critical_chance": 1.3838000297546387,
+        "critical_multiplier": 4.805049896240234,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 2.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": false,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 3.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 0,
+      "critical_factor": 1.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 1,
+      "critical_factor": 2.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 58.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    },
+    {
+      "packet": "settled",
+      "proxy": "captured_body",
+      "enabled": true,
+      "treat_head_as_normal": false,
+      "context": {
+        "head": false,
+        "suppressed": true,
+        "head_factor": 1.5,
+        "deferred_scalar": false
+      },
+      "tier": 2,
+      "critical_factor": 3.0,
+      "expected": {
+        "scalar": 29.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      },
+      "final": {
+        "scalar": 87.0,
+        "critical_chance": 0.25,
+        "critical_multiplier": 2.0,
+        "status_chance": 0.5,
+        "channels": [
+          [
+            "impact",
+            0.44999998807907104
+          ],
+          [
+            "puncture",
+            0.30000001192092896
+          ],
+          [
+            "slash",
+            0.25
+          ]
+        ]
+      }
+    }
+  ]
+}

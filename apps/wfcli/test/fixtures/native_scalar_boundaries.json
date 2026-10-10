@@ -1,0 +1,690 @@
+{
+  "schema": 1,
+  "executable_sha256": "e546599b62d0574db955fc93a6434728625be72ca1a0731e475d1ffa350ccf05",
+  "source": "Native controller save/apply/settle/head-branch instructions in private emulator",
+  "scope": "Declared proxy, impact behavior and mode; no runtime lookup, weakpoint upgrades, subentity overrides, critical selection, defenses or live reads",
+  "bindings_sha256": {
+    "normalized-replay-bindings.json": "c2db3fac9a41d588480e40ec86875140489146254124663241f8ec95c90d12a6",
+    "hit-proxy-controller-body-match.json": "a11f359c133364633335832d948d8fdcea2d73d86db028dd1fb623be55c5705d",
+    "hit-proxy-dispatch-body-match.json": "7cc3231616c257ce31dea4b8255a496d12f0df2dceca0bb074ba2f8d44bbc3a8",
+    "hit-proxy-modifier-body-match.json": "dd71498f18b2c81ca0c436c81669444a0d7c475848cb25201c22e095236c9f30",
+    "headshot-ignore-body-match.json": "d8dbedbb60757c0198d01395e40dc8d42a71fef22f37eb665229ba1885b9d5c4",
+    "accumulator-settle-caller-match.json": "45c88793f0e1cd0e45e69a62799bb8eeacde4a86d665b31b28c07207a1e4d538"
+  },
+  "declared_globals": {
+    "head_factor": 1.5,
+    "deferred_scalar": [
+      false,
+      true
+    ]
+  },
+  "cases": [
+    {
+      "name": "body:settled:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          2
+        ],
+        "settle"
+      ],
+      "expected": 58
+    },
+    {
+      "name": "body:settled:grineer_head:0:critical_chance",
+      "base": 0.25,
+      "updates": [
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 0.25
+    },
+    {
+      "name": "body:settled:grineer_head:0:critical_multiplier",
+      "base": 2,
+      "updates": [
+        [
+          "multiply",
+          2
+        ]
+      ],
+      "expected": 4
+    },
+    {
+      "name": "head:settled:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          2
+        ],
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 87
+    },
+    {
+      "name": "radial_head:settled:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [],
+      "expected": 29
+    },
+    {
+      "name": "radial_head:settled:grineer_head:0:critical_chance",
+      "base": 0.25,
+      "updates": [],
+      "expected": 0.25
+    },
+    {
+      "name": "radial_head:settled:grineer_head:0:critical_multiplier",
+      "base": 2,
+      "updates": [],
+      "expected": 2
+    },
+    {
+      "name": "proxy_disabled_head:settled:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 43.5
+    },
+    {
+      "name": "body:settled:mixed:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          1.3
+        ],
+        "settle"
+      ],
+      "expected": 37.69999694824219
+    },
+    {
+      "name": "body:settled:mixed:0:critical_chance",
+      "base": 0.25,
+      "updates": [
+        [
+          "add",
+          0.15
+        ]
+      ],
+      "expected": 0.4000000059604645
+    },
+    {
+      "name": "body:settled:mixed:0:critical_multiplier",
+      "base": 2,
+      "updates": [
+        [
+          "multiply",
+          1.7
+        ]
+      ],
+      "expected": 3.4000000953674316
+    },
+    {
+      "name": "head:settled:mixed:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          1.3
+        ],
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 56.54999542236328
+    },
+    {
+      "name": "body:pending:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          2
+        ],
+        "settle"
+      ],
+      "expected": 115.18008422851562
+    },
+    {
+      "name": "body:pending:grineer_head:0:critical_chance",
+      "base": 0.25,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "add",
+          0
+        ]
+      ],
+      "expected": 1.3838000297546387
+    },
+    {
+      "name": "body:pending:grineer_head:0:critical_multiplier",
+      "base": 2,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          2
+        ]
+      ],
+      "expected": 9.610099792480469
+    },
+    {
+      "name": "head:pending:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          2
+        ],
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 172.77012634277344
+    },
+    {
+      "name": "radial_head:pending:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ]
+      ],
+      "expected": 57.59004211425781
+    },
+    {
+      "name": "radial_head:pending:grineer_head:0:critical_chance",
+      "base": 0.25,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ]
+      ],
+      "expected": 1.3838000297546387
+    },
+    {
+      "name": "radial_head:pending:grineer_head:0:critical_multiplier",
+      "base": 2,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ]
+      ],
+      "expected": 4.805049896240234
+    },
+    {
+      "name": "proxy_disabled_head:pending:grineer_head:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 86.38506317138672
+    },
+    {
+      "name": "body:pending:mixed:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.3
+        ],
+        "settle"
+      ],
+      "expected": 74.86705780029297
+    },
+    {
+      "name": "body:pending:mixed:0:critical_chance",
+      "base": 0.25,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "add",
+          0.15
+        ]
+      ],
+      "expected": 1.638800024986267
+    },
+    {
+      "name": "body:pending:mixed:0:critical_multiplier",
+      "base": 2,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.7
+        ]
+      ],
+      "expected": 8.168584823608398
+    },
+    {
+      "name": "head:pending:mixed:0:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.3
+        ],
+        "settle",
+        [
+          "multiply",
+          1.5
+        ],
+        "settle"
+      ],
+      "expected": 112.30058288574219
+    },
+    {
+      "name": "body:settled:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          2
+        ]
+      ],
+      "expected": 58
+    },
+    {
+      "name": "head:settled:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          2
+        ],
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 87
+    },
+    {
+      "name": "proxy_disabled_head:settled:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 43.5
+    },
+    {
+      "name": "body:settled:mixed:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          1.3
+        ]
+      ],
+      "expected": 37.69999694824219
+    },
+    {
+      "name": "head:settled:mixed:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "multiply",
+          1.3
+        ],
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 56.54999923706055
+    },
+    {
+      "name": "body:pending:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          2
+        ]
+      ],
+      "expected": 115.18008422851562
+    },
+    {
+      "name": "head:pending:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          2
+        ],
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 172.7701416015625
+    },
+    {
+      "name": "proxy_disabled_head:pending:grineer_head:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 86.38507080078125
+    },
+    {
+      "name": "body:pending:mixed:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.3
+        ]
+      ],
+      "expected": 74.86705780029297
+    },
+    {
+      "name": "head:pending:mixed:1:scalar",
+      "base": 29,
+      "updates": [
+        [
+          "add",
+          0.17
+        ],
+        [
+          "add_base",
+          0.31
+        ],
+        [
+          "stacking_multiply",
+          0.15
+        ],
+        [
+          "multiply",
+          1.7
+        ],
+        [
+          "multiply",
+          1.3
+        ],
+        [
+          "multiply",
+          1.5
+        ]
+      ],
+      "expected": 112.30058288574219
+    }
+  ]
+}
