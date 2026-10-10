@@ -1,5 +1,6 @@
 mod account;
 pub mod adapter;
+pub(crate) mod equipment;
 mod executable;
 pub mod gep;
 pub mod inventory;

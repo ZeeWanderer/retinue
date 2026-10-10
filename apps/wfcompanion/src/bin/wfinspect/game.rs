@@ -1,5 +1,5 @@
 use super::{args, files, scripts, support::*};
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use serde_json::json;
 use std::path::PathBuf;
 use wfcompanion::{game_observer, inspect};
@@ -22,9 +22,14 @@ pub enum Game {
     },
     /// Read current resource stacks, blueprints and foundry jobs from memory.
     Inventory,
+    /// Read attached native upgrades from an explicit weapon instance.
+    Equipment(args::Equipment),
     /// Read, search, follow pointers and capture selected memory.
     #[command(subcommand)]
     Memory(Memory),
+    /// Observe sequenced damage displays without hooks or game input.
+    #[command(subcommand)]
+    Combat(Combat),
     /// Enumerate movies and text objects; run typed UI queries.
     #[command(subcommand)]
     Ui(Ui),
@@ -47,6 +52,22 @@ pub enum Game {
 
 #[derive(Subcommand)]
 pub enum Memory {
+    /// Record changes to explicit ranges as bounded, timestamped NDJSON.
+    Watch {
+        #[command(flatten)]
+        source: args::Source,
+        #[command(flatten)]
+        recording: args::Recording,
+        /// START:LENGTH in decimal or 0x hex; repeat for multiple ranges.
+        #[arg(long = "range", value_parser = args::range, required = true)]
+        ranges: Vec<std::ops::Range<u64>>,
+    },
+    /// Summarize a recording, or retrieve the retained bytes at a sample index.
+    Replay {
+        file: PathBuf,
+        #[arg(long)]
+        sample: Option<u64>,
+    },
     /// List mappings and available captured ranges.
     Maps {
         #[command(flatten)]
@@ -123,6 +144,109 @@ pub enum Memory {
         #[arg(long = "root", value_parser = args::number)]
         roots: Vec<u64>,
     },
+}
+
+#[derive(Args)]
+pub struct CombatProbe {
+    #[command(flatten)]
+    source: args::Source,
+    /// Validated HUD owner address, avoiding automatic discovery.
+    #[arg(long, value_parser = args::number)]
+    owner: Option<u64>,
+    #[command(flatten)]
+    selection: args::Selection,
+    /// One-time discovery byte budget; never scanned during sampling.
+    #[arg(long, default_value_t = 4294967296)]
+    max_bytes: u64,
+}
+
+impl CombatProbe {
+    fn options(&self) -> inspect::combat::ProbeOptions {
+        inspect::combat::ProbeOptions {
+            owner: self.owner,
+            selection: self.selection.query(),
+            max_bytes: self.max_bytes,
+        }
+    }
+}
+
+#[derive(Subcommand)]
+pub enum Combat {
+    /// Locate and validate the native damage-display pool; do not record.
+    Probe {
+        #[command(flatten)]
+        probe: CombatProbe,
+    },
+    /// Record HUD display observations. This is not a lossless hit-packet stream.
+    Watch {
+        #[command(flatten)]
+        probe: CombatProbe,
+        #[command(flatten)]
+        recording: args::Recording,
+        /// Also stream decoded observations to stdout.
+        #[arg(long)]
+        events: bool,
+    },
+    /// Decode a recording offline; default output is a compact summary.
+    Replay {
+        file: PathBuf,
+        #[arg(long)]
+        events: bool,
+    },
+}
+
+impl Combat {
+    fn run(self) -> Result<(), String> {
+        match self {
+            Self::Probe { probe } => {
+                let options = probe.options();
+                print_json(&inspect::combat::probe(probe.source.open()?, options)?)
+            }
+            Self::Watch {
+                probe,
+                recording,
+                events,
+            } => {
+                let options = probe.options();
+                let report = inspect::combat::record(
+                    probe.source.open()?,
+                    options,
+                    &recording.output,
+                    recording.options(),
+                    |event| {
+                        if events {
+                            print_ndjson("game.combat", "event", event)
+                        } else {
+                            Ok(())
+                        }
+                    },
+                )?;
+                if events {
+                    print_ndjson("game.combat", "summary", &report)?;
+                } else {
+                    print_json(&report)?;
+                }
+                if let Some(error) = report["polling"]["error"].as_str() {
+                    return Err(error.into());
+                }
+                Ok(())
+            }
+            Self::Replay { file, events } => {
+                let report = inspect::combat::replay(&file, |event| {
+                    if events {
+                        print_ndjson("game.combat", "event", event)
+                    } else {
+                        Ok(())
+                    }
+                })?;
+                if events {
+                    print_ndjson("game.combat", "summary", &report)
+                } else {
+                    print_json(&report)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -208,7 +332,12 @@ impl Game {
             Self::Inventory => {
                 print_json(&game_observer::inventory::Reader::open(game_pid()?)?.read()?)
             }
+            Self::Equipment(options) => print_json(&inspect::equipment::read(
+                options.source.open()?,
+                options.weapon,
+            )?),
             Self::Memory(command) => command.run(),
+            Self::Combat(command) => command.run(),
             Self::Ui(command) => command.run(),
             Self::Cache(command) => command.run(),
             Self::Script(command) => command.run(),
@@ -251,6 +380,26 @@ impl Memory {
     fn run(self) -> Result<(), String> {
         use inspect::memory;
         match self {
+            Self::Watch {
+                source,
+                recording,
+                ranges,
+            } => {
+                let summary = inspect::watch::memory(
+                    source.open()?,
+                    &ranges,
+                    &recording.output,
+                    recording.options(),
+                )?;
+                print_json(&summary)?;
+                if let Some(error) = summary.error {
+                    return Err(error);
+                }
+                Ok(())
+            }
+            Self::Replay { file, sample } => {
+                print_json(&inspect::watch::replay_memory(&file, sample)?)
+            }
             Self::Maps { source } => print_json(&memory::maps(source.open()?)?),
             Self::Read {
                 source,

@@ -126,6 +126,11 @@ mod tests {
             vec!["game", "cache", "paths", "/nonexistent", "Font", "--help"],
             vec!["game", "ui", "objects", "--help"],
             vec!["game", "memory", "path", "--help"],
+            vec!["game", "memory", "watch", "--help"],
+            vec!["game", "memory", "replay", "--help"],
+            vec!["game", "combat", "watch", "--help"],
+            vec!["game", "combat", "probe", "--help"],
+            vec!["game", "combat", "replay", "--help"],
             vec!["game", "script", "snapshot", "--help"],
             vec!["game", "script", "compare", "--help"],
         ] {
@@ -133,6 +138,51 @@ mod tests {
                 .err()
                 .unwrap();
             assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+        }
+    }
+
+    #[test]
+    fn recording_cli_requires_bounds_and_preserves_discovery_controls() {
+        for args in [
+            vec![
+                "combat",
+                "watch",
+                "new.jsonl",
+                "--seconds",
+                "0.2",
+                "--owner",
+                "0x10000",
+                "--pid",
+                "123",
+            ],
+            vec![
+                "combat",
+                "probe",
+                "--capture",
+                "evidence",
+                "--range",
+                "0x10000:0x2000",
+            ],
+            vec!["combat", "replay", "recording.jsonl", "--events"],
+            vec![
+                "memory",
+                "watch",
+                "new.jsonl",
+                "--range",
+                "0x10000:8",
+                "--range",
+                "0x20000:8",
+            ],
+            vec!["memory", "replay", "recording.jsonl", "--sample", "10"],
+        ] {
+            assert!(Cli::try_parse_from(["wfinspect", "game"].into_iter().chain(args)).is_ok());
+        }
+        for args in [
+            vec!["combat", "watch", "new.jsonl", "--seconds", "NaN"],
+            vec!["combat", "watch", "new.jsonl", "--interval-ms", "1"],
+            vec!["memory", "watch", "new.jsonl"],
+        ] {
+            assert!(Cli::try_parse_from(["wfinspect", "game"].into_iter().chain(args)).is_err());
         }
     }
 

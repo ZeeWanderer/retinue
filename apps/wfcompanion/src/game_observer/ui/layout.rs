@@ -43,15 +43,8 @@ const TEXT: &str = "
 
 pub(crate) fn discover(bytes: &[u8]) -> Result<ScaleformLayout, String> {
     let image = PeFile::from_bytes(bytes).map_err(|error| format!("invalid PE: {error}"))?;
-    let flash = signature::<3>(image, "Flash instance registration", FLASH)?;
-    executable::writable(image, flash[2].into(), 0x30)?;
-    let flash_vtable = signature_in::<2>(
-        image,
-        "Flash instance constructor",
-        FLASH_VTABLE,
-        function_range(image, flash[1])?,
-    )?;
-    let lookup = resource_lookup(image, flash[2])?;
+    let (flash_type, flash_vtable) = flash_binding(image)?;
+    let lookup = resource_lookup(image, flash_type)?;
     let manager = signature_in::<4>(
         image,
         "resource manager",
@@ -84,7 +77,7 @@ pub(crate) fn discover(bytes: &[u8]) -> Result<ScaleformLayout, String> {
         return Err("display constructors do not share their base class".into());
     }
     let tables = [
-        (flash_vtable[1], 4),
+        (flash_vtable, 4),
         (root[1], 4),
         (root[2], 1),
         (container[2], 4),
@@ -100,8 +93,8 @@ pub(crate) fn discover(bytes: &[u8]) -> Result<ScaleformLayout, String> {
     }
     Ok(ScaleformLayout {
         registry_vector_rva: registry,
-        flash_instance_type_rva: flash[2].into(),
-        flash_instance_vtable_rva: flash_vtable[1].into(),
+        flash_instance_type_rva: flash_type.into(),
+        flash_instance_vtable_rva: flash_vtable.into(),
         root_vtable_rva: root[1].into(),
         root_secondary_vtable_rva: root[2].into(),
         container_vtable_rva: container[2].into(),
@@ -109,6 +102,23 @@ pub(crate) fn discover(bytes: &[u8]) -> Result<ScaleformLayout, String> {
         text_vtable_rva: text[2].into(),
         text_secondary_vtable_rva: text[3].into(),
     })
+}
+
+pub(crate) fn flash_instance_vtable(image: PeFile<'_>) -> Result<u64, String> {
+    Ok(flash_binding(image)?.1.into())
+}
+
+fn flash_binding(image: PeFile<'_>) -> Result<(u32, u32), String> {
+    let flash = signature::<3>(image, "Flash instance registration", FLASH)?;
+    executable::writable(image, flash[2].into(), 0x30)?;
+    let flash_vtable = signature_in::<2>(
+        image,
+        "Flash instance constructor",
+        FLASH_VTABLE,
+        function_range(image, flash[1])?,
+    )?;
+    vtable(image, flash_vtable[1], 4)?;
+    Ok((flash[2], flash_vtable[1]))
 }
 
 fn resource_lookup(image: PeFile<'_>, descriptor: u32) -> Result<u32, String> {

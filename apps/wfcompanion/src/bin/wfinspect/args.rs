@@ -27,6 +27,15 @@ impl Source {
 }
 
 #[derive(Args)]
+pub struct Equipment {
+    #[command(flatten)]
+    pub source: Source,
+    /// Explicit native weapon instance address from this process or capture.
+    #[arg(long, value_parser = number, value_name = "ADDRESS")]
+    pub weapon: u64,
+}
+
+#[derive(Args)]
 #[group(id = "watch_options")]
 pub struct Watch {
     /// Maximum duration in seconds (fractional values allowed, <=300).
@@ -35,6 +44,39 @@ pub struct Watch {
     /// Maximum records before stopping.
     #[arg(long, default_value_t = 1000)]
     pub limit: usize,
+}
+
+#[derive(Args)]
+pub struct Recording {
+    /// New private recording file; existing files are never overwritten.
+    pub output: PathBuf,
+    /// Duration in seconds (fractional values allowed, <=1800).
+    #[arg(long, default_value = "30", value_parser = recording_duration)]
+    seconds: Duration,
+    /// Sampling interval; no busy-loop catchup after slow reads.
+    #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u64).range(10..=5000))]
+    interval_ms: u64,
+    /// Stop before the recording exceeds this many bytes.
+    #[arg(long, default_value_t = 67108864)]
+    record_bytes: u64,
+}
+
+impl Recording {
+    pub fn options(&self) -> wfcompanion::inspect::watch::Options {
+        wfcompanion::inspect::watch::Options {
+            duration: self.seconds,
+            interval: Duration::from_millis(self.interval_ms),
+            max_bytes: self.record_bytes,
+        }
+    }
+}
+
+fn recording_duration(value: &str) -> Result<Duration, String> {
+    let seconds: f64 = value.parse().map_err(|_| "invalid seconds")?;
+    if !seconds.is_finite() || seconds <= 0.0 || seconds > 1800.0 {
+        return Err("seconds must be >0 and <=1800".into());
+    }
+    Ok(Duration::from_secs_f64(seconds))
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -166,4 +208,48 @@ fn duration(value: &str) -> Result<Duration, String> {
         return Err("seconds must be >0 and <=300".into());
     }
     Ok(Duration::from_secs_f64(seconds))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::{Cli, Command, game::Game};
+    use clap::Parser;
+
+    #[test]
+    fn equipment_requires_explicit_weapon_and_exclusive_source() {
+        for source in [vec![], vec!["--pid", "42"], vec!["--capture", "evidence"]] {
+            let mut args = vec!["wfinspect", "game", "equipment", "--weapon", "0x25ea8ae0"];
+            args.extend(source);
+            let cli = Cli::try_parse_from(args).unwrap();
+            assert!(
+                matches!(cli.command, Command::Game(Game::Equipment(options)) if options.weapon == 0x25ea8ae0)
+            );
+        }
+        for args in [
+            vec!["wfinspect", "game", "equipment"],
+            vec!["wfinspect", "game", "equipment", "--weapon", "unknown"],
+            vec![
+                "wfinspect",
+                "game",
+                "equipment",
+                "--weapon",
+                "42",
+                "--pid",
+                "42",
+                "--capture",
+                "evidence",
+            ],
+            vec![
+                "wfinspect",
+                "game",
+                "equipment",
+                "--weapon",
+                "42",
+                "--rank",
+                "1",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err());
+        }
+    }
 }

@@ -136,15 +136,15 @@ pub enum Probe<T> {
     Unavailable { reason: String },
 }
 
-struct OpenedSource {
-    memory: ProcessMemory,
-    metadata: SourceMetadata,
+pub(super) struct OpenedSource {
+    pub memory: ProcessMemory,
+    pub metadata: SourceMetadata,
     scaleform: Option<adapter::ScaleformLayout>,
     typed_capture: bool,
 }
 
 impl OpenedSource {
-    fn open(source: Source) -> Result<Self, String> {
+    pub(super) fn open(source: Source) -> Result<Self, String> {
         match source {
             Source::Live(pid) => {
                 let memory = ProcessMemory::open(pid)?;
@@ -383,10 +383,38 @@ fn scan_query(
     limit: usize,
     max_bytes: u64,
 ) -> Result<ByteScanReport, String> {
+    scan_opened(
+        &OpenedSource::open(source)?,
+        needle,
+        selection,
+        limit,
+        max_bytes,
+    )
+}
+
+pub(super) fn find_bytes(
+    source: &OpenedSource,
+    pattern: &[u8],
+    selection: &Selection,
+    limit: usize,
+    max_bytes: u64,
+) -> Result<ByteScanReport, String> {
+    if pattern.is_empty() || pattern.len() > MAX_PATTERN_BYTES {
+        return Err("invalid scan pattern size".into());
+    }
+    scan_opened(source, Needle::Bytes(pattern), selection, limit, max_bytes)
+}
+
+fn scan_opened(
+    source: &OpenedSource,
+    needle: Needle<'_>,
+    selection: &Selection,
+    limit: usize,
+    max_bytes: u64,
+) -> Result<ByteScanReport, String> {
     if limit == 0 || limit > 1_000_000 || max_bytes == 0 {
         return Err("scan requires 1..1000000 matches and a nonzero byte budget".into());
     }
-    let source = OpenedSource::open(source)?;
     let started = Instant::now();
     let ranges = selection.ranges(&source.memory);
     let candidate_bytes = ranges
@@ -464,7 +492,7 @@ fn scan_query(
     }
 
     Ok(ByteScanReport {
-        source: source.metadata,
+        source: source.metadata.clone(),
         pattern: match needle {
             Needle::Bytes(pattern) => pattern.iter().map(|byte| format!("{byte:02x}")).collect(),
             Needle::Pointer(target) => format!("pointer:0x{:x}..0x{:x}", target.start, target.end),
