@@ -44,7 +44,7 @@ bool hasArgument(int argc, char *argv[], const char *expected) {
 } // namespace
 
 int main(int argc, char *argv[]) {
-  QCoreApplication::setOrganizationName("wfcli");
+  QCoreApplication::setOrganizationName("retinue");
   QCoreApplication::setApplicationName("wfgui");
   QCoreApplication::setApplicationVersion(WFCLI_VERSION);
   if (hasArgument(argc, argv, "--paths-json")) {
@@ -110,6 +110,11 @@ int main(int argc, char *argv[]) {
   if (parser.isSet(capture) && !parser.isSet(screenshot)) {
     qCritical("--capture requires --screenshot");
     return 2;
+  }
+
+  if (!wfgui::ensurePrivateDirectory(wfgui::cacheDirectory())) {
+    qWarning("could not create GUI cache directory: %s",
+             qPrintable(wfgui::cacheDirectory()));
   }
 
   app.setStyleSheet(wfgui::applicationStyleSheet());

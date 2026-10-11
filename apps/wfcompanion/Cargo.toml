@@ -4,28 +4,25 @@ name = "wfcompanion"
 version = "0.2.1"
 edition = "2024"
 license = "Apache-2.0"
-description = "Linux/Proton Warframe observer and overlay companion for wfdaemon"
+description = "Linux/Proton Warframe observer and overlay companion for Retinue"
 build = "build.rs"
 
 [dependencies]
 bytes = "1"
-clap = { version = "4.6", features = ["derive"] }
-clap_complete = "4.6"
 ashpd = { version = "0.13.13", default-features = false, features = ["global_shortcuts", "tokio"] }
 fontdue = "0.9.3"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
-iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
-libloading = "0.9"
 libc = "0.2"
 memchr = "2.7"
-pelite = { version = "0.10", default-features = false, features = ["std"] }
+retinue-client = { path = "../../crates/retinue-client" }
+retinue-native = { path = "../../crates/retinue-native" }
+retinue-warframe = { path = "../../crates/retinue-warframe" }
 rustix = { version = "1", features = ["fs", "process", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 smithay-client-toolkit = { version = "0.20", default-features = false, features = ["calloop"] }
-steamlocate = "2.1"
 taffy = { version = "0.12.2", default-features = false, features = ["std", "taffy_tree", "flexbox", "grid"] }
 tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 tokio-util = { version = "0.7.19", features = ["codec"] }

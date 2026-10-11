@@ -1,21 +1,25 @@
-# wfcli
+# Retinue
 
-Warframe toolkit for terminal, desktop, MCP, and Linux/Proton in-game use. A shared Erlang/OTP
-daemon owns fetching, caches, queries, watches, player data, Market access, and Forma planning.
-Clients remain focused on their interface.
+A local game-data platform for terminal, desktop, MCP, and Linux/Proton use. One Erlang/OTP
+daemon shares lifecycle and transport while keeping game services and data separate. Warframe
+provides queries, worldstate, Market, Forma planning, a desktop GUI, and in-game overlays.
+Path of Exile 2 provides a read-only local-log observer and session/event views.
 
 ## Applications
 
 | Application | Purpose |
 | --- | --- |
-| [`wfcli`](docs/cli.md) | Terminal client, daemon controls, and stdio MCP entrypoint |
-| [`wfdaemon`](docs/daemon.md) | Supervised data, persistence, query, market, watch, and planning service |
-| [`wfcompanion`](docs/companion.md) | Linux/Proton game observer and Wayland overlay |
-| [`wfgui`](docs/gui.md) | Native Qt desktop client for account and world-state views |
-| [`wfinspect`](docs/wfinspect.md) | Warframe research and runtime inspection |
-| [`wfcore`](docs/developer/shared_utilities.md) | Process-free contracts and value helpers shared by OTP applications |
+| [`retinue`](docs/cli.md) | Game-scoped terminal commands, daemon controls, and stdio MCP entrypoint |
+| `wfcli`, `poe2cli`, `arccli` | Game-scoped aliases for `retinue` |
+| [`retinue-daemon`](docs/daemon.md) | Shared service host with separate Warframe and PoE2 supervisors |
+| [`wfcompanion`](docs/companion.md) | Warframe observer and Wayland overlay |
+| [`poe2companion`](docs/poe2.md) | Path of Exile 2 local-log observer |
+| [`arccompanion`](docs/arc.md) | ARC Raiders launch scaffold; observation not implemented |
+| [`wfgui`](docs/gui.md) | Native Qt desktop client for Warframe account and world-state views |
+| [`retinue-inspect`](docs/wfinspect.md) | Generic memory/capture inspection and Warframe research; `wfinspect` is an alias |
 
-Clients start `wfdaemon` when needed. Concurrent clients reuse its caches and rate-limited work.
+Clients start `retinue-daemon` when needed. Concurrent clients reuse its caches and rate-limited work.
+The [project structure](docs/developer/structure.md) describes OTP libraries and ownership.
 
 ## Desktop GUI
 
@@ -35,17 +39,17 @@ relics during selection.
 
 ## Install
 
-The Homebrew package targets Linux x86_64. Add the tap, trust only the `wfcli` formula, and
-install it:
+Build Retinue from source using the [requirements and commands below](#build). The production
+installation is the complete `prod/` tree. Use its binaries directly or add them to the shell path:
 
 ```bash
-brew tap zeewanderer/sundries
-brew trust --formula zeewanderer/sundries/wfcli
-brew install wfcli
+export PATH="$PWD/prod/bin:$PATH"
 ```
 
-This installs `wfcli`, `wfdaemon`, `wfcompanion`, `wfgui`, and `wfinspect` into Homebrew's command
-path.
+The published `wfcli` 0.2.1 package in [zeewanderer/sundries](https://github.com/zeewanderer/homebrew-sundries)
+is the older Warframe release, not a Retinue bottle. Its legacy files remain separate from
+Retinue's storage.
+To copy existing settings and data, follow [storage migration](docs/data-sources.md#migrate-wfcli-storage).
 
 ### Steam launch mode
 
@@ -61,14 +65,15 @@ Set **Warframe > Properties > General > Launch Options** in Steam using that abs
 /absolute/path/to/wfcompanion launch -- %command%
 ```
 
-Start `wfdaemon` from the host before launching Warframe; Proton-side startup is not recommended:
+Start `retinue-daemon` from the host before launching Warframe; Proton-side startup is not recommended:
 
 ```bash
-wfcli daemon ensure
+retinue daemon ensure
 ```
 
-Launch mode starts the companion with Warframe and reuses `wfdaemon`. See the
+Launch mode starts the companion with Warframe and reuses `retinue-daemon`. See the
 [companion guide](docs/companion.md) for automatic Steam configuration and overlay controls.
+PoE2 has its own [log-observer setup](docs/poe2.md).
 
 ### Desktop launcher
 
@@ -80,15 +85,14 @@ wfcli gui install
 
 ### Daemon service (optional)
 
-Normal CLI, GUI, and companion use starts `wfdaemon` automatically. Enable login autostart only
+Normal CLI, GUI, and companion use starts `retinue-daemon` automatically. Enable login autostart only
 when persistent watches or notifications should remain active without an open client:
 
 ```bash
-wfcli daemon autostart enable
+retinue daemon autostart enable
 ```
 
-Homebrew installations manage this through `brew services`; use `wfcli daemon autostart status`
-to inspect it.
+Source builds install a systemd user unit; use `retinue daemon autostart status` to inspect it.
 
 ## Build
 
@@ -125,9 +129,15 @@ Repository-root links select either staged environment:
 
 | Development | Production |
 | --- | --- |
+| `retinued` | `retinue` |
 | `wfclid` | `wfcli` |
-| `wfdaemond` | `wfdaemon` |
+| `poe2clid` | `poe2cli` |
+| `arcclid` | `arccli` |
+| `retinue-daemond` | `retinue-daemon` |
 | `wfcompaniond` | `wfcompanion` |
+| `poe2companiond` | `poe2companion` |
+| `arccompaniond` | `arccompanion` |
+| `retinue-inspectd` | `retinue-inspect` |
 | `wfinspectd` | `wfinspect` |
 | `wf-luau-decompilerd` | `wf-luau-decompiler` |
 | `wfguid` | `wfgui` |
@@ -140,24 +150,27 @@ Common contributor commands and individual build targets are documented in
 Use installed commands, or the production links after `make prod`:
 
 ```bash
-wfcli fissures
-wfcli baro inventory
+retinue warframe fissures
+retinue warframe baro inventory
 wfcli query 'dataset=worldstate type=fissure hard=true'
+retinue poe2 companion status
+poe2cli companion events --json
 wfgui
 ```
 
-The CLI starts or reuses `wfdaemon`. Built-in help covers the complete command surface:
+The CLI starts or reuses `retinue-daemon`. Built-in help covers the complete command surface:
 
 ```bash
-wfcli --help
-wfcli help commands
-wfcli COMMAND --help
+retinue --help
+retinue warframe --help
+retinue poe2 --help
+retinue COMMAND --help
 ```
 
 Register the MCP adapter with a host using the same production client:
 
 ```bash
-codex mcp add wfcli -- wfcli mcp
+codex mcp add retinue -- retinue mcp
 ```
 
 ## Documentation
@@ -170,6 +183,7 @@ codex mcp add wfcli -- wfcli mcp
 | [Forma planner](docs/forma-plan.md) | Configuration, constraints, output, and visualization |
 | [Daemon control](docs/daemon.md) | Lifecycle, idle policy, autostart, compatibility, and hot updates |
 | [Linux/Proton companion](docs/companion.md) | Steam setup, overlay controls, diagnostics, previews, and player data |
+| [Path of Exile 2](docs/poe2.md) | Local log observation, launch mode, status, events, and evidence limits |
 | [Desktop GUI](docs/gui.md) | Pages, loading behavior, notifications, and screenshots |
 | [MCP server](docs/mcp.md) | Registration, tools, resources, and cancellation |
 | [Contributor documentation](docs/DEVELOPER.md) | Architecture, source ownership, tests, and development workflows |

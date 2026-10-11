@@ -21,6 +21,7 @@ CXX := $(if $(LLVM_ROOT),$(LLVM_ROOT)/bin/clang++,clang++)
 endif
 
 COMPANION_MANIFEST := apps/wfcompanion/Cargo.toml
+POE2_COMPANION_MANIFEST := apps/poe2companion/Cargo.toml
 VERSION := $(strip $(shell cat VERSION))
 PLATFORM := $(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 PREVIEW_MEDIA ?= all
@@ -46,14 +47,14 @@ CMAKE_CXX_COMPILER_LAUNCHER ?= $(SCCACHE)
 export RUSTC_WRAPPER CMAKE_C_COMPILER_LAUNCHER CMAKE_CXX_COMPILER_LAUNCHER
 endif
 
-.PHONY: all build dev prod erlang cli daemon mcp companion gui gui-dev gui-prod sccache-setup \
+.PHONY: all build dev prod erlang cli daemon mcp companion inspect dev-inspect prod-inspect gui gui-dev gui-prod sccache-setup \
 	gui-configure-dev gui-configure-prod \
 	dev-erlang prod-erlang dev-companion prod-companion links \
 	debug-bridge native-bridges previews icon-optics aleca-layout-setup fix-executables \
-	native-compile-commands test test-erlang test-companion test-gui test-release test-staging test-build check fmt-check xref package clean
+	native-compile-commands test test-erlang test-companion test-poe2 test-gui test-release test-staging test-build check fmt-check xref package clean
 
 # These phases share build trees; their internal compiler jobs remain parallel.
-.NOTPARALLEL: check
+.NOTPARALLEL: check test
 
 all: dev
 build: dev prod
@@ -71,6 +72,14 @@ prod: prod-erlang prod-companion gui-prod links
 erlang cli daemon mcp: dev-erlang
 
 companion: dev-companion
+
+inspect: dev-inspect
+
+dev-inspect: sccache-setup
+	+$(CARGO) build --locked -p retinue-inspect
+
+prod-inspect: sccache-setup
+	+$(CARGO) build --locked --release -p retinue-inspect
 
 gui: gui-dev
 
@@ -92,13 +101,13 @@ gui-prod: gui-configure-prod
 
 dev-erlang:
 	$(REBAR3) escriptize
-	rm -rf _build/default/rel/wfdaemon
+	rm -rf _build/default/rel/retinue_daemon
 	$(REBAR3) release
 	./scripts/stage-erlang dev
 
 prod-erlang:
 	$(REBAR3) as prod escriptize
-	rm -rf _build/prod/rel/wfdaemon
+	rm -rf _build/prod/rel/retinue_daemon
 	$(REBAR3) as prod release
 	./scripts/stage-erlang prod
 
@@ -109,15 +118,32 @@ prod-companion: sccache-setup
 	+./scripts/build-companion prod
 
 links:
+	@for name in wfdaemon wfdaemond; do \
+		if test -L "$$name"; then \
+			case "$$(readlink "$$name")" in dev/bin/wfdaemon|prod/bin/wfdaemon) rm "$$name" ;; esac; \
+		fi; \
+	done
+	ln -sfn dev/bin/retinue retinued
 	ln -sfn dev/bin/wfcli wfclid
-	ln -sfn dev/bin/wfdaemon wfdaemond
+	ln -sfn dev/bin/poe2cli poe2clid
+	ln -sfn dev/bin/arccli arcclid
+	ln -sfn dev/bin/retinue-daemon retinue-daemond
+	ln -sfn dev/bin/retinue-inspect retinue-inspectd
 	ln -sfn dev/bin/wfcompanion wfcompaniond
+	ln -sfn dev/bin/poe2companion poe2companiond
+	ln -sfn dev/bin/arccompanion arccompaniond
 	ln -sfn dev/bin/wfinspect wfinspectd
 	ln -sfn dev/bin/wf-luau-decompiler wf-luau-decompilerd
 	ln -sfn dev/bin/wfgui wfguid
+	ln -sfn prod/bin/retinue retinue
 	ln -sfn prod/bin/wfcli wfcli
-	ln -sfn prod/bin/wfdaemon wfdaemon
+	ln -sfn prod/bin/poe2cli poe2cli
+	ln -sfn prod/bin/arccli arccli
+	ln -sfn prod/bin/retinue-daemon retinue-daemon
+	ln -sfn prod/bin/retinue-inspect retinue-inspect
 	ln -sfn prod/bin/wfcompanion wfcompanion
+	ln -sfn prod/bin/poe2companion poe2companion
+	ln -sfn prod/bin/arccompanion arccompanion
 	ln -sfn prod/bin/wfinspect wfinspect
 	ln -sfn prod/bin/wf-luau-decompiler wf-luau-decompiler
 	ln -sfn prod/bin/wfgui wfgui
@@ -149,19 +175,25 @@ aleca-layout-setup:
 fix-executables:
 	bash ./scripts/fix-executables
 
-test: test-erlang test-companion test-gui test-staging test-build
+test: test-erlang test-companion test-gui test-staging test-build test-poe2
 
 test-erlang:
 	./scripts/test-quiet eunit
 	./scripts/test-quiet ct
 
 test-companion: native-bridges
+	+$(CARGO) test --locked --quiet -p retinue-client -p retinue-native -p retinue-warframe -p retinue-inspect -p arccompanion
 	+$(CARGO) test --locked --quiet --manifest-path $(COMPANION_MANIFEST)
+	+$(CARGO) test --locked --quiet --manifest-path $(POE2_COMPANION_MANIFEST)
+
+test-poe2: dev-erlang dev-companion
+	python3 ./scripts/tests/poe2.py --stage dev
 
 test-gui:
 	+./scripts/test-quiet gui
 
 test-staging:
+	./scripts/test-storage-migration
 	./scripts/test-quiet staging
 
 test-build:
@@ -171,7 +203,7 @@ test-release: prod
 	./scripts/test-quiet release
 
 fmt-check:
-	$(CARGO) fmt --manifest-path $(COMPANION_MANIFEST) --check
+	$(CARGO) fmt --all --check
 
 xref:
 	$(REBAR3) xref
@@ -180,9 +212,9 @@ check: fmt-check xref test dev prod test-release
 
 package: prod
 	mkdir -p releases
-	rm -f releases/wfcli-$(VERSION)-$(PLATFORM).tar.gz releases/wfcli-$(VERSION)-$(PLATFORM).zip
-	tar -C prod -czf releases/wfcli-$(VERSION)-$(PLATFORM).tar.gz .
-	cd prod && zip -qr ../releases/wfcli-$(VERSION)-$(PLATFORM).zip .
+	rm -f releases/retinue-$(VERSION)-$(PLATFORM).tar.gz releases/retinue-$(VERSION)-$(PLATFORM).zip
+	tar -C prod -czf releases/retinue-$(VERSION)-$(PLATFORM).tar.gz .
+	cd prod && zip -qr ../releases/retinue-$(VERSION)-$(PLATFORM).zip .
 
 clean:
 	rm -rf _build dev prod

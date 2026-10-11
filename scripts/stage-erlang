@@ -14,9 +14,9 @@ case "$mode" in
 esac
 
 profile_dir="$root/_build/$profile"
-release="$profile_dir/rel/wfdaemon"
+release="$profile_dir/rel/retinue_daemon"
 
-if [[ ! -x "$profile_dir/bin/wfcli" || ! -x "$release/bin/wfdaemon" ]]; then
+if [[ ! -x "$profile_dir/bin/retinue" || ! -x "$release/bin/retinue_daemon" ]]; then
     printf 'missing %s Erlang build; run make %s-erlang first\n' "$mode" "$mode" >&2
     exit 1
 fi
@@ -24,28 +24,36 @@ fi
 source "$root/scripts/lib/staging.sh"
 stage_begin "$root/$mode"
 mkdir -p "$stage/bin" "$stage/libexec"
-rm -rf "$stage/libexec/wfdaemon" "$stage/libexec/wfcli"
-mkdir -p "$stage/libexec/wfcli"
-install -m 0755 "$profile_dir/bin/wfcli" "$stage/libexec/wfcli/wfcli.escript"
-install -m 0755 "$root/scripts/wfcli-wrapper" "$stage/bin/wfcli"
-cp -a --reflink=auto "$release" "$stage/libexec/wfdaemon"
-install -m 0755 "$root/scripts/wfdaemon-wrapper" "$stage/bin/wfdaemon"
+rm -rf "$stage/libexec/wfdaemon" "$stage/libexec/wfcli" \
+    "$stage/libexec/retinue_daemon" "$stage/libexec/retinue"
+rm -f "$stage/bin/wfdaemon"
+mkdir -p "$stage/libexec/retinue"
+install -m 0755 "$profile_dir/bin/retinue" "$stage/libexec/retinue/retinue.escript"
+for name in retinue wfcli poe2cli arccli; do
+    install -m 0755 "$root/scripts/retinue-wrapper" "$stage/bin/$name"
+done
+cp -a --reflink=auto "$release" "$stage/libexec/retinue_daemon"
+install -m 0755 "$root/scripts/retinue-daemon-wrapper" "$stage/bin/retinue-daemon"
 printf '%s\n' "$mode" > "$stage/BUILD_FLAVOR"
 
 completion_dir="$stage/share/bash-completion/completions"
-rm -rf "$completion_dir"
 mkdir -p "$completion_dir"
-"$stage/bin/wfcli" completion bash > "$completion_dir/wfcli.bash"
-cp "$completion_dir/wfcli.bash" "$completion_dir/wfclid.bash"
+"$stage/bin/retinue" completion bash > "$completion_dir/retinue.bash"
+for name in retinued wfcli wfclid poe2cli poe2clid arccli arcclid; do
+    cp "$completion_dir/retinue.bash" "$completion_dir/$name.bash"
+done
 
-core_ebin=("$stage"/libexec/wfdaemon/lib/wfcore-*/ebin)
-daemon_ebin=("$stage"/libexec/wfdaemon/lib/wfdaemon-*/ebin)
+platform_ebin=("$stage"/libexec/retinue_daemon/lib/retinue_core-*/ebin)
+core_ebin=("$stage"/libexec/retinue_daemon/lib/wfcore-*/ebin)
+daemon_ebin=("$stage"/libexec/retinue_daemon/lib/retinue_daemon-*/ebin)
 identity="$(
-    WFCLI_CORE_EBIN="${core_ebin[0]}" WFCLI_DAEMON_EBIN="${daemon_ebin[0]}" \
+    RETINUE_PLATFORM_EBIN="${platform_ebin[0]}" RETINUE_CORE_EBIN="${core_ebin[0]}" \
+        RETINUE_DAEMON_EBIN="${daemon_ebin[0]}" \
         erl -pa "${daemon_ebin[0]}" -noshell -eval '
-        Dirs = [os:getenv("WFCLI_CORE_EBIN"), os:getenv("WFCLI_DAEMON_EBIN")],
-        {ok, Bundles} = wfcli_hot_update:read_directories(Dirs),
-        {ok, Identity} = wfcli_hot_update:build_identity(Bundles),
+        Dirs = [os:getenv("RETINUE_PLATFORM_EBIN"), os:getenv("RETINUE_CORE_EBIN"),
+                os:getenv("RETINUE_DAEMON_EBIN")],
+        {ok, Bundles} = retinue_hot_update:read_directories(Dirs),
+        {ok, Identity} = retinue_hot_update:build_identity(Bundles),
         io:put_chars(Identity),
         halt().
     '

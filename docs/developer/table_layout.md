@@ -4,7 +4,7 @@ The table renderer infers layout from the input data and a lightweight
 column spec. Callers should pass intent (roles/optionality), not layout knobs.
 The renderer is free to override hints when needed to keep output readable.
 
-`wfcli_table` owns column policy and width allocation. `wfcli_table_text` owns
+`retinue_table` owns column policy and width allocation. `retinue_table_text` owns
 cell normalization, ANSI-aware wrapping, and final line formatting.
 
 ## Column Specification

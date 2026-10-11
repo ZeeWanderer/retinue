@@ -288,7 +288,7 @@ target_link_libraries(wfgui_icon_optics PRIVATE Qt6::Gui)
 
 install(TARGETS wfgui RUNTIME DESTINATION bin)
 install(FILES resources/qt.conf DESTINATION bin)
-install(FILES resources/Lucide-LICENSE.txt DESTINATION share/licenses/wfcli)
+install(FILES resources/Lucide-LICENSE.txt DESTINATION share/licenses/wfgui)
 string(REGEX MATCH "^[0-9]+" llvm_major "${CMAKE_CXX_COMPILER_VERSION}")
 find_file(WFCLI_LLVM_LICENSE_FILE NAMES LICENSE.TXT copyright
   PATHS "${WFCLI_LLVM_ROOT}"
@@ -296,7 +296,7 @@ find_file(WFCLI_LLVM_LICENSE_FILE NAMES LICENSE.TXT copyright
         "/usr/share/doc/libc++-dev"
   NO_DEFAULT_PATH REQUIRED)
 install(FILES "${WFCLI_LLVM_LICENSE_FILE}"
-  DESTINATION share/licenses/wfcli
+  DESTINATION share/licenses/wfgui
   RENAME LLVM-LICENSE.txt
 )
 foreach(runtime c++ c++abi unwind)
@@ -314,11 +314,11 @@ foreach(runtime c++ c++abi unwind)
   )
 endforeach()
 install(FILES resources/app/wfgui.svg
-  DESTINATION share/wfcli/icons
+  DESTINATION share/retinue/games/warframe/icons
 )
 foreach(icon_size 16 24 32 48 64 128 256 512)
   install(FILES resources/app/wfgui-${icon_size}.png
-    DESTINATION share/wfcli/icons
+    DESTINATION share/retinue/games/warframe/icons
   )
 endforeach()
 install(
@@ -351,6 +351,10 @@ endif()
 
 if(BUILD_TESTING)
   find_package(Qt6 REQUIRED COMPONENTS Test)
+  qt_add_executable(wfgui_paths_tests tests/paths_test.cpp src/wfgui_paths.cpp src/display_scale.cpp)
+  target_include_directories(wfgui_paths_tests PRIVATE src)
+  target_link_libraries(wfgui_paths_tests PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME wfgui-paths COMMAND wfgui_paths_tests)
   qt_add_executable(wfgui_market_tests
     src/market_widget.cpp
     src/market_widget.h

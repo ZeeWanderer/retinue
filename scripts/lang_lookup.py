@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import sys
+from pathlib import Path
 
-CANDIDATES = [
-    os.path.join("apps", "wfcli", "priv", "languages.json"),
-    os.path.join("build", "cache", "rebar3", "default", "lib", "wfcli", "priv", "languages.json"),
-]
+from lib.warframe_cache import cache_file
 
 
 def load_json(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as handle:
         return json.load(handle)
-
-
-def find_lang_file():
-    for path in CANDIDATES:
-        if os.path.exists(path):
-            return path
-    return None
 
 
 def main():
@@ -28,8 +18,8 @@ def main():
     parser.add_argument("--file", help="path to languages.json")
     args = parser.parse_args()
 
-    path = args.file or find_lang_file()
-    if not path or not os.path.exists(path):
+    path = Path(args.file) if args.file else cache_file("languages.json")
+    if not path.is_file():
         print("error: languages.json not found", file=sys.stderr)
         return 1
 

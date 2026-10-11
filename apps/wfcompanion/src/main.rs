@@ -132,7 +132,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let _ = wfcompanion::executable_path();
+    let _ = retinue_client::executable_path();
     match parse_command(&arguments)
         .and_then(|command| run_command(command, resumed, &mut incident_writer))
     {
@@ -158,7 +158,7 @@ fn run_command(
         Command::Probe => {
             println!(
                 "{}",
-                serde_json::to_string(&wfcompanion::game_observer::find_warframe()).unwrap()
+                serde_json::to_string(&retinue_warframe::game_observer::find_warframe()).unwrap()
             );
             Ok(())
         }

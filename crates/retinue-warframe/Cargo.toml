@@ -1,0 +1,23 @@
+[package]
+name = "retinue-warframe"
+version = "0.2.1"
+edition = "2024"
+license = "Apache-2.0"
+description = "Warframe native observation, discovery and research decoders"
+
+[dependencies]
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
+libloading = "0.9"
+libc = "0.2"
+memchr = "2.7"
+pelite = { version = "0.10", default-features = false, features = ["std"] }
+retinue-client = { path = "../retinue-client" }
+retinue-native = { path = "../retinue-native" }
+rustix = { version = "1", features = ["fs", "process", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+steamlocate = "2.1"
+
+[dev-dependencies]
+retinue-native = { path = "../retinue-native", features = ["test-support"] }

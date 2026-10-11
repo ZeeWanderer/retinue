@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use wfcompanion::game_observer::{ProcessIdentity, identify_process, ui};
+use retinue_warframe::game_observer::{ProcessIdentity, identify_process, ui};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ProcessKey {

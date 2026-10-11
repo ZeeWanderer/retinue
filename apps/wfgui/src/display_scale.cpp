@@ -1,6 +1,8 @@
 #include "display_scale.h"
+#include "wfgui_paths.h"
 
 #include <QByteArray>
+#include <QFileInfo>
 #include <QSettings>
 #include <QtGlobal>
 
@@ -14,13 +16,18 @@ int normalizedUiScalePercent(int percent) {
 }
 
 int configuredUiScalePercent() {
-  QSettings settings("wfcli", "wfgui");
+  QSettings settings(settingsFilePath(), QSettings::IniFormat);
   return normalizedUiScalePercent(
       settings.value("ui/scale_percent", 100).toInt());
 }
 
 void setConfiguredUiScalePercent(int percent) {
-  QSettings settings("wfcli", "wfgui");
+  const QString path = settingsFilePath();
+  if (!ensurePrivateDirectory(QFileInfo(path).path())) {
+    qWarning("could not create GUI settings directory: %s", qPrintable(path));
+    return;
+  }
+  QSettings settings(path, QSettings::IniFormat);
   settings.setValue("ui/scale_percent", normalizedUiScalePercent(percent));
 }
 

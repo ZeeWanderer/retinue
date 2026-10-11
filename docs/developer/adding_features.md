@@ -23,9 +23,9 @@ Use this checklist after choosing the owning application in [`structure.md`](str
 ## New data sources
 
 - Favor `languages.json` for display strings when the key exists.
-- Export data is loaded from the managed XDG cache with `apps/wfdaemon/priv` as bundled fallback.
+- Export data is loaded from the managed XDG cache with `apps/retinue_daemon/priv` as bundled fallback.
 - Add managed exports to `?EXPORT_FILES` in
-  `apps/wfdaemon/src/catalog/wfcli_metadata_update.erl` and place them in only the resolver or
+  `apps/retinue_daemon/src/games/warframe/catalog/wfcli_metadata_update.erl` and place them in only the resolver or
   Codex scope that needs them.
 - For exports-backed commands, build entries via `wfcli_entity_exports.erl` so table rendering/search stays consistent.
 - Add managed-source requirements in `wfcli_source_manager`; never write into explicit custom
@@ -34,5 +34,5 @@ Use this checklist after choosing the owning application in [`structure.md`](str
 ## Tests
 
 - Add focused EUnit or Common Test coverage under the owning application's test directory.
-- Update `apps/wfcli/test/fixtures/worldstate_sample.json` only when the feature needs source data
+- Update `apps/retinue_cli/test/fixtures/worldstate_sample.json` only when the feature needs source data
   absent from the fixture.

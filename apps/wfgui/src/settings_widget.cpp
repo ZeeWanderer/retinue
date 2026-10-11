@@ -75,7 +75,7 @@ QWidget *daemonRow(QLabel *status) {
 
   auto *content = new QVBoxLayout;
   content->setSpacing(3);
-  auto *heading = new QLabel("wfdaemon");
+  auto *heading = new QLabel("Retinue daemon");
   heading->setObjectName("settingsHeading");
   content->addWidget(heading);
   auto *detail = new QLabel("Background data service");
@@ -151,7 +151,7 @@ SettingsWidget::SettingsWidget(AppController *controller, QWidget *parent)
        cacheRow("Rendered images",
                 "Resolution-specific images generated from source assets.",
                 localUsage_, localPath_, clearLocal_),
-       cacheRow("Source assets", "Original images managed by wfdaemon.",
+       cacheRow("Source assets", "Original images managed by Retinue daemon.",
                 sourceUsage_, sourcePath_, clearSource_, sourceError_)});
   wfgui::setCaptureTarget(storageGroup, "settings.storage");
   layout->addWidget(storageGroup);

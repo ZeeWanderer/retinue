@@ -3,11 +3,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde_json::json;
-use wfcompanion::game_observer::{self, DebugOutputEvent, GameState};
-use wfcompanion::observation::debug_output::{
+use retinue_warframe::game_observer::{self, DebugOutputEvent, GameState};
+use retinue_warframe::observation::debug_output::{
     self, Bridge as DebugBridge, Event as DebugEvent, Runtime as DebugRuntime,
 };
+use serde_json::json;
 
 use crate::daemon::{Outbound, OutboundSender};
 use crate::game_metadata::{Bridge as MetadataBridge, Event as MetadataEvent};
@@ -35,7 +35,7 @@ struct CollectorStatus {
     inventory_active: bool,
     metadata_active: bool,
     debug_output_error: Option<String>,
-    debug_output_queue: wfcompanion::observation::mailbox::Stats,
+    debug_output_queue: retinue_warframe::observation::mailbox::Stats,
     inventory_error: Option<String>,
     inventory_pipeline: Option<PipelineReport>,
     metadata_error: Option<String>,

@@ -266,5 +266,5 @@ private:
   bool stoppingDaemon_ = false;
   std::optional<qint64> playerRevision_;
   qint64 nextRequestId_ = 10;
-  QString status_ = "Connecting to wfdaemon";
+  QString status_ = "Connecting to Retinue daemon";
 };

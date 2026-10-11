@@ -9,7 +9,7 @@ guides under `docs/`.
   normal forms.
 - Save large tool outputs to files; return only targeted excerpts or summaries.
   Select output before running commands instead of relying on truncation.
-- Keep tests in sync with expected outputs; CT suite lives under `apps/wfcli/test`.
+- Keep tests in sync with expected outputs; CT suite lives under `apps/retinue_cli/test`.
 - Run tests after code, fixture, build, or behavior changes (at minimum
   `./scripts/test-quiet ct`). Documentation-only edits do not require tests.
 - Run tests elevated, outside the Codex sandbox; socket and Erlang distribution
@@ -28,7 +28,7 @@ guides under `docs/`.
 - Add new tests whenever new functionality is added; update fixtures alongside expected outputs.
 - Keep docs lean and standalone: current behavior/contracts, no conversation context or irrelevant
   absences.
-- `rebar3 ct` emits a warning about `-compile(export_all)` in `apps/wfcli/test/wfcli_forma_plan_SUITE.erl`; tests still pass.
+- `rebar3 ct` emits a warning about `-compile(export_all)` in `apps/retinue_cli/test/wfcli_forma_plan_SUITE.erl`; tests still pass.
 
 ## Reference
 - See `README.md` for the command overview and its linked user guides for detailed

@@ -5,7 +5,7 @@ Official PublicExport files provide item names, metadata, recipes, and identifie
 ## Storage And Updates
 
 Managed files live in the per-user XDG cache. Bundled fallback data under
-`apps/wfdaemon/priv/` supports offline resolution and tests. `wfcli_source_manager` validates
+`apps/retinue_daemon/priv/` supports offline resolution and tests. `wfcli_source_manager` validates
 required files and `wfcli_metadata_update` downloads replacements atomically.
 
 Explicit `--exports-dir` paths are caller-owned. Missing or invalid files there fail with
@@ -22,7 +22,7 @@ Common files include:
 - `ExportManifest.json`
 
 The complete managed list is `?EXPORT_FILES` in
-`apps/wfdaemon/src/catalog/wfcli_metadata_update.erl`.
+`apps/retinue_daemon/src/games/warframe/catalog/wfcli_metadata_update.erl`.
 
 ## File Scopes
 
@@ -50,7 +50,7 @@ file outside the default item set. Query syntax is documented in
 Use `rg` directly or the repository helpers:
 
 ```bash
-rg -n "Calendar1999" apps/wfdaemon/priv
+rg -n "Calendar1999" apps/retinue_daemon/priv
 scripts/priv_search.sh "Calendar1999"
 scripts/export_keys.py ExportUpgrades_en.json uniqueName name locName
 ```

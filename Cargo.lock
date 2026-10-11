@@ -65,6 +65,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arccompanion"
+version = "0.2.1"
+dependencies = [
+ "clap",
+ "serde_json",
+ "steamlocate",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -887,6 +896,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "poe2companion"
+version = "0.2.1"
+dependencies = [
+ "clap",
+ "retinue-client",
+ "rustix",
+ "serde",
+ "serde_json",
+ "steamlocate",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "polling"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -953,6 +976,54 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "retinue-client"
+version = "0.2.1"
+dependencies = [
+ "rustix",
+]
+
+[[package]]
+name = "retinue-inspect"
+version = "0.2.1"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "retinue-client",
+ "retinue-native",
+ "retinue-warframe",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "retinue-native"
+version = "0.2.1"
+dependencies = [
+ "memchr",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "retinue-warframe"
+version = "0.2.1"
+dependencies = [
+ "iced-x86",
+ "libc",
+ "libloading",
+ "memchr",
+ "pelite",
+ "retinue-client",
+ "retinue-native",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "steamlocate",
+]
 
 [[package]]
 name = "rustix"
@@ -1545,22 +1616,19 @@ version = "0.2.1"
 dependencies = [
  "ashpd",
  "bytes",
- "clap",
- "clap_complete",
  "fontdue",
  "futures-util",
- "iced-x86",
  "image",
  "libc",
- "libloading",
  "memchr",
- "pelite",
+ "retinue-client",
+ "retinue-native",
+ "retinue-warframe",
  "rustix",
  "serde",
  "serde_json",
  "sha2",
  "smithay-client-toolkit",
- "steamlocate",
  "taffy",
  "tokio",
  "tokio-util",

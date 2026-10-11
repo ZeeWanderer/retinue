@@ -35,7 +35,7 @@ struct Peer {
   }
 
   bool start() {
-    if (!server.listen(qEnvironmentVariable("WFCLI_DAEMON_SOCKET"))) {
+    if (!server.listen(qEnvironmentVariable("RETINUE_DAEMON_SOCKET"))) {
       return false;
     }
     client.start();
@@ -154,7 +154,7 @@ void DaemonClientIoTest::stalledRequestsRecoverWithoutRepeatingMutations() {
 
 int main(int argc, char **argv) {
   QTemporaryDir directory;
-  qputenv("WFCLI_DAEMON_SOCKET", directory.filePath("daemon.sock").toUtf8());
+  qputenv("RETINUE_DAEMON_SOCKET", directory.filePath("daemon.sock").toUtf8());
   QApplication app(argc, argv);
   DaemonClientIoTest test;
   return QTest::qExec(&test, argc, argv);

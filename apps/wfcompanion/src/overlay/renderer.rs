@@ -227,7 +227,7 @@ fn render_notification_preview(dimensions: (u32, u32)) -> Result<image::RgbaImag
         screens::StatusView {
             scale: 1,
             origin: (0, 0),
-            daemon: concat!("wfdaemon ", env!("WFCLI_VERSION"), " - connected"),
+            daemon: concat!("retinue-daemon ", env!("WFCLI_VERSION"), " - connected"),
             player: "Warframe running (pid 12345)",
             detail: "wfcli companion hud hide",
         },
@@ -445,7 +445,7 @@ mod tests {
             screens::StatusView {
                 scale: 1,
                 origin: (24, 24),
-                daemon: "DEV | wfdaemon connected",
+                daemon: "DEV | retinue-daemon connected",
                 player: "Warframe running (pid 12345)",
                 detail: "DBWIN on | dbg 8 | relic rewards",
             },

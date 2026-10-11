@@ -20,9 +20,11 @@ use tokio_util::codec::FramedRead;
 use crate::relic::{CaptureArm, Trigger as RelicTrigger};
 use crate::runtime::{diagnostics, inbox::value_bytes, presentation};
 use crate::{UiEvent, incident};
-use wfcompanion::local_protocol::{ENVELOPE_VERSION, INTERFACE_DIAGNOSTICS, companion_interfaces};
+use retinue_client::local_protocol::{
+    ENVELOPE_VERSION, INTERFACE_DIAGNOSTICS, companion_interfaces,
+};
 #[cfg(test)]
-use wfcompanion::local_protocol::{
+use retinue_client::local_protocol::{
     INTERFACE_ASSETS, INTERFACE_DATASETS, INTERFACE_GAME_METADATA, INTERFACE_MARKET,
     INTERFACE_PLAYER, INTERFACE_RELICS,
 };
@@ -126,6 +128,7 @@ impl RequestReply {
 enum ClientMessage<'a> {
     Hello {
         id: u64,
+        game: &'a str,
         envelope: u32,
         interfaces: &'a BTreeMap<&'static str, u32>,
         features: &'a [&'static str],
@@ -471,6 +474,7 @@ async fn connection_session(
             &mut writer,
             &ClientMessage::Hello {
                 id: 1,
+                game: "warframe",
                 envelope: ENVELOPE_VERSION,
                 interfaces: &interfaces,
                 features: &features,
@@ -1245,35 +1249,35 @@ fn sanitize_native_child(process: &mut ProcessCommand) {
 }
 
 fn wfcli_command() -> PathBuf {
-    if let Some(path) = std::env::var_os("WFCLI_COMMAND") {
+    if let Some(path) = std::env::var_os("RETINUE_COMMAND") {
         return PathBuf::from(path);
     }
-    find_wfcli(
-        wfcompanion::executable_path(),
+    find_retinue(
+        retinue_client::executable_path(),
         std::env::current_dir().ok().as_deref(),
     )
 }
 
-fn find_wfcli(executable: Option<&Path>, current: Option<&Path>) -> PathBuf {
+fn find_retinue(executable: Option<&Path>, current: Option<&Path>) -> PathBuf {
     if let Some(executable) = executable {
         for ancestor in executable.ancestors() {
-            let candidate = ancestor.join("wfcli");
+            let candidate = ancestor.join("retinue");
             if candidate.is_file() {
                 return candidate;
             }
         }
     }
     if let Some(current) = current {
-        let candidate = current.join("wfcli");
+        let candidate = current.join("retinue");
         if candidate.is_file() {
             return candidate;
         }
     }
-    PathBuf::from("wfcli")
+    PathBuf::from("retinue")
 }
 
 pub(crate) fn daemon_socket_path() -> PathBuf {
-    wfcompanion::local_protocol::socket_path()
+    retinue_client::local_protocol::socket_path()
 }
 
 #[cfg(test)]
@@ -1687,20 +1691,20 @@ mod tests {
             std::env::temp_dir().join(format!("wfcompanion-cli-{}-{unique}", std::process::id()));
         for directory in ["", "dev/bin", "prod/bin"] {
             std::fs::create_dir_all(root.join(directory)).unwrap();
-            std::fs::write(root.join(directory).join("wfcli"), b"").unwrap();
+            std::fs::write(root.join(directory).join("retinue"), b"").unwrap();
         }
         let selected: Vec<_> = ["dev", "prod"]
             .into_iter()
             .map(|mode| {
                 let bin = root.join(mode).join("bin");
                 (
-                    find_wfcli(Some(&bin.join("wfcompanion")), Some(&root)),
-                    bin.join("wfcli"),
+                    find_retinue(Some(&bin.join("wfcompanion")), Some(&root)),
+                    bin.join("retinue"),
                 )
             })
             .collect();
-        assert_eq!(find_wfcli(None, Some(&root)), root.join("wfcli"));
-        assert_eq!(find_wfcli(None, None), PathBuf::from("wfcli"));
+        assert_eq!(find_retinue(None, Some(&root)), root.join("retinue"));
+        assert_eq!(find_retinue(None, None), PathBuf::from("retinue"));
         std::fs::remove_dir_all(root).unwrap();
         for (actual, expected) in selected {
             assert_eq!(actual, expected);

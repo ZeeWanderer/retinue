@@ -95,7 +95,7 @@ Current ownership:
 
 - `wfcompanion` owns process discovery, Proton paths, DBWIN observation,
   capture/OCR orchestration, daemon connection, overlay visibility, layout, and animation.
-- `wfdaemon` owns canonical worldstate, catalogs, player snapshots, market cache, request
+- `retinue-daemon` owns canonical worldstate, catalogs, player snapshots, market cache, request
   batching, persistence, and query projection. It never renders GUI or terminal output.
 - `wfcli` owns terminal commands and formatting. Companion commands manage process lifecycle and
   diagnostics; they do not orchestrate visual scenes.

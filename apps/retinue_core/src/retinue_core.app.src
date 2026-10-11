@@ -1,0 +1,8 @@
+{application, retinue_core, [
+    {description, "Retinue platform contracts"},
+    {vsn, {file, "../../VERSION"}},
+    {registered, []},
+    {applications, [kernel, stdlib]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]}
+]}.

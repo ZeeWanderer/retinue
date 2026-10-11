@@ -1,6 +1,6 @@
 # Player Data Acquisition
 
-`wfdaemon` owns the canonical `player` dataset. `wfcompanion` collects the local account
+`retinue-daemon` owns the canonical `player` dataset. `wfcompanion` collects the local account
 observation through a narrow read-only native collector and publishes the untouched raw payload.
 
 ## AlecaFrame Finding
@@ -85,7 +85,7 @@ Collector process:
 - Publishes one versioned raw observation over the local companion socket.
 - Does not calculate collection percentages or persist the canonical snapshot.
 
-`wfdaemon`:
+`retinue-daemon`:
 
 - Stores the raw source namespace in `player.term` with owner-only permissions.
 - Parses known fields while preserving the raw map.
@@ -108,7 +108,7 @@ Companion observation schema `2` contains collector metadata, collection time, g
 value, profile, and raw payload. Schema `1` snapshots with a companion-built index remain readable
 for cache migration.
 
-`wfdaemon` persists the latest observation in `player.term` with owner-only permissions. Player
+`retinue-daemon` persists the latest observation in `player.term` with owner-only permissions. Player
 projection derives equipment, item stacks, ranked upgrades, configs, loadouts, mastery, recipes,
 missions, skills, affiliations, focus state, boosters, and challenges. Raw and typed records share
 origins; query defaults to typed records for covered origins and raw records elsewhere. Raw

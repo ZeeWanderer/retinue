@@ -140,13 +140,13 @@ DaemonClient::DaemonClient(QObject *parent)
                          });
     const QString operation = oldest->operation;
     socket_->abort();
-    setStatus(QString("Timed out waiting for wfdaemon (%1)").arg(operation));
+    setStatus(QString("Timed out waiting for Retinue daemon (%1)").arg(operation));
   });
 
   connect(reconnectTimer_, &QTimer::timeout, this,
           &DaemonClient::connectSocket);
   connect(socket_, &QLocalSocket::connected, this, [this] {
-    setStatus("Negotiating with wfdaemon");
+    setStatus("Negotiating with Retinue daemon");
     sendHello();
   });
   connect(socket_, &QLocalSocket::readyRead, this, [this] {
@@ -183,7 +183,7 @@ DaemonClient::DaemonClient(QObject *parent)
     if (activeAssetCacheRequest_ != 0) {
       if (activeAssetCacheClear_) {
         emit assetCacheRequestFailed(
-            "wfdaemon disconnected; cache clear result is unknown");
+            "Retinue daemon disconnected; cache clear result is unknown");
       }
       pendingAssetCacheStatus_ = true;
     }
@@ -225,10 +225,10 @@ DaemonClient::DaemonClient(QObject *parent)
         pendingMarketAccountSnapshot_ = true;
       } else if (action == "presence") {
         emit marketPresenceFailed(
-            "wfdaemon disconnected; presence update result is unknown");
+            "Retinue daemon disconnected; presence update result is unknown");
       } else {
         emit marketAccountFailed(
-            action, "wfdaemon disconnected; operation result is unknown");
+            action, "Retinue daemon disconnected; operation result is unknown");
         pendingMarketAccountSnapshot_ = true;
       }
     }
@@ -238,7 +238,7 @@ DaemonClient::DaemonClient(QObject *parent)
         pendingOverframeAccountSnapshot_ = true;
       } else {
         emit overframeAccountFailed(
-            action, "wfdaemon disconnected; operation result is unknown");
+            action, "Retinue daemon disconnected; operation result is unknown");
         pendingOverframeAccountSnapshot_ = true;
       }
     }
@@ -246,7 +246,7 @@ DaemonClient::DaemonClient(QObject *parent)
     for (const QJsonObject &request : std::as_const(activeBuildRequests_)) {
       if (isBuildMutation(request)) {
         emit buildSourceFailed(
-            request, "wfdaemon disconnected; operation result is unknown");
+            request, "Retinue daemon disconnected; operation result is unknown");
         reconcileBuildGroups = true;
       } else if (!pendingBuildRequests_.contains(request)) {
         pendingBuildRequests_.prepend(request);
@@ -279,7 +279,7 @@ DaemonClient::DaemonClient(QObject *parent)
     negotiatedFeatures_.clear();
     ready_ = false;
     setConnected(false);
-    setStatus("wfdaemon disconnected");
+    setStatus("Retinue daemon disconnected");
     if (!reconnectTimer_->isActive()) {
       reconnectTimer_->start();
     }
@@ -304,11 +304,11 @@ DaemonClient::DaemonClient(QObject *parent)
                 exitStatus == QProcess::NormalExit && exitCode == 0;
             if (!succeeded) {
               if (stoppingDaemon_) {
-                setStatus("Could not restart wfdaemon");
+                setStatus("Could not restart Retinue daemon");
               } else if (updatingDaemon_) {
-                setStatus("Could not update wfdaemon");
+                setStatus("Could not update Retinue daemon");
               } else {
-                setStatus("Could not start wfdaemon");
+                setStatus("Could not start Retinue daemon");
               }
             }
             if (stoppingDaemon_ && succeeded) {
@@ -671,7 +671,7 @@ void DaemonClient::connectSocket() {
     return;
   }
   input_.clear();
-  setStatus("Connecting to wfdaemon");
+  setStatus("Connecting to Retinue daemon");
   socket_->connectToServer(socketPath());
 }
 
@@ -699,7 +699,7 @@ void DaemonClient::ensureDaemon(bool update) {
   stoppingDaemon_ = action == "stop";
   const QString command = wfcliCommand();
   if (command.isEmpty()) {
-    setStatus("wfcli executable not found");
+    setStatus("retinue executable not found");
     return;
   }
 
@@ -722,7 +722,7 @@ void DaemonClient::handleLine(const QByteArray &line) {
   const QJsonDocument document = QJsonDocument::fromJson(line, &parseError);
   if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
     socket_->abort();
-    setStatus("wfdaemon returned invalid JSON");
+    setStatus("Retinue daemon returned invalid JSON");
     return;
   }
 
@@ -757,7 +757,7 @@ void DaemonClient::handleLine(const QByteArray &line) {
   if (!validProtocolNumber(message.value("id")) ||
       !message.value("ok").isBool()) {
     socket_->abort();
-    setStatus("wfdaemon returned an invalid reply envelope");
+    setStatus("Retinue daemon returned an invalid reply envelope");
     return;
   }
   const qint64 id = message.value("id").toInteger();
@@ -788,7 +788,7 @@ void DaemonClient::handleLine(const QByteArray &line) {
                  required.value(name).toInt(-2);
         });
     if (!compatibleInterfaces) {
-      setStatus("wfdaemon lacks required GUI interfaces");
+      setStatus("Retinue daemon lacks required GUI interfaces");
       if (wfgui::daemonContractNeedsUpdate(message, required,
                                            WFCLI_LOCAL_ENVELOPE)) {
         ensureDaemon(true);
@@ -807,7 +807,7 @@ void DaemonClient::handleLine(const QByteArray &line) {
     updateAttempted_ = false;
     stopAttempted_ = false;
     setConnected(true);
-    setStatus("Connected to wfdaemon");
+    setStatus("Connected to Retinue daemon");
     sendPlayerSubscription();
     sendPendingRequests();
     sendPendingPlayerViews();
@@ -829,7 +829,7 @@ void DaemonClient::handleLine(const QByteArray &line) {
   if (id == PlayerSubscriptionId) {
     if (!message.value("ok").toBool() || !message.value("data").isObject()) {
       setStatus(message.value("error").toString(
-          "wfdaemon player subscription failed"));
+          "Retinue daemon player subscription failed"));
       return;
     }
     handlePlayerSnapshot(message.value("data").toObject(), QString());
@@ -1174,6 +1174,7 @@ void DaemonClient::handlePlayerSnapshot(const QJsonObject &data,
 void DaemonClient::sendHello() {
   write({
       {"op", "hello"},
+      {"game", "warframe"},
       {"id", HelloRequestId},
       {"envelope", WFCLI_LOCAL_ENVELOPE},
       {"interfaces", guiInterfaces()},
@@ -1578,7 +1579,7 @@ void DaemonClient::drainInput() {
     scanOffset_ = input_.size();
     if (input_.size() > MaximumFrameBytes) {
       socket_->abort();
-      setStatus("wfdaemon reply exceeds the 64 MiB frame limit");
+      setStatus("Retinue daemon reply exceeds the 64 MiB frame limit");
       break;
     }
     if (socket_->bytesAvailable() == 0) {
@@ -1614,14 +1615,14 @@ void DaemonClient::setStatus(const QString &status) {
 QString DaemonClient::socketPath() const { return wfgui::daemonSocketPath(); }
 
 QString DaemonClient::wfcliCommand() const {
-  const QString configured = qEnvironmentVariable("WFCLI_COMMAND");
+  const QString configured = qEnvironmentVariable("RETINUE_COMMAND");
   if (!configured.isEmpty()) {
     return configured;
   }
 
   QDir directory(QCoreApplication::applicationDirPath());
   for (;;) {
-    const QFileInfo candidate(directory.filePath("wfcli"));
+    const QFileInfo candidate(directory.filePath("retinue"));
     if (candidate.isFile() && candidate.isExecutable()) {
       return candidate.absoluteFilePath();
     }
@@ -1629,7 +1630,7 @@ QString DaemonClient::wfcliCommand() const {
       break;
     }
   }
-  return QStandardPaths::findExecutable("wfcli");
+  return QStandardPaths::findExecutable("retinue");
 }
 
 QString DaemonClient::relicRequestKey(const RelicRequest &request) {

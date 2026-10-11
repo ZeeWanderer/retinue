@@ -12,7 +12,7 @@
 
 -spec polarity_symbol(term()) -> string().
 polarity_symbol(Polarity) ->
-    case string:uppercase(wfcli_text:to_list(Polarity)) of
+    case string:uppercase(retinue_text:to_list(Polarity)) of
         "AP_ATTACK" -> "V";
         "AP_DEFENSE" -> "D";
         "AP_TACTIC" -> "-";
@@ -26,8 +26,8 @@ polarity_symbol(Polarity) ->
 -spec polarity_display(term()) -> string().
 polarity_display(Polarity) ->
     case polarity_symbol(Polarity) of
-        "" -> wfcli_text:to_list(Polarity);
-        Symbol -> Symbol ++ " (" ++ wfcli_text:to_list(Polarity) ++ ")"
+        "" -> retinue_text:to_list(Polarity);
+        Symbol -> Symbol ++ " (" ++ retinue_text:to_list(Polarity) ++ ")"
     end.
 
 -spec column_spec(column()) -> column_spec().

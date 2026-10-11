@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+case "${1:---dry-run}" in
+    --dry-run) apply=false ;;
+    --apply) apply=true ;;
+    *) printf 'usage: %s [--dry-run|--apply]\nStop the daemon, GUI and companion before --apply.\n' "$0"; exit 2 ;;
+esac
+
+base() {
+    local value="${!1:-}"
+    if [[ "$value" = /* ]]; then printf '%s' "$value"; else printf '%s/%s' "$HOME" "$2"; fi
+}
+config="$(base XDG_CONFIG_HOME .config)"
+data="$(base XDG_DATA_HOME .local/share)"
+state="$(base XDG_STATE_HOME .local/state)"
+cache="$(base XDG_CACHE_HOME .cache)"
+sources=() destinations=()
+
+collect() {
+    local source="$1" destination="$2" kind="$3" item name target
+    [[ -d "$source" ]] || return 0
+    while IFS= read -r -d '' item; do
+        name="${item##*/}"
+        target="$destination/games/warframe/$name"
+        case "$kind/$name" in
+            config/wfgui.conf) target="$destination/games/warframe/gui.conf" ;;
+            state/builds.term) target="$data/retinue/games/warframe/builds.term" ;;
+            state/wfdaemon.log*) target="$destination/${name/wfdaemon/daemon}" ;;
+            state/erl_crash.dump) target="$destination/$name" ;;
+            state/wfcompanion.log*) target="$destination/games/warframe/${name/wfcompanion/companion}" ;;
+            cache/daemon-log) target="$state/retinue/daemon-log" ;;
+            cache/wfgui) target="$destination/games/warframe/gui" ;;
+        esac
+        sources+=("$item") destinations+=("$target")
+    done < <(find -H "$source" -mindepth 1 -maxdepth 1 -print0)
+}
+
+collect "$config/wfcli" "$config/retinue" config
+collect "$data/wfcli" "$data/retinue" data
+collect "$state/wfcli" "$state/retinue" state
+collect "$cache/wfcli" "$cache/retinue" cache
+conflict=false
+declare -A targets=()
+for i in "${!sources[@]}"; do
+    target="${destinations[i]}"
+    if [[ -e "$target" || -L "$target" || -v 'targets[$target]' ]]; then
+        printf 'destination already exists: %s\n' "$target" >&2
+        conflict=true
+    fi
+    targets["$target"]=1
+done
+if $conflict; then exit 1; fi
+for i in "${!sources[@]}"; do
+    printf '%s -> %s\n' "${sources[i]}" "${destinations[i]}"
+    if $apply; then
+        mkdir -p -- "$(dirname -- "${destinations[i]}")"
+        cp -a --reflink=auto -- "${sources[i]}" "${destinations[i]}"
+    fi
+done
+printf '%s: %d entries; original data retained.\n' "$($apply && printf Copied || printf Planned)" "${#sources[@]}"

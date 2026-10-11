@@ -386,13 +386,13 @@ void RelicModelTest::requiemControlsWork() {
   QVERIFY(directory.isValid());
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
 
@@ -1714,13 +1714,13 @@ void RelicModelTest::malformedReplyReconnectsWithoutReplayingMutations() {
   QVERIFY(directory.isValid());
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull())
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     else
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
   });
 
   DaemonClient client;
@@ -1791,13 +1791,13 @@ void RelicModelTest::subscribesToPlayerUpdatesAndCoalescesViews() {
   QLocalServer server;
   QVERIFY(server.listen(socketPath));
 
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", socketPath.toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", socketPath.toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
 
@@ -2051,13 +2051,13 @@ void RelicModelTest::buildGroupsFollowPlayerRevisions() {
   QTemporaryDir directory;
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
   AppController controller;
@@ -2099,8 +2099,8 @@ void RelicModelTest::cacheMissDoesNotBecomeMarketMiss() {
   QLocalServer server;
   QVERIFY(server.listen(socketPath));
 
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", socketPath.toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", socketPath.toUtf8());
   {
     DaemonClient client;
     QSignalSpy resolved(&client, &DaemonClient::marketQuotesResolved);
@@ -2378,9 +2378,9 @@ void RelicModelTest::cacheMissDoesNotBecomeMarketMiss() {
         QString("online"));
   }
   if (oldSocket.isNull()) {
-    qunsetenv("WFCLI_DAEMON_SOCKET");
+    qunsetenv("RETINUE_DAEMON_SOCKET");
   } else {
-    qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+    qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
   }
 }
 
@@ -2865,13 +2865,13 @@ void RelicModelTest::settingsExposeIndependentCacheControls() {
   QVERIFY(directory.isValid());
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
 
@@ -3014,13 +3014,13 @@ void RelicModelTest::marketSearchKeyboardNavigation() {
   QVERIFY(directory.isValid());
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
 
@@ -3104,13 +3104,13 @@ void RelicModelTest::rightRailReachesBottom() {
   QVERIFY(directory.isValid());
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("wfdaemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
   const auto restoreSocket = qScopeGuard([oldSocket] {
     if (oldSocket.isNull()) {
-      qunsetenv("WFCLI_DAEMON_SOCKET");
+      qunsetenv("RETINUE_DAEMON_SOCKET");
     } else {
-      qputenv("WFCLI_DAEMON_SOCKET", oldSocket);
+      qputenv("RETINUE_DAEMON_SOCKET", oldSocket);
     }
   });
 

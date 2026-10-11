@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use retinue_client::paths::{Base, Game, Paths, create_private_dir_all};
 
 const MAX_LOG_BYTES: u64 = 1024 * 1024;
 const DUPLICATE_WINDOW: Duration = Duration::from_secs(60);
@@ -195,14 +199,19 @@ pub(crate) fn error(event: &str, message: impl AsRef<str>) {
 }
 
 pub(crate) fn log_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("WFCOMPANION_LOG") {
+    log_path_from(
+        std::env::var_os("WFCOMPANION_LOG").as_deref(),
+        &Paths::from_env(),
+    )
+}
+
+fn log_path_from(override_path: Option<&OsStr>, paths: &Paths) -> PathBuf {
+    if let Some(path) = override_path {
         return PathBuf::from(path);
     }
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    state.join("wfcli/wfcompanion.log")
+    paths
+        .game_directory(Base::State, Game::Warframe)
+        .join("companion.log")
 }
 
 pub(crate) fn print_recent(limit: usize) -> Result<(), String> {
@@ -258,7 +267,7 @@ impl Sink {
         if let Some(parent) = self.path.parent()
             && !parent.as_os_str().is_empty()
         {
-            fs::create_dir_all(parent)?;
+            create_private_dir_all(parent)?;
         }
         rotate_if_needed(&self.path)?;
         let line = serde_json::json!({
@@ -271,6 +280,7 @@ impl Sink {
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
+            .mode(0o600)
             .open(&self.path)?;
         writeln!(file, "{line}")
     }
@@ -296,6 +306,41 @@ fn tail_lines(contents: &str, limit: usize) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn log_path_uses_game_state_and_preserves_override() {
+        for (xdg, expected) in [
+            (
+                Some("/state"),
+                "/state/retinue/games/warframe/companion.log",
+            ),
+            (
+                None,
+                "/home/test/.local/state/retinue/games/warframe/companion.log",
+            ),
+            (
+                Some(""),
+                "/home/test/.local/state/retinue/games/warframe/companion.log",
+            ),
+            (
+                Some("relative"),
+                "/home/test/.local/state/retinue/games/warframe/companion.log",
+            ),
+        ] {
+            let paths = Paths::from_lookup(|key| match key {
+                "XDG_STATE_HOME" => xdg.map(Into::into),
+                "HOME" => Some("/home/test".into()),
+                _ => None,
+            });
+            assert_eq!(log_path_from(None, &paths), PathBuf::from(expected));
+            for path in ["/custom.log", "relative.log", ""] {
+                assert_eq!(
+                    log_path_from(Some(OsStr::new(path)), &paths),
+                    PathBuf::from(path)
+                );
+            }
+        }
+    }
 
     fn test_directory() -> PathBuf {
         let path = std::env::temp_dir().join(format!(

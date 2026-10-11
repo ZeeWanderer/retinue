@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::runtime::session::Session;
-use wfcompanion::game_observer::inventory::{Reader, Snapshot};
+use retinue_warframe::game_observer::inventory::{Reader, Snapshot};
 
 pub(super) struct Refresh {
     pub receiver: mpsc::Receiver<(Instant, Instant, u128, Result<Snapshot, String>)>,

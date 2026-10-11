@@ -46,6 +46,16 @@ WFCOMPANION_BUILD_DEBUG_BRIDGE="$root/$mode/libexec/wfcompanion-debug-output.exe
     RUSTFLAGS="$rustflags" \
     CARGO_TARGET_DIR="$target_dir" \
     "${CARGO:-cargo}" build "${cargo_args[@]}" "${cargo_targets[@]}" --locked --manifest-path "$manifest"
+RUSTFLAGS="$rustflags" CARGO_TARGET_DIR="$target_dir" \
+    "${CARGO:-cargo}" build "${cargo_args[@]}" --locked \
+        --manifest-path "$root/apps/poe2companion/Cargo.toml"
+RUSTFLAGS="$rustflags" CARGO_TARGET_DIR="$target_dir" \
+    "${CARGO:-cargo}" build "${cargo_args[@]}" --locked \
+        --manifest-path "$root/apps/arccompanion/Cargo.toml"
+WFCOMPANION_BUILD_DEBUG_BRIDGE="$root/$mode/libexec/wfcompanion-debug-output.exe" \
+    RUSTFLAGS="$rustflags" CARGO_TARGET_DIR="$target_dir" \
+    "${CARGO:-cargo}" build "${cargo_args[@]}" --locked \
+        --manifest-path "$root/apps/retinue-inspect/Cargo.toml"
 RUSTC_BOOTSTRAP=1 \
     RUSTFLAGS="$rustflags" \
     CARGO_TARGET_DIR="$decompiler_target_dir" \
@@ -62,7 +72,10 @@ install -m 0755 "$target_dir/oozextract/$cargo_profile/unoodle" "$stage/libexec/
 rm -rf "$stage/share/licenses/oozextract"
 cp -a "$target_dir/oozextract/$cargo_profile/licenses/oozextract" "$stage/share/licenses/"
 install -m 0755 "$target_dir/$cargo_profile/wfcompanion" "$stage/bin/wfcompanion"
-install -m 0755 "$target_dir/$cargo_profile/wfinspect" "$stage/bin/wfinspect"
+install -m 0755 "$target_dir/$cargo_profile/poe2companion" "$stage/bin/poe2companion"
+install -m 0755 "$target_dir/$cargo_profile/arccompanion" "$stage/bin/arccompanion"
+install -m 0755 "$target_dir/$cargo_profile/retinue-inspect" "$stage/bin/retinue-inspect"
+ln -sfn retinue-inspect "$stage/bin/wfinspect"
 install -m 0755 "$decompiler_target_dir/$cargo_profile/wf-luau-decompiler" \
     "$stage/bin/wf-luau-decompiler"
 install -m 0644 "$root/apps/wfcompanion/assets/LuauDecompiler-LICENSE.txt" \

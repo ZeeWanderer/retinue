@@ -873,7 +873,7 @@ impl Overlay {
         } else {
             "disconnected"
         };
-        format!("wfdaemon {version} - {state}")
+        format!("retinue-daemon {version} - {state}")
     }
 
     fn player_summary(&self) -> String {

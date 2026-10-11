@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temp="$(mktemp -d)"
+trap 'rm -rf -- "$temp"' EXIT
+export HOME="$temp/home" XDG_CONFIG_HOME="$temp/config" XDG_DATA_HOME="$temp/data"
+export XDG_STATE_HOME="$temp/state" XDG_CACHE_HOME="$temp/cache"
+mkdir -p "$XDG_CONFIG_HOME/wfcli" "$XDG_STATE_HOME/wfcli" \
+    "$temp/backing/wfgui/derivatives" "$XDG_CACHE_HOME"
+ln -s "$temp/backing" "$XDG_CACHE_HOME/wfcli"
+printf settings > "$XDG_CONFIG_HOME/wfcli/wfgui.conf"
+printf groups > "$XDG_STATE_HOME/wfcli/builds.term"
+printf logs > "$XDG_STATE_HOME/wfcli/wfcompanion.log"
+printf image > "$temp/backing/wfgui/derivatives/test.png"
+bash "$root/scripts/migrate-wfcli-storage" --dry-run >/dev/null
+test ! -e "$XDG_DATA_HOME/retinue"
+bash "$root/scripts/migrate-wfcli-storage" --apply >/dev/null
+cmp "$XDG_CONFIG_HOME/wfcli/wfgui.conf" "$XDG_CONFIG_HOME/retinue/games/warframe/gui.conf"
+cmp "$XDG_STATE_HOME/wfcli/builds.term" "$XDG_DATA_HOME/retinue/games/warframe/builds.term"
+cmp "$XDG_STATE_HOME/wfcli/wfcompanion.log" "$XDG_STATE_HOME/retinue/games/warframe/companion.log"
+cmp "$temp/backing/wfgui/derivatives/test.png" "$XDG_CACHE_HOME/retinue/games/warframe/gui/derivatives/test.png"
+if bash "$root/scripts/migrate-wfcli-storage" --apply >/dev/null 2>&1; then
+    printf 'migration overwrote existing files\n' >&2
+    exit 1
+fi
+printf 'storage migration: passed\n'

@@ -9,7 +9,7 @@ Ownership:
 - `wfcompanion` owns capture timing, OCR fallback, incidents, and daemon publication.
 - `wfcompanion` overlay owns scenes, interaction, focus gating, layout,
   rendering, and display caches.
-- `wfdaemon` owns canonical player snapshots, persistence, queries, Market
+- `retinue-daemon` owns canonical player snapshots, persistence, queries, Market
   access, asset resolution, and relic calculations.
 
 Overlay state stays native. Canonical player state stays in the daemon.
@@ -232,10 +232,13 @@ is documented in [`assets.md`](assets.md); inventory indexing is documented in
 
 ## Local Contract
 
-Transport is newline-delimited JSON over an owner-only Unix socket. Client must
-send `hello` first. Envelope version covers framing and handshake. Exact interface
-versions cover `datasets`, `player`, `worldstate`, `notifications`, `market`,
-`overframe`, `relics`, `assets`, `builds`, and `diagnostics` independently.
+Transport is newline-delimited JSON over the shared owner-only
+`$XDG_RUNTIME_DIR/retinue/daemon.sock` socket. Clients send `hello` first with envelope 2 and
+mandatory `game: "warframe"`. PoE2 uses the same endpoint with `game: "poe2"` and its separate
+`session` interface. The connection stays game-scoped. Envelope version covers framing and
+handshake. Exact Warframe interface
+versions cover `datasets`, `player`, `game_metadata`, `worldstate`, `notifications`, `market`,
+`overframe`, `relics`, `assets`, `builds`, `build_stats`, and `diagnostics` independently.
 Clients send only required interfaces and request optional features.
 
 Requests:
@@ -318,7 +321,7 @@ traffic. The writer handles deduplication, rotation and disk I/O, reports overfl
 and drains accepted records on shutdown. Logging must not write files from
 collector or UI threads.
 
-Capture the executable path at startup and use `wfcompanion::executable_path()` for sibling
+Capture the executable path at startup and use `retinue_client::executable_path()` for sibling
 tools. Prefix activation can move the running executable's `/proc/self/exe` path; helper
 lookup must continue using the installed prefix.
 
@@ -344,7 +347,7 @@ resource extraction, script analysis, and event subscriptions.
 Development builds reload by default. Build with `make dev-companion` and use Steam launch options:
 
 ```text
-/path/to/wfcli/wfcompaniond launch -- %command%
+/path/to/retinue/wfcompaniond launch -- %command%
 ```
 
 Later `make dev-companion` builds replace companion in the same process once

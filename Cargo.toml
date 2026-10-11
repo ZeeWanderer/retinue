@@ -1,7 +1,13 @@
 [workspace]
 resolver = "3"
 members = [
+    "apps/arccompanion",
+    "apps/poe2companion",
+    "apps/retinue-inspect",
     "apps/wfcompanion",
+    "crates/retinue-client",
+    "crates/retinue-native",
+    "crates/retinue-warframe",
 ]
 exclude = [".cache"]
 

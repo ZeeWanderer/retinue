@@ -1,0 +1,10 @@
+{application, retinue_cli, [
+    {description, "Retinue command-line interface"},
+    {vsn, {file, "../../VERSION"}},
+    {registered, []},
+    {applications, [kernel, stdlib, retinue_core, wfcore, crypto, yamerl, jsone, dirtree]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.

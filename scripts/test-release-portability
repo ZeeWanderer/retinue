@@ -10,7 +10,9 @@ if [[ -z "$qemu" ]]; then
 fi
 
 "$qemu" -cpu Nehalem-v1 "$root/prod/bin/wfcompanion" --help >/dev/null
-"$qemu" -cpu Nehalem-v1 "$root/prod/bin/wfinspect" --help >/dev/null
+"$qemu" -cpu Nehalem-v1 "$root/prod/bin/poe2companion" --help >/dev/null
+"$qemu" -cpu Nehalem-v1 "$root/prod/bin/arccompanion" --help >/dev/null
+"$qemu" -cpu Nehalem-v1 "$root/prod/bin/retinue-inspect" --help >/dev/null
 "$qemu" -cpu Nehalem-v1 "$root/prod/libexec/unoodle" --version >/dev/null
 QT_QPA_PLATFORM=offscreen \
     "$qemu" -cpu Nehalem-v1 "$root/prod/bin/wfgui" --help >/dev/null

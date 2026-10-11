@@ -1,4 +1,4 @@
--sname wfdaemon@localhost
+-sname retinue_daemon@localhost
 
 -kernel inet_dist_use_interface "{127,0,0,1}"
 

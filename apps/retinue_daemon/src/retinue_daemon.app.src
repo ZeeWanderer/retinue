@@ -1,0 +1,19 @@
+{application, retinue_daemon, [
+    {description, "Retinue multi-game daemon"},
+    {vsn, {file, "../../VERSION"}},
+    {registered, [retinue_sup, retinue_games_sup, wfcli_warframe_sup, retinue_poe2_sup,
+                  retinue_activity, retinue_poe2_service, retinue_daemon, wfcli_worldstate_service,
+                  wfcli_exports_store, wfcli_source_manager, wfcli_query_service,
+                  wfcli_forma_service, wfcli_player_service, wfcli_game_metadata_service,
+                  wfcli_resolution_issues, wfcli_build_service,
+                  wfcli_market_limiter,
+                  wfcli_market_service, wfcli_market_account_service,
+                  wfcli_market_presence_service,
+                  wfcli_asset_service, wfcli_notification_service,
+                  retinue_local_api]},
+    {mod, {retinue_daemon_app, []}},
+    {applications, [kernel, stdlib, wfcore, crypto, yamerl, jsone, inets, ssl, gun]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.

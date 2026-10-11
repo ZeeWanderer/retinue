@@ -2,12 +2,14 @@
 
 ## Commands
 
-`wfcli_cli` assembles the command tree and owns top-level grouping. Each command module declares
+`retinue_cli` composes platform commands with game subtrees. `wfcli_cli` supplies the Warframe
+tree and shared dispatch context. `wfcli` and `poe2cli` select their scope before parsing;
+they do not maintain separate command definitions. Each command module declares
 its OTP `argparse` specification beside its handler: arguments, types, defaults, subcommands,
 summary and optional notes. Handlers receive parsed maps, not argv.
 Enum types supply completion values; use argument `completion` hints for open-ended values.
 
-- `wfcli_cli_args` supplies shared argument definitions and contextual help adaptation.
+- `retinue_cli_args` supplies shared argument definitions and contextual help adaptation.
 - `wfcli_catalog_cli` handles focused export and knowledge queries.
 - `wfcli_query_cli` handles unified queries and the player view.
 - `wfcli_worldstate_cli` handles one-shot requests and watch-spec syntax;
@@ -30,7 +32,8 @@ clients, never by rebuilding argv and invoking another parser. Matching, sorting
 Values named `help` remain values. Typo correction requires terminal stdin and stdout and respects
 `--no-suggest-prompt`.
 
-`wfcli_completion` generates static Bash maps and a builtin-only completion function. Builds stage
+`retinue_completion` generates static Bash maps from the complete Retinue tree and a builtin-only
+completion function that selects the initial scope from the executable name. Builds stage
 them under `share/bash-completion/completions` for lazy loading. Keep Bash 5.3 `compgen -V`:
 neither shell initialization nor completion may start an Erlang VM. Tests execute the generated
 script with external commands unavailable.
@@ -40,13 +43,13 @@ script with external commands unavailable.
 Usage errors use stderr and exit 2; failed operations exit 1. Help and successful data use stdout.
 Batch commands retain successful results while returning failure if any job fails.
 
-Use `wfcli_table` and `wfcli_tty` for terminal layout. Shared schema modules define columns;
+Use `retinue_table` and `retinue_tty` for terminal layout. Shared schema modules define columns;
 CLI presentation modules define block ordering. Focused and unified queries share
 `wfcli_exports_format` and `wfcli_knowledge_format`.
 
 Catalog JSON uses explicit field types in `wfcli_catalog_json`. Never infer strings from integer
-arrays or empty lists. Preserve nested source JSON types. Use `wfcli_data_extract` for dot paths
-and `wfcli_text` for shared string conversion.
+arrays or empty lists. Preserve nested source JSON types. Use `retinue_data_extract` for dot paths
+and `retinue_text` for shared string conversion.
 
 ## Verification
 

@@ -15,7 +15,7 @@ main(Args) ->
             ok
     end,
     add_build_paths("_build/default/lib"),
-    _ = application:ensure_all_started(wfcli),
+    _ = application:ensure_all_started(retinue_cli),
     {ok, [Raw]} = wfcli_forma_config:load_files([ConfigFile]),
     {ok, Config} = wfcli_forma_model:normalize_config(Raw),
     Warmup = maps:get(warmup, Opts),

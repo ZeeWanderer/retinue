@@ -1,9 +1,9 @@
 {ok, VersionData} = file:read_file("VERSION"),
 Version = binary_to_list(string:trim(VersionData)),
-VersionDefine = {d, 'WFCLI_VERSION', Version},
+VersionDefine = {d, 'RETINUE_VERSION', Version},
 SetVersion = fun(Config) ->
     ErlOpts = proplists:get_value(erl_opts, Config, []),
-    Keep = fun({d, 'WFCLI_VERSION', _}) -> false;
+    Keep = fun({d, 'RETINUE_VERSION', _}) -> false;
               (_) -> true
            end,
     lists:keystore(erl_opts, 1, Config,

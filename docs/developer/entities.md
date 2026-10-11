@@ -1,11 +1,11 @@
 # Entity Architecture
 
-Entities are normalized searchable values built and queried inside `wfdaemon`, then rendered by
+Entities are normalized searchable values built and queried inside `retinue-daemon`, then rendered by
 `wfcli`.
 
 ## Pipeline
 
-1. `wfcli_source_manager` validates managed inputs; `wfcli_data_cache` performs locked atomic
+1. `wfcli_source_manager` validates managed inputs; `retinue_data_cache` performs locked atomic
    fetches.
 2. Domain adapters decode source data and derive typed projections; source records remain
    attached and addressable rather than being replaced by parsed output.

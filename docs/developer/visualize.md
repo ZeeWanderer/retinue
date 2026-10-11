@@ -2,13 +2,13 @@
 
 ## Entry points
 
-- CLI: `apps/wfcli/src/forma/wfcli_visualize.erl`
-- Rendering: `apps/wfcli/src/forma/wfcli_forma_visualizer.erl`
+- CLI: `apps/retinue_cli/src/forma/wfcli_visualize.erl`
+- Rendering: `apps/retinue_cli/src/forma/wfcli_forma_visualizer.erl`
 
 ## Where to edit what
 
-- CLI flags/usage/errors: `apps/wfcli/src/forma/wfcli_visualize.erl`
-- HTML/SVG rendering: `apps/wfcli/src/forma/wfcli_forma_visualizer.erl`
+- CLI flags/usage/errors: `apps/retinue_cli/src/forma/wfcli_visualize.erl`
+- HTML/SVG rendering: `apps/retinue_cli/src/forma/wfcli_forma_visualizer.erl`
 
 ## Runtime notes
 

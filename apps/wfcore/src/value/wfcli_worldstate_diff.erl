@@ -29,6 +29,6 @@ has_changes(#{added := Added, removed := Removed, changed := Changed}) ->
 -spec entry_key(map(), non_neg_integer()) -> string().
 entry_key(Entry, Index) ->
     case maps:get(id, Entry, undefined) of
-        undefined -> wfcli_text:to_list(maps:get(name, Entry, Index));
-        Id -> wfcli_text:to_list(Id)
+        undefined -> retinue_text:to_list(maps:get(name, Entry, Index));
+        Id -> retinue_text:to_list(Id)
     end.

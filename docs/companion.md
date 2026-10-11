@@ -1,13 +1,13 @@
 # Linux/Proton Companion
 
-`wfcompanion` observes local Warframe state, publishes player data to `wfdaemon`, and renders
+`wfcompanion` observes local Warframe state, publishes player data to `retinue-daemon`, and renders
 Wayland overlays for relic rewards and relic selection.
 
 ## Requirements
 
 - KDE Plasma on Wayland with KWin screenshot support and KScreen
 - Tesseract 5 with English language data
-- built `wfcli`, `wfdaemon`, and `wfcompanion` executables
+- built `wfcli`, `retinue-daemon`, and `wfcompanion` executables
 
 Source-build requirements are listed in the [repository README](../README.md#build).
 
@@ -18,13 +18,13 @@ required by Linux read-only process access. Set **Warframe > Properties > Genera
 Options** in Steam to:
 
 ```bash
-/absolute/path/to/wfcli/prod/bin/wfcompanion launch -- %command%
+/absolute/path/to/retinue/prod/bin/wfcompanion launch -- %command%
 ```
 
 Keep existing wrappers after `--`:
 
 ```bash
-/absolute/path/to/wfcli/prod/bin/wfcompanion launch -- gamemoderun %command%
+/absolute/path/to/retinue/prod/bin/wfcompanion launch -- gamemoderun %command%
 ```
 
 The CLI can edit the launch option after Steam is closed:
@@ -134,8 +134,8 @@ wfinspect game ui find 'RESOURCE DRONES'
 wfinspect game ui capture /tmp/warframe-ui 'RESOURCE DRONES'
 ```
 
-Incident logs use `$XDG_STATE_HOME/wfcli/wfcompanion.log`, normally
-`~/.local/state/wfcli/wfcompanion.log`.
+Incident logs use `$XDG_STATE_HOME/retinue/games/warframe/wfcompanion.log`, normally
+`~/.local/state/retinue/games/warframe/wfcompanion.log`.
 
 ## Previews
 

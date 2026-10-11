@@ -60,10 +60,10 @@ Translation logic is centralized in daemon module `wfcli_resolve`:
 
 ## Cache locations and refresh
 
-- Worldstate cache defaults to `$XDG_CACHE_HOME/wfcli/worldstate.json`, or
-  `~/.cache/wfcli/worldstate.json` when XDG cache is unset.
+- Worldstate cache defaults to `$XDG_CACHE_HOME/retinue/games/warframe/worldstate.json`, or
+  `~/.cache/retinue/games/warframe/worldstate.json` when XDG cache is unset.
 - Node/language maps and exports update under the per-user XDG cache. Bundled fallback copies
-  live under `apps/wfdaemon/priv/`.
+  live under `apps/retinue_daemon/priv/`.
 - Refresh metadata with `wfcli update`; see [data sources](../data-sources.md).
 
 ## Calendar data
@@ -99,7 +99,7 @@ rotation tests together. There is no runtime WFCD dependency.
 
 ## Adding a new worldstate type
 
-1. Add the index/projector behavior under `apps/wfdaemon/src/`.
+1. Add the index/projector behavior under `apps/retinue_daemon/src/games/warframe/`.
 2. Add shared result columns in `wfcli_worldstate_schema` when needed.
-3. Add the terminal block layout and command wiring under `apps/wfcli/src/`.
-4. Add tests and fixture updates in `apps/wfcli/test/`.
+3. Add the terminal block layout and command wiring under `apps/retinue_cli/src/`.
+4. Add tests and fixture updates in `apps/retinue_cli/test/`.

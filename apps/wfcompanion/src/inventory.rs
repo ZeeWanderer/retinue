@@ -10,11 +10,11 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::runtime::{inbox, session::Session};
+use retinue_warframe::game_observer::gep;
+use retinue_warframe::observation::debug_output::Runtime;
+use retinue_warframe::observation::{gep as sampling, mailbox::Mailbox};
 use serde::Serialize;
 use serde_json::{Map, Value};
-use wfcompanion::game_observer::gep;
-use wfcompanion::observation::debug_output::Runtime;
-use wfcompanion::observation::{gep as sampling, mailbox::Mailbox};
 
 const INVENTORY_MARKER: &[u8] = b"LastInventorySync";
 const SCHEMA_VERSION: u32 = 2;
@@ -289,7 +289,7 @@ struct Decoder {
     seen_payloads: HashSet<u64>,
     stream: observation::Stream,
     baseline: Option<Baseline>,
-    last_native: Option<wfcompanion::game_observer::inventory::Snapshot>,
+    last_native: Option<retinue_warframe::game_observer::inventory::Snapshot>,
     events: Sender,
 }
 
@@ -377,7 +377,7 @@ impl Decoder {
     }
     fn native(
         &mut self,
-        snapshot: wfcompanion::game_observer::inventory::Snapshot,
+        snapshot: retinue_warframe::game_observer::inventory::Snapshot,
         started: Instant,
         finished: Instant,
         collected_at: u128,
@@ -803,7 +803,7 @@ mod tests {
         fields.get_mut("MiscItems").unwrap()[0]["ItemCount"] = 4.into();
         decoder
             .native(
-                wfcompanion::game_observer::inventory::Snapshot {
+                retinue_warframe::game_observer::inventory::Snapshot {
                     sync: "abcdef".into(),
                     fields,
                 },
@@ -830,8 +830,8 @@ mod tests {
         Decoder::new(session, stream, "/nonexistent".into(), sender)
     }
 
-    fn native_snapshot(count: u32) -> wfcompanion::game_observer::inventory::Snapshot {
-        wfcompanion::game_observer::inventory::Snapshot {
+    fn native_snapshot(count: u32) -> retinue_warframe::game_observer::inventory::Snapshot {
+        retinue_warframe::game_observer::inventory::Snapshot {
             sync: "abcdef".into(),
             fields: serde_json::json!({"MiscItems": [{"ItemType":"resource", "ItemCount":count}],
                                       "Recipes":[], "PendingRecipes":[]})

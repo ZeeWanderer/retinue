@@ -52,7 +52,7 @@ item that references it.
 
 ## Ownership
 
-`wfdaemon` owns:
+`retinue-daemon` owns:
 
 - Catalog identity to `imageName` resolution.
 - Source URL policy, HTTP revalidation, download coalescing, and persistent files.
@@ -75,7 +75,7 @@ objects.
 Store downloaded bodies under:
 
 ```text
-$XDG_CACHE_HOME/wfcli/assets/objects/<sha256>.<extension>
+$XDG_CACHE_HOME/retinue/games/warframe/assets/objects/<sha256>.<extension>
 ```
 
 Map canonical source URLs to those objects in one daemon-owned metadata file. Download to a

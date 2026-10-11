@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::fs;
 use std::io::Read;
 use std::os::fd::AsFd;
 use std::os::unix::net::UnixStream;
@@ -10,7 +9,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use image::{DynamicImage, ImageFormat, RgbaImage};
-use wfcompanion::work::Budget;
+use retinue_client::paths::{Base, Game, Paths, create_private_dir_all};
+use retinue_native::work::Budget;
 use zbus::blocking::{Connection, Proxy};
 use zbus::zvariant::{Fd, OwnedValue};
 
@@ -40,7 +40,9 @@ type RunnerMatch = (
 );
 
 pub(crate) fn relic_window() -> Result<DynamicImage, String> {
-    relic_window_with_budget(&Budget::new(wfcompanion::observation::ui_capture::limits()))
+    relic_window_with_budget(&Budget::new(
+        retinue_warframe::observation::ui_capture::limits(),
+    ))
 }
 
 pub(crate) fn relic_window_with_budget(budget: &Budget) -> Result<DynamicImage, String> {
@@ -55,7 +57,9 @@ pub(crate) fn relic_window_with_budget(budget: &Budget) -> Result<DynamicImage, 
 }
 
 pub(crate) fn capture() -> Result<DynamicImage, String> {
-    capture_warframe(&Budget::new(wfcompanion::observation::ui_capture::limits()))
+    capture_warframe(&Budget::new(
+        retinue_warframe::observation::ui_capture::limits(),
+    ))
 }
 
 pub(crate) fn save(path: &Path) -> Result<(u32, u32), String> {
@@ -275,7 +279,7 @@ fn unpremultiply(channel: u8, alpha: u8) -> u8 {
 
 pub(crate) fn temporary_png(label: &str) -> Result<PathBuf, String> {
     let directory = capture_dir();
-    fs::create_dir_all(&directory).map_err(|error| {
+    create_private_dir_all(&directory).map_err(|error| {
         format!(
             "could not create capture directory {}: {error}",
             directory.display()
@@ -291,32 +295,24 @@ pub(crate) fn temporary_png(label: &str) -> Result<PathBuf, String> {
 pub(crate) fn capture_dir() -> PathBuf {
     #[cfg(test)]
     if std::env::var_os("WFCOMPANION_CAPTURE_DIR").is_none() {
-        return std::env::temp_dir().join("wfcli/captures");
+        return std::env::temp_dir().join(format!(
+            "retinue-tests-{}/games/warframe/captures",
+            std::process::id()
+        ));
     }
     capture_dir_from(
         std::env::var_os("WFCOMPANION_CAPTURE_DIR").as_deref(),
-        std::env::var_os("XDG_CACHE_HOME").as_deref(),
-        std::env::var_os("HOME").as_deref(),
-        &std::env::temp_dir(),
+        &Paths::from_env(),
     )
 }
 
-fn capture_dir_from(
-    override_dir: Option<&OsStr>,
-    xdg_cache: Option<&OsStr>,
-    home: Option<&OsStr>,
-    temp: &Path,
-) -> PathBuf {
+fn capture_dir_from(override_dir: Option<&OsStr>, paths: &Paths) -> PathBuf {
     if let Some(directory) = override_dir {
         return PathBuf::from(directory);
     }
-    if let Some(directory) = xdg_cache {
-        return PathBuf::from(directory).join("wfcli/captures");
-    }
-    if let Some(directory) = home {
-        return PathBuf::from(directory).join(".cache/wfcli/captures");
-    }
-    temp.join("wfcli/captures")
+    paths
+        .game_directory(Base::Cache, Game::Warframe)
+        .join("captures")
 }
 
 fn load(path: &Path) -> Result<DynamicImage, String> {
@@ -345,7 +341,7 @@ mod tests {
             ("stride".into(), OwnedValue::from(65536_u32)),
             ("format".into(), OwnedValue::from(QIMAGE_FORMAT_RGB32)),
         ]);
-        let budget = Budget::new(wfcompanion::observation::ui_capture::limits());
+        let budget = Budget::new(retinue_warframe::observation::ui_capture::limits());
         assert!(
             read_raw_image(&mut reader, metadata, &budget)
                 .unwrap_err()
@@ -360,33 +356,37 @@ mod tests {
     }
 
     #[test]
-    fn capture_directory_prefers_shared_user_cache() {
-        assert_eq!(
-            capture_dir_from(None, Some(OsStr::new("/cache")), None, Path::new("/tmp")),
-            PathBuf::from("/cache/wfcli/captures")
-        );
-        assert_eq!(
-            capture_dir_from(
-                None,
-                None,
-                Some(OsStr::new("/home/test")),
-                Path::new("/tmp")
+    fn capture_directory_uses_game_cache_and_valid_xdg_only() {
+        for (xdg, expected) in [
+            (Some("/cache"), "/cache/retinue/games/warframe/captures"),
+            (None, "/home/test/.cache/retinue/games/warframe/captures"),
+            (
+                Some(""),
+                "/home/test/.cache/retinue/games/warframe/captures",
             ),
-            PathBuf::from("/home/test/.cache/wfcli/captures")
-        );
+            (
+                Some("relative"),
+                "/home/test/.cache/retinue/games/warframe/captures",
+            ),
+        ] {
+            let paths = Paths::from_lookup(|key| match key {
+                "XDG_CACHE_HOME" => xdg.map(Into::into),
+                "HOME" => Some("/home/test".into()),
+                _ => None,
+            });
+            assert_eq!(capture_dir_from(None, &paths), PathBuf::from(expected));
+        }
     }
 
     #[test]
     fn capture_directory_override_wins() {
-        assert_eq!(
-            capture_dir_from(
-                Some(OsStr::new("/shared")),
-                Some(OsStr::new("/cache")),
-                Some(OsStr::new("/home/test")),
-                Path::new("/tmp")
-            ),
-            PathBuf::from("/shared")
-        );
+        let paths = Paths::from_lookup(|_| Some("/unused".into()));
+        for directory in ["/shared", "relative", ""] {
+            assert_eq!(
+                capture_dir_from(Some(OsStr::new(directory)), &paths),
+                PathBuf::from(directory)
+            );
+        }
     }
 
     #[test]

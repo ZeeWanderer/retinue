@@ -1,26 +1,16 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import re
 import sys
+from pathlib import Path
 
-DEFAULT_CANDIDATES = [
-    os.path.join("apps", "wfcli", "priv", "worldstate.json"),
-    os.path.expanduser(os.path.join("~", ".cache", "wfcli", "worldstate.json")),
-]
+from lib.warframe_cache import cache_file
 
 
 def load_json(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as handle:
         return json.load(handle)
-
-
-def find_default_path():
-    for path in DEFAULT_CANDIDATES:
-        if os.path.exists(path):
-            return path
-    return None
 
 
 def iter_nodes(obj, path=None):
@@ -64,8 +54,8 @@ def main():
     parser.add_argument("--calendar", action="store_true", help="print KnownCalendarSeasons summary")
     args = parser.parse_args()
 
-    path = args.path or find_default_path()
-    if not path or not os.path.exists(path):
+    path = Path(args.path) if args.path else cache_file("worldstate.json")
+    if not path.is_file():
         print("error: worldstate.json not found; provide a path", file=sys.stderr)
         return 1
 

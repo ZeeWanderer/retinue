@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import json
-import os
 import sys
+from pathlib import Path
 
-EXPORT_DIR = os.path.join("apps", "wfcli", "priv")
+from lib.warframe_cache import cache_file
 
 
 def load_json(path):
@@ -31,11 +31,11 @@ def main():
 
     export_file = sys.argv[1]
     keys = sys.argv[2:] or ["uniqueName", "name", "locName"]
-    path = export_file
-    if not os.path.isabs(path):
-        path = os.path.join(EXPORT_DIR, export_file)
+    path = Path(export_file)
+    if path.parent == Path(".") and not path.exists():
+        path = cache_file(export_file)
 
-    if not os.path.exists(path):
+    if not path.is_file():
         print(f"error: not found: {path}", file=sys.stderr)
         return 1
 

@@ -2,7 +2,7 @@
     {description, "Shared wfcli contracts and pure data helpers"},
     {vsn, {file, "../../VERSION"}},
     {registered, []},
-    {applications, [kernel, stdlib]},
+    {applications, [kernel, stdlib, retinue_core]},
     {modules, []},
     {licenses, ["Apache-2.0"]},
     {links, []}

@@ -24,7 +24,7 @@ private slots:
 
 void MarketWidgetTest::retainsCardsAndUpdatesActions() {
   QLocalServer server;
-  QVERIFY(server.listen(qEnvironmentVariable("WFCLI_DAEMON_SOCKET")));
+  QVERIFY(server.listen(qEnvironmentVariable("RETINUE_DAEMON_SOCKET")));
   AppController controller;
   auto *client = controller.findChild<DaemonClient *>();
   QVERIFY(client);
@@ -117,7 +117,7 @@ void MarketWidgetTest::retainsCardsAndUpdatesActions() {
 
 void MarketWidgetTest::variantQuotesRefreshWithoutDiscardingCachedData() {
   QLocalServer server;
-  QVERIFY(server.listen(qEnvironmentVariable("WFCLI_DAEMON_SOCKET")));
+  QVERIFY(server.listen(qEnvironmentVariable("RETINUE_DAEMON_SOCKET")));
   AppController controller;
   auto *client = controller.findChild<DaemonClient *>();
   QTRY_VERIFY(server.hasPendingConnections());
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
   QTemporaryDir directory;
   qputenv("XDG_CACHE_HOME", directory.filePath("cache").toUtf8());
   qputenv("XDG_CONFIG_HOME", directory.filePath("config").toUtf8());
-  qputenv("WFCLI_DAEMON_SOCKET", directory.filePath("daemon.sock").toUtf8());
+  qputenv("RETINUE_DAEMON_SOCKET", directory.filePath("daemon.sock").toUtf8());
   QApplication app(argc, argv);
   MarketWidgetTest test;
   return QTest::qExec(&test, argc, argv);

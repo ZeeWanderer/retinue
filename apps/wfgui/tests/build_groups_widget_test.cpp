@@ -117,9 +117,9 @@ void BuildGroupsWidgetTest::rendersPlanAndEveryMember() {
   QTemporaryDir directory;
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("daemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
-  const auto restore = qScopeGuard([oldSocket] { qputenv("WFCLI_DAEMON_SOCKET", oldSocket); });
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const auto restore = qScopeGuard([oldSocket] { qputenv("RETINUE_DAEMON_SOCKET", oldSocket); });
   AppController controller;
   QTRY_VERIFY(server.hasPendingConnections());
   QVERIFY(server.nextPendingConnection());
@@ -238,9 +238,9 @@ void BuildGroupsWidgetTest::capturesPlanFixture() {
   QTemporaryDir directory;
   QLocalServer server;
   QVERIFY(server.listen(directory.filePath("daemon.sock")));
-  const QByteArray oldSocket = qgetenv("WFCLI_DAEMON_SOCKET");
-  qputenv("WFCLI_DAEMON_SOCKET", server.fullServerName().toUtf8());
-  const auto restore = qScopeGuard([oldSocket] { qputenv("WFCLI_DAEMON_SOCKET", oldSocket); });
+  const QByteArray oldSocket = qgetenv("RETINUE_DAEMON_SOCKET");
+  qputenv("RETINUE_DAEMON_SOCKET", server.fullServerName().toUtf8());
+  const auto restore = qScopeGuard([oldSocket] { qputenv("RETINUE_DAEMON_SOCKET", oldSocket); });
   AppController controller;
   QTRY_VERIFY(server.hasPendingConnections());
   QVERIFY(server.nextPendingConnection());

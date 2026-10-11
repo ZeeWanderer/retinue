@@ -11,5 +11,9 @@ esac
 source "$root/scripts/lib/staging.sh"
 stage_begin "$root/$mode"
 rm -rf "${stage:?}/lib" "$stage/Qt6"
+rm -f "$stage/share/wfcli/icons/wfgui.svg" "$stage/share/wfcli/icons/"wfgui-*.png \
+    "$stage/share/licenses/wfcli/"{Lucide,LLVM}-LICENSE.txt
+rmdir "$stage/share/wfcli/icons" "$stage/share/wfcli" \
+    "$stage/share/licenses/wfcli" 2>/dev/null || true
 cmake --install "$root/_build/cmake/gui-$mode" --prefix "$stage"
 stage_commit

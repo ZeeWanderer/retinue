@@ -58,7 +58,7 @@ columns_for_type(_) -> default_table_columns().
 -doc "Parse CLI/watch labels back into normalized type atoms.".
 -spec type_from_label(term()) -> type_atom() | undefined.
 type_from_label(Label0) ->
-    Label = string:lowercase(string:trim(wfcli_text:to_list(Label0))),
+    Label = string:lowercase(string:trim(retinue_text:to_list(Label0))),
     case Label of
         "alert" -> alert;
         "fissure" -> fissure;
@@ -125,7 +125,7 @@ query_names(Spec) ->
      [normalize_query_name(Alias) || Alias <- maps:get(aliases, Spec, [])]].
 
 normalize_query_name(Value) ->
-    Lower = string:lowercase(string:trim(wfcli_text:to_list(Value))),
+    Lower = string:lowercase(string:trim(retinue_text:to_list(Value))),
     string:replace(string:replace(Lower, "_", "-", all), " ", "-", all).
 
 -doc "Shared column registry; add keys here when new row-map fields need labels/roles.".

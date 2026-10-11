@@ -12,12 +12,13 @@ make dev-erlang
 make prod-erlang
 make dev-companion
 make prod-companion
+make inspect         # inspector only, no overlay renderer
 make gui            # native Qt Widgets development client
 make package
 ```
 
-Run `make dev-erlang` before direct `wfclid` tests and after daemon application metadata changes.
-Run `make prod-erlang` before direct `wfcli` tests. Run the matching companion target after Rust,
+Run `make dev-erlang` before direct `retinued` or game-alias tests and after daemon
+application metadata changes. Run `make prod-erlang` before production CLI tests. Run the matching companion target after Rust,
 asset, or native bridge changes.
 
 Companion dev builds keep application code unoptimized with debug checks and symbols.
@@ -59,10 +60,11 @@ VS Code CMake Tools uses the tracked presets and existing `_build/cmake/` trees.
 - `./scripts/test-quiet gui`: native desktop model tests with build output suppressed.
 - `make test-staging`: failed/interrupted installs, concurrent writers, and prefix activation.
 - `make test-build`: compiler changes, incremental builds, tool overrides and build ordering.
-- `cargo test --locked --quiet --manifest-path apps/wfcompanion/Cargo.toml`: Rust tests.
+- `make test-companion`: shared native libraries, inspector, and all companion tests.
+- `make test-poe2`: staged observer, daemon and CLI integration in isolated storage and networking; requires Python 3.
 - `make test-gui`: native desktop model tests.
 - `make test-release`: production startup under the x86-64-v2 baseline using QEMU user emulation.
-- `make test`: Erlang, Rust, native desktop, and staging suites.
+- `make test`: Erlang, Rust, native desktop, staging and PoE2 integration suites.
 - `make check`: Rust formatting, xref, tests, and both staged builds.
 
 Normal GUI builds compile the app only; `make test-gui` also builds its test executables.
@@ -74,7 +76,7 @@ Run tests after code, fixture, build, or behavior changes. Documentation-only ch
 tests. Manually exercise changed CLI commands after automated tests pass.
 
 `rebar3 ct` emits an expected `-compile(export_all)` warning for
-`apps/wfcli/test/wfcli_forma_plan_SUITE.erl`.
+`apps/retinue_cli/test/wfcli_forma_plan_SUITE.erl`.
 
 ## Generated Files
 
@@ -108,7 +110,7 @@ into `libexec/`.
 
 ## Fixtures
 
-- Worldstate and query fixtures: `apps/wfcli/test/fixtures/`
+- Worldstate and query fixtures: `apps/retinue_cli/test/fixtures/`
 - Companion image fixtures: `apps/wfcompanion/tests/fixtures/`
 
 Fixtures are read-only inputs. Writable caches and generated output belong under Common Test

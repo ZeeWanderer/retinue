@@ -1,0 +1,11 @@
+[package]
+name = "arccompanion"
+version = "0.2.1"
+edition = "2024"
+license = "Apache-2.0"
+description = "ARC Raiders launch scaffold for Retinue"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+serde_json = "1"
+steamlocate = "2.1"

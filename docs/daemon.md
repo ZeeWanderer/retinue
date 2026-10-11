@@ -1,18 +1,19 @@
 # Daemon Control
 
-`wfdaemon` owns shared fetching, persistence, queries, watches, Market access, player state, and
-Forma planning. Normal client commands start it automatically.
+`retinue-daemon` hosts shared lifecycle and transport with separate game services. Warframe owns
+fetching, queries, watches, Market access, player state, and Forma planning; PoE2 owns normalized
+log-session evidence. Normal client commands start the daemon automatically.
 
 ## Lifecycle
 
 ```bash
-wfcli daemon status
-wfcli daemon ensure
-wfcli daemon start
-wfcli daemon start --idle-shutdown
-wfcli daemon start --idle-timeout 1800
-wfcli daemon restart
-wfcli daemon stop
+retinue daemon status
+retinue daemon ensure
+retinue daemon start
+retinue daemon start --idle-shutdown
+retinue daemon start --idle-timeout 1800
+retinue daemon restart
+retinue daemon stop
 ```
 
 `status` reports installation source and root, build identity, both client protocol contracts,
@@ -27,34 +28,33 @@ Queued work, subscriptions, and active companion connections prevent idle shutdo
 ## Login Autostart
 
 ```bash
-wfcli daemon autostart status
-wfcli daemon autostart enable
-wfcli daemon autostart disable
+retinue daemon autostart status
+retinue daemon autostart enable
+retinue daemon autostart disable
 ```
 
-`enable` starts a managed user service. Homebrew installations use `brew services`; repository
-builds install a systemd user unit directly. `disable` prevents login startup without stopping the
-running daemon.
+`enable` installs and starts a systemd user service for a source build. `disable` prevents login
+startup without stopping the running daemon.
 
 Development and production use separate units:
 
-- `wfdaemon-dev.service` for `wfclid`
-- `wfdaemon.service` for `wfcli`
+- `retinue-daemon-dev.service` for development builds
+- `retinue-daemon.service` for production builds
 
 The client detects its installation and refreshes stale service ownership before startup.
 
 ## Updates
 
-Each connection checks required interface versions, build flavor, and a fingerprint of `wfcore`
-and `wfdaemon`. Stale modules are hot-loaded automatically; unresolved mismatches restart the
-requested release.
+Each connection checks required interface versions, build flavor, and a fingerprint of
+`retinue_core`, `wfcore`, and `retinue_daemon`. Stale modules are hot-loaded automatically;
+unresolved mismatches restart the requested release.
 
 A running daemon also watches the staged `BUILD_ID`, so replacing a repository or packaged build
 does not require a client request. Manual update remains available:
 
 ```bash
-wfcli daemon update
-wfcli daemon update --release RELEASE
+retinue daemon update
+retinue daemon update --release RELEASE
 ```
 
 The first form loads changed BEAMs from the active staged build. The second applies a versioned OTP
@@ -79,12 +79,17 @@ then notifies about matching fissures added later.
 
 ## Logs
 
-Warnings and errors are saved to `$XDG_STATE_HOME/wfcli/wfdaemon.log`, normally
-`~/.local/state/wfcli/wfdaemon.log`. The log rotates at 1 MiB and keeps two archives.
+Warnings and errors are saved to `$XDG_STATE_HOME/retinue/daemon.log`, normally
+`~/.local/state/retinue/daemon.log`. The log rotates at 1 MiB and keeps two archives.
 Knowledge refresh incidents include the source, failing URL and reason, including mirror failures
 that recover through a fallback.
 
-Crash dumps are written to `$XDG_STATE_HOME/wfcli/erl_crash.dump`, normally
-`~/.local/state/wfcli/erl_crash.dump`. Use `wfcli daemon paths` for all daemon directories.
+Crash dumps are written to `$XDG_STATE_HOME/retinue/erl_crash.dump`, normally
+`~/.local/state/retinue/erl_crash.dump`. Use `retinue daemon paths` for all daemon directories.
+
+Native clients share `$XDG_RUNTIME_DIR/retinue/daemon.sock`; without a valid runtime base,
+the owner-only fallback is `/tmp/retinue-UID/daemon.sock`. `RETINUE_DAEMON_SOCKET` overrides
+the socket path. Game caches and durable data live below `retinue/games/<game>` in their
+respective XDG roots; see [storage](data-sources.md#storage).
 
 Implementation details are in [Daemon architecture](developer/daemon.md).

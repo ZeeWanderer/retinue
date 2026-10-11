@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use super::join_worker;
-use wfcompanion::work::Budget;
+use retinue_native::work::Budget;
 
 pub(crate) struct Jobs {
     spawner: Spawner,
@@ -112,7 +112,7 @@ mod tests {
     use super::*;
 
     fn budget() -> Budget {
-        Budget::new(wfcompanion::observation::ui_capture::limits())
+        Budget::new(retinue_warframe::observation::ui_capture::limits())
     }
 
     #[test]

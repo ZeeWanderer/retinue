@@ -1,8 +1,21 @@
-# wfinspect
+# Retinue Inspector
 
-Read-only Warframe research using live memory, saved captures, cache resources,
-and runtime events. Built with [companion](developer/workflows.md); repository
-links are `wfinspectd` (development) and `wfinspect` (production).
+Read-only process inspection and Warframe research using live memory, saved captures,
+cache resources, and runtime events. Full builds stage it alongside the companions; repository links are
+`retinue-inspectd` (development) and `retinue-inspect` (production). `wfinspectd` and `wfinspect`
+remain aliases; examples below use the short name.
+
+Build only the inspector, without the overlay renderer:
+
+```bash
+make inspect
+_build/cargo/debug/retinue-inspect memory maps --pid 12345
+_build/cargo/debug/retinue-inspect memory read 0x123000 64 --pid 12345
+_build/cargo/debug/retinue-inspect memory read 0x123000 64 --capture research/capture
+```
+
+Generic `memory` commands require `--pid` or `--capture`. `native report` reads reports for
+any executable hash. Warframe discovery and adapters live under `warframe` (`game` alias).
 
 ## Start Here
 

@@ -1,6 +1,7 @@
 # Helper Scripts
 
 These scripts are for quick local inspection of cached data. They do not change files.
+Defaults use `$XDG_CACHE_HOME/retinue/games/warframe` (`~/.cache` when unset).
 
 ## Worldstate inspection
 
@@ -21,7 +22,7 @@ scripts/worldstate_inspect.py --keys "Calendar" --values "Calendar1999"
 You can also pass a specific cache path:
 
 ```bash
-scripts/worldstate_inspect.py ~/.cache/wfcli/worldstate.json --top-keys
+scripts/worldstate_inspect.py ~/.cache/retinue/games/warframe/worldstate.json --top-keys
 ```
 
 ## Language lookup

@@ -1,15 +1,18 @@
 # Shared Utilities
 
-`wfcore` is a process-free OTP library. It exists because every BEAM module must have one
-application owner; compiling the same source into both executable applications creates module
-clashes in xref and ambiguous debugger paths.
+`retinue_core` and `wfcore` are process-free OTP libraries. Every BEAM module has one application
+owner; compiling the same source into CLI and daemon applications creates module clashes in xref
+and ambiguous debugger paths.
 
-- `wfcli_protocol`: handshake, interface groups, request ownership, and dataset contracts.
-- `wfcli_build`: staged artifact flavor, install root, and update paths.
-- `wfcli_paths`: XDG cache, state, config, and runtime paths.
-- `wfcli_*_schema`: column contracts used by daemon sorting and CLI tables.
-- `wfcli_text`, `wfcli_time`, `wfcli_polarity`: deterministic value helpers.
-- `wfcli_data_extract`, `wfcli_worldstate_diff`: data-only extraction and diff values.
+`retinue_core` owns platform helpers:
+
+- `retinue_paths`: XDG roots, game namespaces, private runtime directory validation.
+- `retinue_protocol`: handshake and interface contracts.
+- `retinue_build`: staged artifact flavor, install root, and update paths.
+- `retinue_text`, `retinue_time`, `retinue_data_extract`, `retinue_incidents`: value and read-only data helpers.
+
+`wfcore` depends on it and owns `wfcli_protocol` dataset/request contracts, `wfcli_paths`,
+column schemas, polarity and worldstate diff helpers.
 
 Do not add fetching, persistence, processes, CLI parsing, or rendering to `wfcore`. Two callers
 inside one application do not justify moving code here; a stable contract needed by both
@@ -19,9 +22,9 @@ Keep behavior inside its owning application. Prefer a focused module when behavi
 and independent tests; do not split files only to reduce line count. Avoid compatibility wrappers
 after a move unless an external contract requires one.
 
-CLI-only examples: `wfcli_tty`, `wfcli_table`, `wfcli_cli_args`.
+CLI-only examples: `retinue_tty`, `retinue_table`, `retinue_cli_args`.
 
-Daemon-only examples: `wfcli_data_cache`, `wfcli_query_parse`, `wfcli_entity_*`.
+Daemon-only examples: `retinue_data_cache`, `wfcli_query_parse`, `wfcli_entity_*`.
 
 Exported inter-module functions require `-spec` and terse `-doc` text where purpose or ownership is
 not obvious. Shared behavior changes require focused EUnit or Common Test coverage.

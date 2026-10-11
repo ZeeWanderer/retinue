@@ -14,4 +14,6 @@ fi
 pattern="$1"
 shift
 
-rg -n "$pattern" apps/wfcli/priv "$@"
+cache="${XDG_CACHE_HOME:-}"
+[[ "$cache" == /* ]] || cache="$HOME/.cache"
+rg -n --glob '*.json' "$@" -- "$pattern" "$cache/retinue/games/warframe"

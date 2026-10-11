@@ -35,7 +35,7 @@ X-KDE-DBUS-Restricted-Interfaces={SCREENSHOT_INTERFACE}
 
 pub(crate) fn ensure_identity() -> Result<PathBuf, String> {
     let path = identity_path()?;
-    let executable = wfcompanion::executable_path()
+    let executable = retinue_client::executable_path()
         .ok_or_else(|| "could not resolve wfcompanion executable".to_owned())?;
     let entry = desktop_entry(executable)?;
     if fs::read_to_string(&path).is_ok_and(|current| current == entry) {

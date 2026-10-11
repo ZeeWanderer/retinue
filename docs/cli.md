@@ -1,7 +1,26 @@
 # Command-Line Client
 
-`wfcli` parses commands, submits typed requests to `wfdaemon`, and formats replies. Fetching,
-persistence, query execution, and planning remain daemon-owned.
+`retinue` parses commands, submits typed requests to `retinue-daemon`, and formats replies.
+Fetching, persistence, query execution, and planning remain daemon-owned.
+
+## Scopes
+
+```bash
+retinue warframe fissures
+wfcli fissures
+retinue poe2 companion status
+poe2cli companion status
+```
+
+`wfcli` selects the `warframe` subtree; `poe2cli` selects `poe2`. Both use the same parser,
+help, and completion tree as `retinue`. Development links add `d`: `retinued`, `wfclid`,
+`poe2clid`, and `arcclid`. `arccli` selects the ARC Raiders scaffold.
+
+Root commands include `daemon`, `paths`, `diagnostics`, and `completion`.
+Root `mcp` exposes platform tools and game-prefixed tools; `retinue warframe mcp` exposes
+the focused Warframe adapter.
+Warframe commands below use the short `wfcli` alias. PoE2 session and event commands are
+documented in the [PoE2 guide](poe2.md).
 
 ## Commands
 
@@ -31,13 +50,14 @@ wfcli enemies corrupted
 wfcli drops serration
 wfcli market 'saryn prime set'
 wfcli player
-wfcli diagnostics unresolved
-wfcli diagnostics logs
+retinue warframe diagnostics unresolved
+retinue diagnostics logs
 wfcli diagnostics logs companion --lines 20 --json
 ```
 
-`diagnostics logs` reads recent daemon and companion incidents, including when daemon is stopped.
-Select `daemon` or `companion` to narrow the output. [Companion diagnostics](companion.md#diagnostics)
+`wfcli diagnostics unresolved` reports Warframe identity, metadata, and asset failures.
+`retinue diagnostics logs` reads daemon incidents even while stopped. `wfcli diagnostics logs`
+also includes Warframe companion incidents; select `daemon` or `companion` to narrow output. [Companion diagnostics](companion.md#diagnostics)
 cover collector health and capture status.
 
 Advanced operations have dedicated guides:
@@ -57,10 +77,10 @@ Run `wfcli help commands` for every focused worldstate command.
 Help is contextual; these forms are equivalent:
 
 ```bash
-wfcli help daemon autostart
-wfcli daemon autostart help
-wfcli daemon autostart --help
-wfcli daemon autostart -h
+retinue help daemon autostart
+retinue daemon autostart help
+retinue daemon autostart --help
+retinue daemon autostart -h
 ```
 
 For query commands, arguments after `--` are literal text. Correction prompts require an
@@ -82,12 +102,13 @@ After game updates, the last captured pools remain usable with an unverified-loa
 
 ## Output
 
-`--json` and `--utc` work before or after any command. Human timestamps use local time
-with a UTC offset; `--utc` selects RFC 3339 UTC. JSON uses UTC and preserves raw epoch
-fields in their original units. Watches emit one JSON object per update.
+`--json` and `--utc` work before or after any command. Formatted timestamps use local time
+with a UTC offset; `--utc` selects RFC 3339 UTC. JSON preserves raw epoch fields in their
+original units. Source-local timestamps without a known timezone, such as PoE2 log strings,
+remain source-local. Watches emit one JSON object per update.
 
 ```bash
-wfcli daemon status --json
+retinue daemon status --json
 wfcli --utc companion status
 wfcli query --json 'dataset=incidents timestamp>=now-1h'
 ```
@@ -101,34 +122,39 @@ Staged and packaged builds include lazy bash-completion files. Install a user co
 the escript directly or overriding a packaged completion:
 
 ```bash
-wfcli completion install
-wfcli completion status
-wfcli completion uninstall
+retinue completion install
+retinue completion status
+retinue completion uninstall
 ```
 
 Use `--dir PATH` for another completion directory. Bash 5.3 or newer and `bash-completion` are
 required. Rerun `install` after updating a direct escript. For one shell:
 
 ```bash
-source <(wfcli completion bash)
+source <(retinue completion bash)
 ```
 
-The generated function contains all candidates. Shell startup and Tab completion do not start an
-Erlang VM.
+One generated script covers `retinue`, `wfcli`, `poe2cli`, and their development aliases.
+Game aliases begin completion in their own subtree. All candidates come from the command tree;
+shell startup and Tab completion do not start an Erlang VM.
 
 ## Application Paths
 
 ```bash
-wfcli paths
-wfcli paths --apps
-wfcli paths wfdaemon
-wfcli paths wfgui
+retinue paths
+retinue paths --apps
+retinue paths retinue
+retinue paths retinue_daemon
+retinue paths poe2companion
+retinue paths wfgui
 wfcli companion paths
 ```
 
 The default report merges all managed XDG directories into one filesystem tree without creating
 them. A symlink is rendered as `name -> target`, with logical descendants nested below it. Use
 `--apps` to group paths by owning application, or name one application to inspect it alone.
+The CLI asks each installed native app for its paths. The daemon report owns cached game data,
+including the PoE2 session cache; `poe2companion` reports the shared daemon socket's parent directory.
 
 ## Fissure Notifications
 
@@ -140,6 +166,6 @@ wfcli notifications persistent
 ```
 
 `on` watches while at least one `wfgui` connection is open. `persistent` watches whenever
-`wfdaemon` is running. The setting is shared with the desktop GUI and persists across restarts.
+`retinue-daemon` is running. The setting is shared with the desktop GUI and persists across restarts.
 
 See [Data sources and updates](data-sources.md) for cache refresh commands.

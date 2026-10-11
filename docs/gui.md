@@ -1,6 +1,6 @@
 # Desktop GUI
 
-`wfgui` is a native Qt Widgets client for daemon-owned data. It starts or reuses `wfdaemon` and
+`wfgui` is a native Qt Widgets client for daemon-owned data. It starts or reuses `retinue-daemon` and
 releases its activity lease when the window closes.
 
 Build instructions and staged executable names are in the [repository README](../README.md#build).
@@ -53,7 +53,7 @@ in the WFMarket rail. When the rail is collapsed, the same view opens as a dialo
 exact rank, charge, star, subtype, and bulk-trade variants, copies trade whispers, and can create
 an order for a signed-in account.
 
-The password is used only for sign-in. `wfdaemon` stores the returned session token in its
+The password is used only for sign-in. `retinue-daemon` stores the returned session token in its
 owner-only state directory. Presence can follow Warframe automatically or remain online, in game,
 or invisible.
 

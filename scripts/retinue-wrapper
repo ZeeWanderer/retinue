@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script="${BASH_SOURCE[0]}"
+name="$(basename "$script")"
+case "$name" in
+    wfcli|wfclid) export RETINUE_CLI_SCOPE=warframe ;;
+    poe2cli|poe2clid) export RETINUE_CLI_SCOPE=poe2 ;;
+    arccli|arcclid) export RETINUE_CLI_SCOPE=arc ;;
+    *) export RETINUE_CLI_SCOPE=retinue ;;
+esac
+while [[ -L "$script" ]]; do
+    directory="$(cd -P "$(dirname "$script")" && pwd)"
+    target="$(readlink "$script")"
+    case "$target" in
+        /*) script="$target" ;;
+        *) script="$directory/$target" ;;
+    esac
+done
+
+root="$(cd -P "$(dirname "$script")/.." && pwd)"
+erts_bins=("$root"/libexec/retinue_daemon/erts-*/bin)
+if [[ ${#erts_bins[@]} -ne 1 || ! -x "${erts_bins[0]}/escript" ]]; then
+    printf '%s: bundled Erlang runtime not found under %s\n' "$name" "$root/libexec/retinue_daemon" >&2
+    exit 1
+fi
+
+flavor="$(tr -d '\r\n' < "$root/BUILD_FLAVOR")"
+export RETINUE_BUILD_FLAVOR="$flavor"
+export RETINUE_INSTALL_ROOT="$root"
+export PATH="${erts_bins[0]}:${PATH:-/usr/bin:/bin}"
+
+exec "${erts_bins[0]}/escript" "$root/libexec/retinue/retinue.escript" "$@"

@@ -60,18 +60,26 @@ gui-dev gui-prod:
 MAKE
 printf '#!/bin/sh\ntest -f gui-dev.done && test -f gui-prod.done\n' > "$repo/scripts/native-compile-commands"
 chmod +x "$repo/scripts/native-compile-commands"
+ln -s prod/bin/wfdaemon "$repo/wfdaemon"
+ln -s dev/bin/wfdaemon "$repo/wfdaemond"
 make --no-print-directory -C "$repo" -f Makefile -f order.mk -j8 build
+[[ ! -L "$repo/wfdaemon" && ! -L "$repo/wfdaemond" ]] || fail 'retired daemon links remain'
+for name in retinue wfcli poe2cli arccli retinue-daemon retinue-inspect wfinspect wfcompanion poe2companion arccompanion wfgui; do
+    [[ "$(readlink "$repo/$name")" == "prod/bin/$name" ]] || fail "$name production link missing"
+    [[ "$(readlink "$repo/${name}d")" == "dev/bin/$name" ]] || fail "$name development link missing"
+done
 
 repo="$fixture/native"
 mkdir -p "$repo/apps/wfcompanion/src" "$repo/apps/wfcompanion/native" \
     "$repo/apps/wfcompanion/vendor/"{blend2d,asmjit} \
-    "$repo/apps/wfdaemon/src/runtime" "$repo/commands"
+    "$repo/apps/retinue_daemon/src/runtime" "$repo/commands"
 cp "$root/apps/wfcompanion/build.rs" "$repo/apps/wfcompanion/"
 printf '0.0.0\n' > "$repo/VERSION"
 printf 'fn main() {}\n' > "$repo/apps/wfcompanion/src/main.rs"
 touch "$repo/apps/wfcompanion/vendor/"{blend2d,asmjit}/CMakeLists.txt
 printf '%s\n' '-define(ENVELOPE_VERSION, 1).' '-define(INTERFACE_PLAYER, 1).' \
-    > "$repo/apps/wfdaemon/src/runtime/wfcli_local_protocol.erl"
+    'interfaces() -> #{<<"player">> => ?INTERFACE_PLAYER}.' \
+    > "$repo/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl"
 cat > "$repo/apps/wfcompanion/Cargo.toml" <<'TOML'
 [workspace]
 [package]
@@ -128,6 +136,35 @@ if CARGO="$repo/commands/custom-cargo" bash "$repo/scripts/build-companion" dev;
 fi
 [[ "$(wc -l < "$WF_TEST_CALLS")" == 2 ]] || fail 'companion ignored CARGO'
 
+mkdir -p "$repo/scripts/lib" "$repo/tools/staging" \
+    "$repo/apps/wfcompanion/assets" "$repo/tools/wf-luau-decompiler" \
+    "$repo/_build/native/dev" "$repo/target/debug" \
+    "$repo/target/oozextract/debug/licenses/oozextract" \
+    "$repo/target/wf-luau-decompiler/debug"
+cp "$root/scripts/lib/staging.sh" "$repo/scripts/lib/"
+cp "$root/tools/staging/exchange.c" "$repo/tools/staging/"
+printf '#!/bin/sh\nexit 0\n' > "$repo/commands/custom-cargo"
+printf '#!/bin/sh\nprintf "old-companion\\n"\n' > "$repo/target/debug/wfcompanion"
+printf '#!/bin/sh\nprintf "poe2-companion\\n"\n' > "$repo/target/debug/poe2companion"
+printf '#!/bin/sh\nprintf "arc-companion\\n"\n' > "$repo/target/debug/arccompanion"
+printf '#!/bin/sh\nprintf "inspector\\n"\n' > "$repo/target/debug/retinue-inspect"
+printf '#!/bin/sh\nexit 0\n' > "$repo/_build/native/dev/wfcompanion-debug-output.exe"
+cp "$repo/_build/native/dev/wfcompanion-debug-output.exe" "$repo/target/oozextract/debug/unoodle"
+cp "$repo/_build/native/dev/wfcompanion-debug-output.exe" "$repo/target/wf-luau-decompiler/debug/wf-luau-decompiler"
+touch "$repo/apps/wfcompanion/assets/LuauDecompiler-LICENSE.txt" "$repo/tools/wf-luau-decompiler/LICENSE.txt"
+CARGO="$repo/commands/custom-cargo" CARGO_TARGET_DIR="$repo/target" \
+    bash "$repo/scripts/build-companion" dev
+[[ -x "$repo/dev/bin/retinue-inspect" && "$(readlink "$repo/dev/bin/wfinspect")" == retinue-inspect ]] || fail 'inspector public entry or alias missing'
+[[ "$("$repo/dev/bin/poe2companion")" == poe2-companion ]] || fail 'PoE2 companion missing'
+[[ "$("$repo/dev/bin/retinue-inspect")" == inspector && \
+   "$("$repo/dev/bin/wfinspect")" == inspector ]] || fail 'inspector alias does not execute'
+printf '#!/bin/sh\nprintf "changed-companion\\n"\n' > "$repo/target/debug/wfcompanion"
+rm "$repo/target/debug/retinue-inspect"
+if CARGO="$repo/commands/custom-cargo" CARGO_TARGET_DIR="$repo/target" \
+    bash "$repo/scripts/build-companion" dev; then fail 'missing inspector staging succeeded'; fi
+[[ "$("$repo/dev/bin/wfcompanion")" == old-companion ]] || fail 'failed companion stage replaced installation'
+
 cmake "-DTEST_DIR=$fixture/toolchain" -P "$root/cmake/tests/gui-toolchain.cmake"
 cmake "-DTEST_DIR=$fixture/vcpkg" -P "$root/cmake/tests/gui-vcpkg.cmake"
+python3 "$root/scripts/tests/cache_helpers.py"
 printf 'build system checks passed\n'

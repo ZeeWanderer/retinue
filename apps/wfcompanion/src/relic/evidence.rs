@@ -4,8 +4,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use image::DynamicImage;
-use wfcompanion::game_observer;
-use wfcompanion::work::Budget;
+use retinue_native::work::Budget;
+use retinue_warframe::game_observer;
 
 use super::{CaptureArm, REWARD_CAPTURE_DELAY, unix_time_millis};
 use crate::daemon::OutboundSender;
@@ -79,7 +79,7 @@ pub(super) fn begin_armed_capture(
         jobs,
         daemon,
         finished: false,
-        budget: Budget::new(wfcompanion::observation::ui_capture::limits()),
+        budget: Budget::new(retinue_warframe::observation::ui_capture::limits()),
     }
 }
 
@@ -230,7 +230,7 @@ pub(super) fn record_evidence(mut pending: PendingCapture) {
         .map_err(|error| error.to_string())
         .and_then(|()| {
             pending.session.read(|identity| {
-                wfcompanion::observation::ui_capture::collect(identity, &[], &pending.budget)
+                retinue_warframe::observation::ui_capture::collect(identity, &[], &pending.budget)
             })
         });
     let capture_error = ui.as_ref().err().cloned().or_else(|| {
@@ -277,10 +277,10 @@ pub(super) fn record_evidence(mut pending: PendingCapture) {
 fn save_armed_capture(
     pending: &PendingCapture,
     image: Option<&DynamicImage>,
-    ui: Result<wfcompanion::observation::ui_capture::Frozen, String>,
+    ui: Result<retinue_warframe::observation::ui_capture::Frozen, String>,
 ) -> Result<PathBuf, String> {
     let armed = &pending.armed;
-    let directory = wfcompanion::observation::recording::Directory::create(&armed.directory)?
+    let directory = retinue_native::recording::Directory::create(&armed.directory)?
         .with_budget(pending.budget.clone());
     let mut failure = pending.budget.check().err().map(|error| error.to_string());
     let image_metadata = image
@@ -427,7 +427,7 @@ mod tests {
             &previous,
             "partial",
             Some("UI unavailable"),
-            &Budget::new(wfcompanion::observation::ui_capture::limits()),
+            &Budget::new(retinue_warframe::observation::ui_capture::limits()),
         );
         let crate::daemon::Outbound::Publish { source, data, .. } = receiver.try_recv().unwrap()
         else {
@@ -533,7 +533,7 @@ mod tests {
             jobs: jobs.spawner(),
             daemon,
             finished: false,
-            budget: Budget::new(wfcompanion::observation::ui_capture::limits()),
+            budget: Budget::new(retinue_warframe::observation::ui_capture::limits()),
         };
 
         save_armed_capture(&pending, Some(&image), Err("unavailable".to_owned())).unwrap();

@@ -3,8 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use retinue_warframe::game_observer::metadata;
 use serde_json::Value;
-use wfcompanion::game_observer::metadata;
 
 use crate::daemon::{self, OutboundSender};
 use crate::runtime::{inbox, session::Session};

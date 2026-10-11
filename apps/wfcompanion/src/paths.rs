@@ -1,3 +1,4 @@
+use retinue_client::paths::{Base, Game, Paths};
 use serde::Serialize;
 use std::io::{self, Write};
 use std::path::Path;
@@ -34,6 +35,10 @@ fn report() -> Result<PathReport, String> {
             path_entry("cache", &capture),
             path_entry("state", parent(&incident)?),
             path_entry("runtime", parent(&socket)?),
+            path_entry(
+                "runtime",
+                &Paths::from_env().game_directory(Base::Runtime, Game::Warframe),
+            ),
             path_entry("data", parent(&identity)?),
         ],
     })
@@ -58,11 +63,22 @@ mod tests {
     #[test]
     fn path_entry_is_structured_data() {
         assert_eq!(
-            path_entry("cache", Path::new("/tmp/wfcli")),
+            path_entry("cache", Path::new("/cache/retinue/games/warframe/captures")),
             PathEntry {
                 kind: "cache",
-                path: "/tmp/wfcli".to_owned(),
+                path: "/cache/retinue/games/warframe/captures".to_owned(),
             }
+        );
+    }
+
+    #[test]
+    fn report_includes_dbwin_runtime_directory() {
+        let expected = Paths::from_env().game_directory(Base::Runtime, Game::Warframe);
+        assert!(
+            report()
+                .unwrap()
+                .paths
+                .contains(&path_entry("runtime", &expected))
         );
     }
 }

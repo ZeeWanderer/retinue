@@ -40,6 +40,7 @@ rebar3.crashdump
 /.context/
 /tools/aleca-layout/node_modules/
 .elixir_ls/
+__pycache__/
 
 # Disposable upstream source used for implementation research
 research/
@@ -47,6 +48,3 @@ research/
 # Direct Cargo output if project-level target configuration is bypassed
 apps/wfcompanion/target/
 vcpkg_installed/
-
-# Local metadata (worldstate exports/nodes/languages)
-apps/wfcli/priv/

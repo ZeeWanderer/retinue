@@ -36,7 +36,7 @@ overrides and the complete option list.
 
 ## Automatic Refresh
 
-`wfdaemon` checks managed metadata hourly and refreshes sources older than 24 hours. Missing or
+`retinue-daemon` checks managed metadata hourly and refreshes sources older than 24 hours. Missing or
 invalid managed files are fetched when first needed. Refreshes share a serialized source queue and
 publish completed files by atomic rename, so active readers retain a complete old version until a
 new version is ready.
@@ -49,15 +49,38 @@ does not modify them.
 
 ## Storage
 
-Run `wfcli paths` to inspect config, cache, state, and runtime directories. Defaults follow XDG
-variables and normally resolve beneath:
+Run `retinue paths` to inspect managed directories. Platform roots use `retinue`; game-owned
+files use `retinue/games/<game>` beneath the appropriate XDG root.
 
 ```text
-~/.config/wfcli
-~/.cache/wfcli
-~/.local/state/wfcli
-$XDG_RUNTIME_DIR/wfcli
+~/.config/retinue/games/warframe
+~/.local/share/retinue/games/warframe
+~/.cache/retinue/games/warframe
+~/.local/state/retinue/games/warframe
+$XDG_RUNTIME_DIR/retinue/daemon.sock
 ```
 
 Managed WFCD files record source URL, fetch time, and content SHA-256. Downloaded assets are
 content-addressed so identical images share one cached object.
+
+Saved build groups are durable data in `builds.term` beneath the Warframe data root.
+Refetchable catalogs, original asset objects, observations, and plan results stay in cache.
+GUI derivatives use the Warframe cache's `gui/derivatives/v1` directory. Daemon incidents and
+crash dumps belong to the platform state root; companion incidents remain game-owned.
+PoE2 has a separate [log-session cache](poe2.md#storage).
+
+## Migrate wfcli Storage
+
+Stop the legacy and Retinue daemons, GUI, and companions before copying. From the repository
+root, review the plan, then apply it:
+
+```bash
+./scripts/migrate-wfcli-storage --dry-run
+./scripts/migrate-wfcli-storage --apply
+```
+
+The default is `--dry-run`. The script uses your current XDG roots to copy legacy `wfcli`
+stores into Retinue, placing build groups in durable data, renaming GUI config/cache paths,
+and placing daemon logs in platform state. It retains the originals and aborts before copying
+if any destination exists or two sources target the same destination. Resolve reported
+conflicts before retrying; existing Retinue data is never merged or overwritten.

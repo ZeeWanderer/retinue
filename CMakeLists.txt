@@ -7,7 +7,7 @@ if(NOT WFCLI_VCPKG_VERSION STREQUAL WFCLI_VERSION)
   message(FATAL_ERROR "apps/wfgui/vcpkg.json version must match root VERSION")
 endif()
 set(WFCLI_LOCAL_PROTOCOL_FILE
-  "${CMAKE_CURRENT_SOURCE_DIR}/apps/wfdaemon/src/runtime/wfcli_local_protocol.erl")
+  "${CMAKE_CURRENT_SOURCE_DIR}/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" "${WFCLI_LOCAL_PROTOCOL_FILE}")
 function(wfcli_protocol_define NAME OUTPUT)
@@ -15,7 +15,7 @@ function(wfcli_protocol_define NAME OUTPUT)
     REGEX "^-define\\(${NAME}," LIMIT_COUNT 1)
   string(REGEX MATCH "[0-9]+" VALUE "${LINE}")
   if(NOT VALUE)
-    message(FATAL_ERROR "Could not read wfdaemon protocol define ${NAME}")
+    message(FATAL_ERROR "Could not read Retinue protocol define ${NAME}")
   endif()
   set(${OUTPUT} "${VALUE}" PARENT_SCOPE)
 endfunction()
@@ -39,7 +39,7 @@ endif()
 
 include(cmake/gui-vcpkg.cmake)
 
-project(wfcli VERSION "${WFCLI_VERSION}" LANGUAGES CXX)
+project(retinue VERSION "${WFCLI_VERSION}" LANGUAGES CXX)
 
 set(WFCLI_CPU_BASELINE "" CACHE STRING "Portable production CPU baseline")
 if(WFCLI_CPU_BASELINE)

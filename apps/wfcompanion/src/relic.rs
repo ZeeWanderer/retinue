@@ -9,7 +9,7 @@ use crate::capture;
 use crate::daemon::OutboundSender;
 use crate::incident;
 use image::DynamicImage;
-use wfcompanion::game_observer;
+use retinue_warframe::game_observer;
 
 mod capture_analysis;
 mod evidence;
