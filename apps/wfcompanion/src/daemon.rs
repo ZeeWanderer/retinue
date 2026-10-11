@@ -1180,7 +1180,7 @@ fn send_snapshot(message: &Value, ui: &presentation::Sender) {
 }
 
 async fn ensure_daemon(stopping: &AtomicBool) {
-    let command = wfcli_command();
+    let command = retinue_command();
     let invocation = format!("{} daemon ensure", command.display());
     let mut process = ProcessCommand::new(&command);
     process.args(["daemon", "ensure"]);
@@ -1248,7 +1248,7 @@ fn sanitize_native_child(process: &mut ProcessCommand) {
     }
 }
 
-fn wfcli_command() -> PathBuf {
+fn retinue_command() -> PathBuf {
     if let Some(path) = std::env::var_os("RETINUE_COMMAND") {
         return PathBuf::from(path);
     }

@@ -9,10 +9,10 @@ command_tree_test() ->
     ?assertEqual(["arc", "completion", "daemon", "diagnostics", "help", "mcp", "paths", "poe2", "warframe"],
                  lists:sort(maps:keys(Commands))),
     Warframe = maps:get("warframe", Commands),
-    ?assertEqual(lists:sort(wfcli_cli:command_names()),
+    ?assertEqual(lists:sort(wf_cli:command_names()),
                  lists:sort(maps:keys(maps:get(commands, Warframe)))),
     lists:foreach(fun(Name) ->
-        ?assertEqual(maps:get(Name, maps:get(commands, wfcli_cli:command())),
+        ?assertEqual(maps:get(Name, maps:get(commands, wf_cli:command())),
                      maps:get(Name, Commands))
     end, ["daemon", "paths"]),
     ?assertNotEqual(maps:get("mcp", maps:get(commands, Warframe)), maps:get("mcp", Commands)),
@@ -25,7 +25,7 @@ warframe_parser_parity_test() ->
               "--", "--help", "--json", "help"],
              ["completion", "candidates", "--", "mods", "--pol"]],
     lists:foreach(fun(Args) ->
-        {ok, Expected, Path, _} = wfcli_test_cli:result(Args),
+        {ok, Expected, Path, _} = wf_test_cli:result(Args),
         {ok, Expected, ["warframe" | Path], _} = parse(["warframe" | Args])
     end, Cases).
 
@@ -63,7 +63,7 @@ scoped_completion_test() ->
     ?assertEqual(["warframe"], retinue_completion:candidates(["wa"], Tree)),
     ?assertEqual(["poe2"], retinue_completion:candidates(["po"], Tree)),
     lists:foreach(fun(Args) ->
-        ?assertEqual(retinue_completion:candidates(Args, wfcli_test_cli:tree()),
+        ?assertEqual(retinue_completion:candidates(Args, wf_test_cli:tree()),
                      retinue_completion:candidates(["warframe" | Args], Tree))
     end, [[""], ["mods", "--pol"], ["help", "daemon", "sta"],
           ["query", "--format", "j"], ["query", "--", "--h"]]),

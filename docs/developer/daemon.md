@@ -81,40 +81,40 @@ Warframe negotiates its existing domain interfaces. PoE2 negotiates `session` ve
 `get`, `publish`, and subscriptions. Interface versions and optional features are game-scoped;
 the shared framing envelope is not a declaration of equivalent capabilities across games.
 
-`retinue_paths` owns platform XDG roots and per-game namespaces. Warframe's `wfcli_paths` remains
+`retinue_paths` owns platform XDG roots and per-game namespaces. Warframe's `wf_paths` remains
 an adapter. `RETINUE_BUILD_FLAVOR`, `RETINUE_INSTALL_ROOT`, and `RETINUE_UPDATE_ROOT` identify
 the staged runtime; game-specific settings keep their existing names.
 
 ## Worldstate And Catalogs
 
-`wfcli_worldstate_service` caches decoded snapshots by cache path and indexes by normalization
+`wf_worldstate_service` caches decoded snapshots by cache path and indexes by normalization
 options. With active watches, one global timer polls worldstate; every due watch evaluates against
 the same parsed snapshot. Fetch failure retains the last good snapshot and marks delivery stale.
 
-`wfcli_exports_store` serializes official export and Codex queries. Catalog keys include source
-directory, selected files, entity kind, modification time, and size. `wfcli_source_manager`
+`wf_exports_store` serializes official export and Codex queries. Catalog keys include source
+directory, selected files, entity kind, modification time, and size. `wf_source_manager`
 prepares missing managed data and queues periodic stale refreshes. Explicit custom source
 directories are never modified. Refresh writes use atomic rename; active readers retain complete
 old files and later catalog signatures rebuild cached entities.
 
-Query text reaches the daemon uncompiled. `wfcli_query_parse` builds the AST; entity modules expose
+Query text reaches the daemon uncompiled. `wf_query_parse` builds the AST; entity modules expose
 typed fields and retain raw data paths where a parser has not added semantics.
 Catalog query replies contain only the requested `slice` plus `total` and `shown` counts;
 the complete matching set stays inside the daemon.
 
 ## Market And Player Data
 
-`wfcli_market_service` owns Warframe Market manifests, base and variant quote TTLs, persistence,
-and coalescing. `wfcli_market_account_service` serializes authenticated order mutations;
-`wfcli_market_presence_service` owns account status. Public and authenticated HTTP work share
-`wfcli_market_limiter`. API modules handle wire normalization and caches use atomic persistence.
+`wf_market_service` owns Warframe Market manifests, base and variant quote TTLs, persistence,
+and coalescing. `wf_market_account_service` serializes authenticated order mutations;
+`wf_market_presence_service` owns account status. Public and authenticated HTTP work share
+`wf_market_limiter`. API modules handle wire normalization and caches use atomic persistence.
 
-`wfcli_player_service` owns canonical local observations by source namespace. `retinue_local_api`
+`wf_player_service` owns canonical local observations by source namespace. `retinue_local_api`
 accepts owner-only Unix socket clients, including `wfcompanion`, and removes subscriptions on
 disconnect. Persisted observations do not keep the daemon alive.
 
 `inventory_http` retains the last full response; `inventory_native` retains absolute
-resource, blueprint and foundry collections. `wfcli_player_inventory` validates and
+resource, blueprint and foundry collections. `wf_player_inventory` validates and
 combines them into `inventory` in one revision. Native reads must match the full
 baseline's boot, process/session, stream, sequence and sync, and start after its
 capture. Older or replayed observations cannot replace newer state. Reconciliation
@@ -151,7 +151,7 @@ remain source-local. A stored snapshot is not proof that the game is currently r
 
 ## Build Groups
 
-`wfcli_build_service` owns saved groups and immutable member snapshots. Mutations are acknowledged
+`wf_build_service` owns saved groups and immutable member snapshots. Mutations are acknowledged
 only after an atomic, synchronous state-file save. A rejected state file remains untouched and
 group operations report the error. Durable groups live at
 `$XDG_DATA_HOME/retinue/games/warframe/builds.term`. Refetchable source revisions and plan results
@@ -162,12 +162,12 @@ by group revision, target fingerprint, and source catalog identity; completion r
 Missing targets retain their groups but require retargeting before calculation.
 
 Build-stat requests share the monitored build worker pool but neither depend on Overframe nor
-cache mutable player results. `wfcli_stat_buildset` resolves slot-keyed owned selectors or inline
-normalized builds. `wfcli_stat_profiles` validates reviewed attacks against PublicExport;
-`wfcli_stat_rules` and `wfcli_stat_upgrades` describe reviewed mechanics and ranged mods.
-`wfcli_stat_effects` compiles source/target-filtered contributions and their dependencies.
-`wfcli_stat_math` evaluates numeric
-stages; `wfcli_build_stats` coordinates inputs and reports coverage. CLI and native clients use
+cache mutable player results. `wf_stat_buildset` resolves slot-keyed owned selectors or inline
+normalized builds. `wf_stat_profiles` validates reviewed attacks against PublicExport;
+`wf_stat_rules` and `wf_stat_upgrades` describe reviewed mechanics and ranged mods.
+`wf_stat_effects` compiles source/target-filtered contributions and their dependencies.
+`wf_stat_math` evaluates numeric
+stages; `wf_build_stats` coordinates inputs and reports coverage. CLI and native clients use
 the `build_stats` interface. Clients never interpret raw game slot order or apply combat formulas.
 `scalar/2` evaluates an ordered upgrade bucket, stopping at its first `SET`.
 `scalar_updates/2` applies successive accumulator writes; later `SET` writes replace earlier ones.
@@ -217,7 +217,7 @@ complete plans using the same assignment implementation used to produce their lo
 ## Supervision
 
 `retinue_sup` owns shared activity tracking, daemon control, local transport, and the
-`wfcli_warframe_sup` and `retinue_poe2_sup` subtrees. Game services have their own permanent
+`wf_sup` and `retinue_poe2_sup` subtrees. Game services have their own permanent
 children. Queue workers are monitored; worker failure becomes a request error while the owner
 survives. Systemd adds VM-level restart for explicitly installed user services.
 

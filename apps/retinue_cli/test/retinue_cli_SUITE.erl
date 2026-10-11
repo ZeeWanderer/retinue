@@ -95,7 +95,7 @@ collect(Port, Acc, Deadline) ->
 
 cli_main() ->
     [Root, Name | Args] = init:get_plain_arguments(),
-    ok = wfcli_test_daemon:start(filename:join(Root, "daemon")),
+    ok = retinue_test_daemon:start(filename:join(Root, "daemon")),
     case Name of
         "retinue" -> retinue_cli:main(retinue, Args);
         "wfcli" -> retinue_cli:main(warframe, Args);

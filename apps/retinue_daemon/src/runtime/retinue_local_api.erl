@@ -119,12 +119,12 @@ handle_call({companion_command, Command}, _From, State) ->
       maps:get(connections, State)),
     {reply, {ok, Count}, State};
 handle_call({diagnostics_submit, Client, Request}, _From, State) ->
-    {Reply, Pending} = wfcli_companion_diagnostics:submit(
+    {Reply, Pending} = wf_companion_diagnostics:submit(
                          Client, Request, maps:get(connections, State),
                          maps:get(diagnostics, State)),
     {reply, Reply, State#{diagnostics => Pending}};
 handle_call({diagnostics_cancel, Ref}, _From, State) ->
-    Pending = wfcli_companion_diagnostics:cancel(Ref, maps:get(diagnostics, State)),
+    Pending = wf_companion_diagnostics:cancel(Ref, maps:get(diagnostics, State)),
     {reply, ok, State#{diagnostics => Pending}};
 handle_call(Request, _From, State) ->
     {reply, {error, {unknown_request, Request}}, State}.
@@ -133,7 +133,7 @@ handle_call(Request, _From, State) ->
 handle_cast({release_local_worker, Pid}, State) when is_pid(Pid) ->
     {noreply, assign_local_worker_waiters(release_local_workers(Pid, 1, State))};
 handle_cast({diagnostics_consume, Client, Ref}, State) ->
-    Pending = wfcli_companion_diagnostics:consume(Client, Ref, maps:get(diagnostics, State)),
+    Pending = wf_companion_diagnostics:consume(Client, Ref, maps:get(diagnostics, State)),
     {noreply, State#{diagnostics => Pending}};
 handle_cast(_Message, State) ->
     {noreply, State}.
@@ -154,13 +154,13 @@ handle_info({client_identified, Pid, ClientInfo}, State) ->
             {noreply, State#{connections => Connections#{Pid => maps:merge(Info, ClientInfo)}}}
     end;
 handle_info({diagnostic_reply, Companion, Id, Data}, State) ->
-    Pending = wfcli_companion_diagnostics:reply(Companion, Id, Data, maps:get(diagnostics, State)),
+    Pending = wf_companion_diagnostics:reply(Companion, Id, Data, maps:get(diagnostics, State)),
     {noreply, State#{diagnostics => Pending}};
 handle_info({timeout, Timer, {diagnostic_timeout, Id}}, State) ->
-    Pending = wfcli_companion_diagnostics:timeout(Id, Timer, maps:get(diagnostics, State)),
+    Pending = wf_companion_diagnostics:timeout(Id, Timer, maps:get(diagnostics, State)),
     {noreply, State#{diagnostics => Pending}};
 handle_info({'DOWN', Monitor, process, Pid, _Reason}, State0) ->
-    Pending = wfcli_companion_diagnostics:down(Monitor, Pid, maps:get(diagnostics, State0)),
+    Pending = wf_companion_diagnostics:down(Monitor, Pid, maps:get(diagnostics, State0)),
     State = State0#{diagnostics => Pending},
     case maps:take(Monitor, maps:get(monitors, State)) of
         error -> {noreply, State};
@@ -191,7 +191,7 @@ handle_info(_Message, State) ->
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, State) ->
-    wfcli_companion_diagnostics:close(maps:get(diagnostics, State, #{})),
+    wf_companion_diagnostics:close(maps:get(diagnostics, State, #{})),
     maps:foreach(fun(Pid, _Info) -> Pid ! shutdown end,
                  maps:get(connections, State, #{})),
     _ = socket:close(maps:get(listen, State)),
@@ -363,9 +363,9 @@ is_warframe_gui(_) -> false.
 
 set_gui_activity(_Pid, Previous, Current) when Previous =:= Current -> ok;
 set_gui_activity(Pid, false, true) ->
-    wfcli_notification_service:gui_connected(Pid);
+    wf_notification_service:gui_connected(Pid);
 set_gui_activity(Pid, true, false) ->
-    wfcli_notification_service:gui_disconnected(Pid).
+    wf_notification_service:gui_disconnected(Pid).
 
 required_local_contract() ->
     #{<<"envelope">> => retinue_local_protocol:envelope_version(),

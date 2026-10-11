@@ -303,7 +303,7 @@ valid_client_mode(_Mode) -> <<"unknown">>.
 
 identify_game(Game, State) ->
     {Adapter, Specs} = case Game of
-        <<"warframe">> -> {wfcli_local_handler, wfcli_warframe_sup:child_specs()};
+        <<"warframe">> -> {wf_local_handler, wf_sup:child_specs()};
         <<"poe2">> -> {retinue_poe2_handler, retinue_poe2_sup:child_specs()}
     end,
     Existing = maps:get(owner_monitors, State),

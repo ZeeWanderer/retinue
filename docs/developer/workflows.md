@@ -76,7 +76,7 @@ Run tests after code, fixture, build, or behavior changes. Documentation-only ch
 tests. Manually exercise changed CLI commands after automated tests pass.
 
 `rebar3 ct` emits an expected `-compile(export_all)` warning for
-`apps/retinue_cli/test/wfcli_forma_plan_SUITE.erl`.
+`apps/retinue_cli/test/wf_forma_plan_SUITE.erl`.
 
 ## Generated Files
 

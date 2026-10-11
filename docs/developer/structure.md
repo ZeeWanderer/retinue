@@ -1,7 +1,8 @@
 # Project Structure
 
-Retinue separates platform lifecycle and transport from game-owned services. `wfcli_*` modules
-implement Warframe behavior; platform modules use `retinue_*` names.
+Retinue separates platform lifecycle and transport from game-owned services. `wf_*` modules
+implement Warframe behavior; platform modules use `retinue_*` names. The `_cli` suffix marks
+command handlers; `wfcli` is an executable alias, not an internal module namespace.
 
 ## `retinue_cli`
 
@@ -34,7 +35,7 @@ are `retinue_daemon`; the public executable is `retinue-daemon`.
 - `games/warframe/build/` and `games/warframe/stats/`: saved build groups, plans, and stat calculations.
 - `games/poe2/`: normalized log-session state, bounded events, and its game supervisor.
 
-`retinue_sup` owns the shared runtime and separate `wfcli_warframe_sup` and `retinue_poe2_sup`
+`retinue_sup` owns the shared runtime and separate `wf_sup` and `retinue_poe2_sup`
 subtrees. Native clients use one socket with a mandatory game-scoped handshake.
 `retinue_connection` owns framing, worker limits and connection lifetime; each game's handler
 owns request validation, subscriptions and event projection. Erlang RPC uses explicit game scope.

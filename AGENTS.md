@@ -28,7 +28,7 @@ guides under `docs/`.
 - Add new tests whenever new functionality is added; update fixtures alongside expected outputs.
 - Keep docs lean and standalone: current behavior/contracts, no conversation context or irrelevant
   absences.
-- `rebar3 ct` emits a warning about `-compile(export_all)` in `apps/retinue_cli/test/wfcli_forma_plan_SUITE.erl`; tests still pass.
+- `rebar3 ct` emits a warning about `-compile(export_all)` in `apps/retinue_cli/test/wf_forma_plan_SUITE.erl`; tests still pass.
 
 ## Reference
 - See `README.md` for the command overview and its linked user guides for detailed

@@ -180,7 +180,7 @@ def execute(stage, root, report):
             'application:set_env(retinue_daemon, daemon_idle_shutdown, false), '
             'application:set_env(retinue_daemon, source_refresh_interval_ms, 0), '
             '{ok, _} = application:ensure_all_started(retinue_daemon), '
-            'undefined = maps:get(refresh_timer, sys:get_state(wfcli_source_manager)), '
+            'undefined = maps:get(refresh_timer, sys:get_state(wf_source_manager)), '
             'ok = file:write_file(os:getenv("POE2_E2E_READY"), <<"ready">>), '
             '"stop\\n" = io:get_line(""), '
             'ok = application:stop(retinue_daemon), halt(0).'

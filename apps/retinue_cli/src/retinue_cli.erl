@@ -35,7 +35,7 @@ command() ->
                  "completion" => retinue_completion:command(),
                  "mcp" => retinue_mcp_cli:command(),
                  "help" => retinue_help:command()},
-    WarframeScope = scope("warframe", wfcli_cli:command()),
+    WarframeScope = scope("warframe", wf_cli:command()),
     Poe2Scope = scope("poe2", #{commands => #{"companion" => retinue_poe2_cli:command()}}),
     ArcScope = scope("arc", #{commands => #{"companion" => retinue_arc_cli:command()}}),
     #{arguments => [(retinue_cli_args:flag(output_format, "json", "print JSON (UTC timestamps)"))#{

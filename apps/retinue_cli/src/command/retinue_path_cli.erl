@@ -126,7 +126,7 @@ owner_report(arccompanion) ->
     {arccompanion, native_report(<<"arccompanion">>,
         fun() -> retinue_native_program:run(arccompanion, ["paths", "--json"]) end)};
 owner_report(wfgui) ->
-    {wfgui, native_report(<<"wfgui">>, fun wfcli_gui_desktop:path_report/0)}.
+    {wfgui, native_report(<<"wfgui">>, fun wf_gui_desktop:path_report/0)}.
 
 daemon_paths() ->
     case retinue_client:status() of
@@ -165,7 +165,7 @@ decode_paths([_ | _], _Acc) -> {error, invalid_path_report_entry}.
 
 app_paths(retinue) ->
     [{Kind, retinue_paths:root(Kind)} || Kind <- [config, data, cache, state, runtime]];
-app_paths(App) -> wfcli_paths:directories(App).
+app_paths(App) -> wf_paths:directories(App).
 
 describe_paths(Paths) ->
     [maps:put(kind, Kind, describe_path(Path)) || {Kind, Path} <- Paths].

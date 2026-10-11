@@ -59,12 +59,12 @@ child_specs() ->
      worker(retinue_local_api), worker(retinue_daemon)].
 
 worker_specs() ->
-    wfcli_warframe_sup:child_specs() ++ retinue_poe2_sup:child_specs() ++
+    wf_sup:child_specs() ++ retinue_poe2_sup:child_specs() ++
         [worker(retinue_activity), worker(retinue_local_api), worker(retinue_daemon)].
 
 owner(Child) ->
-    case lists:keyfind(Child, 1, [{maps:get(id, Spec), wfcli_warframe_sup}
-                                || Spec <- wfcli_warframe_sup:child_specs()] ++
+    case lists:keyfind(Child, 1, [{maps:get(id, Spec), wf_sup}
+                                || Spec <- wf_sup:child_specs()] ++
                                [{maps:get(id, Spec), retinue_poe2_sup}
                                 || Spec <- retinue_poe2_sup:child_specs()]) of
         {_, Supervisor} -> Supervisor;
@@ -106,7 +106,7 @@ ensure_children() ->
             case ensure_children(?MODULE, child_specs()) of
                 ok ->
                     ok = ensure_children(retinue_games_sup, retinue_games_sup:child_specs()),
-                    ok = wfcli_warframe_sup:ensure_children(),
+                    ok = wf_sup:ensure_children(),
                     ensure_children(retinue_poe2_sup, retinue_poe2_sup:child_specs());
                 Error -> Error
             end;

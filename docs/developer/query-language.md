@@ -7,11 +7,11 @@ This document covers implementation boundaries.
 ## Architecture
 
 1. CLI option parsing keeps source/cache/output controls separate and leaves query text opaque.
-2. A daemon queue parses the text once with `wfcli_query_parse` into a
+2. A daemon queue parses the text once with `wf_query_parse` into a
    datasource-independent AST.
-3. `wfcli_exports_query` or `wfcli_knowledge_query` combines focused-command field flags
+3. `wf_exports_query` or `wf_knowledge_query` combines focused-command field flags
    with that AST.
-4. `wfcli_entity_query` asks the owning daemon entity module to resolve each field.
+4. `wf_entity_query` asks the owning daemon entity module to resolve each field.
 5. Compilation validates fields, operators, numbers, and sort keys before execution.
 6. The daemon executes against cached typed projections. Worldstate also exposes an explicit
    query-only raw-root entity, so projections add semantics without gating source-tree paths.

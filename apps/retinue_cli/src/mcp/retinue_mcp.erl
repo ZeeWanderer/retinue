@@ -9,12 +9,12 @@ definitions() ->
      #{<<"name">> => <<"poe2_session">>, <<"description">> => <<"Last-observed PoE2 log state, not live inventory">>,
        <<"inputSchema">> => #{<<"type">> => <<"object">>, <<"properties">> => #{}}} |
      [Definition#{<<"name">> := <<"warframe_", (maps:get(<<"name">>, Definition))/binary>>}
-      || Definition <- wfcli_mcp_tools:definitions()]].
+      || Definition <- wf_mcp_tools:definitions()]].
 
 call(<<"daemon_status">>, _Args) -> retinue_client:call(status);
 call(<<"poe2_session">>, _Args) -> retinue_client:call({game, poe2, status});
-call(<<"warframe_", Name/binary>>, Args) -> wfcli_mcp_tools:call(Name, Args);
+call(<<"warframe_", Name/binary>>, Args) -> wf_mcp_tools:call(Name, Args);
 call(Name, _Args) -> {error, {unknown_tool, Name}}.
 
-resources() -> wfcli_mcp_resources:list().
-read(Uri) -> wfcli_mcp_resources:read(Uri).
+resources() -> wf_mcp_resources:list().
+read(Uri) -> wf_mcp_resources:read(Uri).

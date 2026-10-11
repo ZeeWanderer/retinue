@@ -6,11 +6,11 @@ xdg_namespaces_test() ->
     with_env([{"HOME", "/test/home"}, {"XDG_CACHE_HOME", "/store/cache"},
               {"XDG_CONFIG_HOME", "relative"}, {"XDG_DATA_HOME", ""},
               {"XDG_STATE_HOME", "/store/state"}, {"XDG_RUNTIME_DIR", "/run/test"}], fun() ->
-        ?assertEqual("/store/cache/retinue/games/warframe", wfcli_paths:cache_dir()),
+        ?assertEqual("/store/cache/retinue/games/warframe", wf_paths:cache_dir()),
         ?assertEqual("/store/cache/retinue/games/poe2", retinue_paths:game(cache, poe2)),
-        ?assertEqual("/test/home/.config/retinue/games/warframe", wfcli_paths:config_dir()),
+        ?assertEqual("/test/home/.config/retinue/games/warframe", wf_paths:config_dir()),
         ?assertEqual("/test/home/.local/share/retinue/games/warframe/builds.term",
-                     wfcli_paths:data_file("builds.term")),
+                     wf_paths:data_file("builds.term")),
         ?assertEqual("/store/state/retinue/daemon.log", retinue_incidents:path(daemon)),
         ?assertEqual("/run/test/retinue/daemon.sock", retinue_paths:file(runtime, "daemon.sock"))
     end).

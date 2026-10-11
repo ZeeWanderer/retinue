@@ -144,7 +144,7 @@ cancel_idle(State = #{idle_timer := Timer}) ->
     State#{idle_timer => undefined}.
 
 perform_idle_action(#{idle_notify := Pid}) when is_pid(Pid) ->
-    Pid ! {wfcli_daemon_idle, self()},
+    Pid ! {retinue_daemon_idle, self()},
     ok;
 perform_idle_action(_State) ->
     _ = spawn(fun() -> timer:sleep(20), init:stop() end),

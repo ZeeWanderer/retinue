@@ -11,7 +11,7 @@ and ambiguous debugger paths.
 - `retinue_build`: staged artifact flavor, install root, and update paths.
 - `retinue_text`, `retinue_time`, `retinue_data_extract`, `retinue_incidents`: value and read-only data helpers.
 
-`wfcore` depends on it and owns `wfcli_protocol` dataset/request contracts, `wfcli_paths`,
+`wfcore` depends on it and owns `wf_protocol` dataset/request contracts, `wf_paths`,
 column schemas, polarity and worldstate diff helpers.
 
 Do not add fetching, persistence, processes, CLI parsing, or rendering to `wfcore`. Two callers
@@ -24,7 +24,7 @@ after a move unless an external contract requires one.
 
 CLI-only examples: `retinue_tty`, `retinue_table`, `retinue_cli_args`.
 
-Daemon-only examples: `retinue_data_cache`, `wfcli_query_parse`, `wfcli_entity_*`.
+Daemon-only examples: `retinue_data_cache`, `wf_query_parse`, `wf_entity_*`.
 
 Exported inter-module functions require `-spec` and terse `-doc` text where purpose or ownership is
 not obvious. Shared behavior changes require focused EUnit or Common Test coverage.

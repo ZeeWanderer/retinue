@@ -34,7 +34,7 @@ descriptions, resistances, or drop tables remain separate.
 
 ## Runtime Ownership
 
-`wfcli_exports_store` owns prepared catalogs and entity caches. `wfcli_source_manager` owns stale
+`wf_exports_store` owns prepared catalogs and entity caches. `wf_source_manager` owns stale
 checks and refresh jobs. Focused commands and unified query use the same daemon parser, evaluator,
 and data-only replies.
 

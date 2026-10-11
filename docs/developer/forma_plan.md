@@ -2,27 +2,27 @@
 
 ## Entry points
 
-- CLI: `apps/retinue_cli/src/games/warframe/forma/wfcli_forma_plan.erl`
-- Daemon queue: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_service.erl`
-- Public solver API: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_planner.erl`
-- Search: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_search.erl`
-- Cost and validity rules: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_rules.erl`
-- Mod assignment: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_assignment.erl`
-- Item model: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_model.erl`
-- Mod lookup: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_mod_db.erl`
-- YAML loader: `apps/retinue_daemon/src/games/warframe/forma/wfcli_forma_config.erl`
-- Visualization: `apps/retinue_cli/src/games/warframe/forma/wfcli_forma_visualizer.erl`
+- CLI: `apps/retinue_cli/src/games/warframe/forma/wf_forma_plan.erl`
+- Daemon queue: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_service.erl`
+- Public solver API: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_planner.erl`
+- Search: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_search.erl`
+- Cost and validity rules: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_rules.erl`
+- Mod assignment: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_assignment.erl`
+- Item model: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_model.erl`
+- Mod lookup: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_mod_db.erl`
+- YAML loader: `apps/retinue_daemon/src/games/warframe/forma/wf_forma_config.erl`
+- Visualization: `apps/retinue_cli/src/games/warframe/forma/wf_forma_visualizer.erl`
 
 ## Where to edit what
 
-- CLI flags/usage/errors: `apps/retinue_cli/src/games/warframe/forma/wfcli_forma_plan.erl`
-- Queueing and replies: `wfcli_forma_service`
-- Candidate generation and search: `wfcli_forma_search`
-- Capacity, cost, and tiebreak inputs: `wfcli_forma_rules`
-- Mod-to-slot matching: `wfcli_forma_assignment`
-- Item/build normalization: `wfcli_forma_model`
-- YAML parsing and errors: `wfcli_forma_config`
-- Mod lookup source: `wfcli_forma_mod_db`
+- CLI flags/usage/errors: `apps/retinue_cli/src/games/warframe/forma/wf_forma_plan.erl`
+- Queueing and replies: `wf_forma_service`
+- Candidate generation and search: `wf_forma_search`
+- Capacity, cost, and tiebreak inputs: `wf_forma_rules`
+- Mod-to-slot matching: `wf_forma_assignment`
+- Item/build normalization: `wf_forma_model`
+- YAML parsing and errors: `wf_forma_config`
+- Mod lookup source: `wf_forma_mod_db`
 - YAML, HTML, and SVG output: the CLI modules above.
 
 ## Concurrency and search
@@ -39,6 +39,6 @@ Without certification it still returns the best valid plan and logs a warning. I
 
 ## Tests and fixtures
 
-- Forma plan tests live in `apps/retinue_cli/test` (see `wfcli_forma_plan_SUITE.erl`).
+- Forma plan tests live in `apps/retinue_cli/test` (see `wf_forma_plan_SUITE.erl`).
 - Test configs include the real `wisp.yml` regression and an independent three-build case.
 - Sample config lives under `docs/forma_plan.example.yml`.

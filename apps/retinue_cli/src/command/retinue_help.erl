@@ -62,7 +62,7 @@ text(Path) ->
      maps:get(notes, Node, "")].
 
 query_syntax(Name) ->
-    [wfcli_help_text:query_guide(), "\n", wfcli_help_text:query_examples(Name)].
+    [wf_help_text:query_guide(), "\n", wf_help_text:query_examples(Name)].
 
 display_argument(#{default := []} = Arg) -> display_argument(maps:remove(default, Arg));
 display_argument(#{long := "-" ++ Long} = Arg) -> Arg#{name => Long};

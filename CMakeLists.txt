@@ -10,7 +10,7 @@ set(WFCLI_LOCAL_PROTOCOL_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" "${WFCLI_LOCAL_PROTOCOL_FILE}")
-function(wfcli_protocol_define NAME OUTPUT)
+function(retinue_protocol_define NAME OUTPUT)
   file(STRINGS "${WFCLI_LOCAL_PROTOCOL_FILE}" LINE
     REGEX "^-define\\(${NAME}," LIMIT_COUNT 1)
   string(REGEX MATCH "[0-9]+" VALUE "${LINE}")
@@ -20,10 +20,10 @@ function(wfcli_protocol_define NAME OUTPUT)
   set(${OUTPUT} "${VALUE}" PARENT_SCOPE)
 endfunction()
 
-wfcli_protocol_define(ENVELOPE_VERSION WFCLI_LOCAL_ENVELOPE)
+retinue_protocol_define(ENVELOPE_VERSION WFCLI_LOCAL_ENVELOPE)
 foreach(INTERFACE DATASETS PLAYER WORLDSTATE NOTIFICATIONS MARKET OVERFRAME
                   RELICS ASSETS BUILDS DIAGNOSTICS)
-  wfcli_protocol_define("INTERFACE_${INTERFACE}" "WFCLI_INTERFACE_${INTERFACE}")
+  retinue_protocol_define("INTERFACE_${INTERFACE}" "WFCLI_INTERFACE_${INTERFACE}")
 endforeach()
 
 include(cmake/gui-toolchain.cmake)

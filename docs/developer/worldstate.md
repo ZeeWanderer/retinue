@@ -4,13 +4,13 @@ This describes the fetch/cache/index/format flow and where to hook in.
 
 ## Data flow
 
-1. `wfcli_worldstate_service` coalesces requests and owns refresh timing.
-2. `wfcli_worldstate:load/1` fetches/decodes an immutable source tree; `index_raw/2`
+1. `wf_worldstate_service` coalesces requests and owns refresh timing.
+2. `wf_worldstate:load/1` fetches/decodes an immutable source tree; `index_raw/2`
    builds derived domain entries without replacing source data.
-3. `wfcli_entity_worldstate` and `wfcli_worldstate_projector` attach sparse fields and
+3. `wf_entity_worldstate` and `wf_worldstate_projector` attach sparse fields and
    presentation-neutral row maps in the daemon.
-4. The reply crosses the protocol as data. `wfcli_worldstate_cli` controls the command,
-   `wfcli_worldstate_watch_cli` owns subscription lifecycle, and `wfcli_worldstate_output`
+4. The reply crosses the protocol as data. `wf_worldstate_cli` controls the command,
+   `wf_worldstate_watch_cli` owns subscription lifecycle, and `wf_worldstate_output`
    renders tables, blocks, source metadata, and watch changes.
 
 ## Index entries
@@ -34,8 +34,8 @@ Sparse fields are optional: they are indexed into `haystack` and may be surfaced
 
 ## Translation and naming
 
-Translation logic is centralized in daemon module `wfcli_resolve`:
-- `wfcli_resolve:resolve/3` is the single domain entry point for keys such as `item`,
+Translation logic is centralized in daemon module `wf_resolve`:
+- `wf_resolve:resolve/3` is the single domain entry point for keys such as `item`,
   `node`, `faction`, `missiontype`, `modifier`, `season`, `dt`, and `any`.
 - Resolution order: language map (`languages.json`) → export item map → raw identifier.
 - Mission types, sortie bosses/modifiers, and seasons have small hardcoded fallbacks for missing keys.
@@ -69,17 +69,17 @@ Translation logic is centralized in daemon module `wfcli_resolve`:
 ## Calendar data
 
 - Source: `KnownCalendarSeasons` in worldstate.
-- Flattened into per-day entries in `wfcli_worldstate:index_raw/2`.
-- CLI support in `wfcli_worldstate_cli.erl` (`calendar` command, `--day`).
+- Flattened into per-day entries in `wf_worldstate:index_raw/2`.
+- CLI support in `wf_worldstate_cli.erl` (`calendar` command, `--day`).
 
 ## Calculated Teshin inventory
 
 Teshin's Steel Path inventory is not present in the official worldstate snapshot. It is a
 daemon-backed calculated source routed through the same inventory/query/render path:
 
-- `wfcli_teshin.erl` owns the rotation anchor, offering catalog, and time calculation.
-- `wfcli_worldstate_service.erl` accepts `source => teshin` without fetching worldstate.
-- `wfcli_worldstate:inventory_entries/3` exposes normalized `teshin_item` entities.
+- `wf_teshin.erl` owns the rotation anchor, offering catalog, and time calculation.
+- `wf_worldstate_service.erl` accepts `source => teshin` without fetching worldstate.
+- `wf_worldstate:inventory_entries/3` exposes normalized `teshin_item` entities.
 - `wfcli teshin [query]` shows the current weekly item plus evergreen offerings.
 - The command returns a one-shot calculated inventory and does not register a daemon watch.
 
@@ -94,12 +94,12 @@ Upstream references used for the implementation:
   after eight weeks.
 
 To refresh this implementation after upstream changes, update the ignored clones under
-`research/`, compare both files above, then update `wfcli_teshin.erl` and its deterministic
+`research/`, compare both files above, then update `wf_teshin.erl` and its deterministic
 rotation tests together. There is no runtime WFCD dependency.
 
 ## Adding a new worldstate type
 
 1. Add the index/projector behavior under `apps/retinue_daemon/src/games/warframe/`.
-2. Add shared result columns in `wfcli_worldstate_schema` when needed.
+2. Add shared result columns in `wf_worldstate_schema` when needed.
 3. Add the terminal block layout and command wiring under `apps/retinue_cli/src/`.
 4. Add tests and fixture updates in `apps/retinue_cli/test/`.

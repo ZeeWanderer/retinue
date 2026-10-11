@@ -167,12 +167,12 @@ await_count(Expected, Attempts) ->
     end.
 
 await_idle(Pid) ->
-    receive {wfcli_daemon_idle, Pid} -> ok
+    receive {retinue_daemon_idle, Pid} -> ok
     after 1000 -> error(idle_timeout_missing)
     end.
 
 assert_no_idle(Pid, Timeout) ->
-    receive {wfcli_daemon_idle, Pid} -> error(unexpected_idle_timeout)
+    receive {retinue_daemon_idle, Pid} -> error(unexpected_idle_timeout)
     after Timeout -> ok
     end.
 

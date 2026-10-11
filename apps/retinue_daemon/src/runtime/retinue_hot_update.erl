@@ -19,7 +19,7 @@
 -type build_identity() :: binary().
 -type result() :: #{loaded := [module()], unchanged := [module()], migrated := [module()]}.
 
--doc "Read and validate every wfcli BEAM in one build ebin directory.".
+-doc "Read and validate every Retinue BEAM in one build ebin directory.".
 -spec read_directory(file:filename_all()) -> {ok, [bundle()]} | {error, term()}.
 read_directory(Dir) ->
     case file:list_dir(Dir) of
@@ -182,7 +182,7 @@ bundle_manifest([Bundle | _Rest], _Acc) ->
 
 allowed_module(Module) ->
     Name = atom_to_list(Module),
-    lists:prefix("retinue_", Name) orelse lists:prefix("wfcli_", Name).
+    lists:prefix("retinue_", Name) orelse lists:prefix("wf_", Name).
 
 apply_validated(Bundles, BuildIdentity) ->
     case recover_pending() of

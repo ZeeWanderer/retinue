@@ -5,8 +5,8 @@ Official PublicExport files provide item names, metadata, recipes, and identifie
 ## Storage And Updates
 
 Managed files live in the per-user XDG cache. Bundled fallback data under
-`apps/retinue_daemon/priv/` supports offline resolution and tests. `wfcli_source_manager` validates
-required files and `wfcli_metadata_update` downloads replacements atomically.
+`apps/retinue_daemon/priv/` supports offline resolution and tests. `wf_source_manager` validates
+required files and `wf_metadata_update` downloads replacements atomically.
 
 Explicit `--exports-dir` paths are caller-owned. Missing or invalid files there fail with
 `source_unavailable`; the daemon never modifies the directory.
@@ -22,7 +22,7 @@ Common files include:
 - `ExportManifest.json`
 
 The complete managed list is `?EXPORT_FILES` in
-`apps/retinue_daemon/src/games/warframe/catalog/wfcli_metadata_update.erl`.
+`apps/retinue_daemon/src/games/warframe/catalog/wf_metadata_update.erl`.
 
 ## File Scopes
 
@@ -36,8 +36,8 @@ Keep these scopes separate. Large Codex files do not belong on the hot identifie
 
 ## Query Path
 
-`wfcli_exports_store` owns source preparation, signatures, entity caches, and request execution.
-`wfcli_entity_exports` builds typed query entities. The focused `mods` and `items` commands and
+`wf_exports_store` owns source preparation, signatures, entity caches, and request execution.
+`wf_entity_exports` builds typed query entities. The focused `mods` and `items` commands and
 unified `query` submit to that service; CLI modules only parse flags and render replies.
 
 `mods` searches upgrades by type, polarity, rarity, compatibility, drain, and text. `items`

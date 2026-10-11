@@ -114,10 +114,10 @@ missions, skills, affiliations, focus state, boosters, and challenges. Raw and t
 origins; query defaults to typed records for covered origins and raw records elsewhere. Raw
 fields remain available through `data.*`, normalized nested fields through `typed.*`.
 
-`wfcli_player_schema` reports unknown fields and shape changes in understood records without
+`wf_player_schema` reports unknown fields and shape changes in understood records without
 rejecting production payloads. The player fixture must audit cleanly so schema drift becomes a
 test failure when fixtures are refreshed.
 
-`wfcli_player_views` joins that snapshot to the managed WFCD item catalog. It derives inventory
+`wf_player_views` joins that snapshot to the managed WFCD item catalog. It derives inventory
 categories and sets plus mastery ownership, rank, pending builds, missing components, owned-relic
 availability, and completion summaries. GUI filtering remains client-owned.

@@ -16,8 +16,8 @@ main(Args) ->
     end,
     add_build_paths("_build/default/lib"),
     _ = application:ensure_all_started(retinue_cli),
-    {ok, [Raw]} = wfcli_forma_config:load_files([ConfigFile]),
-    {ok, Config} = wfcli_forma_model:normalize_config(Raw),
+    {ok, [Raw]} = wf_forma_config:load_files([ConfigFile]),
+    {ok, Config} = wf_forma_model:normalize_config(Raw),
     Warmup = maps:get(warmup, Opts),
     Runs = maps:get(runs, Opts),
     run_warmup(Config, Warmup),
@@ -58,13 +58,13 @@ add_build_paths(LibRoot) ->
 
 run_warmup(_Config, N) when N =< 0 -> ok;
 run_warmup(Config, N) ->
-    _ = wfcli_forma_planner:plan(Config, #{}),
+    _ = wf_forma_planner:plan(Config, #{}),
     run_warmup(Config, N - 1).
 
 run_bench(Config, Runs) ->
     lists:map(
       fun(_) ->
-          {Time, _} = timer:tc(fun() -> wfcli_forma_planner:plan(Config, #{}) end),
+          {Time, _} = timer:tc(fun() -> wf_forma_planner:plan(Config, #{}) end),
           Time
       end,
       lists:seq(1, Runs)).

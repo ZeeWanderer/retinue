@@ -2,7 +2,7 @@
 
 ## Commands
 
-`retinue_cli` composes platform commands with game subtrees. `wfcli_cli` supplies the Warframe
+`retinue_cli` composes platform commands with game subtrees. `wf_cli` supplies the Warframe
 tree and shared dispatch context. `wfcli` and `poe2cli` select their scope before parsing;
 they do not maintain separate command definitions. Each command module declares
 its OTP `argparse` specification beside its handler: arguments, types, defaults, subcommands,
@@ -10,11 +10,11 @@ summary and optional notes. Handlers receive parsed maps, not argv.
 Enum types supply completion values; use argument `completion` hints for open-ended values.
 
 - `retinue_cli_args` supplies shared argument definitions and contextual help adaptation.
-- `wfcli_catalog_cli` handles focused export and knowledge queries.
-- `wfcli_query_cli` handles unified queries and the player view.
-- `wfcli_worldstate_cli` handles one-shot requests and watch-spec syntax;
-  `wfcli_worldstate_watch_cli` owns subscription lifetime.
-- `wfcli_update_cli` is the update entry point.
+- `wf_catalog_cli` handles focused export and knowledge queries.
+- `wf_query_cli` handles unified queries and the player view.
+- `wf_worldstate_cli` handles one-shot requests and watch-spec syntax;
+  `wf_worldstate_watch_cli` owns subscription lifetime.
+- `wf_update_cli` is the update entry point.
 
 Add a subcommand when it narrows an operation; use options for composable modifiers.
 Define each argument once. Do not add separate option registries, hand-written argv parsers or
@@ -45,9 +45,9 @@ Batch commands retain successful results while returning failure if any job fail
 
 Use `retinue_table` and `retinue_tty` for terminal layout. Shared schema modules define columns;
 CLI presentation modules define block ordering. Focused and unified queries share
-`wfcli_exports_format` and `wfcli_knowledge_format`.
+`wf_exports_format` and `wf_knowledge_format`.
 
-Catalog JSON uses explicit field types in `wfcli_catalog_json`. Never infer strings from integer
+Catalog JSON uses explicit field types in `wf_catalog_json`. Never infer strings from integer
 arrays or empty lists. Preserve nested source JSON types. Use `retinue_data_extract` for dot paths
 and `retinue_text` for shared string conversion.
 
