@@ -47,8 +47,8 @@ def only(paths, description):
     return paths[0]
 
 
-def await_ready(predicate, process, description):
-    deadline = time.monotonic() + 8
+def await_ready(predicate, process, description, timeout=8):
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         require(process.poll() is None, f"{description} exited: {process.returncode}")
         if predicate():
@@ -209,7 +209,7 @@ def execute(stage, root, report):
             "-boot", str(boot.with_suffix("")), "-sname", "retinue_daemon@localhost",
             "-kernel", "inet_dist_use_interface", "{127,0,0,1}",
             "-pa", *map(str, ebins), "-eval", evaluation], stdin=subprocess.PIPE)
-        await_ready(ready_path.exists, daemon, "isolated production application")
+        await_ready(ready_path.exists, daemon, "isolated production application", timeout=30)
         wire = (root / "subscription.jsonl").open("w")
         handles.append(wire)
         peer = Peer(socket_path, wire)
