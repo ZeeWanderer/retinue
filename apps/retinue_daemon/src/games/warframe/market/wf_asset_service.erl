@@ -606,7 +606,7 @@ asset_url(<<"mastery">>, Name) ->
     Base ++ binary_to_list(Name).
 
 request_headers(Cached) ->
-    Base = [{"user-agent", "wfcli/0.1 (+https://github.com/ZeeWanderer/wfcli)"},
+    Base = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
             {"accept", "image/png,image/jpeg,image/webp"}],
     conditional_header("if-none-match", etag, Cached,
       conditional_header("if-modified-since", last_modified, Cached, Base)).

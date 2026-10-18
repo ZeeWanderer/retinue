@@ -1,7 +1,7 @@
 [package]
 name = "wfcompanion"
 # Cargo requires a literal; build.rs verifies it against ../../VERSION.
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Linux/Proton Warframe observer and overlay companion for Retinue"

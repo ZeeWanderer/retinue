@@ -54,7 +54,7 @@ default_source() ->
 update() ->
     application:ensure_all_started(inets),
     application:ensure_all_started(ssl),
-    Headers = [{"user-agent", "wfcli/0.1 (+https://github.com/ZeeWanderer/wfcli)"},
+    Headers = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
                {"accept", "application/json"}],
     case httpc:request(get, {?URL, Headers}, [{timeout, 30000}],
                        [{body_format, binary}]) of

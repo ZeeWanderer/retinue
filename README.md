@@ -1,9 +1,8 @@
 # Retinue
 
-A local game-data platform for terminal, desktop, MCP, and Linux/Proton use. One Erlang/OTP
-daemon shares lifecycle and transport while keeping game services and data separate. Warframe
-provides queries, worldstate, Market, Forma planning, a desktop GUI, and in-game overlays.
-Path of Exile 2 provides a read-only local-log observer and session/event views.
+Linux/Proton game companions with a shared daemon, CLI, and MCP server. Warframe includes
+a desktop GUI, relic and ducat-kiosk overlays, Market tools, and build planning.
+Path of Exile 2 includes an in-game price checker with editable trade filters and estimates.
 
 ## Applications
 
@@ -13,7 +12,7 @@ Path of Exile 2 provides a read-only local-log observer and session/event views.
 | `wfcli`, `poe2cli`, `arccli` | Game-scoped aliases for `retinue` |
 | [`retinue-daemon`](docs/daemon.md) | Shared service host with separate Warframe and PoE2 supervisors |
 | [`wfcompanion`](docs/companion.md) | Warframe observer and Wayland overlay |
-| [`poe2companion`](docs/poe2.md) | Path of Exile 2 local-log observer |
+| [`poe2companion`](docs/poe2.md) | Path of Exile 2 observer and Evaluate price-check overlay |
 | [`arccompanion`](docs/arc.md) | ARC Raiders launch scaffold; observation not implemented |
 | [`wfgui`](docs/gui.md) | Native Qt desktop client for Warframe account and world-state views |
 | [`retinue-inspect`](docs/wfinspect.md) | Generic memory/capture inspection and Warframe research; `wfinspect` is an alias |
@@ -30,26 +29,29 @@ live world timers and fissures.
 
 ## In-game Overlays
 
-`wfcompanion` augments relic rewards with Market values and collection progress, then ranks owned
-relics during selection.
+`wfcompanion` adds Market values and collection progress to relic rewards, ranks owned relics
+during selection, and shows prices and collection badges in ducat-kiosk tooltips.
 
 ![Relic reward overlay](docs/images/wfcompanion-relic-rewards.webp)
 
 ![Owned relic recommendations](docs/images/wfcompanion-relic-suggestions.webp)
 
+![Ducat-kiosk price and collection badges](docs/images/wfcompanion-ducat-kiosk.webp)
+
+In Path of Exile 2, hover an item and press **Alt+E** to compare asking prices, adjust search
+filters, or open the trade website. See the [PoE2 guide](docs/poe2.md).
+
 ## Install
 
-Build Retinue from source using the [requirements and commands below](#build). The production
-installation is the complete `prod/` tree. Use its binaries directly or add them to the shell path:
+Install with [Homebrew](https://brew.sh) on Linux:
 
 ```bash
-export PATH="$PWD/prod/bin:$PATH"
+brew tap zeewanderer/sundries
+brew install retinue
 ```
 
-The published `wfcli` 0.2.1 package in [zeewanderer/sundries](https://github.com/zeewanderer/homebrew-sundries)
-is the older Warframe release, not a Retinue bottle. Its legacy files remain separate from
-Retinue's storage.
-To copy existing settings and data, follow [storage migration](docs/data-sources.md#migrate-wfcli-storage).
+Upgrading from `wfcli`? Follow [storage migration](docs/data-sources.md#migrate-wfcli-storage)
+to retain settings and saved builds. Source builds are covered [below](#build).
 
 ### Steam launch mode
 
@@ -73,7 +75,7 @@ retinue daemon ensure
 
 Launch mode starts the companion with Warframe and reuses `retinue-daemon`. See the
 [companion guide](docs/companion.md) for automatic Steam configuration and overlay controls.
-PoE2 has its own [log-observer setup](docs/poe2.md).
+PoE2 has its own [companion setup](docs/poe2.md).
 
 ### Desktop launcher
 
@@ -92,7 +94,8 @@ when persistent watches or notifications should remain active without an open cl
 retinue daemon autostart enable
 ```
 
-Source builds install a systemd user unit; use `retinue daemon autostart status` to inspect it.
+Homebrew installs use `brew services`; source builds use a systemd user unit.
+Inspect either with `retinue daemon autostart status`.
 
 ## Build
 
@@ -102,7 +105,7 @@ Required toolchains:
 | --- | --- |
 | Common | Git, GNU Make, CMake, and a C/C++ compiler |
 | Erlang | Erlang/OTP 29 and Rebar3 |
-| Companion | Rust, Cargo, `jq`, and MinGW-w64 |
+| Companion | Rust, Cargo, Python 3, `jq`, MinGW-w64, pkg-config, and libxkbcommon development files |
 | Desktop GUI | LLVM with libc++, Ninja, vcpkg, Autoconf, Autoconf Archive, Automake, and Libtool |
 
 `wfcompanion` runtime integration requires KDE Plasma on Wayland, KScreen, and Tesseract 5 with
@@ -123,6 +126,8 @@ Build one environment:
 make dev   # debug builds in dev/
 make prod  # optimized builds in prod/
 ```
+
+Use `prod/bin/` directly or add it to your shell's `PATH`.
 
 Compiler output stays under `_build/`; downloads and compiler caches stay under `.cache/`.
 Repository-root links select either staged environment:
@@ -150,6 +155,7 @@ Common contributor commands and individual build targets are documented in
 Use installed commands, or the production links after `make prod`:
 
 ```bash
+retinue doctor
 retinue warframe fissures
 retinue warframe baro inventory
 wfcli query 'dataset=worldstate type=fissure hard=true'
@@ -158,7 +164,8 @@ poe2cli companion events --json
 wfgui
 ```
 
-The CLI starts or reuses `retinue-daemon`. Built-in help covers the complete command surface:
+Normal data commands start or reuse `retinue-daemon`; `doctor` only checks existing
+state. Built-in help covers the complete command surface:
 
 ```bash
 retinue --help
@@ -183,14 +190,14 @@ codex mcp add retinue -- retinue mcp
 | [Forma planner](docs/forma-plan.md) | Configuration, constraints, output, and visualization |
 | [Daemon control](docs/daemon.md) | Lifecycle, idle policy, autostart, compatibility, and hot updates |
 | [Linux/Proton companion](docs/companion.md) | Steam setup, overlay controls, diagnostics, previews, and player data |
-| [Path of Exile 2](docs/poe2.md) | Local log observation, launch mode, status, events, and evidence limits |
+| [Path of Exile 2](docs/poe2.md) | Price checking, native observation, launch mode, and diagnostics |
 | [Desktop GUI](docs/gui.md) | Pages, loading behavior, notifications, and screenshots |
 | [MCP server](docs/mcp.md) | Registration, tools, resources, and cancellation |
 | [Contributor documentation](docs/DEVELOPER.md) | Architecture, source ownership, tests, and development workflows |
 
 ## License
 
-Project code is licensed under Apache-2.0; see [LICENSE.md](LICENSE.md). Third-party components and
-Digital Extremes assets retain their own terms. Warframe assets are used under the
+Project code is licensed under Apache-2.0; see [LICENSE.md](LICENSE.md). Third-party components
+and assets retain their own terms. Warframe assets are used under the
 [Warframe Content Policy](https://www.warframe.com/en/contentpolicy); provenance notes live beside
 the relevant files.

@@ -17,7 +17,7 @@ catalog_version() -> 3.
 -doc "Fetch and compact the WFCD relic catalog.".
 -spec fetch() -> {ok, map()} | {error, term()}.
 fetch() ->
-    Headers = [{"user-agent", "wfcli/0.1 (+https://github.com/ZeeWanderer/wfcli)"},
+    Headers = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
                {"accept", "application/json"}],
     Result = try
         case application:get_env(retinue_daemon, relic_catalog_http_fun) of

@@ -62,5 +62,5 @@ add_header(Name, Value, Headers) ->
     end.
 
 user_agent() ->
-    "wfcli/" ++ retinue_build:version() ++
-        " (+https://github.com/ZeeWanderer/wfcli)".
+    "retinue/" ++ retinue_build:version() ++
+        " (+https://github.com/ZeeWanderer/retinue)".

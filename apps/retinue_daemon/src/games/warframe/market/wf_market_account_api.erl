@@ -146,7 +146,7 @@ auth_headers(Token) ->
      {"auth_type", "header"} | common_headers()].
 
 common_headers() ->
-    [{"user-agent", "wfcli/0.1 (+https://github.com/ZeeWanderer/wfcli)"},
+    [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
      {"accept", "application/json"}, {"language", "en"},
      {"platform", "pc"}, {"crossplay", "true"},
      {"content-type", "application/json"}].

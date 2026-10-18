@@ -85,7 +85,7 @@ fetch_json(Url, Next0) ->
     timer:sleep(Wait),
     ok = wf_market_limiter:wait(),
     Next = erlang:monotonic_time(millisecond) + request_interval(),
-    Headers = [{"user-agent", "wfcli/0.1 (+https://github.com/ZeeWanderer/wfcli)"},
+    Headers = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
                {"accept", "application/json"}, {"language", "en"},
                {"platform", "pc"}, {"crossplay", "true"}],
     Result = try

@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "arccompanion"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "clap",
  "retinue-client",
@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "poe2companion"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "clap",
  "retinue-client",
@@ -1100,7 +1100,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-client"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "libc",
  "rustix",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-inspect"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -1127,7 +1127,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-native"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "memchr",
  "serde",
@@ -1138,7 +1138,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-overlay"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ashpd",
  "cosmic-text",
@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-poe2"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "pelite",
  "retinue-native",
@@ -1171,7 +1171,7 @@ dependencies = [
 
 [[package]]
 name = "retinue-warframe"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "iced-x86",
  "libc",
@@ -1880,7 +1880,7 @@ dependencies = [
 
 [[package]]
 name = "wfcompanion"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "ashpd",
  "bytes",

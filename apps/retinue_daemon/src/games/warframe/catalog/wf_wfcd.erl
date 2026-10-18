@@ -198,7 +198,7 @@ validate(Location, Fun) ->
     end.
 
 get(Url, Limit) ->
-    Headers = [{"user-agent", "wfcli (+https://github.com/ZeeWanderer/wfcli)"}] ++
+    Headers = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"}] ++
               case Url of ?REGISTRY -> [{"cache-control", "no-cache"}]; _ -> [] end,
     Result = case application:get_env(retinue_daemon, wfcd_http_fun) of
                  {ok, Fun} when is_function(Fun, 2) -> Fun(Url, Headers);

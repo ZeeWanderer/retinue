@@ -1,6 +1,6 @@
 {
   "name": "wfgui",
-  "version-string": "0.2.1",
+  "version-string": "0.3.0",
   "builtin-baseline": "3ad1f444504f4cb2ca0ede7b57ba2ffbdb7a3c75",
   "supports": "linux & x64",
   "dependencies": [

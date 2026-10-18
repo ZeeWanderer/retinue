@@ -71,8 +71,19 @@ PoE2 has a separate [log-session cache](poe2.md#storage).
 
 ## Migrate wfcli Storage
 
-Stop the legacy and Retinue daemons, GUI, and companions before copying. From the repository
-root, review the plan, then apply it:
+Before upgrading, stop a legacy Homebrew service with `brew services stop wfcli`.
+For a source installation, disable its old unit with
+`systemctl --user disable --now wfdaemon.service`.
+
+Stop both daemons, the GUI, and companions before copying. With Homebrew, review the
+migration plan, then apply it:
+
+```bash
+"$(brew --prefix retinue)/share/retinue/migrate-wfcli-storage" --dry-run
+"$(brew --prefix retinue)/share/retinue/migrate-wfcli-storage" --apply
+```
+
+From a source checkout:
 
 ```bash
 ./scripts/migrate-wfcli-storage --dry-run
@@ -84,3 +95,5 @@ stores into Retinue, placing build groups in durable data, renaming GUI config/c
 and placing daemon logs in platform state. It retains the originals and aborts before copying
 if any destination exists or two sources target the same destination. Resolve reported
 conflicts before retrying; existing Retinue data is never merged or overwritten.
+After migration, run `wfcli gui install` to refresh the desktop launcher. Re-enable login
+autostart with `retinue daemon autostart enable` if needed.
