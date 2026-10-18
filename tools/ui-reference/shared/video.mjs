@@ -1,5 +1,6 @@
 import { once } from "node:events";
 import { spawn } from "node:child_process";
+import { captureScreenshot } from "./screenshot.mjs";
 
 export async function captureVideo({
   page,
@@ -10,7 +11,7 @@ export async function captureVideo({
   fps,
   update,
 }) {
-  const executable = process.env.ALECA_LAYOUT_FFMPEG ?? "ffmpeg";
+  const executable = process.env.UI_REFERENCE_FFMPEG ?? "ffmpeg";
   const filter =
     `format=rgba,pad=${dimensions.width}:${dimensions.height}:` +
     `${bounds.left}:${bounds.top}:color=black@0`;
@@ -69,7 +70,7 @@ export async function captureVideo({
     const frameCount = Math.ceil(duration * fps);
     for (let frame = 0; frame < frameCount; frame += 1) {
       await update(frame / fps);
-      const image = await page.screenshot({
+      const image = await captureScreenshot(page, {
         omitBackground: true,
         animations: "allow",
       });

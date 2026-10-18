@@ -1,19 +1,25 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { saveWindowHtml } from "../../shared/snapshot.mjs";
+import { captureScreenshot } from "../../shared/screenshot.mjs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { chromium } from "playwright-core";
 import { resolveAlecaWebRoot } from "./source.mjs";
+import { repositoryRoot } from "../../shared/paths.mjs";
 
-const toolDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(toolDirectory, "../..");
 const webRoot = await resolveAlecaWebRoot(repositoryRoot);
 const outputDirectory =
-  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/reference");
+  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/warframe/reference");
 const screenshotPath = path.join(outputDirectory, "alecaframe-market-orders.png");
 const geometryPath = path.join(outputDirectory, "alecaframe-market-orders.json");
 const documentPath = path.join(outputDirectory, ".alecaframe-market-orders.html");
-const viewport = { width: 1000, height: 320 };
+const dimensions = /^(\d+)x(\d+)$/.exec(process.env.ALECA_LAYOUT_SIZE ?? "1920x1080");
+if (!dimensions) throw new Error("Invalid ALECA_LAYOUT_SIZE");
+const screen = {width: Number(dimensions[1]), height: Number(dimensions[2])};
+if (screen.width < 640 || screen.height < 480) throw new Error("Preview screen is too small");
+const viewport = { width: Math.min(1000, screen.width - 80), height: 320 };
+const bounds = {left: Math.round((screen.width - viewport.width) / 2), top: Math.round((screen.height - viewport.height) / 2), ...viewport};
 
 await mkdir(outputDirectory, { recursive: true });
 const browser = await chromium.launch({
@@ -94,13 +100,22 @@ try {
     );
   }, selectors);
 
-  await page.screenshot({ path: screenshotPath });
+  await saveWindowHtml(page, screenshotPath.replace(/\.png$/, ".html"));
+  const cardImage = await captureScreenshot(page);
+  await page.setViewportSize(screen);
+  await page.setContent(`<html style="background:transparent"><body style="margin:0;overflow:hidden">
+    <img style="position:absolute;left:${bounds.left}px;top:${bounds.top}px" src="data:image/png;base64,${cardImage.toString("base64")}">
+    </body></html>`);
+  await page.locator("img").evaluate(image => image.decode());
+  await captureScreenshot(page, { path: screenshotPath, omitBackground: true });
   await writeFile(
     geometryPath,
     `${JSON.stringify(
       {
         source: "main_parts/warframeMarket.html",
         viewport,
+        screen,
+        bounds,
         elements,
       },
       null,

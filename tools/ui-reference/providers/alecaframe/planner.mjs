@@ -1,15 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { saveWindowHtml } from "../../shared/snapshot.mjs";
+import { captureScreenshot } from "../../shared/screenshot.mjs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { chromium } from "playwright-core";
 import { resolveAlecaWebRoot } from "./source.mjs";
+import { repositoryRoot } from "../../shared/paths.mjs";
 
-const toolDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(toolDirectory, "../..");
 const webRoot = await resolveAlecaWebRoot(repositoryRoot);
 const outputDirectory =
-  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/reference");
+  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/warframe/reference");
 const screenshotPath = path.join(outputDirectory, "alecaframe-relic-planner.png");
 const geometryPath = path.join(outputDirectory, "alecaframe-relic-planner.json");
 const screen = displayDimensions();
@@ -81,7 +82,8 @@ try {
     );
   }, selectors);
 
-  const planner = await page.screenshot({ omitBackground: true });
+  await saveWindowHtml(page, screenshotPath.replace(/\.png$/, ".html"));
+  const planner = await captureScreenshot(page, { omitBackground: true });
   await page.setViewportSize(screen);
   await page.setContent(`
     <!doctype html>
@@ -92,7 +94,7 @@ try {
       </body>
     </html>
   `);
-  await page.screenshot({ path: screenshotPath, omitBackground: true });
+  await captureScreenshot(page, { path: screenshotPath, omitBackground: true });
   await writeFile(
     geometryPath,
     `${JSON.stringify({ source: "main_parts/relicPlanner.html", screen, bounds, elements }, null, 2)}\n`,

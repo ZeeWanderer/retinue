@@ -2,7 +2,7 @@
 
 `retinue_daemon` hosts shared runtime services and separate game supervisors. The public binary
 is `retinue-daemon`. Warframe services own fetching, worldstate, catalogs, queries, player state,
-Market, Forma planning, and watches. PoE2 services own normalized local-log session evidence.
+Market, Forma planning, and watches. PoE2 services own native session snapshots and events.
 `retinue_cli` composes command scopes; the `wfcli` adapter owns Warframe arguments, MCP framing,
 and formatting. Native observation stays in each game's companion.
 
@@ -77,9 +77,18 @@ Local envelope 2 requires `game` in the initial `hello`: `warframe` or `poe2`. T
 keeps that scope for requests, subscriptions, publications, and cleanup. Missing or unsupported
 games fail negotiation; a client cannot access another game's interfaces through its session.
 
-Warframe negotiates its existing domain interfaces. PoE2 negotiates `session` version 1 for
+Warframe negotiates its existing domain interfaces. PoE2 negotiates `session` version 2 for
 `get`, `publish`, and subscriptions. Interface versions and optional features are game-scoped;
 the shared framing envelope is not a declaration of equivalent capabilities across games.
+
+PoE2's optional `trade.prediction` feature enables `trade_predict` with copied item
+`text` and `league`. `trade_item` reports `prediction_available`; the daemon owns
+payload normalization and upstream access. A separate supervised worker coalesces
+identical predictions, holds at most 128 cached results for ten minutes, and backs
+off on unavailable models, rate limits and failures. Prediction waits do not hold
+the trade or session workers. Replies contain `estimate` (or null with a reason),
+with optional low/high/confidence uncertainty. No raw clipboard/account data leaves
+the daemon; only allowlisted item fields go to the fixed prediction host.
 
 `retinue_paths` owns platform XDG roots and per-game namespaces. Warframe's `wf_paths` remains
 an adapter. `RETINUE_BUILD_FLAVOR`, `RETINUE_INSTALL_ROOT`, and `RETINUE_UPDATE_ROOT` identify
@@ -139,15 +148,32 @@ clients reconnect and reconcile snapshots instead of retaining dead subscription
 
 ## PoE2 Sessions
 
-`retinue_poe2_service` accepts bounded, validated batches of local-log evidence. Source identity,
-generation, and byte cursor prevent duplicate replay; a changed source or generation resets the
-projected session. Persistence completes before publication is acknowledged. Status retains the
-last known source, cursor, current projection, and up to 128 events in
-`$XDG_CACHE_HOME/retinue/games/poe2/session.json`.
+`retinue_poe2_service` validates native samples through `retinue_poe2_session` and
+derives bounded change events. Samples carry stream/sequence identity, observation
+time, process identity, status, snapshot and errors. Retries are deduplicated;
+unchanged heartbeats refresh observation time without disk writes or notifications.
+Changed snapshots are persisted before acknowledgement, then published to subscribers.
 
-Area level is separate from character level. Character events retain their named actor; they do
-not establish which character belongs to the local player. Log timestamps have no timezone and
-remain source-local. A stored snapshot is not proof that the game is currently running.
+Schema 2 stores the current snapshot and up to 128 events in
+`$XDG_CACHE_HOME/retinue/games/poe2/session.json`. Death requires a known positive
+life value followed by zero for the same character and process. Missing reads,
+disconnects and cached snapshots do not establish death or a running game.
+
+PoE2 trade parsing, category defaults, modifier ranking and query construction live
+in the daemon. The companion consumes profile choices, selected rows and numeric
+bounds. `retinue_poe2_catalog` lazily caches RePoE base items, mods and stat mappings
+at `$XDG_CACHE_HOME/retinue/games/poe2/trade/enrichment.json`. A bounded worker serves
+cached data before refreshing; failed refreshes preserve it. Cold requests wait at
+most five seconds for enrichment. Missing internal-stat mappings omit those bonuses,
+not known clipboard tags or rolls. Ambiguous trade modifiers remain unsupported.
+Catalog warnings are retained in the daemon incident log.
+`retinue_poe2_trade_properties` derives quality-normalized DPS/defence filters and
+maps known local-stat identities to their properties. Profiles rank properties
+and modifier groups together and provide `quick_selected`, `exact_selected` and
+`base_selected`. The client must not reinterpret Exact Match as enabling every row.
+Long-lived process state must use external callbacks (`fun Module:function/Arity`)
+or MFA tuples, not local functions from a reloadable module. Code purging invalidates
+local functions; `code_change/3` must refresh module-owned callbacks when necessary.
 
 ## Build Groups
 

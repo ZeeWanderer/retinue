@@ -1,6 +1,6 @@
-# wfinspect Ghidra exporter
+# Native Ghidra Exporter
 
-Generic, build-keyed native analysis for `wfinspect`. Install Ghidra and its
+Generic, build-keyed native analysis for `retinue-inspect`. Install Ghidra and its
 required JDK. `run` finds `GHIDRA_HOME`, `analyzeHeadless` on PATH, or Homebrew's
 Ghidra installation; it forwards headless arguments and adds this script directory.
 
@@ -11,10 +11,10 @@ analysis, then prepare known function entries as needed:
 
 ```bash
 mkdir -p research/native/projects
-tools/wfinspect-ghidra/run research/native/projects BUILD \
+tools/ghidra/run research/native/projects BUILD \
   -import /path/to/executable -noanalysis
 
-tools/wfinspect-ghidra/run research/native/projects BUILD \
+tools/ghidra/run research/native/projects BUILD \
   -process PROGRAM -noanalysis \
   -postScript PrepareFunctions.java 0x140001000 0x140002000
 ```
@@ -39,7 +39,7 @@ Apply verified types when guessed signatures obscure decompiled arithmetic:
 ```
 
 ```bash
-tools/wfinspect-ghidra/run PROJECT_DIR PROJECT_NAME \
+tools/ghidra/run PROJECT_DIR PROJECT_NAME \
   -process PROGRAM -noanalysis -postScript ApplyFunctionTypes.java types.json
 ```
 
@@ -51,7 +51,7 @@ keep their instruction evidence alongside the input file.
 ## Export
 
 ```bash
-tools/wfinspect-ghidra/run PROJECT_DIR PROJECT_NAME \
+tools/ghidra/run PROJECT_DIR PROJECT_NAME \
   -process PROGRAM -noanalysis -readOnly \
   -postScript ExportWfinspectReport.java REPORT.json \
   function=0x140001000 graph=0x140001000:2:64 \
@@ -82,7 +82,8 @@ Queries:
 - `scalar=VALUE`: instructions containing an exact scalar.
 - `pointers=START:COUNT:WIDTH`: 4-byte image-relative or 8-byte absolute pointer table.
 
-Reports use `wfinspect.ghidra-report` schema version 1 and contain executable SHA-256. Pass
+Reports retain the `wfinspect.ghidra-report` schema and producer identifiers so
+existing evidence stays readable. They contain executable SHA-256. Pass
 `--adapter BUILD` to require a specific registered adapter or executable hash.
 
 `-readOnly` discards project changes made during export. Static graphs are not
@@ -99,5 +100,5 @@ compiles a small synthetic program and exercises the real
 headless exporter, including indirect calls, recursion and graph limits:
 
 ```bash
-python3 tools/wfinspect-ghidra/tests/test_report.py
+python3 tools/ghidra/tests/test_report.py
 ```

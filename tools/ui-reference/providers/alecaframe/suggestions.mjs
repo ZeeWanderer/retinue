@@ -1,21 +1,22 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { saveWindowHtml } from "../../shared/snapshot.mjs";
+import { captureScreenshot } from "../../shared/screenshot.mjs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { chromium } from "playwright-core";
 import { suggestionScrollOffset } from "./animation.mjs";
 import { resolveAlecaWebRoot } from "./source.mjs";
-import { captureVideo } from "./video.mjs";
+import { captureVideo } from "../../shared/video.mjs";
+import { repositoryRoot } from "../../shared/paths.mjs";
 
-const toolDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(toolDirectory, "../..");
 const sourcePath = path.join(
   await resolveAlecaWebRoot(repositoryRoot),
   "relicRecommendation.html",
 );
 const outputDirectory =
-  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/reference");
+  process.env.ALECA_LAYOUT_OUTPUT_DIR ?? path.join(repositoryRoot, "previews/warframe/reference");
 const screenshotPath = path.join(outputDirectory, "alecaframe-relic-suggestions.png");
 const geometryPath = path.join(outputDirectory, "alecaframe-relic-suggestions.json");
 const videoPath = path.join(outputDirectory, "alecaframe-relic-suggestions.webm");
@@ -218,7 +219,8 @@ try {
     await page.locator(".recommendedRelicsContainer").evaluate((element) => {
       element.scrollTop = 0;
     });
-    const overlayImage = await page.screenshot({ omitBackground: true });
+    await saveWindowHtml(page, screenshotPath.replace(/\.png$/, ".html"));
+    const overlayImage = await captureScreenshot(page, { omitBackground: true });
     await page.setViewportSize(dimensions);
     await page.setContent(`
       <!doctype html>
@@ -230,7 +232,7 @@ try {
         </body>
       </html>
     `);
-    await page.screenshot({ path: screenshotPath, omitBackground: true });
+    await captureScreenshot(page, { path: screenshotPath, omitBackground: true });
     await writeFile(
       geometryPath,
       `${JSON.stringify(

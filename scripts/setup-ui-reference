@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+case "${1:-}" in
+    '') ;;
+    alecaframe)
+        shift
+        node "$root/tools/ui-reference/providers/alecaframe/setup.mjs" "$@"
+        ;;
+    -h|--help)
+        printf 'Usage: scripts/setup-ui-reference [alecaframe [OPK_OR_DIRECTORY]]\n'
+        printf 'Install shared browser tools; optionally acquire the AlecaFrame reference package.\n'
+        exit 0
+        ;;
+    *) printf 'Unknown reference setup: %s\n' "$1" >&2; exit 2 ;;
+esac
+npm --prefix "$root/tools/ui-reference" ci
+npm --prefix "$root/tools/ui-reference" exec -- playwright-core install chromium

@@ -19,7 +19,7 @@ export async function resolveAlecaWebRoot(repositoryRoot) {
   const selected = newest(candidates);
   if (!selected) {
     throw new Error(
-      "AlecaFrame package missing; run ./scripts/setup-aleca-layout",
+      "AlecaFrame package missing; run ./scripts/setup-ui-reference alecaframe",
     );
   }
   return path.join(selected.path, "web");

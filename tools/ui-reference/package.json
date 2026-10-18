@@ -1,11 +1,9 @@
 {
-  "name": "wfcli-aleca-layout",
+  "name": "retinue-ui-reference",
   "private": true,
   "type": "module",
   "scripts": {
-    "render": "node index.mjs",
-    "render:market": "node market.mjs",
-    "render:planner": "node planner.mjs",
+    "render": "node render.mjs",
     "test": "node --test"
   },
   "devDependencies": {

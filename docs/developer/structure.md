@@ -67,9 +67,8 @@ and value helpers here.
 - `game_observer`: Warframe process/build identity, read-only memory, and typed evidence.
 - `observer`: collector lifecycle and observation policy.
 - `daemon`: owner-only Unix socket transport and reconnect replay.
-- `focus`: positive active-window identity for the observed Warframe process.
 - `relic`: trigger, capture, OCR, item resolution, and market requests.
-- `overlay`, `painter`, `ui`: Wayland surface, Blend2D rendering, and Taffy layout.
+- `overlay`, `ui`: Warframe scenes, surface orchestration and hit regions.
 - `preview`: registered still and animated overlay previews.
 - `main`: process composition and Steam wrapper mode.
 
@@ -81,13 +80,15 @@ daemon and requests shared data from it.
 `apps/retinue-inspect/` builds independently of the companion renderer. `wfinspect` is an alias.
 
 - `crates/retinue-client`: native XDG paths and generated socket contract constants.
+- `crates/retinue-overlay`: shared Blend2D painter, Taffy layout, focus/clipboard,
+  portal shortcuts and interactive Wayland surfaces. Game screens remain in their companions.
 - `crates/retinue-native`: game-independent memory queries, capture/replay, work budgets and reports.
 - `crates/retinue-warframe`: game discovery, native adapters, observations, cache and script decoders.
 
 Inspector and Warframe companion consume the same adapters without depending on each other.
 Generic memory commands require an explicit PID or capture and need neither a daemon nor game
 discovery. Game commands invoke collectors without companion polling policy. Generic Ghidra
-exporters live under `tools/wfinspect-ghidra/`; build-specific evidence remains ignored research data.
+exporters live under `tools/ghidra/`; build-specific evidence remains ignored research data.
 
 Its read-only research-memory layer opens either `/proc/PID/mem` or bounded capture blocks behind
 the same query functions. Live and captured UI text, references, pointer paths, and typed probes
@@ -106,10 +107,11 @@ prepares its source and license. `scripts/build-companion` stages them under
 
 ## `poe2companion`
 
-`apps/poe2companion/` is an independent Rust log observer for Path of Exile 2. It reads
-`Client.txt`, normalizes supported area, character-level, and death messages, and publishes to
-the daemon's PoE2 `session` interface. It has no overlay or memory collector. Offline inspection
-is separate from live tailing and daemon publication; see the [PoE2 guide](../poe2.md).
+`apps/poe2companion/` owns Path of Exile 2 observation and publication to the daemon's
+`session` interface. `crates/retinue-poe2` owns process discovery, PE bindings and
+bounded typed readers, shared with `retinue-inspect poe2`. Generic memory/capture
+mechanics remain in `retinue-native`; companion lifecycle/reload mechanics live in
+`retinue-client`. See the [PoE2 guide](../poe2.md).
 
 `apps/arccompanion/` provides ARC Raiders launch/discovery scaffolding only. It has no observer,
 daemon worker or data store until an actual source is implemented.

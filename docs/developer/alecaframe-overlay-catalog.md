@@ -36,7 +36,7 @@ skipped by this snapshot.
 
 The reference renderer records exact Flexbox/Grid structure, computed styles,
 and content-dependent element positions. Setup and rendering commands are in
-[`tools/aleca-layout/README.md`](../../tools/aleca-layout/README.md).
+[`tools/ui-reference/README.md`](../../tools/ui-reference/README.md).
 
 ## Relic Recommendations
 

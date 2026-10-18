@@ -1,6 +1,6 @@
 # Retinue Inspector
 
-Read-only process inspection and Warframe research using live memory, saved captures,
+Read-only process inspection and game research using live memory, saved captures,
 cache resources, and runtime events. Full builds stage it alongside the companions; repository links are
 `retinue-inspectd` (development) and `retinue-inspect` (production). `wfinspectd` and `wfinspect`
 remain aliases; examples below use the short name.
@@ -16,6 +16,8 @@ _build/cargo/debug/retinue-inspect memory read 0x123000 64 --capture research/ca
 
 Generic `memory` commands require `--pid` or `--capture`. `native report` reads reports for
 any executable hash. Warframe discovery and adapters live under `warframe` (`game` alias).
+PoE2 bindings and typed capture/replay live under `poe2`; see the
+[PoE2 guide](poe2.md#inspection).
 
 ## Start Here
 
@@ -94,6 +96,10 @@ capture directory.
 ```bash
 wfinspect game ui movies
 wfinspect game ui objects ProjectionReward
+wfinspect game ui tree ItemInfoPopup --save research/tooltip
+wfinspect game ui tree ItemInfoPopup --capture research/tooltip
+wfinspect game ui ducats --save research/ducat-tooltip
+wfinspect game ui ducats --capture research/ducat-tooltip
 wfinspect game ui capture research/reward
 wfinspect game ui objects ProjectionReward --capture research/reward
 wfinspect game ui relic --capture research/reward
@@ -101,6 +107,12 @@ wfinspect game ui relic --capture research/reward
 
 `ui objects` exposes known text-object addresses, instance names and values for
 a movie-path substring. Typed queries require validated executable bindings.
+`ui tree` adds parent/child relationships, effective visibility and leaf bounds
+in game-window pixels (`left, top, right, bottom`). It discovers native geometry
+accessors without executing game code. Hidden text can remain populated; check
+`visible`, `unavailable` and the tree's `consistent` flag before using bounds.
+`--save` retains the exact reads and bindings for replay after game updates.
+Container bounds are intentionally absent: their native union includes hidden children.
 UI captures retain those bindings and the typed reader's first-seen bytes for replay
 after game updates. Each movie reports text completeness. Reads are bounded, not atomic.
 Supplying search terms selects a broader heap/text graph capture; this is also the
@@ -225,7 +237,7 @@ guessed to be instructions.
 
 ### Property And Native Evidence
 
-Attach retained property and [Ghidra](../tools/wfinspect-ghidra/README.md) reports
+Attach retained property and [Ghidra](../tools/ghidra/README.md) reports
 to each snapshot with `wfinspect game script evidence WORKSPACE NAME bindings.json`:
 
 ```json
@@ -281,5 +293,5 @@ Snapshots emit JSON, watches emit timestamped NDJSON, and raw read/normalize
 commands emit bytes only. Diagnostics go to stderr. Watches are bounded by
 `--seconds` and `--limit`; daemon inspection does not start or mutate the daemon.
 
-For offline executable analysis, the [Ghidra exporter](../tools/wfinspect-ghidra/README.md)
+For offline executable analysis, the [Ghidra exporter](../tools/ghidra/README.md)
 produces reports consumed by `game report verify`, `list`, and `get`.

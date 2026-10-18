@@ -25,6 +25,8 @@ POE2_COMPANION_MANIFEST := apps/poe2companion/Cargo.toml
 VERSION := $(strip $(shell cat VERSION))
 PLATFORM := $(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 PREVIEW_MEDIA ?= all
+PREVIEW_SCALE ?= 1
+PREVIEW_LAYOUT ?= comparison
 PREVIEW_SETS ?= companion reference
 PREVIEW_SCENES ?= all
 PREVIEW_RESOLUTIONS ?= 1920x1080 2560x1440
@@ -50,7 +52,7 @@ endif
 .PHONY: all build dev prod erlang cli daemon mcp companion inspect dev-inspect prod-inspect gui gui-dev gui-prod sccache-setup \
 	gui-configure-dev gui-configure-prod \
 	dev-erlang prod-erlang dev-companion prod-companion links \
-	debug-bridge native-bridges previews icon-optics aleca-layout-setup fix-executables \
+	debug-bridge native-bridges previews previews-all previews-wf previews-poe2 icon-optics ui-reference-setup fix-executables \
 	native-compile-commands test test-erlang test-companion test-poe2 test-gui test-release test-staging test-build check fmt-check xref package clean
 
 # These phases share build trees; their internal compiler jobs remain parallel.
@@ -156,12 +158,16 @@ native-bridges: debug-bridge
 native-compile-commands: sccache-setup
 	./scripts/native-compile-commands
 
-previews: $(PREVIEW_DEPS)
+previews: previews-all
+
+previews-all previews-wf previews-poe2: $(PREVIEW_DEPS)
+	PREVIEW_SCALE='$(PREVIEW_SCALE)' \
+	PREVIEW_LAYOUT='$(PREVIEW_LAYOUT)' \
 	PREVIEW_MEDIA='$(PREVIEW_MEDIA)' \
 	PREVIEW_SETS='$(PREVIEW_SETS)' \
 	PREVIEW_SCENES='$(PREVIEW_SCENES)' \
 	PREVIEW_RESOLUTIONS='$(PREVIEW_RESOLUTIONS)' \
-	./scripts/generate-previews
+	./scripts/generate-previews $(if $(filter previews-all,$@),all,$(if $(filter previews-wf,$@),warframe,poe2))
 
 icon-optics: gui-configure-dev
 	+cmake --build --preset gui-dev --target wfgui_icon_optics
@@ -169,8 +175,8 @@ icon-optics: gui-configure-dev
 		--config "$(ICON_OPTICS_CONFIG)" --ui-scale "$(ICON_OPTICS_SCALE)" \
 		--output-dir "$(ICON_OPTICS_OUTPUT)"
 
-aleca-layout-setup:
-	./scripts/setup-aleca-layout
+ui-reference-setup:
+	./scripts/setup-ui-reference
 
 fix-executables:
 	bash ./scripts/fix-executables
@@ -182,7 +188,7 @@ test-erlang:
 	./scripts/test-quiet ct
 
 test-companion: native-bridges
-	+$(CARGO) test --locked --quiet -p retinue-client -p retinue-native -p retinue-warframe -p retinue-inspect -p arccompanion
+	+$(CARGO) test --locked --quiet -p retinue-client -p retinue-native -p retinue-overlay -p retinue-poe2 -p retinue-warframe -p retinue-inspect -p arccompanion
 	+$(CARGO) test --locked --quiet --manifest-path $(COMPANION_MANIFEST)
 	+$(CARGO) test --locked --quiet --manifest-path $(POE2_COMPANION_MANIFEST)
 

@@ -24,6 +24,10 @@ asset, or native bridge changes.
 Companion dev builds keep application code unoptimized with debug checks and symbols.
 Third-party Rust dependencies are optimized; the native renderer always uses Release.
 
+The first PoE2 build downloads the checksum-pinned Fontin archive from its author
+for program embedding. Later builds use `.cache/fonts/fontin` without network
+access. To prepare that cache separately, run `python3 scripts/setup-fontin.py`.
+
 Each staging step prepares a private prefix under `.staging/`, then atomically exchanges it with
 `dev/` or `prod/`. Writers are serialized; failures before activation leave the installed tree
 unchanged. Preparation uses reflinks where available and copies otherwise. Activation requires

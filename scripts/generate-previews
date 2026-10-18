@@ -4,12 +4,50 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 companion="$root/dev/bin/wfcompanion"
 fixtures="$root/apps/wfcompanion/tests/fixtures"
-output="$root/previews"
+game="${1:-all}"
+failures=()
+completed=()
+
+run_preview() {
+    local label="$1"
+    shift
+    if "$@"; then
+        completed+=("$label")
+        return 0
+    else
+        local status=$?
+        failures+=("$label (exit $status)")
+        printf 'Preview failed: %s; continuing.\n' "$label" >&2
+    fi
+}
+
+finish_previews() {
+    if ((${#failures[@]})); then
+        printf '\nPreview failures:\n' >&2
+        printf '  %s\n' "${failures[@]}" >&2
+        return 1
+    fi
+}
+
+if [[ "$game" == all ]]; then
+    run_preview warframe "$0" warframe
+    run_preview poe2 "$0" poe2
+    finish_previews
+    exit 0
+fi
+output="$root/previews/$game"
+reference="$root/tools/ui-reference/render.mjs"
 
 media="${PREVIEW_MEDIA:-all}"
 sets="${PREVIEW_SETS:-companion}"
 scenes="${PREVIEW_SCENES:-all}"
 resolutions="${PREVIEW_RESOLUTIONS:-1920x1080 2560x1440}"
+layout="${PREVIEW_LAYOUT:-comparison}"
+
+case "$layout" in
+    comparison|screen) ;;
+    *) printf 'unknown preview layout: %s\n' "$layout" >&2; exit 2 ;;
+esac
 
 case "$media" in
     all) media="image video" ;;
@@ -25,6 +63,19 @@ contains_word() {
     return 1
 }
 
+render_comparison() {
+    local resolution="$1" scene="$2" native_label="$3" reference_label="$4" reference_file="$5"
+    contains_word image $media || return 0
+    local target="$output/$resolution/side-by-side/$scene"
+    rm -f "$target.png" "$target.json"
+    [[ "$layout" == comparison && -n "$reference_label" && -n "$native_label" ]] || return 0
+    contains_word "$reference_label" "${completed[@]}" || return 0
+    contains_word "$native_label" "${completed[@]}" || return 0
+    run_preview "$game/$resolution/side-by-side/$scene" \
+        node "$root/tools/ui-reference/compare.mjs" --output "$target" \
+        --reference "$reference_file" --companion "$output/$resolution/companion/$scene.png"
+}
+
 for requested in $sets; do
     case "$requested" in
         companion|reference) ;;
@@ -38,6 +89,67 @@ for requested in $media; do
         *) printf 'unknown preview media: %s\n' "$requested" >&2; exit 2 ;;
     esac
 done
+
+for resolution in $resolutions; do
+    if [[ ! "$resolution" =~ ^[1-9][0-9]*x[1-9][0-9]*$ ]]; then
+        printf 'invalid preview resolution: %s\n' "$resolution" >&2
+        exit 2
+    fi
+done
+
+case "$game" in
+    warframe) ;;
+    poe2)
+        poe_scenes=(evaluate evaluate-predicting evaluate-estimate evaluate-estimate-error evaluate-searching evaluate-fetching evaluate-results evaluate-listing-preview evaluate-empty evaluate-search-error evaluate-fetch-error evaluate-cooldown evaluate-gem-auto)
+        poe_companion_scenes=(evaluate evaluate-predicting evaluate-estimate evaluate-estimate-error evaluate-searching evaluate-results evaluate-listing-preview evaluate-empty evaluate-search-error)
+        for requested in $scenes; do
+            if [[ "$requested" != all ]] && ! contains_word "$requested" "${poe_scenes[@]}"; then
+                printf 'unknown PoE2 preview scene: %s\n' "$requested" >&2
+                exit 2
+            fi
+            if [[ "$requested" != all ]] && ! contains_word reference $sets && ! contains_word "$requested" "${poe_companion_scenes[@]}"; then
+                printf 'PoE2 preview scene requires PREVIEW_SETS=reference: %s\n' "$requested" >&2
+                exit 2
+            fi
+        done
+        if ! contains_word image $media; then
+            printf 'PoE2 Evaluate previews currently support images only.\n' >&2
+            exit 2
+        fi
+        for resolution in $resolutions; do
+            for scene in "${poe_scenes[@]}"; do
+                if [[ "$scenes" != all ]] && ! contains_word "$scene" $scenes; then
+                    continue
+                fi
+                state="${scene#evaluate-}"
+                [[ "$scene" != evaluate ]] || state=ready
+                native_label=""
+                reference_label=""
+                if contains_word companion $sets && contains_word "$scene" "${poe_companion_scenes[@]}"; then
+                    mkdir -p "$output/$resolution/companion"
+                    native_label="poe2/$resolution/companion/$scene"
+                    run_preview "$native_label" \
+                        "$root/dev/bin/poe2companion" preview --scale "${PREVIEW_SCALE:-1}" \
+                        --width "${resolution%x*}" --height "${resolution#*x}" --full-frame --state "$state" \
+                        --input "$root/apps/poe2companion/tests/fixtures/evaluate-reference.json" \
+                        --output "$output/$resolution/companion/$scene.png"
+                fi
+                if contains_word reference $sets; then
+                    reference_label="poe2/$resolution/reference/$scene"
+                    run_preview "$reference_label" \
+                        node "$reference" poe-overlay-ii evaluate --scale "${PREVIEW_SCALE:-1}" \
+                        --width "${resolution%x*}" --height "${resolution#*x}" --state "$state" \
+                        --output "$output/$resolution/reference/$scene"
+                fi
+                render_comparison "$resolution" "$scene" "$native_label" "$reference_label" \
+                    "$output/$resolution/reference/$scene.png"
+            done
+        done
+        finish_previews
+        exit 0
+        ;;
+    *) printf 'unknown preview game: %s\n' "$game" >&2; exit 2 ;;
+esac
 
 background_for() {
     local scene="$1"
@@ -59,7 +171,7 @@ render_companion() {
     local background
     background="$(background_for "$scene" "$resolution")"
     local args=(preview "$kind" "$scene")
-    if [[ -f "$background" ]]; then
+    if [[ -f "$background" && ( "$kind" == video || "$layout" == screen ) ]]; then
         args+=(--background "$background")
     fi
     if [[ "$kind" == "image" ]]; then
@@ -70,26 +182,37 @@ render_companion() {
     WFCOMPANION_PREVIEW_SIZE="$resolution" "$companion" "${args[@]}"
 }
 
+registered=()
+animated=()
+reference_scenes=(relic-rewards relic-suggestions relic-planner market-orders)
 if contains_word companion $sets; then
     mapfile -t registered < <("$companion" preview list)
     mapfile -t animated < <("$companion" preview list --animated)
+fi
+available=("${registered[@]}")
+if contains_word reference $sets; then
+    available+=("${reference_scenes[@]}")
+fi
+for requested in $scenes; do
+    if [[ "$requested" != "all" ]] && ! contains_word "$requested" "${available[@]}"; then
+        printf 'unknown Warframe preview scene: %s\n' "$requested" >&2
+        exit 2
+    fi
+done
+
+if contains_word companion $sets; then
     selected=()
     for scene in "${registered[@]}"; do
         if [[ "$scenes" == "all" ]] || contains_word "$scene" $scenes; then
             selected+=("$scene")
         fi
     done
-    for requested in $scenes; do
-        if [[ "$requested" != "all" ]] && ! contains_word "$requested" "${registered[@]}"; then
-            printf 'unknown preview scene: %s\n' "$requested" >&2
-            exit 2
-        fi
-    done
     for resolution in $resolutions; do
         for kind in $media; do
             for scene in "${selected[@]}"; do
                 if [[ "$kind" == "image" ]] || contains_word "$scene" "${animated[@]}"; then
-                    render_companion "$resolution" "$scene" "$kind"
+                    run_preview "warframe/$resolution/companion/$scene/$kind" \
+                        render_companion "$resolution" "$scene" "$kind"
                 fi
             done
         done
@@ -99,21 +222,42 @@ fi
 if contains_word reference $sets; then
     for resolution in $resolutions; do
         reference_output="$output/$resolution/reference"
-        if [[ "$media" == *image* ]] &&
-            { [[ "$scenes" == "all" ]] || contains_word relic-rewards $scenes; }; then
-            reference_output="$output/$resolution/reference"
-            ALECA_LAYOUT_SIZE="$resolution" ALECA_LAYOUT_OUTPUT_DIR="$reference_output" \
-                node "$root/tools/aleca-layout/index.mjs"
-        fi
-        if [[ "$scenes" == "all" ]] || contains_word relic-suggestions $scenes; then
-            ALECA_LAYOUT_SIZE="$resolution" ALECA_LAYOUT_OUTPUT_DIR="$reference_output" \
+        for scene in "${reference_scenes[@]}"; do
+            if [[ "$scenes" != all ]] && ! contains_word "$scene" $scenes; then
+                continue
+            fi
+            if [[ "$scene" != relic-suggestions ]] && ! contains_word image $media; then
+                continue
+            fi
+            run_preview "warframe/$resolution/reference/$scene" \
+                env ALECA_LAYOUT_SIZE="$resolution" ALECA_LAYOUT_OUTPUT_DIR="$reference_output" \
                 ALECA_LAYOUT_MEDIA="$media" \
-                node "$root/tools/aleca-layout/suggestions.mjs"
-        fi
-        if [[ "$media" == *image* ]] &&
-            { [[ "$scenes" == "all" ]] || contains_word relic-planner $scenes; }; then
-            ALECA_LAYOUT_SIZE="$resolution" ALECA_LAYOUT_OUTPUT_DIR="$reference_output" \
-                node "$root/tools/aleca-layout/planner.mjs"
-        fi
+                node "$reference" alecaframe "$scene"
+        done
     done
 fi
+
+if contains_word image $media; then
+    for resolution in $resolutions; do
+        compared=()
+        for scene in "${available[@]}"; do
+            contains_word "$scene" "${compared[@]}" && continue
+            compared+=("$scene")
+            if [[ "$scenes" != all ]] && ! contains_word "$scene" $scenes; then
+                continue
+            fi
+            native_label=""
+            reference_label=""
+            if contains_word companion $sets && contains_word "$scene" "${registered[@]}"; then
+                native_label="warframe/$resolution/companion/$scene/image"
+            fi
+            if contains_word reference $sets && contains_word "$scene" "${reference_scenes[@]}"; then
+                reference_label="warframe/$resolution/reference/$scene"
+            fi
+            render_comparison "$resolution" "$scene" "$native_label" "$reference_label" \
+                "$output/$resolution/reference/alecaframe-$scene.png"
+        done
+    done
+fi
+
+finish_previews

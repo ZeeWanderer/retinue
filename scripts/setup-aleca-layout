@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-node "$root/tools/aleca-layout/setup.mjs" "$@"
-npm --prefix "$root/tools/aleca-layout" ci
-npm --prefix "$root/tools/aleca-layout" exec -- playwright-core install chromium

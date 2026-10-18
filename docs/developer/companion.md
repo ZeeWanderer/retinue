@@ -34,17 +34,17 @@ Overlay state stays native. Canonical player state stays in the daemon.
 - `relic/lifecycle.rs`: context cancellation and bounded scene workers.
 - `relic/evidence.rs`: armed evidence, capture phases and terminal reports.
 - `work.rs`: caller-owned cooperative deadlines, cancellation and I/O budgets.
-- `focus.rs`: exact Warframe window and process gate.
+- `crates/retinue-overlay/src/focus.rs`: exact game window and process gate.
 - `overlay/runtime.rs`: layer shell, SHM buffers, frame callbacks, input, focus,
   and damage.
 - `overlay/renderer.rs`: fonts, static frame cache, dispatch, and previews.
 - `overlay/assets.rs`: background image preparation and decoded-image budget.
 - `overlay/scene.rs`: top-level scene and presentation state.
 - `overlay/screens/`: complete screen painting and hit regions.
-- `ui/layout.rs`: named Taffy tree and resolved geometry.
-- `ui/geometry.rs`: rectangles, hit regions, and render output.
-- `painter.rs`: text, image, and shape operations.
-- `painter/blend2d.rs`: safe synchronous boundary over the Blend2D C bridge.
+- `ui/geometry.rs`: game hit regions and render output.
+- `crates/retinue-overlay`: shared Taffy layout, geometry, painter and Blend2D
+  ownership; also portal shortcuts and the PoE2 layer-shell host. Screen models,
+  composition and actions belong to each companion.
 
 Observer work runs off the UI thread. New collectors publish a separate source
 namespace instead of extending one untyped payload.
@@ -63,7 +63,9 @@ retries so an old retained response cannot undo a newer accepted snapshot.
 Collector reports include sampling work, actual intervals, decode time, queue wait
 and overflow counters. They accompany existing reports rather than generating
 periodic player revisions. `wfcli companion status --json` exposes the full report.
-`wfcli companion diagnostics status` requests current counters without a player publication.
+`wfcli diagnostics status` requests current counters without a player publication.
+`wfcli doctor` summarizes live adapter evidence. Reporting rules are shared across
+games; see [Health evidence](health.md).
 
 Account seeds refresh once per second. The reader derives registry/profile fields
 and getter addresses from native code, validates live vtables, and selects the
@@ -162,11 +164,21 @@ for each draw call. Its asynchronous multithreaded context requires owned
 source lifetimes through `Painter::finish` and is not useful for the current
 cached workload.
 
+Text measurement, wrapping and painting share fractional glyph advances and
+kerning in `retinue-overlay::painter`. Round only final raster positions, never
+each character's advance; per-character rounding accumulates spacing errors.
+Use `text_width` and `wrap_text` for layout rather than a separate estimate.
+
 Passive mode has no pointer region. Interactive mode captures the surface;
 screen hit regions route actions. Hit rectangles use buffer pixels; convert
 Wayland surface-local pointer positions with the rendered frame's scale before
 testing them. Layer-shell margins remain zero so a persistent pointer position
 cannot fall into an uncapturable compositor gap.
+
+Both hosts apply `retinue_overlay::layer::OverlayLayerState` before remapping.
+Unmapping resets every layer-shell property, including the layer itself. Restore
+the complete role state, commit without a buffer, then wait for configure before
+drawing. Do not duplicate partial compositor setup in individual games.
 
 ## Relic Pipeline
 
@@ -238,7 +250,7 @@ mandatory `game: "warframe"`. PoE2 uses the same endpoint with `game: "poe2"` an
 `session` interface. The connection stays game-scoped. Envelope version covers framing and
 handshake. Exact Warframe interface
 versions cover `datasets`, `player`, `game_metadata`, `worldstate`, `notifications`, `market`,
-`overframe`, `relics`, `assets`, `builds`, `build_stats`, and `diagnostics` independently.
+`overframe`, `relics`, `assets`, `builds`, `build_stats`, `diagnostics`, and `checks` independently.
 Clients send only required interfaces and request optional features.
 
 Requests:
@@ -246,6 +258,7 @@ Requests:
 - `get`, `subscribe`, `unsubscribe`
 - `publish`
 - `market_resolve`
+- `market_quote`, `ducat_inventory` (local item identity, parent status and cached prices)
 - `relic_context`
 - `relic_planner`
 - `relic_recommendations`
@@ -357,11 +370,18 @@ reported by `reload.exec` and `reload.resumed` in the incident log. A rejected
 replacement resumes the old code; incompatible handoff changes require restarting
 the launch wrapper. Set `WFCOMPANION_DEV_RELOAD=0` to disable reload.
 
+`retinue-client` shares signal handling, child ownership, candidate validation and
+same-PID replacement across companions. Each game owns its idle gate and handoff
+state. PoE2 drains publication and retains unacknowledged/coalesced observations;
+ARC's launch stub retains only child ownership. Their development builds also
+reload by default, controlled by `POE2COMPANION_DEV_RELOAD` and
+`ARCCOMPANION_DEV_RELOAD` respectively.
+
 Production builds require a restart after staging. Replacing a running executable
 can invalidate KWin screenshot authorization until it restarts or reloads.
 
-Preview commands live in the [user companion guide](../companion.md#previews). AlecaFrame reference
-setup is documented beside the [`aleca-layout` tool](../../tools/aleca-layout/README.md).
+Preview commands live in the [user companion guide](../companion.md#previews).
+Provider reference adapters share the [`ui-reference` tool](../../tools/ui-reference/README.md).
 
 Upstream behavior and safety evidence:
 
