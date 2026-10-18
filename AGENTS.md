@@ -1,35 +1,30 @@
 # AGENTS
 
-Agent-only notes. User-facing docs start in `README.md` and continue in the linked
-guides under `docs/`.
-
 ## Workflow
-- Use `$caveman`. Preserve full technical meaning while removing token waste.
-  Keep code, exact errors, commit messages, and user-facing documentation in their
-  normal forms.
-- Save large tool outputs to files; return only targeted excerpts or summaries.
-  Select output before running commands instead of relying on truncation.
-- Keep tests in sync with expected outputs; CT suite lives under `apps/retinue_cli/test`.
-- Run tests after code, fixture, build, or behavior changes (at minimum
-  `./scripts/test-quiet ct`). Documentation-only edits do not require tests.
-- Run tests elevated, outside the Codex sandbox; socket and Erlang distribution
-  tests require host namespaces.
-- Use `./scripts/test-quiet eunit` for EUnit. It suppresses passing noise and keeps
-  a full `/tmp` log only on failure; use direct `rebar3` only when debugging.
-- Run `make dev-erlang` before testing `./wfclid`; run `make prod-erlang` before
-  testing `./wfcli`. Both commands refresh the escript and relx daemon release.
-- Run `make dev-companion` or `make prod-companion` after companion code, native
-  bridge, asset, or build metadata changes.
-- Follow the lockstep compatibility policy in `docs/developer/daemon.md`.
-- Review game integrations for update resilience. Discover build-dependent bindings;
-  do not hardcode per-build offsets as the production strategy. Validate layout
-  assumptions and test relocation, ambiguity and changed structures.
-- After tests pass, manually exercise updated CLI commands yourself (not just via tests).
-- Add new tests whenever new functionality is added; update fixtures alongside expected outputs.
-- Keep docs lean and standalone: current behavior/contracts, no conversation context or irrelevant
-  absences.
-- `rebar3 ct` emits a warning about `-compile(export_all)` in `apps/retinue_cli/test/wf_forma_plan_SUITE.erl`; tests still pass.
+- Be concise. Keep user-facing docs standalone.
+- Keep changes scoped; commit only when requested, with title-only messages.
+- Prefer clear code; comment only non-obvious reasoning.
+- Save large outputs to files. Inspect selected fields or bounded excerpts.
 
-## Reference
-- See `README.md` for the command overview and its linked user guides for detailed
-  usage, configuration, query, data-source, and daemon notes.
+## Architecture
+- Follow [project structure](docs/developer/structure.md). Share mechanisms, not game-specific policy.
+- Keep fetching, canonical data and domain computation in the daemon; presentation and input in clients.
+- Update affected apps and tests in lockstep; follow [compatibility policy](docs/developer/daemon.md#build-identity).
+
+## Build And Test
+- Use Make targets from [workflows](docs/developer/workflows.md). Rebuild the selected
+  dev/prod flavor before manual checks; do not edit staged files.
+- GUI configuration refreshes automatically. Do not default to `make clean` after toolchain updates.
+- Verify the running binary and reload completion. Preserve the user's running game and services.
+- Code, fixture and build changes require `./scripts/test-quiet ct` plus affected-layer tests.
+  Documentation-only edits need no tests. Add regression coverage; keep fixtures read-only.
+- Socket and Erlang distribution tests need host namespaces, not necessarily root.
+- Exercise changed CLI commands. Inspect UI details and scaling with [GUI captures](docs/gui.md)
+  and [overlay previews](tools/ui-reference/README.md).
+- Distinguish automated checks from live verification. Ask for the game when needed; report remaining gaps.
+
+## Game Integrations
+- Use validated anchors and bounded reads, not per-build offset tables.
+  Test relocation, ambiguity and structural changes.
+- Failed reads are not empty state. Use existing [health reporting](docs/developer/health.md);
+  untested adapters remain unverified, even when a fallback succeeds.
