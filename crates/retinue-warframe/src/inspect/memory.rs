@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::game_observer::adapter::{self, AdapterSupport};
 use crate::game_observer::identify_process;
@@ -271,6 +271,201 @@ pub fn ui_objects(
     })
 }
 
+#[derive(Serialize)]
+pub struct UiTreeReport {
+    pub source: SourceMetadata,
+    pub movies: Vec<MovieTree>,
+}
+
+#[derive(Serialize)]
+pub struct MovieTree {
+    pub movie: ui::Movie,
+    #[serde(flatten)]
+    pub tree: Probe<ui::DisplayTree>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct DisplayBindings {
+    schema: u8,
+    executable_sha256: String,
+    acquisition_consistent: bool,
+    display: adapter::ScaleformLayout,
+    geometry: ui::geometry::layout::Layout,
+}
+
+impl DisplayBindings {
+    fn validate(&self, hash: &str) -> Result<(), String> {
+        if self.schema != 1 || self.executable_sha256 != hash {
+            return Err("display bindings do not match capture identity".into());
+        }
+        self.display.validate()?;
+        self.geometry.validate()
+    }
+}
+
+pub fn ui_tree(
+    source: Source,
+    movie: &str,
+    limit: usize,
+    save: Option<&std::path::Path>,
+) -> Result<UiTreeReport, String> {
+    if movie.is_empty() || !(1..=10000).contains(&limit) {
+        return Err("supply a movie substring and node limit 1..10000".into());
+    }
+    let (mut source, mut bindings) = open_display(source)?;
+    if save.is_some() {
+        source.memory = source.memory.record_reads(32 * 1024 * 1024, 65536);
+    }
+    let captured_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let started = std::time::Instant::now();
+    let snapshot = ui::scan_registry_memory(&source.memory, bindings.display)
+        .map_err(|(stage, reason)| format!("{stage}: {reason}"))?
+        .snapshot;
+    let mut movies = Vec::new();
+    for found in snapshot
+        .movies
+        .iter()
+        .filter(|found| found.path.contains(movie))
+    {
+        movies.push(MovieTree {
+            movie: found.clone(),
+            tree: Probe::from_result(ui::geometry::read_tree(
+                &source.memory,
+                bindings.display,
+                &bindings.geometry,
+                found,
+                limit,
+            )),
+        });
+    }
+    if movies.is_empty() {
+        return Err(format!("no movie matched {movie:?}"));
+    }
+    for tree in &mut movies {
+        if let Probe::Available { value } = &mut tree.tree {
+            value.consistent &= bindings.acquisition_consistent;
+        }
+    }
+    bindings.acquisition_consistent = movies
+        .iter()
+        .all(|tree| matches!(&tree.tree, Probe::Available { value } if value.consistent));
+    let metadata = source.metadata.clone();
+    if let Some(directory) = save {
+        save_display(
+            source,
+            &bindings,
+            directory,
+            captured_at,
+            started.elapsed().as_millis(),
+        )?;
+    }
+    Ok(UiTreeReport {
+        source: metadata,
+        movies,
+    })
+}
+
+#[derive(Serialize)]
+pub struct UiDucatReport {
+    pub source: SourceMetadata,
+    pub state: Probe<ui::DucatState>,
+}
+
+pub fn ui_ducats(source: Source, save: Option<&std::path::Path>) -> Result<UiDucatReport, String> {
+    let (mut source, mut bindings) = open_display(source)?;
+    if save.is_some() {
+        source.memory = source.memory.record_reads(32 * 1024 * 1024, 65536);
+    }
+    let captured_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let started = std::time::Instant::now();
+    let result = if bindings.acquisition_consistent {
+        ui::ducats::Cache::default().read(&source.memory, bindings.display, &bindings.geometry)
+    } else {
+        Err("display capture was inconsistent at acquisition".into())
+    };
+    bindings.acquisition_consistent &= result.is_ok();
+    let metadata = source.metadata.clone();
+    if let Some(directory) = save {
+        save_display(
+            source,
+            &bindings,
+            directory,
+            captured_at,
+            started.elapsed().as_millis(),
+        )?;
+    }
+    Ok(UiDucatReport {
+        source: metadata,
+        state: Probe::from_result(result),
+    })
+}
+
+fn open_display(source: Source) -> Result<(OpenedSource, DisplayBindings), String> {
+    let source = OpenedSource::open(source)?;
+    let identity = source
+        .metadata
+        .identity
+        .as_ref()
+        .ok_or("display geometry needs an executable identity")?;
+    let recorded = source
+        .metadata
+        .capture
+        .as_ref()
+        .and_then(|capture| capture.report.parent())
+        .map(|directory| directory.join("display-bindings.json"))
+        .filter(|path| path.is_file());
+    let bindings = if let Some(path) = recorded {
+        if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 64 * 1024 {
+            return Err("display bindings file too large".into());
+        }
+        let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+        if bytes.len() > 64 * 1024 {
+            return Err("display bindings file too large".into());
+        }
+        let bindings: DisplayBindings =
+            serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        bindings.validate(&identity.executable.sha256)?;
+        bindings
+    } else {
+        let (display, geometry) = ui::geometry::bindings(identity)?;
+        DisplayBindings {
+            schema: 1,
+            executable_sha256: identity.executable.sha256.clone(),
+            acquisition_consistent: true,
+            display,
+            geometry,
+        }
+    };
+    Ok((source, bindings))
+}
+
+fn save_display(
+    source: OpenedSource,
+    bindings: &DisplayBindings,
+    directory: &std::path::Path,
+    captured_at: u128,
+    elapsed: u128,
+) -> Result<(), String> {
+    retinue_native::inspect::capture::write_recorded(
+        source.memory,
+        source.metadata,
+        directory,
+        captured_at,
+        elapsed,
+    )?;
+    std::fs::write(
+        directory.join("display-bindings.json"),
+        serde_json::to_vec_pretty(bindings).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
 pub fn ui_refs(
     source: Source,
     target_start: u64,
@@ -323,6 +518,37 @@ mod tests {
     use retinue_native::inspect::query::WalkOptions;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[test]
+    fn display_capture_bindings_reject_wrong_identity_and_unsafe_fields() {
+        let display = adapter::test_scaleform();
+        let mut bindings = DisplayBindings {
+            schema: 1,
+            executable_sha256: "test".into(),
+            acquisition_consistent: true,
+            display,
+            geometry: ui::geometry::layout::Layout {
+                matrix: 0x78,
+                parent_control: 0xb8,
+                parent: 0xc0,
+                name: 0xc8,
+                alpha: 0xf0,
+                flags: 0x127,
+                leaf_definitions: [(display.text_vtable_rva, 0x130)].into_iter().collect(),
+                definition_rects: [(0x8000, 0x50)].into_iter().collect(),
+            },
+        };
+        assert!(bindings.validate("test").is_ok());
+        assert!(bindings.validate("other").is_err());
+        bindings.geometry.matrix = usize::MAX;
+        assert!(bindings.validate("test").is_err());
+        bindings.geometry.matrix = 0x78;
+        bindings
+            .geometry
+            .leaf_definitions
+            .insert(0x1000, usize::MAX);
+        assert!(bindings.validate("test").is_err());
+    }
 
     fn capture() -> PathBuf {
         static NEXT: AtomicU64 = AtomicU64::new(0);

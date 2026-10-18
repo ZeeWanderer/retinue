@@ -64,6 +64,7 @@ pub(crate) fn run(
         core.observer = Some(observer::spawn(
             outbound.clone(),
             relic.clone(),
+            ui.clone(),
             requests,
             core.stopping.clone(),
             state.inventory.take(),

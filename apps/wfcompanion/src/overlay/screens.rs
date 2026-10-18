@@ -1,3 +1,4 @@
+pub(super) mod ducats;
 mod relic;
 mod status;
 
@@ -16,12 +17,14 @@ pub(super) use status::{
 
 pub(super) struct Assets {
     relic: relic::Assets,
+    pub(super) ducats: ducats::Assets,
 }
 
 impl Assets {
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             relic: relic::Assets::load()?,
+            ducats: ducats::Assets::load()?,
         })
     }
 

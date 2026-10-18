@@ -442,6 +442,8 @@ request(#{<<"op">> := MarketOperation} = Request, State)
        MarketOperation =:= <<"market_orders_visibility">> ->
     send_error(maps:get(socket, State), request_id(Request), invalid_market_order_request),
     {ok, State};
+request(#{<<"op">> := <<"ducat_inventory">>} = Request, State) ->
+    submit_market(request_id(Request), #{source => market, action => ducat_inventory}, State);
 request(#{<<"op">> := <<"relic_context">>,
                  <<"items">> := Items} = Request, State)
   when is_list(Items), length(Items) =< 8 ->

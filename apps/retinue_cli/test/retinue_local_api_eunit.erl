@@ -576,6 +576,7 @@ lifecycle(#{socket := SocketPath}) ->
     request_build_groups(TestSocket),
     request_market_resolve(TestSocket),
     request_market_describe(TestSocket),
+    request_ducat_inventory(TestSocket),
     reject_invalid_market_resolve(TestSocket),
     request_market_account(TestSocket),
     request_overframe_account(TestSocket),
@@ -1179,6 +1180,14 @@ request_market_describe(Socket) ->
     [ById, ByName] = maps:get(<<"items">>, maps:get(<<"data">>, Reply)),
     ?assertEqual(ById, ByName),
     ?assertEqual(<<"saryn">>, maps:get(<<"id">>, ById)).
+
+request_ducat_inventory(Socket) ->
+    ok = socket:send(Socket, retinue_local_protocol:encode(
+        #{<<"op">> => <<"ducat_inventory">>, <<"id">> => 217})),
+    Reply = receive_response(Socket, 217, <<>>),
+    ?assertEqual(true, maps:get(<<"ok">>, Reply)),
+    ?assertEqual(<<"market">>, maps:get(<<"dataset">>, Reply)),
+    ?assert(is_list(maps:get(<<"items">>, maps:get(<<"data">>, Reply)))).
 
 request_market_account(Socket) ->
     Request = #{<<"op">> => <<"market_account">>, <<"id">> => 18},

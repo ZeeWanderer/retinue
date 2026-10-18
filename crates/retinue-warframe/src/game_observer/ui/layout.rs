@@ -108,6 +108,15 @@ pub(crate) fn flash_instance_vtable(image: PeFile<'_>) -> Result<u64, String> {
     Ok(flash_binding(image)?.1.into())
 }
 
+pub(super) fn display_base(image: PeFile<'_>) -> Result<u32, String> {
+    let container = signature::<4>(image, "display container constructor", CONTAINER)?;
+    let text = signature::<4>(image, "display text constructor", TEXT)?;
+    if container[1] != text[1] {
+        return Err("display constructors do not share their base class".into());
+    }
+    Ok(text[1])
+}
+
 fn flash_binding(image: PeFile<'_>) -> Result<(u32, u32), String> {
     let flash = signature::<3>(image, "Flash instance registration", FLASH)?;
     executable::writable(image, flash[2].into(), 0x30)?;

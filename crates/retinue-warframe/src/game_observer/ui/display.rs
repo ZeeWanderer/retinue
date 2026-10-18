@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashSet};
 use std::time::Instant;
 
@@ -19,10 +20,10 @@ const MAX_REGISTERED_OBJECTS: usize = 65_536;
 const MAX_CHILDREN_PER_CONTAINER: usize = 16_384;
 const MAX_CHILD_OBJECTS: usize = 262_144;
 
-struct Vector {
-    address: u64,
-    objects: usize,
-    bytes: usize,
+pub(super) struct Vector {
+    pub address: u64,
+    pub objects: usize,
+    pub bytes: usize,
 }
 
 pub(super) fn scan_labels(
@@ -66,7 +67,8 @@ pub(super) fn scan_named_text(
     let mut values = Vec::new();
     let mut incomplete = false;
     let metrics = scan_text_objects(memory, layout, image, flash_object, |_, object, pointer| {
-        if !has_instance_name(object, instance_name) {
+        if instance_name_at(memory, object, TEXT_OBJECT_NAME_OFFSET).as_deref() != Ok(instance_name)
+        {
             return 0;
         }
         let Some(value) = pointer.and_then(|pointer| read_prefix(memory, pointer, max_text_bytes))
@@ -135,11 +137,8 @@ pub(crate) fn enumerate(
                 truncated = true;
                 return 0;
             }
-            let name = &object[TEXT_OBJECT_NAME_OFFSET..TEXT_OBJECT_INNER_OFFSET];
-            let name = &name[..name
-                .iter()
-                .position(|byte| *byte == 0)
-                .unwrap_or(name.len())];
+            let name =
+                instance_name_at(memory, object, TEXT_OBJECT_NAME_OFFSET).unwrap_or_default();
             let bytes = pointer.and_then(|pointer| read_prefix(memory, pointer, max_text_bytes));
             let end = bytes
                 .as_ref()
@@ -150,7 +149,7 @@ pub(crate) fn enumerate(
             let read = bytes.as_ref().map_or(0, Vec::len);
             objects.push(TextObject {
                 address,
-                name: String::from_utf8_lossy(name).into_owned(),
+                name: String::from_utf8_lossy(&name).into_owned(),
                 text_address: pointer.unwrap_or_default(),
                 text,
                 terminated: end.is_some(),
@@ -173,35 +172,7 @@ fn scan_text_objects(
     mut visit: impl FnMut(u64, &[u8], Option<u64>) -> usize,
 ) -> Result<DisplayScanMetrics, String> {
     let started = Instant::now();
-    let root_address = flash_object
-        .checked_add(FLASH_ROOT_OFFSET as u64)
-        .ok_or_else(|| "invalid Flash instance".to_owned())?;
-    let root = read_u64(memory, root_address, "movie root")?;
-    let root_header = read(memory, root, ROOT_OWNER_OFFSET + 8, "movie root")?;
-    require_vtables(
-        &root_header,
-        image + layout.root_vtable_rva,
-        image + layout.root_secondary_vtable_rva,
-        "movie root",
-    )?;
-    if u64_at(&root_header, ROOT_OWNER_OFFSET) != Some(flash_object) {
-        return Err("movie root owner mismatch".to_owned());
-    }
-
-    let root_vector = vector_at(
-        memory,
-        &root_header,
-        ROOT_OBJECT_VECTOR_OFFSET,
-        MAX_REGISTERED_OBJECTS,
-        "movie display registry",
-    )?;
-    let registered = read(
-        memory,
-        root_vector.address,
-        root_vector.bytes,
-        "movie display registry",
-    )?;
-    let mut bytes_read = root_header.len() + registered.len() + 8;
+    let (registered, mut bytes_read) = registered_objects(memory, layout, image, flash_object)?;
     let mut containers = 0;
     let mut child_count = 0_usize;
     let mut children = HashSet::new();
@@ -263,7 +234,7 @@ fn scan_text_objects(
     }
 
     Ok(DisplayScanMetrics {
-        registered_objects: root_vector.objects,
+        registered_objects: registered.len() / 8,
         containers,
         child_objects: children.len(),
         text_objects,
@@ -272,14 +243,69 @@ fn scan_text_objects(
     })
 }
 
-fn has_instance_name(object: &[u8], expected: &[u8]) -> bool {
-    let Some(name) = object.get(TEXT_OBJECT_NAME_OFFSET..TEXT_OBJECT_INNER_OFFSET) else {
-        return false;
-    };
-    name.get(..expected.len()) == Some(expected) && name.get(expected.len()) == Some(&0)
+pub(super) fn registered_objects(
+    memory: &ProcessMemory,
+    layout: ScaleformLayout,
+    image: u64,
+    flash_object: u64,
+) -> Result<(Vec<u8>, usize), String> {
+    let root_address = flash_object
+        .checked_add(FLASH_ROOT_OFFSET as u64)
+        .ok_or_else(|| "invalid Flash instance".to_owned())?;
+    let root = read_u64(memory, root_address, "movie root")?;
+    let root_header = read(memory, root, ROOT_OWNER_OFFSET + 8, "movie root")?;
+    require_vtables(
+        &root_header,
+        image + layout.root_vtable_rva,
+        image + layout.root_secondary_vtable_rva,
+        "movie root",
+    )?;
+    if u64_at(&root_header, ROOT_OWNER_OFFSET) != Some(flash_object) {
+        return Err("movie root owner mismatch".to_owned());
+    }
+
+    let root_vector = vector_at(
+        memory,
+        &root_header,
+        ROOT_OBJECT_VECTOR_OFFSET,
+        MAX_REGISTERED_OBJECTS,
+        "movie display registry",
+    )?;
+    let registered = read(
+        memory,
+        root_vector.address,
+        root_vector.bytes,
+        "movie display registry",
+    )?;
+    let bytes_read = root_header.len() + registered.len() + 8;
+    Ok((registered, bytes_read))
 }
 
-fn read_prefix(memory: &ProcessMemory, address: u64, limit: usize) -> Option<Vec<u8>> {
+pub(super) fn instance_name_at<'a>(
+    memory: &ProcessMemory,
+    object: &'a [u8],
+    offset: usize,
+) -> Result<Cow<'a, [u8]>, String> {
+    let name = object
+        .get(offset..offset + 16)
+        .ok_or("missing instance name")?;
+    if name[15] == 0xff {
+        let pointer = u64_at(name, 0).ok_or("missing instance name pointer")?;
+        let bytes = read_prefix(memory, pointer, 256).ok_or("unreadable instance name")?;
+        let end = bytes
+            .iter()
+            .position(|&b| b == 0)
+            .ok_or("unterminated instance name")?;
+        Ok(Cow::Owned(bytes[..end].to_vec()))
+    } else if name[15] <= 15 {
+        let end = name[..15].iter().position(|&b| b == 0).unwrap_or(15);
+        Ok(Cow::Borrowed(&name[..end]))
+    } else {
+        Err("invalid instance name storage".into())
+    }
+}
+
+pub(super) fn read_prefix(memory: &ProcessMemory, address: u64, limit: usize) -> Option<Vec<u8>> {
     let length = memory
         .regions()
         .iter()
@@ -305,7 +331,7 @@ fn vector_at(
     optional_vector_at(memory, owner, offset, max_objects).ok_or_else(|| format!("invalid {name}"))
 }
 
-fn optional_vector_at(
+pub(super) fn optional_vector_at(
     memory: &ProcessMemory,
     owner: &[u8],
     offset: usize,
@@ -340,7 +366,7 @@ fn require_vtables(bytes: &[u8], primary: u64, secondary: u64, name: &str) -> Re
         .ok_or_else(|| format!("invalid {name} type"))
 }
 
-fn has_vtables(bytes: &[u8], primary: u64, secondary: u64) -> bool {
+pub(super) fn has_vtables(bytes: &[u8], primary: u64, secondary: u64) -> bool {
     u64_at(bytes, 0) == Some(primary) && u64_at(bytes, 0x10) == Some(secondary)
 }
 
@@ -349,7 +375,7 @@ fn read_u64(memory: &ProcessMemory, address: u64, name: &str) -> Result<u64, Str
     Ok(u64::from_le_bytes(bytes.try_into().unwrap()))
 }
 
-fn read(
+pub(super) fn read(
     memory: &ProcessMemory,
     address: u64,
     length: usize,
@@ -365,7 +391,7 @@ fn read(
     Ok(bytes)
 }
 
-fn pointers(bytes: &[u8]) -> impl Iterator<Item = u64> + '_ {
+pub(super) fn pointers(bytes: &[u8]) -> impl Iterator<Item = u64> + '_ {
     bytes
         .chunks_exact(8)
         .map(|bytes| u64::from_le_bytes(bytes.try_into().unwrap()))
@@ -377,7 +403,7 @@ fn u32_at(bytes: &[u8], offset: usize) -> Option<u32> {
     ))
 }
 
-fn u64_at(bytes: &[u8], offset: usize) -> Option<u64> {
+pub(super) fn u64_at(bytes: &[u8], offset: usize) -> Option<u64> {
     Some(u64::from_le_bytes(
         bytes.get(offset..offset + 8)?.try_into().ok()?,
     ))
@@ -400,11 +426,21 @@ mod tests {
     #[test]
     fn matches_exact_inline_instance_name() {
         let mut object = [0_u8; TEXT_OBJECT_BYTES];
+        let memory = crate::game_observer::memory::from_test_bytes(&[], Vec::new());
         object[TEXT_OBJECT_NAME_OFFSET..TEXT_OBJECT_NAME_OFFSET + 8].copy_from_slice(b"ItemName");
-        assert!(has_instance_name(&object, b"ItemName"));
-        assert!(!has_instance_name(&object, b"Item"));
+        assert_eq!(
+            instance_name_at(&memory, &object, TEXT_OBJECT_NAME_OFFSET)
+                .unwrap()
+                .as_ref(),
+            b"ItemName"
+        );
         object[TEXT_OBJECT_NAME_OFFSET + 8] = b'X';
-        assert!(!has_instance_name(&object, b"ItemName"));
+        assert_eq!(
+            instance_name_at(&memory, &object, TEXT_OBJECT_NAME_OFFSET)
+                .unwrap()
+                .as_ref(),
+            b"ItemNameX"
+        );
     }
 
     #[test]

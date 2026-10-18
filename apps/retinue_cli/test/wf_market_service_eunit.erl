@@ -32,6 +32,7 @@ market_worker_snapshots_are_action_scoped_test() ->
     ?assertNot(maps:is_key(details, Quote)),
     ?assertNot(maps:is_key(relics, Quote)),
     ?assertNot(maps:is_key(unrelated, Quote)),
+    ?assertEqual(Quote, wf_market_service:worker_snapshot(#{action => ducat_inventory}, Snapshot)),
     Variant = wf_market_service:worker_snapshot(#{action => quote_variant},
                                                    Snapshot#{variant_quotes => #{}}),
     ?assert(maps:is_key(variant_quotes, Variant)),
@@ -111,6 +112,11 @@ exercise(#{cache := Cache, counters := Counters}) ->
     ?assertEqual(<<"saryn">>, maps:get(id, SarynById)),
     ?assertEqual([<<"missing">>], maps:get(missing, Described)),
 
+    {ok, Ducats} = request(#{action => ducat_inventory}),
+    ?assertEqual([], maps:get(<<"items">>, Ducats)),
+    ?assertEqual(1, count(Counters, items)),
+    ?assertEqual(0, count(Counters, quotes)),
+
     {ok, Catalog} = request(#{action => query, query_ast => match_all, limit => infinity}),
     ?assertEqual(23, maps:get(total, maps:get(results, Catalog))),
     [Saryn] = [Entry || Entry <- maps:get(slice, maps:get(results, Catalog)),
@@ -155,6 +161,7 @@ exercise(#{cache := Cache, counters := Counters}) ->
     ?assertEqual(<<"saryn_prime_set">>, maps:get(slug, NamedQuote)),
     ?assertEqual(<<"saryn">>, maps:get(id, maps:get(item_data, NamedQuote))),
     ?assertEqual(42, maps:get(lowest_sell, maps:get(quote, NamedQuote))),
+    ?assertEqual(null, maps:get(error, NamedQuote)),
 
     {ok, IdQuotes} = request(#{action => quote_items, items => [<<"saryn">>],
                                cache_only => true}),
@@ -198,6 +205,17 @@ exercise(#{cache := Cache, counters := Counters}) ->
     ?assertEqual(stale, maps:get(source, maps:get(quote, StaleAgainEntry))),
     ?assertEqual(QuoteCallsAfterFailure, count(Counters, quotes)),
 
+    application:set_env(retinue_daemon, market_http_fun, fun(_Url, _Headers) ->
+        {ok, 200, jsone:encode(#{<<"data">> => #{<<"sell">> => [], <<"buy">> => []}})}
+    end),
+    {ok, EmptyBook} = request(#{action => quote_items, items => [<<"prime_item_5">>], refresh => true}),
+    [EmptyRow] = maps:get(quotes, EmptyBook),
+    ?assertEqual(null, maps:get(error, EmptyRow)),
+    ?assertEqual(null, maps:get(lowest_sell, maps:get(quote, EmptyRow))),
+    {ok, EmptyCached} = request(#{action => quote_items, items => [<<"prime_item_5">>], cache_only => true}),
+    [EmptyCachedRow] = maps:get(quotes, EmptyCached),
+    ?assertEqual(null, maps:get(lowest_sell, maps:get(quote, EmptyCachedRow))),
+
     read_workers_are_bounded(),
 
     application:set_env(retinue_daemon, market_http_fun,
@@ -224,6 +242,9 @@ exercise(#{cache := Cache, counters := Counters}) ->
                                        cache_only => true}),
     ?assertEqual(1, length(maps:get(quotes, CachedDuringFetch))),
     ?assert(erlang:monotonic_time(millisecond) - CachedReadStarted < 500),
+    MetadataStarted = erlang:monotonic_time(millisecond),
+    {ok, _DucatsDuringFetch} = request(#{action => ducat_inventory}),
+    ?assert(erlang:monotonic_time(millisecond) - MetadataStarted < 500),
     exit(Client, kill),
     await_idle(50),
     ?assertMatch(#{external_activity := 0}, retinue_activity:status()),

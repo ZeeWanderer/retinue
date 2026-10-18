@@ -121,6 +121,7 @@ pub(crate) fn run(
         player: presentation::PlayerStatus::default(),
         connection_error: None,
         relic_scene: None,
+        ducat_scene: None,
         relic_context: None,
         suggestion_dismissed: false,
         last_loading_frame: Instant::now() - LOADING_FRAME_INTERVAL,
@@ -198,6 +199,11 @@ struct Overlay {
     player: presentation::PlayerStatus,
     connection_error: Option<String>,
     relic_scene: Option<(crate::relic::Scene, Option<Instant>, Instant)>,
+    ducat_scene: Option<(
+        crate::ducats::Scene,
+        Instant,
+        crate::runtime::session::Session,
+    )>,
     relic_context: Option<crate::relic::Context>,
     suggestion_dismissed: bool,
     last_loading_frame: Instant,
@@ -311,6 +317,16 @@ impl Overlay {
     fn tick(&mut self, queue_handle: &QueueHandle<Self>, events: &presentation::Receiver) {
         self.apply_events(events);
         self.expire_scene();
+        if self
+            .ducat_scene
+            .as_ref()
+            .is_some_and(|(_, expires, session)| {
+                Instant::now() >= *expires || !session.is_current()
+            })
+        {
+            self.ducat_scene = None;
+            self.request_full_redraw();
+        }
         if let Some(assets) = self.asset_loader.poll() {
             self.report_asset_issues(assets.issues.clone());
             self.renderer.install_scene_assets(assets);
@@ -374,6 +390,20 @@ impl Overlay {
                     self.hud.set_visible(visible);
                     incident::info("overlay.hud", format!("visible={visible}"));
                     self.request_full_redraw();
+                }
+                UiEvent::DucatScene {
+                    session,
+                    scene,
+                    expires,
+                } => {
+                    if !session.is_current() {
+                        continue;
+                    }
+                    let scene = scene.filter(|_| Instant::now() < expires);
+                    if self.ducat_scene.as_ref().map(|(scene, _, _)| scene) != scene.as_ref() {
+                        self.request_full_redraw();
+                    }
+                    self.ducat_scene = scene.map(|scene| (scene, expires, session));
                 }
                 UiEvent::RelicScene {
                     context,
@@ -612,7 +642,8 @@ impl Overlay {
     }
 
     fn sync_surface(&mut self, queue_handle: &QueueHandle<Self>) {
-        let scene_visible = self.overlay_enabled && self.relic_scene.is_some();
+        let scene_visible =
+            self.overlay_enabled && (self.relic_scene.is_some() || self.ducat_scene.is_some());
         let status_visible = self.overlay_enabled && self.hud.visible();
         let contextual = contextual_surface_required(
             self.overlay_enabled,
@@ -807,6 +838,13 @@ impl Overlay {
         };
         if !scene_visible {
             painter.clear();
+        }
+        if !scene_visible
+            && self.overlay_enabled
+            && self.warframe_active
+            && let Some((scene, _, _)) = &self.ducat_scene
+        {
+            self.renderer.draw_ducats(&mut painter, scene);
         }
         if animation_bounds.is_some()
             && let Some(elapsed) = loading_elapsed

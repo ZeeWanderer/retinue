@@ -51,6 +51,62 @@ pub(crate) use outbox::{Sender as OutboundSender, channel as outbound_channel};
 type ReplySender = std_mpsc::Sender<Result<Value, String>>;
 type PublicationKey = (&'static str, &'static str);
 
+pub(crate) struct PendingRequest {
+    receiver: std_mpsc::Receiver<Result<Value, String>>,
+    deadline: Instant,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl PendingRequest {
+    pub(crate) fn poll(&self) -> Option<Result<Value, String>> {
+        match self.receiver.try_recv() {
+            Ok(reply) => Some(reply),
+            Err(std_mpsc::TryRecvError::Disconnected) => {
+                Some(Err("daemon request cancelled".into()))
+            }
+            Err(std_mpsc::TryRecvError::Empty) if Instant::now() >= self.deadline => {
+                Some(Err("daemon request timed out".into()))
+            }
+            Err(std_mpsc::TryRecvError::Empty) => None,
+        }
+    }
+}
+
+impl Drop for PendingRequest {
+    fn drop(&mut self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+}
+
+fn begin_request(
+    outbound: &OutboundSender,
+    build: impl FnOnce(RequestReply) -> Outbound,
+) -> Result<PendingRequest, String> {
+    let (sender, receiver) = std_mpsc::channel();
+    let reply = RequestReply::new(sender);
+    let pending = PendingRequest {
+        receiver,
+        deadline: reply.deadline,
+        cancelled: reply.cancelled.clone(),
+    };
+    outbound.send(build(reply)).map_err(str::to_owned)?;
+    Ok(pending)
+}
+
+pub(crate) fn begin_market_quote(
+    outbound: &OutboundSender,
+    slug: String,
+) -> Result<PendingRequest, String> {
+    begin_request(outbound, |reply| Outbound::MarketQuote {
+        items: vec![slug],
+        reply,
+    })
+}
+
+pub(crate) fn begin_ducat_inventory(outbound: &OutboundSender) -> Result<PendingRequest, String> {
+    begin_request(outbound, |reply| Outbound::DucatInventory { reply })
+}
+
 pub(crate) struct Connection {
     outbound: OutboundSender,
     stopping: Arc<AtomicBool>,
@@ -118,7 +174,7 @@ impl RequestReply {
         }
     }
 
-    fn send(&self, result: Result<Value, String>) {
+    pub(crate) fn send(&self, result: Result<Value, String>) {
         let _ = self.sender.send(result);
     }
 }
@@ -156,6 +212,13 @@ enum ClientMessage<'a> {
         id: u64,
         labels: &'a [String],
         limit: u64,
+    },
+    DucatInventory {
+        id: u64,
+    },
+    MarketQuote {
+        id: u64,
+        items: &'a [String],
     },
     AssetResolve {
         id: u64,
@@ -195,6 +258,13 @@ pub(crate) enum Outbound {
     MarketResolve {
         labels: Vec<String>,
         limit: u64,
+        reply: RequestReply,
+    },
+    DucatInventory {
+        reply: RequestReply,
+    },
+    MarketQuote {
+        items: Vec<String>,
         reply: RequestReply,
     },
     AssetResolve {
@@ -856,6 +926,18 @@ fn encode_outbound(
             })
             .map(Some)
         }
+        Outbound::DucatInventory { reply } => {
+            if !register_pending(pending, id, reply) {
+                return Ok(None);
+            }
+            encode_message(&ClientMessage::DucatInventory { id }).map(Some)
+        }
+        Outbound::MarketQuote { items, reply } => {
+            if !register_pending(pending, id, reply) {
+                return Ok(None);
+            }
+            encode_message(&ClientMessage::MarketQuote { id, items: &items }).map(Some)
+        }
         Outbound::RelicContext { items, reply } => {
             if !register_pending(pending, id, reply) {
                 return Ok(None);
@@ -1283,6 +1365,32 @@ pub(crate) fn daemon_socket_path() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dropped_nonblocking_request_cancels_only_itself() {
+        let (outbound, mut receiver) = outbound_channel();
+        let pending = begin_ducat_inventory(&outbound).unwrap();
+        assert!(pending.poll().is_none());
+        let Outbound::DucatInventory { reply } = receiver.try_recv().unwrap() else {
+            panic!()
+        };
+        drop(pending);
+        assert_eq!(reply.failure(), Some("companion stopping"));
+        assert!(!outbound.cancellation().load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn nonblocking_request_delivers_reply_and_times_out() {
+        let (outbound, mut receiver) = outbound_channel();
+        let mut pending = begin_market_quote(&outbound, "item".into()).unwrap();
+        let Outbound::MarketQuote { reply, .. } = receiver.try_recv().unwrap() else {
+            panic!()
+        };
+        reply.send(Ok(serde_json::json!({"data": {"items": []}})));
+        assert!(pending.poll().unwrap().is_ok());
+        pending.deadline = Instant::now() - Duration::from_secs(1);
+        assert!(pending.poll().unwrap().is_err());
+    }
 
     #[tokio::test]
     async fn diagnostics_use_connection_scoped_replies_without_player_replay() {

@@ -30,6 +30,11 @@ pub(crate) enum Event {
     AssetRefreshed(relic::AssetRefresh),
     OverlayVisible(bool),
     HudVisible(bool),
+    DucatScene {
+        session: super::session::Session,
+        scene: Option<crate::ducats::Scene>,
+        expires: Instant,
+    },
     RelicScene {
         context: relic::Context,
         scene: relic::Scene,
@@ -78,6 +83,12 @@ impl Message for Event {
                 Self::Player(player) => player.phase.as_ref().map_or(0, String::capacity),
                 Self::AssetRefreshed(asset) => asset.bytes(),
                 Self::RelicScene { scene, .. } => scene.bytes(),
+                Self::DucatScene {
+                    scene: Some(scene), ..
+                } => {
+                    scene.hover.title.capacity()
+                        + scene.parent.as_ref().map_or(0, |p| p.name.capacity())
+                }
                 _ => 0,
             }
     }
@@ -101,6 +112,7 @@ impl Message for Event {
                 Self::Connected(_) | Self::Disconnected(_),
             )
             | (Self::Player(_), Self::Player(_)) => true,
+            (Self::DucatScene { .. }, Self::DucatScene { .. }) => true,
             (Self::AssetRefreshed(new), Self::AssetRefreshed(old)) => {
                 new.source == old.source && new.image_name == old.image_name
             }

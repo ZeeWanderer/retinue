@@ -63,6 +63,7 @@ impl Default for DebugCollector {
 pub(crate) fn spawn(
     outbound: OutboundSender,
     relic: crate::relic::Sender,
+    ui: crate::runtime::presentation::Sender,
     requests: diagnostics::Receiver,
     stopping: Arc<AtomicBool>,
     mut checkpoint: Option<crate::inventory::Checkpoint>,
@@ -77,6 +78,7 @@ pub(crate) fn spawn(
         let mut inventory_bridge: Option<InventoryBridge> = None;
         let mut metadata_bridge: Option<MetadataBridge> = None;
         let mut ui_discovery: Option<crate::runtime::Worker> = None;
+        let mut ducats: Option<crate::runtime::Worker> = None;
         let mut status = CollectorStatus::default();
         let mut health_revision = 0;
         let mut diagnostics = diagnostics::Watches::new(requests);
@@ -130,6 +132,7 @@ pub(crate) fn spawn(
                 if session_changed {
                     health_revision = 0;
                     debug = DebugCollector::default();
+                    drop(ducats.take());
                     drop(ui_discovery.take());
                     drop(inventory_bridge.take());
                     drop(metadata_bridge.take());
@@ -152,6 +155,15 @@ pub(crate) fn spawn(
                         match session.prepare_ui() {
                             Ok(worker) => ui_discovery = Some(worker),
                             Err(error) => incident::warn("observer.ui_bindings_unavailable", error),
+                        }
+                        match crate::ducats::spawn(
+                            session.clone(),
+                            outbound.clone(),
+                            ui.clone(),
+                            stopping.clone(),
+                        ) {
+                            Ok(worker) => ducats = Some(worker),
+                            Err(error) => incident::warn("observer.ducats_unavailable", error),
                         }
                     }
                 }
@@ -351,6 +363,7 @@ pub(crate) fn spawn(
         diagnostics.shutdown();
         // Release DBWIN before waiting for the memory collectors to finish.
         drop(debug);
+        drop(ducats.take());
         drop(ui_discovery.take());
         if let Some(bridge) = &mut inventory_bridge {
             bridge.stop();
@@ -669,7 +682,8 @@ mod tests {
         let (relic, _relic_receiver) = crate::relic::channel();
         let stopping = Arc::new(AtomicBool::new(true));
         let (_, requests) = diagnostics::channel();
-        spawn(outbound, relic, requests, stopping, None)
+        let (ui, _events) = crate::runtime::presentation::channel();
+        spawn(outbound, relic, ui, requests, stopping, None)
             .join()
             .unwrap();
     }

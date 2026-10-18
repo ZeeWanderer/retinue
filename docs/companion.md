@@ -47,8 +47,9 @@ Run the companion as a detached user process:
 ```bash
 wfcli companion start
 wfcli companion status
-wfcli companion diagnostics status
-wfcli companion diagnostics watch inventory --seconds 60
+wfcli doctor
+wfcli diagnostics status
+wfcli diagnostics watch inventory --seconds 60
 wfcli companion restart
 wfcli companion stop
 ```
@@ -83,19 +84,35 @@ fails. The daemon resolves items, player state, assets, reward tables, and batch
 Reward cards show platinum, ducats, vault and ownership state, set components, and set value.
 Selection cards rank owned relics using reward tables and current Market data.
 
+## Ducat Kiosk
+
+Hover a prime part to show its lowest platinum sell listing beside the native
+ducat value. Component tooltips also show owned, mastered and subsumed glyphs for
+the completed parent item, without waiting for prices. Prices warm in the background
+while the kiosk is open. Cached prices appear immediately, including older quotes,
+while stale prices refresh in the background.
+No listing means no platinum label; a failed request without a previous price shows
+`--`. Listings are asking prices, not guaranteed proceeds.
+
+The reader currently recognizes English kiosk titles and item names. Placement
+requires the game viewport to match the overlay output; mismatched window sizes
+hide the extra row. `wfcli doctor` reports kiosk, tooltip and pricing checks.
+
 ## Diagnostics
 
 ```bash
 wfcli companion status
-wfcli companion probe
-wfcli companion logs
+wfcli doctor
+wfcli diagnostics probe
+wfcli diagnostics incidents
+wfcli diagnostics logs
 wfcli companion paths
-wfcli companion screenshot ./capture.png
-wfcli companion capture arm relic-reward
-wfcli companion capture status
-wfcli companion capture cancel
-wfcli companion relic-ocr ./capture.png
-wfcli companion relic-ocr
+wfcli diagnostics screenshot ./capture.png
+wfcli diagnostics capture arm relic-reward
+wfcli diagnostics capture status
+wfcli diagnostics capture cancel
+wfcli diagnostics relic-ocr ./capture.png
+wfcli diagnostics relic-ocr
 ```
 
 `status` shows collector health, receipt times, capture errors and cached game metadata.
@@ -140,19 +157,27 @@ Incident logs use `$XDG_STATE_HOME/retinue/games/warframe/wfcompanion.log`, norm
 ## Previews
 
 ```bash
-wfcli companion preview list
-wfcli companion preview image relic-rewards
-wfcli companion preview video relic-suggestions
+wfcli diagnostics preview list
+wfcli diagnostics preview image relic-rewards
+wfcli diagnostics preview video relic-suggestions
 make previews
 ```
 
-`make previews` renders registered scenes at 1920x1080 and 2560x1440. Matching fixtures provide
-backgrounds; other outputs are transparent. Filter output with Make variables:
+`make previews` (also `make previews-all`) renders all supported games at 1920x1080 and 2560x1440.
+Use `make previews-wf` or `make previews-poe2` to select one game.
+Still previews are compact comparisons at
+`previews/<game>/<resolution>/side-by-side/<scene>.png`: original left, Retinue right,
+at their rendered pixel sizes. Comparisons require both providers to render the
+same scene successfully. Adjacent JSON records crop bounds; source renders and
+reference HTML remain under `companion/` and `reference/`, including unpaired scenes.
+Use `PREVIEW_LAYOUT=screen` for full-screen placement checks with fixture
+backgrounds. Videos remain full-screen. Filter output with Make variables:
 
 ```bash
 make previews PREVIEW_MEDIA=image
-make previews PREVIEW_SCENES='relic-rewards relic-suggestions'
+make previews-wf PREVIEW_SCENES='relic-rewards relic-suggestions'
 make previews PREVIEW_RESOLUTIONS=2560x1440
+make previews PREVIEW_LAYOUT=screen PREVIEW_MEDIA=image
 ```
 
 Direct previews can use real OCR and daemon data:
@@ -162,8 +187,9 @@ wfcompanion preview image relic-rewards --scan SCREENSHOT --background SCREENSHO
 wfcompanion preview image relic-suggestions --era all --background SCREENSHOT OUTPUT.png
 ```
 
-Animated previews require FFmpeg. AlecaFrame reference previews require
-[`make aleca-layout-setup`](../tools/aleca-layout/README.md).
+Comparisons use the reference tooling's Chromium installation. Animated previews
+require FFmpeg. Setup and PoE2 previews are documented
+in [`tools/ui-reference`](../tools/ui-reference/README.md).
 
 ## Player Dataset
 

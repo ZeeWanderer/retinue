@@ -56,6 +56,8 @@ pub fn inspect_executable(path: &Path) -> Result<serde_json::Value, String> {
         "inventory": discovery(super::inventory::layout::discover(&bytes)),
         "metadata": discovery(super::metadata::inspect_image(&bytes)),
         "scaleform": discovery(super::ui::layout::discover(&bytes)),
+        "scaleform_geometry": discovery(super::ui::layout::discover(&bytes)
+            .and_then(|layout| super::ui::geometry::layout::discover(&bytes, layout))),
         "scaleform_adapter": resolve(&hash).map(|adapter| adapter.id),
     }))
 }
@@ -127,7 +129,7 @@ pub(crate) fn layout_support(result: &Result<ScaleformLayout, String>) -> Adapte
 }
 
 impl ScaleformLayout {
-    fn validate(self) -> Result<(), String> {
+    pub(crate) fn validate(self) -> Result<(), String> {
         let values = [
             self.registry_vector_rva,
             self.flash_instance_type_rva,

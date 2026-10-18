@@ -2,6 +2,7 @@ mod assets;
 mod capture;
 mod daemon;
 mod desktop;
+mod ducats;
 mod external;
 mod game_metadata;
 mod incident;

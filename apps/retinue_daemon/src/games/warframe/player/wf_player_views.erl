@@ -4,7 +4,7 @@
 -module(wf_player_views).
 
 -export([foundry/0, inventory/0, mastery/0,
-         foundry/2, inventory/2, mastery/2, mastery/3]).
+         foundry/2, inventory/2, mastery/2, mastery/3, ducat_items/2]).
 
 -define(VIEW_CACHE, wf_player_view_cache).
 
@@ -72,6 +72,16 @@ inventory(Snapshot, Catalog) ->
         <<"items">> => Sorted,
         <<"summary">> => inventory_summary(Sorted)
     }}.
+
+-spec ducat_items(map(), map()) -> [map()].
+ducat_items(Snapshot, CatalogIndex) ->
+    Player = wf_player_projection:build(Snapshot),
+    Stacks = aggregate(maps:get(<<"stacks">>, Player, [])),
+    [#{<<"item_type">> => Unique, <<"name">> => element(1, item_name(Unique, Entry, Item)),
+       <<"ducats">> => Ducats}
+     || {Unique, Entry} <- maps:to_list(Stacks), maps:get(count, Entry, 0) > 0,
+        Item <- [maps:get(Unique, CatalogIndex, #{})],
+        Ducats <- [number(maps:get(<<"primeSellingPrice">>, Item, 0))], Ducats > 0].
 
 -doc "Build mastery planner view from supplied data; exposed for deterministic tests.".
 -spec mastery(map(), [map()]) -> {ok, map()}.

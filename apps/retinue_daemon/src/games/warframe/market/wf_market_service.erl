@@ -187,7 +187,8 @@ code_change(_OldVsn, State, _Extra) ->
                 persist_timer => maps:get(persist_timer, State, undefined)}}.
 
 immediate_request(#{action := Action}, Snapshot)
-  when Action =:= query; Action =:= resolve_labels; Action =:= describe_items ->
+  when Action =:= query; Action =:= resolve_labels; Action =:= describe_items;
+       Action =:= ducat_inventory ->
     maps:get(items, Snapshot, []) =/= [];
 immediate_request(#{action := quote_items, cache_only := true}, Snapshot) ->
     maps:get(items, Snapshot, []) =/= [];
@@ -260,6 +261,10 @@ execute_read(#{action := quote_items, items := Items, cache_only := true} = Requ
              Snapshot) ->
     {Reply, _Snapshot, _Next} = quote_items_cached(Items, Request, Snapshot, 0),
     Reply;
+execute_read(#{action := ducat_inventory}, Snapshot) ->
+    {ok, wf_ducat_inventory:build(player_snapshot(), item_catalog(),
+                                maps:get(items, Snapshot, []),
+                                maps:get(quotes, Snapshot, #{}))};
 execute_read(#{action := relic_recommendations, era := Era} = Request, Snapshot) ->
     Reply = wf_relic_recommendations:build(
               Era, maps:get(relics, Snapshot, #{}), maps:get(items, Snapshot, []),
@@ -305,6 +310,8 @@ execute_action(#{action := resolve_labels} = Request, _SubmittedAt, Snapshot, Ne
     resolve_labels(Request, Snapshot, Next);
 execute_action(#{action := describe_items} = Request, _SubmittedAt, Snapshot, Next) ->
     describe_items(Request, Snapshot, Next);
+execute_action(#{action := ducat_inventory} = Request, _SubmittedAt, Snapshot, Next) ->
+    {execute_read(Request, Snapshot), Snapshot, Next};
 execute_action(#{action := relic_context} = Request, SubmittedAt, Snapshot, Next) ->
     relic_context(Request, SubmittedAt, Snapshot, Next);
 execute_action(#{action := relic_recommendations} = Request, SubmittedAt, Snapshot, Next) ->
@@ -386,7 +393,7 @@ fetch_variant_quote(Item, Slug, Filters, Key, Cached, Snapshot, Next) ->
     end.
 
 variant_reply(Item, Slug, Filters, Quote) ->
-    {ok, #{item => Item, slug => Slug, quote => Quote, filters => Filters}}.
+    {ok, #{item => Item, slug => Slug, quote => wire_quote(Quote), filters => Filters}}.
 
 relic_context(Request, SubmittedAt, Snapshot0, Next0) ->
     Slugs = maps:get(items, Request, undefined),
@@ -555,8 +562,8 @@ quote_items(Items, Request, SubmittedAt, Snapshot0, Next0) ->
                             maps:get(items, Snapshot, [])),
             Rows = [#{item => Item, slug => Slug,
                       item_data => maps:get(Slug, Descriptors, undefined),
-                      quote => maps:get(Slug, Quotes, undefined),
-                      error => maps:get(Slug, Errors, undefined)}
+                      quote => wire_quote(maps:get(Slug, Quotes, undefined)),
+                      error => maps:get(Slug, Errors, null)}
                     || {Item, Slug} <- Resolved],
             Reply = #{context => wf_market_api:context(), quotes => Rows, missing => Missing},
             {{ok, Reply}, Snapshot, Next}
@@ -580,7 +587,7 @@ quote_items_cached(Items, _Request, Snapshot, Next) ->
                                  {true, #{item => Item, slug => Slug,
                                           item_data => maps:get(
                                                          Slug, Descriptors, undefined),
-                                          quote => Quote}};
+                                          quote => wire_quote(Quote)}};
                              error -> false
                          end
                      end,
@@ -589,6 +596,10 @@ quote_items_cached(Items, _Request, Snapshot, Next) ->
                       missing => Missing},
             {{ok, Reply}, Snapshot, Next}
     end.
+
+wire_quote(undefined) -> null;
+wire_quote(Quote) ->
+    maps:map(fun(_Key, undefined) -> null; (_Key, Value) -> Value end, Quote).
 
 resolve_items(Values, Items) ->
     ById = maps:from_list([{string:lowercase(retinue_text:to_list(
@@ -793,6 +804,7 @@ worker_snapshot(Request, Snapshot) ->
         quote_items -> [quotes];
         quote_variant -> [variant_quotes];
         describe_items -> [];
+        ducat_inventory -> [quotes];
         relic_context -> [quotes, details | relic_keys()];
         relic_recommendations -> [quotes | relic_keys()];
         _ -> []

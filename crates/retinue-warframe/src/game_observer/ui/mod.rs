@@ -10,6 +10,10 @@ use super::memory::ProcessMemory;
 use super::{ProcessIdentity, identify_process};
 
 mod display;
+pub(crate) mod ducats;
+pub use ducats::{DucatHover, DucatReader, DucatState};
+pub(crate) mod geometry;
+pub use geometry::{DisplayNode, DisplayReader, DisplayTree};
 pub(crate) mod layout;
 pub(crate) use display::enumerate as enumerate_text_objects;
 pub use display::{ObjectReport, TextObject};

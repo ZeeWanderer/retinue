@@ -24,6 +24,21 @@ struct Preview {
 
 const PREVIEWS: &[Preview] = &[
     Preview {
+        name: "ducat-tooltip-loading",
+        render: crate::overlay::save_ducat_loading_preview,
+        animation: None,
+    },
+    Preview {
+        name: "ducat-tooltip-unlisted",
+        render: crate::overlay::save_ducat_unlisted_preview,
+        animation: None,
+    },
+    Preview {
+        name: "ducat-tooltip",
+        render: crate::overlay::save_ducat_preview,
+        animation: None,
+    },
+    Preview {
         name: "relic-loading",
         render: crate::overlay::save_relic_loading_preview,
         animation: Some(Animation {
@@ -388,6 +403,9 @@ mod tests {
         assert_eq!(
             names(false).collect::<Vec<_>>(),
             [
+                "ducat-tooltip-loading",
+                "ducat-tooltip-unlisted",
+                "ducat-tooltip",
                 "relic-loading",
                 "relic-rewards",
                 "relic-suggestions",

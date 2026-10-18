@@ -194,6 +194,8 @@ impl Outbound {
     pub(super) fn reply(&self) -> Option<&RequestReply> {
         match self {
             Self::DatasetGet { reply, .. }
+            | Self::DucatInventory { reply }
+            | Self::MarketQuote { reply, .. }
             | Self::MarketResolve { reply, .. }
             | Self::AssetResolve { reply, .. }
             | Self::RelicContext { reply, .. }
@@ -213,12 +215,13 @@ pub(super) fn memory_cost(message: &Outbound) -> usize {
                     + issues.iter().map(value_bytes).sum::<usize>()
             }
             Outbound::MarketResolve { labels, .. }
+            | Outbound::MarketQuote { items: labels, .. }
             | Outbound::RelicContext { items: labels, .. } => {
                 labels.capacity() * size_of::<String>()
                     + labels.iter().map(String::capacity).sum::<usize>()
             }
             Outbound::RelicRecommendations { era, .. } => era.capacity(),
-            Outbound::DatasetGet { .. } => 0,
+            Outbound::DatasetGet { .. } | Outbound::DucatInventory { .. } => 0,
         }
 }
 

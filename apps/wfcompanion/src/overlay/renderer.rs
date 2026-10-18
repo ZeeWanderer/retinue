@@ -92,6 +92,48 @@ impl Renderer {
     pub(super) fn draw_status(&self, painter: &mut Painter<'_>, view: screens::StatusView<'_>) {
         screens::draw_status(painter, &self.font, view);
     }
+
+    pub(super) fn draw_ducats(&self, painter: &mut Painter<'_>, scene: &crate::ducats::Scene) {
+        screens::ducats::draw(painter, &self.font, &self.assets.ducats, scene);
+    }
+}
+
+pub(crate) fn save_ducat_preview(dimensions: (u32, u32), path: &Path) -> Result<(), String> {
+    save_ducat_scene(dimensions, &screens::ducats::fixture(dimensions), path)
+}
+
+pub(crate) fn save_ducat_loading_preview(
+    dimensions: (u32, u32),
+    path: &Path,
+) -> Result<(), String> {
+    let mut scene = screens::ducats::fixture(dimensions);
+    scene.quote = None;
+    save_ducat_scene(dimensions, &scene, path)
+}
+
+pub(crate) fn save_ducat_unlisted_preview(
+    dimensions: (u32, u32),
+    path: &Path,
+) -> Result<(), String> {
+    let mut scene = screens::ducats::fixture(dimensions);
+    scene.quote = None;
+    scene.listed = false;
+    save_ducat_scene(dimensions, &scene, path)
+}
+
+fn save_ducat_scene(
+    dimensions: (u32, u32),
+    scene: &crate::ducats::Scene,
+    path: &Path,
+) -> Result<(), String> {
+    let (width, height) = dimensions;
+    let mut pixels = vec![0; (width * height * 4) as usize];
+    let renderer = Renderer::load().map_err(|e| e.to_string())?;
+    let mut painter = Painter::new(&mut pixels, width, height).map_err(|e| e.to_string())?;
+    painter.clear();
+    renderer.draw_ducats(&mut painter, scene);
+    painter.finish().map_err(|e| e.to_string())?;
+    save_preview_image(straight_rgba(&pixels, width, height)?, path)
 }
 
 pub(crate) fn save_relic_preview(dimensions: (u32, u32), path: &Path) -> Result<(), String> {
