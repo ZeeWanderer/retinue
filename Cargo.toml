@@ -7,6 +7,7 @@ members = [
     "apps/wfcompanion",
     "crates/retinue-client",
     "crates/retinue-native",
+    "crates/retinue-overlay",
     "crates/retinue-warframe",
 ]
 exclude = [".cache"]

@@ -7,8 +7,8 @@ use super::assets::SceneAssets;
 use fontdue::Font;
 
 use super::scene::Scene;
-use crate::painter::Painter;
 use crate::ui::ScreenOutput;
+use retinue_overlay::painter::Painter;
 
 pub(super) use status::{
     HEIGHT as STATUS_HEIGHT, INSET as STATUS_INSET, View as StatusView, WIDTH as STATUS_WIDTH,

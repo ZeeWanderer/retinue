@@ -5,8 +5,8 @@ use std::thread;
 
 use serde_json::{Value, json};
 
-use crate::painter::{RasterImage, load_scene_icon};
 use crate::relic::{AssetRefresh, Scene};
+use retinue_overlay::painter::{RasterImage, load_scene_icon};
 
 const DECODED_BUDGET: usize = 64 * 1024 * 1024;
 const IMAGE_BUDGET: usize = 16 * 1024 * 1024;

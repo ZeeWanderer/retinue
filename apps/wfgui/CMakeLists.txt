@@ -140,8 +140,6 @@ set(WFGUI_RESOURCES
     resources/ui/favorite_active.png
     resources/ui/filter.png
     resources/ui/fissure.png
-    resources/ui/helminth.png
-    resources/ui/mastered.png
     resources/ui/mastery_easy.png
     resources/ui/mastery_rank.png
     resources/ui/mastery_relics.png
@@ -153,7 +151,6 @@ set(WFGUI_RESOURCES
     resources/ui/nav_builds.png
     resources/ui/normal.png
     resources/ui/notification.png
-    resources/ui/owned.png
     resources/ui/panel-left.png
     resources/ui/panel-right.png
     resources/ui/pending.png
@@ -232,13 +229,27 @@ set(WFGUI_RESOURCES
     resources/styles/foundation.qss
     resources/styles/market.qss
 )
+foreach(icon helminth mastered owned)
+  set(source "${PROJECT_SOURCE_DIR}/assets/warframe/ui/${icon}.png")
+  set_source_files_properties("${source}" PROPERTIES QT_RESOURCE_ALIAS "resources/ui/${icon}.png")
+  list(APPEND WFGUI_RESOURCES "${source}")
+endforeach()
 qt_add_resources(wfgui "wfgui_resources" PREFIX "/" FILES ${WFGUI_RESOURCES})
 
+set(WFGUI_FONT_DIR "${PROJECT_SOURCE_DIR}/assets/fonts/roboto")
+set(WFGUI_FONTS
+    "${WFGUI_FONT_DIR}/Roboto-Bold.ttf"
+    "${WFGUI_FONT_DIR}/Roboto-Light.ttf"
+    "${WFGUI_FONT_DIR}/Roboto-Medium.ttf"
+    "${WFGUI_FONT_DIR}/Roboto-Regular.ttf"
+)
+qt_add_resources(wfgui "wfgui_fonts"
+  PREFIX "/assets"
+  BASE "${WFGUI_FONT_DIR}"
+  FILES ${WFGUI_FONTS}
+)
+
 set(WFGUI_SHARED_ASSETS
-    ../wfcompanion/assets/Roboto-Bold.ttf
-    ../wfcompanion/assets/Roboto-Light.ttf
-    ../wfcompanion/assets/Roboto-Medium.ttf
-    ../wfcompanion/assets/Roboto-Regular.ttf
     ../wfcompanion/assets/ducats.png
     ../wfcompanion/assets/forma.png
     ../wfcompanion/assets/platinum.png
@@ -289,6 +300,7 @@ target_link_libraries(wfgui_icon_optics PRIVATE Qt6::Gui)
 install(TARGETS wfgui RUNTIME DESTINATION bin)
 install(FILES resources/qt.conf DESTINATION bin)
 install(FILES resources/Lucide-LICENSE.txt DESTINATION share/licenses/wfgui)
+install(FILES "${WFGUI_FONT_DIR}/Roboto-LICENSE.txt" DESTINATION share/licenses/fonts)
 string(REGEX MATCH "^[0-9]+" llvm_major "${CMAKE_CXX_COMPILER_VERSION}")
 find_file(WFCLI_LLVM_LICENSE_FILE NAMES LICENSE.TXT copyright
   PATHS "${WFCLI_LLVM_ROOT}"
@@ -467,6 +479,11 @@ if(BUILD_TESTING)
     PREFIX "/assets"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/../wfcompanion/assets"
     FILES ${WFGUI_SHARED_ASSETS}
+  )
+  qt_add_resources(wfgui_build_groups_widget_tests "wfgui_build_groups_fonts"
+    PREFIX "/assets"
+    BASE "${WFGUI_FONT_DIR}"
+    FILES ${WFGUI_FONTS}
   )
   target_link_libraries(wfgui_build_groups_widget_tests PRIVATE
     Qt6::Test

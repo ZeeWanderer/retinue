@@ -1,8 +1,8 @@
 [submodule "apps/wfcompanion/vendor/blend2d"]
-	path = apps/wfcompanion/vendor/blend2d
+	path = crates/retinue-overlay/vendor/blend2d
 	url = https://github.com/blend2d/blend2d.git
 [submodule "apps/wfcompanion/vendor/asmjit"]
-	path = apps/wfcompanion/vendor/asmjit
+	path = crates/retinue-overlay/vendor/asmjit
 	url = https://github.com/asmjit/asmjit.git
 [submodule "tools/wf-luau-decompiler"]
 	path = tools/wf-luau-decompiler

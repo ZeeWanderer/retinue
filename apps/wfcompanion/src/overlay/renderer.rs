@@ -4,8 +4,8 @@ use std::time::Duration;
 use fontdue::Font;
 use image::ImageFormat;
 
-use crate::painter::{Painter, load_overlay_font, straight_rgba};
 use crate::ui::ScreenOutput;
+use retinue_overlay::painter::{Painter, load_overlay_font, straight_rgba};
 
 use super::scene::{RelicView, Scene};
 use super::screens::{self, Assets, mock_relic_scene};

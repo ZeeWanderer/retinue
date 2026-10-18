@@ -3,10 +3,10 @@ use std::time::Duration;
 use fontdue::Font;
 
 use super::{Resources, View};
-use crate::painter::{
+use crate::ui::Rect;
+use retinue_overlay::painter::{
     Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
 };
-use crate::ui::Rect;
 
 mod layout;
 

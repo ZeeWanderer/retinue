@@ -316,7 +316,7 @@ fn run_tesseract(image: GrayImage, context: Option<&Context>) -> Result<String, 
     );
     let mut command = Command::new(tesseract);
     command.arg(&path).args(TESSERACT_ARGUMENTS);
-    let output = crate::runtime::process::output(command, Duration::from_secs(10), || {
+    let output = retinue_client::process::output(command, Duration::from_secs(10), || {
         context.is_none_or(Context::is_current)
     })
     .map_err(|error| format!("could not run tesseract: {error}"));

@@ -1,10 +1,10 @@
 use fontdue::Font;
 
 use super::{Resources, View};
-use crate::painter::{
+use crate::ui::{HitRegion, HitTarget, ScreenOutput};
+use retinue_overlay::painter::{
     Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
 };
-use crate::ui::{HitRegion, HitTarget, ScreenOutput};
 
 mod layout;
 

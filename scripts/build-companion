@@ -33,6 +33,7 @@ case "$mode" in
 esac
 
 rustflags="${RUSTFLAGS:-}"
+export WFCLI_CPU_BASELINE="$cpu_baseline"
 if [[ -n "$cpu_baseline" ]]; then
     rustflags="${rustflags:+$rustflags }-Ctarget-cpu=$cpu_baseline -Clink-arg=-march=$cpu_baseline"
 fi
@@ -67,6 +68,10 @@ source "$root/scripts/lib/staging.sh"
 stage_begin "$root/$mode"
 mkdir -p "$stage/bin" "$stage/libexec"
 mkdir -p "$stage/share/licenses/wfcompanion" "$stage/share/licenses/wf-luau-decompiler"
+mkdir -p "$stage/share/licenses/poe2companion" "$stage/share/licenses/fonts"
+install -m 0644 "$root/apps/poe2companion/assets/"*-OFL.txt "$stage/share/licenses/poe2companion/"
+install -m 0644 "$root/apps/poe2companion/assets/Fontin-NOTICE.txt" "$stage/share/licenses/poe2companion/"
+install -m 0644 "$root/assets/fonts/roboto/Roboto-LICENSE.txt" "$stage/share/licenses/fonts/"
 install -m 0755 "$debug_bridge" "$stage/libexec/wfcompanion-debug-output.exe"
 install -m 0755 "$target_dir/oozextract/$cargo_profile/unoodle" "$stage/libexec/unoodle"
 rm -rf "$stage/share/licenses/oozextract"

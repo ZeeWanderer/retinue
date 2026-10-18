@@ -133,7 +133,7 @@ pub(crate) fn spawn(
     daemon: OutboundSender,
     ui: crate::runtime::presentation::Sender,
     stopping: Arc<AtomicBool>,
-    reload: crate::runtime::reload::Gate,
+    reload: retinue_client::reload::Gate,
 ) -> thread::JoinHandle<()> {
     spawn_with_worker(triggers, sender, daemon, ui, stopping, reload, run_job)
 }
@@ -144,7 +144,7 @@ fn spawn_with_worker(
     daemon: OutboundSender,
     ui: crate::runtime::presentation::Sender,
     stopping: Arc<AtomicBool>,
-    reload: crate::runtime::reload::Gate,
+    reload: retinue_client::reload::Gate,
     work: impl Fn(Job, &OutboundSender, &crate::runtime::presentation::Sender) -> (Option<String>, bool)
     + Send
     + Sync
@@ -473,7 +473,7 @@ mod tests {
         let (ui, _) = crate::runtime::presentation::channel();
         let (daemon, mut publications) = crate::daemon::outbound_channel();
         let stopping = Arc::new(AtomicBool::new(false));
-        let gate = crate::runtime::reload::Gate::default();
+        let gate = retinue_client::reload::Gate::default();
         let worker = spawn_with_worker(
             receiver,
             triggers.clone(),

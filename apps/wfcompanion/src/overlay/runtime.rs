@@ -22,7 +22,7 @@ use smithay_client_toolkit::seat::pointer::{
 use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::{
-    Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
+    KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
     LayerSurfaceConfigure,
 };
 use smithay_client_toolkit::shm::slot::{Buffer, SlotPool};
@@ -35,11 +35,12 @@ use super::renderer::{FrameKey, LOADING_FRAME_INTERVAL, Renderer};
 use super::scene::Presentation;
 use super::screens::{STATUS_HEIGHT, STATUS_INSET, STATUS_WIDTH, StatusView};
 use crate::UiEvent;
-use crate::focus::FocusDetector;
 use crate::incident;
-use crate::painter::Painter;
 use crate::runtime::presentation;
 use crate::ui::{HitTarget, Rect};
+use retinue_overlay::focus::FocusDetector;
+use retinue_overlay::layer::OverlayLayerState;
+use retinue_overlay::painter::Painter;
 
 const STATUS_SURFACE_WIDTH: u32 = STATUS_WIDTH + STATUS_INSET;
 const STATUS_SURFACE_HEIGHT: u32 = STATUS_HEIGHT + STATUS_INSET;
@@ -54,7 +55,7 @@ pub(crate) fn run(
     daemon: crate::daemon::OutboundSender,
     shortcut: crate::shortcut::Controller,
     stopping: Arc<AtomicBool>,
-    reload: crate::runtime::reload::Gate,
+    reload: retinue_client::reload::Gate,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let connection = Connection::connect_to_env()?;
     let (globals, event_queue) = registry_queue_init(&connection)?;
@@ -134,7 +135,7 @@ pub(crate) fn run(
         daemon,
         shortcut,
         stopping,
-        focus: FocusDetector::connect().ok(),
+        focus: FocusDetector::connect("steam_app_230410").ok(),
         last_focus_check: Instant::now() - FOCUS_INTERVAL,
         loop_signal,
     };
@@ -202,7 +203,7 @@ struct Overlay {
     last_loading_frame: Instant,
     frame_pending: bool,
     interaction_active: bool,
-    reload: crate::runtime::reload::Gate,
+    reload: retinue_client::reload::Gate,
     shortcut_scope: bool,
     pending_asset_refreshes: super::assets::PendingRefreshes,
     reported_asset_issues: Option<Vec<Value>>,
@@ -507,7 +508,7 @@ impl Overlay {
         let active = self
             .focus
             .as_ref()
-            .is_some_and(|focus| focus.warframe_is_active(self.warframe_pid));
+            .is_some_and(|focus| focus.is_active(self.warframe_pid));
         if active != self.warframe_active {
             self.warframe_active = active;
             incident::info("overlay.focus", format!("warframe_active={active}"));
@@ -932,19 +933,12 @@ fn needs_remap_configure(should_draw: bool, configure_pending: bool) -> bool {
 }
 
 fn apply_layer_state(layer: &LayerSurface, contextual: bool) {
-    layer.set_layer(Layer::Overlay);
-    layer.set_anchor(if contextual {
-        Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT
+    let state = if contextual {
+        OverlayLayerState::full_output(KeyboardInteractivity::None)
     } else {
-        Anchor::TOP | Anchor::LEFT
-    });
-    layer.set_keyboard_interactivity(KeyboardInteractivity::None);
-    layer.set_exclusive_zone(if contextual { -1 } else { 0 });
-    layer.set_margin(0, 0, 0, 0);
-    layer.set_size(
-        if contextual { 0 } else { STATUS_SURFACE_WIDTH },
-        if contextual { 0 } else { STATUS_SURFACE_HEIGHT },
-    );
+        OverlayLayerState::top_left((STATUS_SURFACE_WIDTH, STATUS_SURFACE_HEIGHT))
+    };
+    state.apply(layer);
 }
 
 impl CompositorHandler for Overlay {

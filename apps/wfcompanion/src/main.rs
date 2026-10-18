@@ -3,13 +3,11 @@ mod capture;
 mod daemon;
 mod desktop;
 mod external;
-mod focus;
 mod game_metadata;
 mod incident;
 mod inventory;
 mod observer;
 mod overlay;
-mod painter;
 mod paths;
 mod preview;
 mod relic;
@@ -111,14 +109,18 @@ enum PreviewSource {
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     if arguments == ["--reload-check"] {
-        return if runtime::reload::check().is_ok() {
-            print!("{}", runtime::reload::READY);
+        return if runtime::reload::CONFIG
+            .check::<runtime::reload::State>()
+            .is_ok()
+        {
+            print!("{}", runtime::reload::CONFIG.ready);
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE
         };
     }
-    let resumed = match runtime::reload::resume() {
+    // Startup is single-threaded; consume the handoff before spawning any services.
+    let resumed = match unsafe { runtime::reload::CONFIG.resume::<runtime::reload::State>() } {
         Ok(resumed) => resumed,
         Err(error) => {
             eprintln!("wfcompanion: {error}");

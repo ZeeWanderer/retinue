@@ -2,6 +2,7 @@
 target-dir = "_build/cargo"
 
 [env]
+PKG_CONFIG = { value = "scripts/pkg-config", relative = true }
 SCCACHE_BASEDIRS = { value = ".", relative = true }
 SCCACHE_DIR = { value = ".cache/sccache", relative = true }
 SCCACHE_SERVER_UDS = { value = ".cache/sccache.sock", relative = true }

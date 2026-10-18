@@ -4,16 +4,16 @@ use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
 
 use crate::{daemon, incident, observer, overlay, relic, shortcut};
+use retinue_client::child::{self, Monitor};
+use retinue_client::reload::{Gate, Watch};
+use retinue_client::signals::Signals;
 
 pub(crate) mod diagnostics;
-mod game;
 pub(crate) mod inbox;
 pub(crate) mod jobs;
 pub(crate) mod presentation;
-pub(crate) mod process;
 pub(crate) mod reload;
 pub(crate) mod session;
-mod signals;
 
 pub(crate) fn run(
     mut launch: Option<Vec<String>>,
@@ -21,7 +21,7 @@ pub(crate) fn run(
     resumed: Option<reload::Handoff>,
     log: &mut Option<incident::Writer>,
 ) -> Result<(), String> {
-    reload::enabled()?;
+    reload::CONFIG.enabled()?;
     let (installed, mut child, mut state) = match resumed {
         Some(handoff) => {
             launch = None;
@@ -50,8 +50,8 @@ pub(crate) fn run(
         let (relic, triggers) = relic::channel();
         let (diagnostics, requests) = diagnostics::channel();
         let stopping = Arc::new(AtomicBool::new(false));
-        let signals = signals::Signals::start(stopping.clone())?;
-        let gate = reload::Gate::default();
+        let signals = Signals::start(stopping.clone(), "wfcompanion-signals", report_signal)?;
+        let gate = Gate::default();
         let mut core = Core::new(stopping);
         core.daemon = Some(daemon::spawn(
             ui.clone(),
@@ -83,18 +83,32 @@ pub(crate) fn run(
             return Ok(());
         }
         let mut game = if let Some(child) = child.take() {
-            Some(game::Game::resume(child, core.stopping.clone())?)
+            Some(Monitor::resume(
+                child,
+                core.stopping.clone(),
+                "wfcompanion-game",
+                report_child,
+            )?)
         } else {
             launch
                 .take()
-                .map(|command| game::Game::launch(&command, core.stopping.clone()))
+                .map(|command| {
+                    Monitor::launch(
+                        &command,
+                        core.stopping.clone(),
+                        "wfcompanion-game",
+                        report_child,
+                    )
+                })
                 .transpose()?
         };
-        let mut watch = reload::Watch::start(
+        let mut watch = Watch::start(
+            &reload::CONFIG,
             installed.clone(),
             gate.clone(),
             core.stopping.clone(),
             rejected,
+            reload::report,
         )?;
         core.shortcut = Some(shortcut::spawn(ui)?);
         if let Err(error) = overlay::run(
@@ -115,7 +129,10 @@ pub(crate) fn run(
             wait_without_overlay(&events, &core.stopping);
         }
         state = core.shutdown();
-        child = game.as_mut().and_then(game::Game::stop_monitor);
+        child = game.as_mut().and_then(|game| match game.stop_monitor() {
+            Ok(Some(child::Outcome::Running(child))) => Some(child),
+            _ => None,
+        });
         let candidate = watch.finish()?;
         if !gate.approved() || signals.requested() || (mode == "launch" && child.is_none()) {
             incident::info("process.stop", format!("mode={mode}"));
@@ -123,14 +140,14 @@ pub(crate) fn run(
         }
         let candidate = candidate.ok_or("reload approved without a replacement")?;
         rejected = Some(candidate.stamp);
-        let handoff = reload::Handoff::new(installed.clone(), child.take(), state);
+        let handoff = reload::Handoff::new(&reload::CONFIG, installed.clone(), child.take(), state);
         incident::info(
             "reload.exec",
             "observation paused; preserving child and inventory stream",
         );
         drop(log.take());
         let error = candidate
-            .replace(&handoff, || !signals.requested())
+            .replace(&reload::CONFIG, &handoff, || !signals.requested())
             .unwrap_err();
         *log = Some(incident::Writer::start()?);
         if signals.requested() {
@@ -139,6 +156,23 @@ pub(crate) fn run(
         incident::warn("reload.failed", error);
         child = handoff.child;
         state = handoff.state;
+    }
+}
+
+fn report_child(event: child::Event) {
+    match event {
+        child::Event::WaitFailed(error) => incident::warn("game.wait_failed", error),
+        child::Event::MonitorPanicked => {
+            incident::error("game.wait_failed", "game monitor panicked")
+        }
+    }
+}
+
+fn report_signal(name: &str) {
+    if name == "signal worker panicked" {
+        incident::error("runtime.worker_panicked", "worker=signals");
+    } else {
+        incident::info("process.stop_requested", name);
     }
 }
 

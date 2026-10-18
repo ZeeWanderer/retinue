@@ -52,6 +52,10 @@ item that references it.
 
 ## Ownership
 
+Shared embedded assets, including Roboto, live in repository-root `assets/`, not
+inside a renderer or client. Qt and Rust consume the same files and stage their
+licenses. Game-only assets remain game-owned.
+
 `retinue-daemon` owns:
 
 - Catalog identity to `imageName` resolution.

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_dir="$root/apps/wfcompanion/native"
-blend2d_dir="$root/apps/wfcompanion/vendor/blend2d"
-asmjit_dir="$root/apps/wfcompanion/vendor/asmjit"
+source_dir="$root/crates/retinue-overlay/native"
+blend2d_dir="$root/crates/retinue-overlay/vendor/blend2d"
+asmjit_dir="$root/crates/retinue-overlay/vendor/asmjit"
 build_dir="${1:-$root/_build/native/clangd}"
 debug_source="$root/apps/wfcompanion/debug-bridge/debug_output.c"
 debug_compiler="${WFCOMPANION_MINGW_CC:-$(command -v x86_64-w64-mingw32-gcc || true)}"

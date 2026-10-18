@@ -14,9 +14,7 @@ Their DE provenance can be checked independently:
   `/Lotus/Types/Items/MiscItems/PrimeBucks` to
   `/Lotus/Interface/Icons/StoreIcons/Currency/Ducat.png`.
 
-`Roboto-{Light,Regular,Medium,Bold}.ttf` are Roboto v2.137, matching AlecaFrame's embedded family.
-They come from the corresponding [Google Fonts archive revision](https://github.com/google/fonts/tree/724bf98e9f5cb98a1d3d5044f45a2e286b817401/apache/roboto).
-`Roboto-LICENSE.txt` contains its Apache 2.0 license.
+Shared fonts and their licenses live under [`assets/`](../../../assets/README.md).
 
 `forma.png` is Digital Extremes' Forma art copied from AlecaFrame's public asset CDN. Aleca uses
 this same custom image for relic rewards because WFCD relic data does not publish a Forma reward

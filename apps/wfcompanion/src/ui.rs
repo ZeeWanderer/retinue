@@ -1,4 +1,4 @@
 mod geometry;
-pub(crate) mod layout;
+pub(crate) use retinue_overlay::layout;
 
 pub(crate) use geometry::{HitRegion, HitTarget, Rect, ScreenOutput};

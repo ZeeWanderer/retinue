@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::overlay::assets::SceneAssets;
-use crate::painter::{Painter, RasterImage, load_icon};
 use crate::ui::ScreenOutput;
 use fontdue::Font;
+use retinue_overlay::painter::{Painter, RasterImage, load_icon};
 
 mod fixture;
 mod reward;

@@ -70,7 +70,10 @@ private slots:
 void BuildGroupsWidgetTest::initTestCase() {
   QVERIFY(!QPixmap(":/resources/ui/chevron-down.png").isNull());
   for (const char *weight : {"Regular", "Medium", "Bold", "Light"}) {
-    QFontDatabase::addApplicationFont(QString(":/assets/Roboto-%1.ttf").arg(weight));
+    const QString path = QString(":/assets/Roboto-%1.ttf").arg(weight);
+    const int id = QFontDatabase::addApplicationFont(path);
+    QVERIFY2(id >= 0, qPrintable(path));
+    QVERIFY(QFontDatabase::applicationFontFamilies(id).contains("Roboto"));
   }
   qApp->setStyleSheet(wfgui::applicationStyleSheet());
 }

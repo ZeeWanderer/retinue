@@ -8,6 +8,8 @@ fixture="$(mktemp -d "$root/_build/build-test.XXXXXX")"
 trap 'rm -rf "$fixture"' EXIT
 fail() { printf 'build: %s\n' "$*" >&2; exit 1; }
 
+python3 "$root/scripts/tests/fontin.py"
+
 repo="$fixture/gui"
 mkdir -p "$repo/scripts" "$repo/commands" "$repo/apps/wfgui"
 cp "$root/Makefile" "$root/VERSION" "$repo/"
@@ -70,17 +72,17 @@ for name in retinue wfcli poe2cli arccli retinue-daemon retinue-inspect wfinspec
 done
 
 repo="$fixture/native"
-mkdir -p "$repo/apps/wfcompanion/src" "$repo/apps/wfcompanion/native" \
-    "$repo/apps/wfcompanion/vendor/"{blend2d,asmjit} \
+mkdir -p "$repo/crates/retinue-overlay/src" "$repo/crates/retinue-overlay/native" \
+    "$repo/crates/retinue-overlay/vendor/"{blend2d,asmjit} \
     "$repo/apps/retinue_daemon/src/runtime" "$repo/commands"
-cp "$root/apps/wfcompanion/build.rs" "$repo/apps/wfcompanion/"
+cp "$root/crates/retinue-overlay/build.rs" "$repo/crates/retinue-overlay/"
 printf '0.0.0\n' > "$repo/VERSION"
-printf 'fn main() {}\n' > "$repo/apps/wfcompanion/src/main.rs"
-touch "$repo/apps/wfcompanion/vendor/"{blend2d,asmjit}/CMakeLists.txt
+printf 'fn main() {}\n' > "$repo/crates/retinue-overlay/src/main.rs"
+touch "$repo/crates/retinue-overlay/vendor/"{blend2d,asmjit}/CMakeLists.txt
 printf '%s\n' '-define(ENVELOPE_VERSION, 1).' '-define(INTERFACE_PLAYER, 1).' \
     'interfaces() -> #{<<"player">> => ?INTERFACE_PLAYER}.' \
     > "$repo/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl"
-cat > "$repo/apps/wfcompanion/Cargo.toml" <<'TOML'
+cat > "$repo/crates/retinue-overlay/Cargo.toml" <<'TOML'
 [workspace]
 [package]
 name = "native-build-fixture"
@@ -105,7 +107,7 @@ export WF_TEST_CALLS="$repo/cmake-calls"
 native_check() {
     PATH="$repo/commands:$PATH" CC="$repo/commands/cc" CXX="$repo/commands/c++" \
         CARGO_TARGET_DIR="$repo/target" RUSTC_WRAPPER='' \
-        "${CARGO:-cargo}" check --quiet --manifest-path "$repo/apps/wfcompanion/Cargo.toml"
+        "${CARGO:-cargo}" check --quiet --manifest-path "$repo/crates/retinue-overlay/Cargo.toml"
 }
 native_check
 [[ "$(wc -l < "$WF_TEST_CALLS")" == 2 ]] || fail 'native configure/build not called'
@@ -138,6 +140,7 @@ fi
 
 mkdir -p "$repo/scripts/lib" "$repo/tools/staging" \
     "$repo/apps/wfcompanion/assets" "$repo/tools/wf-luau-decompiler" \
+    "$repo/apps/poe2companion/assets" "$repo/assets/fonts/roboto" \
     "$repo/_build/native/dev" "$repo/target/debug" \
     "$repo/target/oozextract/debug/licenses/oozextract" \
     "$repo/target/wf-luau-decompiler/debug"
@@ -152,10 +155,15 @@ printf '#!/bin/sh\nexit 0\n' > "$repo/_build/native/dev/wfcompanion-debug-output
 cp "$repo/_build/native/dev/wfcompanion-debug-output.exe" "$repo/target/oozextract/debug/unoodle"
 cp "$repo/_build/native/dev/wfcompanion-debug-output.exe" "$repo/target/wf-luau-decompiler/debug/wf-luau-decompiler"
 touch "$repo/apps/wfcompanion/assets/LuauDecompiler-LICENSE.txt" "$repo/tools/wf-luau-decompiler/LICENSE.txt"
+touch "$repo/apps/poe2companion/assets/Lato-OFL.txt" "$repo/assets/fonts/roboto/Roboto-LICENSE.txt"
+touch "$repo/apps/poe2companion/assets/Fontin-NOTICE.txt"
 CARGO="$repo/commands/custom-cargo" CARGO_TARGET_DIR="$repo/target" \
     bash "$repo/scripts/build-companion" dev
 [[ -x "$repo/dev/bin/retinue-inspect" && "$(readlink "$repo/dev/bin/wfinspect")" == retinue-inspect ]] || fail 'inspector public entry or alias missing'
 [[ "$("$repo/dev/bin/poe2companion")" == poe2-companion ]] || fail 'PoE2 companion missing'
+[[ -f "$repo/dev/share/licenses/poe2companion/Lato-OFL.txt" && \
+   -f "$repo/dev/share/licenses/poe2companion/Fontin-NOTICE.txt" && \
+   -f "$repo/dev/share/licenses/fonts/Roboto-LICENSE.txt" ]] || fail 'overlay font licenses missing'
 [[ "$("$repo/dev/bin/retinue-inspect")" == inspector && \
    "$("$repo/dev/bin/wfinspect")" == inspector ]] || fail 'inspector alias does not execute'
 printf '#!/bin/sh\nprintf "changed-companion\\n"\n' > "$repo/target/debug/wfcompanion"

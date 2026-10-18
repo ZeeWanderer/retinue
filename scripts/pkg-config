@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if pkg-config "$@" 2>/dev/null; then
+    exit 0
+fi
+if command -v brew >/dev/null 2>&1; then
+    prefix="${HOMEBREW_PREFIX:-$(brew --prefix)}"
+    export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$prefix/lib/pkgconfig:$prefix/share/pkgconfig"
+fi
+exec pkg-config "$@"

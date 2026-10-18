@@ -17,6 +17,7 @@ libc = "0.2"
 memchr = "2.7"
 retinue-client = { path = "../../crates/retinue-client" }
 retinue-native = { path = "../../crates/retinue-native" }
+retinue-overlay = { path = "../../crates/retinue-overlay" }
 retinue-warframe = { path = "../../crates/retinue-warframe" }
 rustix = { version = "1", features = ["fs", "process", "time"] }
 serde = { version = "1", features = ["derive"] }

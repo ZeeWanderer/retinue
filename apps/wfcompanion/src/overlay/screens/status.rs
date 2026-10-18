@@ -1,6 +1,6 @@
 use fontdue::Font;
 
-use crate::painter::Painter;
+use retinue_overlay::painter::Painter;
 
 pub(in crate::overlay) const WIDTH: u32 = 420;
 pub(in crate::overlay) const HEIGHT: u32 = 90;
