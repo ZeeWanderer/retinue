@@ -1,0 +1,88 @@
+[
+  {
+    "name": "quality normalized bow with local damage speed and critical mods",
+    "category": "weapon.bow", "rarity": "Rare",
+    "properties": [
+      {"type":"Quality","name":"Quality","values":["+10%"]},
+      {"type":"PhysicalDamage","name":"Physical Damage","values":["100-200"]},
+      {"type":"ElementalDamage","name":"Elemental Damage","values":["10-20","30-40"]},
+      {"type":"AttacksPerSecond","name":"Attacks per Second","values":["1.5"]},
+      {"type":"CricticalStrikeChance","name":"Critical Hit Chance","values":["6.5%"]}
+    ],
+    "rows": [
+      {"key":"physical","internal_ids":["local_minimum_added_physical_damage","local_maximum_added_physical_damage"],"decorator":{"tags":["Damage","Physical"]}},
+      {"key":"speed","internal_ids":["local_attack_speed_+%"],"decorator":{"tags":["Speed"]}},
+      {"key":"critical","internal_ids":["local_critical_strike_chance"],"decorator":{"tags":["Critical"]}},
+      {"key":"gem","internal_ids":["projectile_skill_gem_level_+"]},
+      {"key":"other","internal_ids":["test_unmapped"],"decorator":{"tags":["Life"]}}
+    ],
+    "expected": {
+      "properties": [
+        {"name":"Quality","value":"+10%","score":null,"quick":false,"exact":false,"min":10,"broad_min":10},
+        {"name":"DPS","value":"319.5","score":null,"quick":false,"exact":false,"min":319.5,"broad_min":287.55},
+        {"name":"Physical DPS","value":"244.5","score":4.5,"quick":true,"exact":true,"min":244.5,"broad_min":220.05},
+        {"name":"Elemental DPS","value":"75","score":null,"quick":false,"exact":false,"min":75,"broad_min":67},
+        {"name":"Attacks per Second","value":"1.5","score":3.25,"quick":true,"exact":true,"min":1.5,"broad_min":1.35},
+        {"name":"Critical Hit Chance","value":"6.5%","score":4.0,"quick":true,"exact":true,"min":6.5,"broad_min":5.85}
+      ], "quick":["gem"], "exact":["gem","other"]
+    }
+  },
+  {
+    "name": "armour hybrid score goes to both properties without selecting source mod",
+    "category": "armour.chest", "rarity": "Rare",
+    "properties": [
+      {"type":"Quality","name":"Quality","values":["+0%"]},
+      {"type":"Armour","name":"Armour","values":["300"]},
+      {"type":"EvasionRating","name":"Evasion Rating","values":["200"]}
+    ],
+    "rows": [
+      {"key":"defence","internal_ids":["local_armour_and_evasion_+%"],"decorator":{"tags":["Defences"]}},
+      {"key":"projectile","internal_ids":["projectile_skill_gem_level_+"]},
+      {"key":"trap","internal_ids":["trap_skill_gem_level_+"]},
+      {"key":"melee","internal_ids":["melee_skill_gem_level_+"]}
+    ],
+    "expected": {
+      "properties": [
+        {"name":"Quality","value":"+0%","score":null,"quick":false,"exact":false,"min":0,"broad_min":0},
+        {"name":"Armour","value":"360","score":3.25,"quick":true,"exact":true,"min":360,"broad_min":324},
+        {"name":"Evasion Rating","value":"240","score":3.25,"quick":false,"exact":false,"min":240,"broad_min":216}
+      ], "quick":["projectile","trap","melee"], "exact":["projectile","trap","melee"]
+    }
+  },
+  {
+    "name": "corrupted and fractured values stay unnormalized and unmerged",
+    "category": "weapon.bow", "rarity": "Rare", "corrupted": true,
+    "properties": [
+      {"type":"Quality","name":"Quality","values":["+10%"]},
+      {"type":"PhysicalDamage","name":"Physical Damage","values":["100-201"]},
+      {"type":"ChaosDamage","name":"Chaos Damage","values":["10-21"]},
+      {"type":"AttacksPerSecond","name":"Attacks per Second","values":["1.51"]}
+    ],
+    "rows": [{"key":"physical","section":"fractured","internal_ids":["local_minimum_added_physical_damage","local_maximum_added_physical_damage"],"decorator":{"tags":["Damage","Physical"]}}],
+    "expected": {
+      "properties": [
+        {"name":"Quality","value":"+10%","score":null,"quick":false,"exact":false,"min":10,"broad_min":10},
+        {"name":"DPS","value":"250.67","score":null,"quick":false,"exact":false,"min":250.67,"broad_min":225.6},
+        {"name":"Physical DPS","value":"227.26","score":null,"quick":false,"exact":false,"min":227.26,"broad_min":204.53},
+        {"name":"Chaos DPS","value":"23.41","score":null,"quick":null,"exact":null,"min":null,"broad_min":null},
+        {"name":"Attacks per Second","value":"1.51","score":null,"quick":false,"exact":false,"min":1.51,"broad_min":1.35}
+      ], "quick":[], "exact":["physical"]
+    }
+  },
+  {
+    "name": "unique properties do not inherit local modifier scores",
+    "category": "weapon.bow", "rarity": "Unique",
+    "properties": [
+      {"type":"PhysicalDamage","name":"Physical Damage","values":["100-200"]},
+      {"type":"AttacksPerSecond","name":"Attacks per Second","values":["1.5"]}
+    ],
+    "rows": [{"key":"physical","internal_ids":["local_minimum_added_physical_damage","local_maximum_added_physical_damage"],"decorator":{"tags":["Damage","Physical"]}}],
+    "expected": {
+      "properties": [
+        {"name":"DPS","value":"270","score":null,"quick":false,"exact":false,"min":270,"broad_min":243},
+        {"name":"Physical DPS","value":"270","score":null,"quick":false,"exact":false,"min":270,"broad_min":243},
+        {"name":"Attacks per Second","value":"1.5","score":null,"quick":false,"exact":false,"min":1.5,"broad_min":1.35}
+      ], "quick":[], "exact":["physical"]
+    }
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "name": "fixed roll",
+    "modifier": {"id": "explicit.stat_3299347043", "section": "explicit", "min": 80, "magnitudes": [{"value": 80, "min": 80, "max": 80}]},
+    "expected": {"allmods": {"min": 80}, "fuzzy": {"min": 80}}
+  },
+  {
+    "name": "variable integer rounds rather than floors",
+    "modifier": {"id": "explicit.stat_3299347043", "section": "explicit", "min": 35, "magnitudes": [{"value": 35, "min": 30, "max": 40}]},
+    "expected": {"allmods": {"min": 35}, "fuzzy": {"min": 32}}
+  },
+  {
+    "name": "negative half rounds toward positive infinity",
+    "modifier": {"id": "explicit.stat_3299347043", "section": "explicit", "min": -35, "magnitudes": [{"value": -35, "min": -40, "max": -30}]},
+    "expected": {"allmods": {"min": -35}, "fuzzy": {"min": -38}}
+  },
+  {
+    "name": "fractional roll keeps two decimals",
+    "modifier": {"id": "explicit.stat_3299347043", "section": "explicit", "min": 12.35, "magnitudes": [{"value": 12.35, "min": 10, "max": 15}]},
+    "expected": {"allmods": {"min": 12.35}, "fuzzy": {"min": 11.12}}
+  },
+  {
+    "name": "damage range uses average and variable roll bounds",
+    "modifier": {"id": "explicit.stat_1940865751", "section": "explicit", "min": 15, "magnitudes": [{"value": 10, "min": 8, "max": 12}, {"value": 20, "min": 18, "max": 22}]},
+    "expected": {"allmods": {"min": 15}, "fuzzy": {"min": 14}}
+  },
+  {
+    "name": "inverse stat uses an upper bound",
+    "modifier": {"id": "explicit.stat_2448633171", "section": "explicit", "min": 35, "magnitudes": [{"value": 35, "min": 30, "max": 40}]},
+    "expected": {"allmods": {"max": 35}, "fuzzy": {"max": 39}}
+  },
+  {
+    "name": "inverse fixed roll does not widen",
+    "modifier": {"id": "explicit.stat_2448633171", "section": "explicit", "min": 35, "magnitudes": [{"value": 35, "min": 35, "max": 35}]},
+    "expected": {"allmods": {"max": 35}, "fuzzy": {"max": 35}}
+  },
+  {
+    "name": "negative conditional inverse",
+    "modifier": {"id": "explicit.stat_1389754388", "section": "explicit", "min": -35, "magnitudes": [{"value": -35, "min": -40, "max": -30}]},
+    "expected": {"allmods": {"max": -35}, "fuzzy": {"max": -31}}
+  },
+  {
+    "name": "positive conditional inverse stays lower bound",
+    "modifier": {"id": "explicit.stat_1389754388", "section": "explicit", "min": 35, "magnitudes": [{"value": 35, "min": 30, "max": 40}]},
+    "expected": {"allmods": {"min": 35}, "fuzzy": {"min": 32}}
+  },
+  {
+    "name": "positive-only inverse",
+    "modifier": {"id": "explicit.stat_2146799605", "section": "explicit", "min": 35, "magnitudes": [{"value": 35, "min": 30, "max": 40}]},
+    "expected": {"allmods": {"max": 35}, "fuzzy": {"max": 39}}
+  },
+  {
+    "name": "boolean modifier has no bounds",
+    "modifier": {"id": "implicit.stat_1574531783", "section": "implicit", "min": null, "magnitudes": []},
+    "expected": {"allmods": {}, "fuzzy": {}}
+  },
+  {
+    "name": "gem level is a property and floors broad bound",
+    "modifier": {"id": "property.gem_level", "section": "property", "min": 13},
+    "expected": {"allmods": {"min": 13}, "fuzzy": {"min": 11}}
+  },
+  {
+    "name": "quality does not widen",
+    "modifier": {"id": "property.quality", "section": "property", "min": 20},
+    "expected": {"allmods": {"min": 20}, "fuzzy": {"min": 20}}
+  },
+  {
+    "name": "gem sockets match exactly",
+    "modifier": {"id": "property.gem_sockets", "section": "property", "min": 2},
+    "expected": {"allmods": {"min": 2, "max": 2}, "fuzzy": {"min": 2, "max": 2}}
+  }
+]

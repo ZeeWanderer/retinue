@@ -1,0 +1,14 @@
+Item Class: Bows
+Rarity: Rare
+Dusk Flight
+Short Bow
+--------
+Quality: +10% (augmented)
+Physical Damage: 100-200 (augmented)
+Elemental Damage: 10-20, 30-40
+Attacks per Second: 1.5
+Critical Hit Chance: 6.5%
+--------
+Item Level: 80
+--------
++82 to maximum Life

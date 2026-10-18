@@ -1,0 +1,55 @@
+[
+  {
+    "name": "tier and single tag bonus", "category": "accessory.ring",
+    "rows": [{"key":"life","decorator":{"tags":["Life"]},"tier_info":{"current":2,"count":10,"max":1},"magnitudes":[{"value":89,"min":70,"max":89}]}],
+    "scores": {"life":5.05}, "selected": ["life"]
+  },
+  {
+    "name": "unweighted tags prevent single tag bonus", "category": "accessory.ring",
+    "rows": [{"key":"fire","decorator":{"tags":["Elemental","Fire","Resistance"]},"tier_info":{"current":1,"count":5,"max":1},"magnitudes":[{"value":35,"min":30,"max":35}]}],
+    "scores": {"fire":4.75}, "selected": ["fire"]
+  },
+  {
+    "name": "plain text and internal stat bonuses", "category": "weapon.sceptre",
+    "rows": [{"key":"life"},{"key":"spirit","internal_ids":["local_spirit"]},{"key":"regen","internal_ids":["base_life_regeneration_rate_per_minute"]}],
+    "scores": {"life":1.25,"spirit":4.25,"regen":-0.75}, "selected": ["spirit"]
+  },
+  {
+    "name": "known clipboard tags without internal stat mapping", "category": "accessory.ring",
+    "rows": [{"key":"life","internal_ids":[],"decorator":{"tags":["Life"]}}],
+    "scores": {"life":4}, "selected": ["life"]
+  },
+  {
+    "name": "hybrid is one ranked candidate", "category": "weapon.bow",
+    "rows": [
+      {"key":"hybrid-a","decorator":{"group":7,"tags":["Damage","Critical"]},"tier_info":{"current":1,"count":5,"max":1},"magnitudes":[{"value":15,"min":10,"max":20}]},
+      {"key":"hybrid-b","decorator":{"group":7,"tags":["Damage","Critical"]},"magnitudes":[{"value":35,"min":30,"max":40}]}
+    ],
+    "scores": {"hybrid-a":6,"hybrid-b":6}, "selected": ["hybrid-a","hybrid-b"]
+  },
+  {
+    "name": "four candidates and stable score ties", "category": "accessory.ring",
+    "rows": [
+      {"key":"a","decorator":{"tags":["Life"]}},
+      {"key":"z","decorator":{"tags":["Life"]}},
+      {"key":"b","decorator":{"tags":["Life"]}},
+      {"key":"c","decorator":{"tags":["Life"]}},
+      {"key":"d","decorator":{"tags":["Life"]}}
+    ],
+    "scores": {"a":4,"z":4,"b":4,"c":4,"d":4}, "selected": ["a","z","b","c"]
+  },
+  {
+    "name": "negative category weights", "category": "weapon.wand",
+    "rows": [{"key":"bad","decorator":{"tags":["Minion","Attack"]}},
+             {"key":"good","decorator":{"tags":["Critical","Caster","Elemental"]}}],
+    "scores": {"bad":-1.25,"good":5.5}, "selected": ["good"]
+  },
+  {
+    "name": "unique modifiers are not ranked", "rarity":"Unique", "category":"accessory.ring",
+    "rows": [{"key":"life","decorator":{"tags":["Life"]}}], "scores":{}, "selected":[]
+  },
+  {
+    "name": "maps are not ranked", "category":"map.waystone",
+    "rows": [{"key":"rarity","internal_ids":["base_item_found_rarity_+%"]}], "scores":{}, "selected":[]
+  }
+]

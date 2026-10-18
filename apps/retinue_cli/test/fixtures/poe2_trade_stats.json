@@ -1,0 +1,28 @@
+{
+  "source": "https://www.pathofexile.com/api/trade2/data/stats",
+  "captured": "2026-10-11",
+  "result": [
+    {"id":"explicit","entries":[
+      {"id":"explicit.stat_3299347043","text":"# to maximum Life","type":"explicit"},
+      {"id":"explicit.stat_3917489142","text":"#% increased Rarity of Items found","type":"explicit"},
+      {"id":"explicit.stat_2901986750","text":"#% to all Elemental Resistances","type":"explicit"},
+      {"id":"explicit.stat_2250533757","text":"#% increased Movement Speed","type":"explicit"},
+      {"id":"explicit.stat_1940865751","text":"Adds # to # Physical Damage","type":"explicit"},
+      {"id":"explicit.stat_53045048","text":"# to Evasion Rating (Local)","type":"explicit"},
+      {"id":"explicit.stat_2144192055","text":"# to Evasion Rating","type":"explicit"},
+      {"id":"explicit.stat_803737631","text":"# to Accuracy Rating","type":"explicit"},
+      {"id":"explicit.stat_691932474","text":"# to Accuracy Rating (Local)","type":"explicit"},
+      {"id":"explicit.stat_258955603","text":"Alternating every 5 seconds:\nTake #% more Damage from Hits\nTake #% more Damage over time","type":"explicit"},
+      {"id":"explicit.stat_1602191394","text":"#% increased Rarity of Items found\nYour other Modifiers to Rarity of Items found do not apply","type":"explicit"},
+      {"id":"explicit.stat_2261942307","text":"#% increased Rarity of Items found\nYour other Modifiers to Rarity of Items found do not apply","type":"explicit"}
+    ]},
+    {"id":"implicit","entries":[
+      {"id":"implicit.stat_3299347043","text":"# to maximum Life","type":"implicit"},
+      {"id":"implicit.stat_1574531783","text":"Culling Strike (Local)","type":"implicit"}
+    ]},
+    {"id":"rune","entries":[
+      {"id":"rune.stat_3299347043","text":"# to maximum Life","type":"augment"},
+      {"id":"rune.stat_2280525771","text":"Bonded: # to maximum Life","type":"augment"}
+    ]}
+  ]
+}

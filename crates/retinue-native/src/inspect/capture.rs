@@ -31,6 +31,47 @@ pub struct Block {
     file_offset: usize,
 }
 
+pub fn write_recorded(
+    memory: ProcessMemory,
+    source: SourceMetadata,
+    directory: &Path,
+    captured_at_unix_ms: u128,
+    duration_ms: u128,
+) -> Result<Capture, String> {
+    let maps = memory.maps().as_bytes().to_vec();
+    let reads = memory.into_recorded_reads()?;
+    if reads.bytes.len() > MAX_BYTES || reads.blocks.len() > 65536 {
+        return Err("recorded memory exceeds capture limits".into());
+    }
+    let report = Capture {
+        schema: 1,
+        source,
+        captured_at_unix_ms,
+        duration_ms,
+        bytes: reads.bytes.len(),
+        truncated: reads.truncated,
+        roots: Vec::new(),
+        walks: Vec::new(),
+        blocks: reads
+            .blocks
+            .into_iter()
+            .map(|b| Block {
+                address: b.address,
+                length: b.length,
+                file_offset: b.file_offset,
+            })
+            .collect(),
+    };
+    let directory = crate::recording::Directory::create(directory)?;
+    directory.write("memory.bin", &reads.bytes)?;
+    directory.write("maps.txt", &maps)?;
+    directory.write(
+        "memory.json",
+        &serde_json::to_vec_pretty(&report).map_err(|e| e.to_string())?,
+    )?;
+    Ok(report)
+}
+
 pub fn write(
     memory: &ProcessMemory,
     source: SourceMetadata,
@@ -162,4 +203,60 @@ pub fn load(path: &Path) -> Result<(ProcessMemory, Capture), String> {
         .collect();
     let memory = ProcessMemory::from_capture(report.source.pid, maps, blocks, bytes)?;
     Ok((memory, report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn recorded_reads_replay_with_private_files_and_preserve_truncation() {
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("capture");
+        let memory = ProcessMemory::from_capture(
+            42,
+            "10000-10010 r--p 00000000 00:00 0\n".into(),
+            vec![CaptureBlock {
+                address: 0x10000,
+                length: 16,
+                file_offset: 0,
+            }],
+            b"abcdefghijklmnop".to_vec(),
+        )
+        .unwrap()
+        .record_reads(8, 4);
+        memory.read_exact_at(&mut [0; 8], 0x10000).unwrap();
+        assert!(memory.read_exact_at(&mut [0; 8], 0x10008).is_err());
+        let source = SourceMetadata {
+            kind: "live".into(),
+            pid: 42,
+            identity: None,
+            capture: None,
+        };
+        let report = write_recorded(memory, source, &destination, 123, 7).unwrap();
+        assert_eq!(report.bytes, 8);
+        assert!(report.truncated);
+        assert_eq!(
+            fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        for name in ["memory.bin", "memory.json", "maps.txt"] {
+            assert_eq!(
+                fs::metadata(destination.join(name))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        let (memory, report) = load(&destination.join("memory.json")).unwrap();
+        assert_eq!(report.captured_at_unix_ms, 123);
+        assert_eq!(report.duration_ms, 7);
+        let mut bytes = [0; 8];
+        memory.read_exact_at(&mut bytes, 0x10000).unwrap();
+        assert_eq!(&bytes, b"abcdefgh");
+        assert!(memory.read_exact_at(&mut bytes, 0x10008).is_err());
+    }
 }

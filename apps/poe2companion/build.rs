@@ -1,4 +1,4 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, process::Command};
 
 fn protocol_define(source: &str, name: &str) -> u32 {
     source
@@ -35,7 +35,31 @@ fn main() {
     );
     assert_eq!(
         protocol_define(&protocol, "INTERFACE_SESSION"),
-        1,
-        "poe2companion supports session 1; review the client before changing its contract"
+        2,
+        "poe2companion supports session 2; review the client before changing its contract"
     );
+    assert_eq!(
+        protocol_define(&protocol, "INTERFACE_TRADE"),
+        2,
+        "poe2companion supports trade 2; review the client before changing its contract"
+    );
+
+    let setup = manifest.join("../../scripts/setup-fontin.py");
+    println!("cargo:rerun-if-changed={}", setup.display());
+    let output = Command::new("python3")
+        .arg(setup)
+        .output()
+        .expect("run Fontin setup with Python 3");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let font = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
+    println!("cargo:rerun-if-changed={}", font.display());
+    fs::copy(
+        font,
+        PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("Fontin-SmallCaps.ttf"),
+    )
+    .expect("stage Fontin for embedding");
 }

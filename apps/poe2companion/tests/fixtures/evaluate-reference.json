@@ -1,0 +1,282 @@
+{
+  "evaluation": {
+    "item": {
+      "name": "Gloom Finger",
+      "base": "Gold Ring",
+      "rarity": "Rare",
+      "category": "accessory.ring",
+      "ranking_status": "ready",
+      "profiles": ["nomods", "fuzzy"],
+      "default_profile": "nomods",
+      "item_level": 82,
+      "properties": [],
+      "modifiers": [
+        {
+          "key": "life",
+          "text": "+80 to maximum Life",
+          "section": "explicit",
+          "id": "explicit.stat_3299347043",
+          "min": 80,
+          "ranges": {"allmods": {"min": 80}, "fuzzy": {"min": 80}},
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "fire",
+          "text": "+35% to Fire Resistance",
+          "section": "explicit",
+          "id": "explicit.stat_3372524247",
+          "min": 35,
+          "ranges": {"allmods": {"min": 35}, "fuzzy": {"min": 35}},
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "cold",
+          "text": "+28% to Cold Resistance",
+          "section": "explicit",
+          "id": "explicit.stat_4220027924",
+          "min": 28,
+          "ranges": {"allmods": {"min": 28}, "fuzzy": {"min": 28}},
+          "supported": true,
+          "exact_selected": true
+        }
+      ],
+      "conditions": [
+        {
+          "id": "modifiable",
+          "text": "Modifiable"
+        }
+      ]
+    },
+    "leagues": [
+      {
+        "id": "Forbidden Rites",
+        "text": "Forbidden Rites"
+      }
+    ],
+    "league": "Forbidden Rites",
+    "search_options": {
+      "status": [
+        {
+          "id": "available",
+          "text": "Instant Buyout and In Person"
+        },
+        {
+          "id": "securable",
+          "text": "Instant Buyout"
+        },
+        {
+          "id": "onlineleague",
+          "text": "In Person (Online in League)"
+        },
+        {
+          "id": "online",
+          "text": "In Person (Online)"
+        },
+        {
+          "id": "any",
+          "text": "Any"
+        }
+      ],
+      "rarity": [
+        {
+          "id": null,
+          "text": "Any"
+        },
+        {
+          "id": "normal",
+          "text": "Normal"
+        },
+        {
+          "id": "magic",
+          "text": "Magic"
+        },
+        {
+          "id": "rare",
+          "text": "Rare"
+        },
+        {
+          "id": "unique",
+          "text": "Unique"
+        },
+        {
+          "id": "uniquefoil",
+          "text": "Unique (Foil)"
+        },
+        {
+          "id": "nonunique",
+          "text": "Any Non-Unique"
+        }
+      ],
+      "indexed": [
+        {
+          "id": null,
+          "text": "Any Time"
+        },
+        {
+          "id": "1hour",
+          "text": "Up to an Hour Ago"
+        },
+        {
+          "id": "3hours",
+          "text": "Up to 3 Hours Ago"
+        },
+        {
+          "id": "12hours",
+          "text": "Up to 12 Hours Ago"
+        },
+        {
+          "id": "1day",
+          "text": "Up to a Day Ago"
+        },
+        {
+          "id": "3days",
+          "text": "Up to 3 Days Ago"
+        },
+        {
+          "id": "1week",
+          "text": "Up to a Week Ago"
+        },
+        {
+          "id": "2weeks",
+          "text": "Up to 2 Weeks Ago"
+        },
+        {
+          "id": "1month",
+          "text": "Up to 1 Month Ago"
+        },
+        {
+          "id": "2months",
+          "text": "Up to 2 Months Ago"
+        }
+      ],
+      "currency": [
+        {
+          "id": null,
+          "text": "Exalted Orb Equivalent"
+        },
+        {
+          "id": "exalted_divine",
+          "text": "Exalted or Divine Orbs"
+        },
+        {
+          "id": "aug",
+          "text": "Orb of Augmentation"
+        },
+        {
+          "id": "transmute",
+          "text": "Orb of Transmutation"
+        },
+        {
+          "id": "exalted",
+          "text": "Exalted Orb"
+        },
+        {
+          "id": "regal",
+          "text": "Regal Orb"
+        },
+        {
+          "id": "chaos",
+          "text": "Chaos Orb"
+        },
+        {
+          "id": "vaal",
+          "text": "Vaal Orb"
+        },
+        {
+          "id": "alch",
+          "text": "Orb of Alchemy"
+        },
+        {
+          "id": "divine",
+          "text": "Divine Orb"
+        },
+        {
+          "id": "annul",
+          "text": "Orb of Annulment"
+        },
+        {
+          "id": "mirror",
+          "text": "Mirror of Kalandra"
+        }
+      ]
+    }
+  },
+  "results": {
+    "search_id": "fixture-search",
+    "url": "https://www.pathofexile.com/trade2/search/poe2/Forbidden%20Rites/fixture-search",
+    "total": 3,
+    "returned": 3,
+    "listings": [
+      {
+        "id": "fixture-1",
+        "name": "Gloom Finger",
+        "base": "Gold Ring",
+        "item_level": 82,
+        "amount": 35,
+        "currency": "exalted",
+        "account": "ExampleOne",
+        "online": true,
+        "indexed": "2026-10-13T09:58:00Z",
+        "indexed_at": 1791885480,
+        "quality": 0,
+        "type": "secure",
+        "item": {
+          "name": "Gloom Finger", "base": "Gold Ring", "rarity": "Rare", "item_level": 82,
+          "properties": [],
+          "modifiers": [
+            {"key": "life", "text": "+80 to maximum Life", "section": "explicit", "supported": false},
+            {"key": "fire", "text": "+35% to Fire Resistance", "section": "explicit", "supported": false},
+            {"key": "cold", "text": "+28% to Cold Resistance", "section": "explicit", "supported": false}
+          ],
+          "conditions": [{"id": "modifiable", "text": "Modifiable"}]
+        }
+      },
+      {
+        "id": "fixture-2",
+        "name": "Beast Circle",
+        "base": "Gold Ring",
+        "item_level": 84,
+        "amount": 40,
+        "currency": "exalted",
+        "account": "ExampleTwo",
+        "online": true,
+        "indexed": "2026-10-13T09:40:00Z",
+        "indexed_at": 1791884400,
+        "quality": 20,
+        "type": "secure",
+        "item": {
+          "name": "Beast Circle", "base": "Gold Ring", "rarity": "Rare", "item_level": 84,
+          "properties": [{"text": "Quality: +20%"}],
+          "modifiers": [
+            {"key": "life", "text": "+90 to maximum Life", "section": "explicit", "supported": false},
+            {"key": "fire", "text": "+38% to Fire Resistance", "section": "explicit", "supported": false}
+          ],
+          "conditions": [{"id": "modifiable", "text": "Modifiable"}]
+        }
+      },
+      {
+        "id": "fixture-3",
+        "name": "Soul Coil",
+        "base": "Gold Ring",
+        "item_level": 81,
+        "amount": 45,
+        "currency": "exalted",
+        "account": "ExampleThree",
+        "online": false,
+        "indexed": "2026-10-12T10:00:00Z",
+        "indexed_at": 1791799200,
+        "quality": 0,
+        "type": "secure",
+        "item": {
+          "name": "Soul Coil", "base": "Gold Ring", "rarity": "Rare", "item_level": 81,
+          "properties": [],
+          "modifiers": [{"key": "cold", "text": "+42% to Cold Resistance", "section": "explicit", "supported": false}],
+          "conditions": [{"id": "corrupted", "text": "Corrupted"}],
+          "corrupted": true
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "source": "PoE Overlay II 1.68.0 parser and bundled English stat data",
+  "cases": [
+    {
+      "name": "unique_spear",
+      "base": "Runemastered Ironhead Spear",
+      "category": "weapon.spear",
+      "hashes": {
+        "rune": [
+          [
+            "rune.stat_1509134228",
+            [
+              0
+            ]
+          ]
+        ],
+        "explicit": [
+          [
+            "explicit.stat_210067635,explicit.stat_681332047",
+            [
+              4
+            ]
+          ],
+          [
+            "explicit.stat_4080418644",
+            [
+              5
+            ]
+          ],
+          [
+            "explicit.stat_3675300253",
+            [
+              3
+            ]
+          ],
+          [
+            "explicit.stat_3739186583",
+            [
+              2
+            ]
+          ],
+          [
+            "explicit.stat_1961849903",
+            [
+              0
+            ]
+          ],
+          [
+            "explicit.stat_1509134228",
+            [
+              1
+            ]
+          ]
+        ]
+      },
+      "stats": [
+        {
+          "type": "and",
+          "filters": [
+            {
+              "id": "rune.stat_1509134228",
+              "value": {
+                "min": 18
+              }
+            },
+            {
+              "id": "explicit.stat_4080418644",
+              "value": {
+                "min": 22
+              }
+            },
+            {
+              "id": "explicit.stat_3675300253",
+              "value": {}
+            },
+            {
+              "id": "explicit.stat_3739186583",
+              "value": {}
+            },
+            {
+              "id": "explicit.stat_1961849903",
+              "value": {}
+            },
+            {
+              "id": "explicit.stat_1509134228",
+              "value": {
+                "min": 187
+              }
+            }
+          ]
+        },
+        {
+          "type": "count",
+          "filters": [
+            {
+              "id": "explicit.stat_210067635",
+              "value": {
+                "min": -10
+              }
+            },
+            {
+              "id": "explicit.stat_681332047",
+              "value": {
+                "min": -10
+              }
+            }
+          ],
+          "value": {
+            "min": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "rare_body_armour",
+      "base": "Runner Vest",
+      "category": "armour.chest",
+      "hashes": {
+        "rune": [
+          [
+            "rune.stat_3523867985",
+            [
+              0
+            ]
+          ]
+        ],
+        "explicit": [
+          [
+            "explicit.stat_124859000,explicit.stat_2106365538",
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            "explicit.stat_2704225257,explicit.stat_3981240776",
+            [
+              5
+            ]
+          ],
+          [
+            "explicit.stat_2144192055,explicit.stat_53045048",
+            [
+              1
+            ]
+          ],
+          [
+            "explicit.stat_4220027924",
+            [
+              3
+            ]
+          ],
+          [
+            "explicit.stat_3261801346",
+            [
+              4
+            ]
+          ],
+          [
+            "explicit.stat_1671376347",
+            [
+              2
+            ]
+          ]
+        ]
+      },
+      "stats": [
+        {
+          "type": "and",
+          "filters": [
+            {
+              "id": "rune.stat_3523867985",
+              "value": {
+                "min": 36
+              }
+            },
+            {
+              "id": "explicit.stat_4220027924",
+              "value": {
+                "min": 31
+              }
+            },
+            {
+              "id": "explicit.stat_3261801346",
+              "value": {
+                "min": 5
+              }
+            },
+            {
+              "id": "explicit.stat_1671376347",
+              "value": {
+                "min": 39
+              }
+            }
+          ]
+        },
+        {
+          "type": "count",
+          "filters": [
+            {
+              "id": "explicit.stat_124859000",
+              "value": {
+                "min": 104
+              }
+            },
+            {
+              "id": "explicit.stat_2106365538",
+              "value": {
+                "min": 104
+              }
+            }
+          ],
+          "value": {
+            "min": 1
+          }
+        },
+        {
+          "type": "count",
+          "filters": [
+            {
+              "id": "explicit.stat_2704225257",
+              "value": {
+                "min": 59
+              }
+            },
+            {
+              "id": "explicit.stat_3981240776",
+              "value": {
+                "min": 59
+              }
+            }
+          ],
+          "value": {
+            "min": 1
+          }
+        },
+        {
+          "type": "count",
+          "filters": [
+            {
+              "id": "explicit.stat_2144192055",
+              "value": {
+                "min": 15
+              }
+            },
+            {
+              "id": "explicit.stat_53045048",
+              "value": {
+                "min": 15
+              }
+            }
+          ],
+          "value": {
+            "min": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "magic_charm",
+      "base": "Stone Charm",
+      "category": "flask.charm",
+      "hashes": {
+        "implicit": [
+          [
+            "implicit.stat_1810482573",
+            [
+              0
+            ]
+          ]
+        ],
+        "explicit": [
+          [
+            "explicit.stat_1120862500",
+            [
+              0
+            ]
+          ],
+          [
+            "explicit.stat_1366840608",
+            [
+              1
+            ]
+          ]
+        ]
+      },
+      "stats": [
+        {
+          "type": "and",
+          "filters": [
+            {
+              "id": "implicit.stat_1810482573",
+              "value": {}
+            },
+            {
+              "id": "explicit.stat_1120862500",
+              "value": {
+                "min": 73
+              }
+            },
+            {
+              "id": "explicit.stat_1366840608",
+              "value": {
+                "min": 32
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

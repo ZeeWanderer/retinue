@@ -1,0 +1,7 @@
+Item Class: Quest Items
+Rarity: Quest
+Vorana's Logbook
+--------
+The last one alive, she understood too late...
+--------
+Consumed via the Atlas at a Logbook Expedition Node

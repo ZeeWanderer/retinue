@@ -4,20 +4,13 @@ use std::process::Command;
 use serde_json::Value;
 
 #[test]
-fn inspect_is_explicit_read_only_and_ignores_chat() {
+fn cli_exposes_native_observation_and_rejects_obsolete_log_options() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("Client.txt");
-    let content = concat!(
-        "2026/05/30 18:45:25 6276613 3ef23347 [INFO Client 312] : ExampleCharacter (Huntress) is now level 2\r\n",
-        "2026/05/30 18:45:26 6276614 3ef23347 [INFO Client 312] : @From Private: private content\r\n",
-        "2026/05/30 18:45:27 6276615 3ef23347 [INFO Client 312] Connecting to instance server at 192.0.2.1:12345\r\n"
-    );
-    fs::write(&path, content).unwrap();
     let socket = dir.path().join("must-not-create.sock");
     let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
-        .args(["inspect", "--log"])
-        .arg(&path)
+        .arg("--help")
         .env("RETINUE_DAEMON_SOCKET", &socket)
+        .env_remove("POE2COMPANION_RELOAD_FD")
         .output()
         .unwrap();
     assert!(
@@ -25,24 +18,28 @@ fn inspect_is_explicit_read_only_and_ignores_chat() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let records: Vec<Value> = String::from_utf8(output.stdout)
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-    assert_eq!(records.len(), 1);
-    assert_eq!(records[0]["kind"], "character_level");
-    assert_eq!(records[0]["client_pid"], 312);
-    assert_eq!(fs::read(&path).unwrap(), content.as_bytes());
-    assert!(!socket.exists());
-    assert!(
-        !Command::new(env!("CARGO_BIN_EXE_poe2companion"))
-            .arg("inspect")
+    let help = String::from_utf8(output.stdout).unwrap();
+    assert!(help.contains("native observer"));
+    assert!(help.contains("--pid"));
+    assert!(help.contains("watch"));
+    assert!(help.contains("launch"));
+    assert!(!help.contains("--reload-check"));
+    for args in [
+        vec!["inspect"],
+        vec!["watch", "--log", "Client.txt"],
+        vec!["launch"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
+            .args(args)
+            .env("RETINUE_DAEMON_SOCKET", &socket)
+            .env("RETINUE_COMMAND", "/bin/false")
+            .env_remove("POE2COMPANION_RELOAD_FD")
             .output()
-            .unwrap()
-            .status
-            .success()
-    );
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+    }
+    assert!(!socket.exists());
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
 }
 
 #[test]
@@ -57,14 +54,27 @@ fn paths_report_only_used_directories_without_writes() {
         .env("XDG_STATE_HOME", dir.path().join("state"))
         .env("XDG_RUNTIME_DIR", dir.path().join("runtime"))
         .env_remove("RETINUE_DAEMON_SOCKET")
+        .env_remove("POE2COMPANION_RELOAD_FD")
         .output()
         .unwrap();
     assert!(output.status.success());
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["app"], "poe2companion");
     let entries = report["paths"].as_array().unwrap();
-    assert_eq!(entries.len(), 1);
+    assert_eq!(entries.len(), 3);
     assert_eq!(entries[0]["kind"], "runtime");
+    assert_eq!(entries[1]["kind"], "config");
+    assert_eq!(
+        entries[1]["path"],
+        dir.path()
+            .join("config/retinue/games/poe2/companion")
+            .to_str()
+            .unwrap()
+    );
+    assert_eq!(
+        entries[2]["path"],
+        dir.path().join("data/applications").to_str().unwrap()
+    );
     assert_eq!(
         entries[0]["path"],
         dir.path().join("runtime/retinue").to_str().unwrap()
@@ -79,6 +89,7 @@ fn paths_report_honors_socket_override() {
     let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
         .args(["paths", "--json"])
         .env("RETINUE_DAEMON_SOCKET", socket)
+        .env_remove("POE2COMPANION_RELOAD_FD")
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -88,4 +99,125 @@ fn paths_report_honors_socket_override() {
         dir.path().join("custom").to_str().unwrap()
     );
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn preview_renders_without_game_daemon_or_desktop() {
+    let dir = tempfile::tempdir().unwrap();
+    let image = dir.path().join("preview.png");
+    let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
+        .args(["preview", "--scale", "1.25", "--output"])
+        .arg(&image)
+        .env("HOME", dir.path())
+        .env("RETINUE_DAEMON_SOCKET", dir.path().join("absent.sock"))
+        .env_remove("DISPLAY")
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .env_remove("POE2COMPANION_RELOAD_FD")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let bytes = fs::read(image).unwrap();
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn preview_supports_active_numeric_editor() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut fixture: Value =
+        serde_json::from_str(include_str!("fixtures/evaluate-preview.json")).unwrap();
+    fixture["profile"] = serde_json::json!("fuzzy");
+    fixture["editor"] = serde_json::json!({"modifier": 0, "bound": "minimum", "select_all": true});
+    let input = dir.path().join("editor.json");
+    fs::write(&input, serde_json::to_vec(&fixture).unwrap()).unwrap();
+    for scale in ["1", "1.25"] {
+        let path = dir.path().join(format!("editor-{scale}.png"));
+        let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
+            .args(["preview", "--scale", scale, "--input"])
+            .arg(&input)
+            .arg("--output")
+            .arg(&path)
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
+            .env_remove("POE2COMPANION_RELOAD_FD")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(&fs::read(path).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
+    }
+}
+
+#[test]
+fn preview_states_keep_requested_full_frame_resolution() {
+    let dir = tempfile::tempdir().unwrap();
+    for (width, height, scale) in [(1920u32, 1080u32, "1"), (2560, 1440, "1.25")] {
+        for state in [
+            "ready",
+            "searching",
+            "results",
+            "listing-preview",
+            "empty",
+            "search-error",
+        ] {
+            let path = dir.path().join(format!("{state}-{width}.png"));
+            let output = Command::new(env!("CARGO_BIN_EXE_poe2companion"))
+                .args([
+                    "preview",
+                    "--full-frame",
+                    "--state",
+                    state,
+                    "--scale",
+                    scale,
+                    "--width",
+                    &width.to_string(),
+                    "--height",
+                    &height.to_string(),
+                    "--input",
+                ])
+                .arg(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/evaluate-reference.json"
+                ))
+                .arg("--output")
+                .arg(&path)
+                .env_remove("DISPLAY")
+                .env_remove("WAYLAND_DISPLAY")
+                .env_remove("DBUS_SESSION_BUS_ADDRESS")
+                .env_remove("POE2COMPANION_RELOAD_FD")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let image = fs::read(&path).unwrap();
+            assert_eq!(u32::from_be_bytes(image[16..20].try_into().unwrap()), width);
+            assert_eq!(
+                u32::from_be_bytes(image[20..24].try_into().unwrap()),
+                height
+            );
+            let data: Value =
+                serde_json::from_slice(&fs::read(path.with_extension("json")).unwrap()).unwrap();
+            assert_eq!(data["screen"]["width"], width);
+            assert_eq!(data["screen"]["height"], height);
+            let bounds = &data["bounds"];
+            assert!(
+                bounds["x"].as_u64().unwrap() + bounds["width"].as_u64().unwrap() <= width as u64
+            );
+            assert!(
+                bounds["y"].as_u64().unwrap() + bounds["height"].as_u64().unwrap() <= height as u64
+            );
+        }
+    }
 }

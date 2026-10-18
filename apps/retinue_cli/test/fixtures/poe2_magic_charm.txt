@@ -1,0 +1,22 @@
+Item Class: Charms
+Rarity: Magic
+Mistbound Stone Charm of the Copious
+--------
+Lasts 3 Seconds
+Consumes 20 of 52 (augmented) Charges on use
+Currently has 52 Charges
+Cannot be Stunned
+--------
+Requires: Level 20
+--------
+Item Level: 28
+--------
+{ Implicit Modifier }
+Used when you become Stunned — Unscalable Value
+--------
+{ Prefix Modifier "Mistbound" (Tier: 6) — Charm, Mana }
+Recover 73(55-75) Mana when Used
+{ Suffix Modifier "of the Copious" (Tier: 5) }
+32(31-38)% increased Charges
+--------
+Used automatically when condition is met. Can only hold charges while in belt. Refill at Wells or by killing monsters.

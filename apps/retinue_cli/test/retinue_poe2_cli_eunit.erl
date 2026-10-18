@@ -1,67 +1,67 @@
 -module(retinue_poe2_cli_eunit).
-
 -include_lib("eunit/include/eunit.hrl").
 
 status_connection_is_separate_from_observed_state_test() ->
     Data = #{<<"observers">> => [#{client => <<"poe2companion">>, mode => <<"watch">>}],
-             <<"source">> => <<"/logs/Client.txt">>, <<"revision">> => 8,
-             <<"updated_at">> => 1000,
-             <<"current">> => #{<<"area_name">> => <<"The Riverbank">>,
-                                <<"area_id">> => <<"G1_1">>, <<"area_level">> => 2,
-                                <<"seed">> => 123, <<"client_pid">> => 42,
-                                <<"actors">> => #{<<"TestName">> => #{
-                                    <<"character_class">> => <<"Mercenary">>,
-                                    <<"character_level">> => 3, <<"observed_deaths">> => 1}}}},
+             <<"status">> => <<"observed">>, <<"revision">> => 8,
+             <<"updated_at">> => 1000, <<"observed_at">> => 31000,
+             <<"process">> => retinue_poe2_fixture:process(),
+             <<"current">> => retinue_poe2_fixture:snapshot(), <<"error">> => null},
     Text = retinue_output:with(#{utc => true}, fun() -> format(status, Data) end),
     lists:foreach(fun(Part) -> contains(Text, Part) end,
-                  [<<"connection: connected (1)">>, <<"source: /logs/Client.txt">>,
-                   <<"revision: 8">>, <<"last event received: 1970-01-01T00:00:01.000Z">>,
-                   <<"Last-observed state">>, <<"zone: The Riverbank">>,
-                   <<"area id: G1_1">>, <<"area level: 2">>, <<"seed: 123">>,
-                   <<"log client pid: 42">>, <<"actors (observed names)">>,
-                   <<"TestName: class Mercenary; level 3; observed deaths 1">>]),
+                  [<<"PoE2 native session">>, <<"connection: connected (1)">>,
+                   <<"revision: 8">>, <<"last changed: 1970-01-01T00:00:01.000Z">>,
+                   <<"last observed: 1970-01-01T00:00:31.000Z">>,
+                   <<"scene: in game">>, <<"zone: The Riverbank">>, <<"in town: no">>,
+                   <<"process: 42">>, <<"character: ExampleCharacter">>, <<"class: Huntress">>,
+                   <<"level: 2">>, <<"XP: 100">>, <<"gold: 42">>, <<"life: 100">>,
+                   <<"inventory: closed">>, <<"stash: unknown">>]),
     Disconnected = format(status, Data#{<<"observers">> => []}),
     contains(Disconnected, <<"connection: not connected">>),
-    contains(Disconnected, <<"Last-observed state">>),
     contains(Disconnected, <<"zone: The Riverbank">>),
-    ?assertEqual(nomatch, binary:match(Text, <<"game running">>)).
+    ?assertEqual(nomatch, binary:match(Text, <<"log observer">>)).
 
-empty_and_partial_status_test() ->
-    Empty = format(status, #{<<"observers">> => []}),
+waiting_error_and_partial_status_test() ->
+    Empty = format(status, (retinue_poe2_session:empty())#{<<"observers">> => []}),
     contains(Empty, <<"connection: not connected">>),
-    contains(Empty, <<"source: unknown">>),
-    contains(Empty, <<"last event received: unknown">>),
-    contains(Empty, <<"Last-observed state: no observations">>),
-    Partial = format(status, #{<<"current">> => #{<<"actors">> => #{
-        <<"SeenDeath">> => #{<<"observed_deaths">> => 1},
-        <<"SeenLevel">> => #{<<"character_level">> => 4}}}}),
-    contains(Partial, <<"connection: unknown">>),
-    contains(Partial, <<"SeenDeath: class unknown; level unknown; observed deaths 1">>),
-    contains(Partial, <<"SeenLevel: class unknown; level 4; observed deaths unknown">>).
+    contains(Empty, <<"status: waiting">>),
+    contains(Empty, <<"last observed: unknown">>),
+    contains(Empty, <<"Native state: no observation">>),
+    Error = format(status, (retinue_poe2_session:empty())#{<<"status">> => <<"error">>,
+        <<"error">> => <<"layout unresolved">>, <<"process">> => retinue_poe2_fixture:process()}),
+    contains(Error, <<"status: error">>),
+    contains(Error, <<"error: layout unresolved">>),
+    Partial = format(status, #{<<"current">> => (retinue_poe2_fixture:snapshot())#{
+        <<"player">> => null, <<"area">> => null, <<"panels">> => #{},
+        <<"issues">> => [#{<<"field">> => <<"player">>, <<"reason">> => <<"component unreadable">>}]}}),
+    lists:foreach(fun(Part) -> contains(Partial, Part) end,
+        [<<"character: unknown">>, <<"zone: unknown">>, <<"panels: unknown">>,
+         <<"read issues">>, <<"player: component unreadable">>]).
 
-events_preserve_source_local_time_and_order_test() ->
-    Events = [#{<<"kind">> => <<"area_generated">>, <<"area_id">> => <<"G1_1">>,
-                <<"area_level">> => 2, <<"seed">> => 123},
-              #{<<"kind">> => <<"area_name">>, <<"area_name">> => <<"The Riverbank">>},
-              #{<<"kind">> => <<"character_level">>, <<"character">> => <<"TestName">>,
-                <<"character_class">> => <<"Mercenary">>, <<"character_level">> => 3},
-              #{<<"kind">> => <<"death">>, <<"character">> => <<"TestName">>}],
-    Text = retinue_output:with(#{utc => true}, fun() ->
-        format(events, [E#{<<"timestamp_local">> => <<"2026/10/11 03:04:05">>,
-                          <<"offset">> => N * 100, <<"client_pid">> => 42, <<"tick_ms">> => N}
-                        || {E, N} <- lists:zip(Events, lists:seq(1, 4))])
-    end),
-    contains(Text, <<"timestamps are game-local">>),
-    contains(Text, <<"2026/10/11 03:04:05  Area generated: G1_1; level 2; seed 123">>),
-    contains(Text, <<"Zone: The Riverbank">>),
-    contains(Text, <<"Character level: TestName; Mercenary; level 3">>),
-    contains(Text, <<"Death: TestName">>),
-    contains(Text, <<"log pid: 42; tick: 4 ms; offset: 400">>),
-    {Area, _} = binary:match(Text, <<"Area generated:">>),
+events_use_output_timestamps_test() ->
+    {ok, Sample} = retinue_poe2_session:sample(retinue_poe2_fixture:sample(1)),
+    {changed, Initial} = retinue_poe2_session:apply(Sample, retinue_poe2_session:empty()),
+    Dead = retinue_poe2_fixture:with_player(retinue_poe2_fixture:sample(2),
+                                          #{<<"experience">> => 200, <<"life">> => 0}),
+    {changed, Last} = retinue_poe2_session:apply(Dead, Initial),
+    Events = maps:get(<<"events">>, Last),
+    Text = retinue_output:with(#{utc => true}, fun() -> format(events, Events) end),
+    lists:foreach(fun(Part) -> contains(Text, Part) end,
+        [<<"1970-01-01T00:00:01.000Z  Scene: in game">>, <<"Zone: The Riverbank">>,
+         <<"Character: ExampleCharacter; class Huntress">>, <<"Panel: inventory; closed">>,
+         <<"XP: ExampleCharacter; 100 -> 200">>, <<"Level: ExampleCharacter; unknown -> 2">>,
+         <<"Gold: ExampleCharacter; unknown -> 42">>,
+         <<"1970-01-01T00:00:02.000Z  Death: ExampleCharacter">>]),
+    {Area, _} = binary:match(Text, <<"Zone:">>),
     {Death, _} = binary:match(Text, <<"Death:">>),
     ?assert(Area < Death),
-    ?assertEqual(nomatch, binary:match(Text, <<"2026-10-11T">>)),
-    ?assertEqual(<<"No observed PoE2 log events.\n">>, format(events, [])).
+    ?assertEqual(nomatch, binary:match(Text, <<"game-local">>)),
+    ?assertEqual(<<"No observed PoE2 session events.\n">>, format(events, [])).
+
+display_does_not_execute_terminal_controls_test() ->
+    Text = format(status, #{<<"error">> => <<"read", 27, "[31mfailed", 10, "line">>}),
+    ?assertEqual(nomatch, binary:match(Text, <<27>>)),
+    contains(Text, <<"error: read [31mfailed line">>).
 
 format(Action, Data) -> unicode:characters_to_binary(retinue_poe2_cli:format(Action, Data)).
 contains(Text, Part) -> ?assertNotEqual(nomatch, binary:match(Text, Part)).

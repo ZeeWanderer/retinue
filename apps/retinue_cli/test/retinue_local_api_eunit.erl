@@ -9,6 +9,128 @@ unix_socket_lifecycle_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(State) -> fun() -> lifecycle(State) end end}.
 
+shared_check_publications_do_not_touch_player_data_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path, root := Root}) -> fun() ->
+         application:set_env(retinue_daemon, checks_file, filename:join(Root, "checks.json")),
+         {ok, ChecksPid} = retinue_checks:start_link(),
+         Client = connect_client(Path, <<"wfcompanion">>, #{}),
+         Poe2 = connect_client(Path, <<"poe2companion">>, retinue_local_protocol:contract(<<"poe2">>)),
+         Limited = connect_client(Path, <<"test">>, #{<<"interfaces">> => #{}}),
+         Before = sys:get_state(wf_player_service),
+         Time = erlang:system_time(millisecond),
+         Request = #{<<"id">> => 90, <<"op">> => <<"publish">>, <<"dataset">> => <<"checks">>,
+             <<"data">> => #{<<"context">> => #{<<"session">> => <<"one">>, <<"version">> => <<"spoof">>},
+                 <<"checks">> => #{<<"reader">> => #{<<"state">> => <<"fail">>,
+                     <<"error">> => <<"anchor missing">>, <<"checked_at">> => Time}}}},
+         Exchange = fun(Socket, Message) ->
+             ok = socket:send(Socket, retinue_local_protocol:encode(Message)),
+             receive_response(Socket, 90, <<>>)
+         end,
+         try
+             ?assertMatch(#{<<"ok">> := true}, Exchange(Client, Request)),
+             ?assertMatch(#{<<"ok">> := true}, Exchange(Poe2, Request)),
+             ?assertMatch(#{<<"error">> := <<"checks_interface_required">>}, Exchange(Limited, Request)),
+             ?assertMatch(#{<<"error">> := <<"invalid_check_report">>}, Exchange(Client, Request#{<<"data">> := #{}})),
+             ?assertMatch(#{<<"error">> := <<"wrong_game">>}, Exchange(Client, Request#{<<"game">> => <<"poe2">>})),
+             #{checks := Rows} = retinue_checks:report(),
+             ?assertEqual([<<"poe2.companion">>, <<"warframe.companion">>],
+                          lists:sort([maps:get(<<"component">>, R) || R <- Rows])),
+             ?assert(lists:all(fun(R) -> maps:get(<<"version">>, maps:get(<<"context">>, R)) =:= <<"test">> end, Rows)),
+             ?assertEqual(Before, sys:get_state(wf_player_service))
+         after
+             socket:close(Client), socket:close(Poe2), socket:close(Limited),
+             gen_server:stop(ChecksPid), application:unset_env(retinue_daemon, checks_file)
+         end
+     end end}.
+
+poe2_trade_does_not_block_session_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         Parent = self(),
+         HTTP = fun(Method, URL, Headers, Body) ->
+             case URL of
+                 <<"/api/trade2/data/leagues">> ->
+                     Parent ! {trade_http, self()},
+                     receive continue -> ok after 2000 -> error(test_timeout) end;
+                 _ -> ok
+             end,
+             retinue_poe2_trade_eunit:http(Method, URL, Headers, Body)
+         end,
+         {ok, Trade} = retinue_poe2_trade:start_link(#{http => HTTP}),
+         Contract = retinue_local_protocol:contract(<<"poe2">>),
+         Client = connect_client(Path, <<"poe2companion">>, Contract),
+         try
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 20,
+                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()})),
+             Worker = receive {trade_http, Pid} -> Pid after 1000 -> error(http_not_started) end,
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 23,
+                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()})),
+             Read = #{<<"id">> => 21, <<"op">> => <<"get">>, <<"dataset">> => <<"session">>},
+             ok = socket:send(Client, retinue_local_protocol:encode(Read)),
+             ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"schema">> := 2}},
+                          receive_response(Client, 21, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 22,
+                 <<"op">> => <<"publish">>, <<"dataset">> => <<"session">>,
+                 <<"data">> => retinue_poe2_fixture:sample(1)})),
+             ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 22, <<>>)),
+             Worker ! continue,
+             %% One recv can contain both coalesced replies; inspect both lines.
+             Replies = trade_responses(Client, [], 2),
+             ?assertEqual([20, 23], lists:sort([maps:get(<<"id">>, R) || R <- Replies])),
+             lists:foreach(fun(R) ->
+                 ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>,
+                     <<"data">> := #{<<"item">> := #{<<"name">> := <<"Doom Shelter">>}}}, R)
+             end, Replies),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 24,
+                 <<"op">> => <<"trade_item">>, <<"text">> => <<"not an item">>})),
+             ?assertMatch(#{<<"ok">> := false, <<"error">> := #{<<"reason">> := <<"invalid_item_text">>}},
+                 receive_response(Client, 24, <<>>))
+         after socket:close(Client), gen_server:stop(Trade) end
+     end end}.
+
+poe2_prediction_feature_and_independent_worker_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         Parent = self(),
+         {ok, Trade} = retinue_poe2_trade:start_link(#{
+             enrich => fun retinue_poe2_trade_profiles:prepare/1,
+             http => fun retinue_poe2_trade_eunit:http/4}),
+         {ok, Prediction} = retinue_poe2_prediction:start_link(#{http => fun(_) ->
+             Parent ! {prediction_http, self()}, receive continue -> ok after 2000 -> error(test_timeout) end,
+             {ok, 200, #{}, <<"{\"results\":[{\"predicted_price\":40}]}">>}
+         end}),
+         Contract = retinue_local_protocol:contract(<<"poe2">>),
+         Client = connect_client(Path, <<"poe2companion">>, Contract),
+         Disabled = connect_client(Path, <<"test">>, Contract#{<<"features">> => []}),
+         Request = #{<<"id">> => 31, <<"op">> => <<"trade_predict">>, <<"league">> => <<"Standard">>,
+             <<"text">> => <<"Item Class: Rings\nRarity: Rare\nGloom Finger\nGold Ring\n--------\n",
+                 "Item Level: 82\n--------\n+80 to maximum Life">>},
+         try
+             ok = socket:send(Disabled, retinue_local_protocol:encode(Request)),
+             ?assertMatch(#{<<"ok">> := false}, receive_response(Disabled, 31, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(Request)),
+             Worker = receive {prediction_http, Pid} -> Pid after 1000 -> error(no_prediction) end,
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 32,
+                 <<"op">> => <<"trade_leagues">>})),
+             ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 32, <<>>)),
+             Worker ! continue,
+             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>,
+                 <<"data">> := #{<<"estimate">> := #{<<"amount">> := 40}}},
+                 receive_response(Client, 31, <<>>))
+         after socket:close(Client), socket:close(Disabled),
+               gen_server:stop(Trade), gen_server:stop(Prediction) end
+     end end}.
+
+trade_responses(Socket, Replies, Count) -> trade_responses(Socket, Replies, Count, <<>>).
+trade_responses(_Socket, Replies, Count, _) when length(Replies) >= Count -> Replies;
+trade_responses(Socket, Replies, Count, Buffer) ->
+    {ok, Data} = socket:recv(Socket, 0, 2000),
+    Lines = binary:split(<<Buffer/binary, Data/binary>>, <<"\n">>, [global]),
+    Rest = lists:last(Lines),
+    Rows = [jsone:decode(Line) || Line <- lists:droplast(Lines), Line =/= <<>>],
+    trade_responses(Socket, Replies ++ Rows, Count, Rest).
+
 game_scoped_session_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(#{socket := Path}) -> fun() ->
@@ -28,19 +150,33 @@ game_scoped_session_test_() ->
          ok = socket:send(Reader, retinue_local_protocol:encode(Read#{<<"op">> => <<"subscribe">>})),
          ?assertMatch(#{<<"data">> := #{<<"revision">> := 0}}, receive_response(Reader, 2, <<>>)),
          Publish = #{<<"id">> => 3, <<"op">> => <<"publish">>, <<"dataset">> => <<"session">>,
-                     <<"data">> => #{<<"source">> => <<"/game/Client.txt">>,
-                                      <<"generation">> => <<"test">>, <<"cursor">> => 1,
-                                      <<"events">> => []}},
+                     <<"data">> => retinue_poe2_fixture:sample(1)},
          ok = socket:send(Reader, retinue_local_protocol:encode(Publish)),
          ?assertMatch(#{<<"error">> := <<"observer_required">>}, receive_response(Reader, 3, <<>>)),
          ok = socket:send(Observer, retinue_local_protocol:encode(Publish)),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Observer, 3, <<>>)),
          ?assertMatch(#{<<"event">> := <<"session">>, <<"game">> := <<"poe2">>,
-                        <<"subscription">> := 2}, diagnostic_command(Reader)),
+                        <<"subscription">> := 2, <<"data">> := #{<<"schema">> := 2,
+                            <<"current">> := #{<<"scene">> := <<"in_game">>}}}, diagnostic_command(Reader)),
+         ok = socket:send(Observer, retinue_local_protocol:encode(Publish)),
+         ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"unchanged">> := true}},
+                      receive_response(Observer, 3, <<>>)),
+         ?assertEqual({error, timeout}, socket:recv(Reader, 0, 25)),
+         ok = socket:send(Observer, retinue_local_protocol:encode(Publish#{<<"id">> => 4,
+             <<"data">> => retinue_poe2_fixture:sample(2)})),
+         ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"revision">> := 1,
+                                                        <<"unchanged">> := true}},
+                      receive_response(Observer, 4, <<>>)),
+         ?assertEqual({error, timeout}, socket:recv(Reader, 0, 25)),
+         ok = socket:send(Observer, retinue_local_protocol:encode(Publish#{<<"id">> => 5,
+             <<"data">> => #{<<"source">> => <<"/Client.txt">>, <<"cursor">> => 1, <<"events">> => []}})),
+         ?assertMatch(#{<<"ok">> := false, <<"error">> := <<"invalid_session_sample">>},
+                      receive_response(Observer, 5, <<>>)),
          ok = gen_server:stop(wf_player_service),
          ?assertEqual({error, closed}, socket:recv(Warframe, 0, 2000)),
          ok = socket:send(Reader, retinue_local_protocol:encode(Read)),
-         ?assertMatch(#{<<"data">> := #{<<"revision">> := 1}}, receive_response(Reader, 2, <<>>)),
+         ?assertMatch(#{<<"data">> := #{<<"revision">> := 1, <<"sequence">> := 2,
+                                       <<"observed_at">> := 2000}}, receive_response(Reader, 2, <<>>)),
          {ok, _} = wf_player_service:start_link(),
          lists:foreach(fun socket:close/1, [Reader, Observer, Warframe]),
          await_external_activity(0, 20)
@@ -737,7 +873,7 @@ connect_client(SocketPath, Client, Extra) ->
     ?assertEqual(retinue_local_protocol:interfaces(maps:get(<<"game">>, Hello)),
                  maps:get(<<"interfaces">>, Reply)),
     Requested = maps:get(<<"features">>, Hello, []),
-    ExpectedFeatures = [Feature || Feature <- retinue_local_protocol:features(),
+    ExpectedFeatures = [Feature || Feature <- retinue_local_protocol:features(maps:get(<<"game">>, Hello)),
                                    lists:member(Feature, Requested)],
     ?assertEqual(ExpectedFeatures, maps:get(<<"features">>, Reply)),
     Socket.

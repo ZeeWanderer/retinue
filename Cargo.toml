@@ -8,6 +8,7 @@ members = [
     "crates/retinue-client",
     "crates/retinue-native",
     "crates/retinue-overlay",
+    "crates/retinue-poe2",
     "crates/retinue-warframe",
 ]
 exclude = [".cache"]

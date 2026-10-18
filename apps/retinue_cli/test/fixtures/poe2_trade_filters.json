@@ -1,0 +1,190 @@
+{
+  "result": [
+    {
+      "id": "status_filters",
+      "filters": [
+        {
+          "id": "status",
+          "option": {
+            "options": [
+              {
+                "id": "available",
+                "text": "Instant Buyout and In Person"
+              },
+              {
+                "id": "securable",
+                "text": "Instant Buyout"
+              },
+              {
+                "id": "onlineleague",
+                "text": "In Person (Online in League)"
+              },
+              {
+                "id": "online",
+                "text": "In Person (Online)"
+              },
+              {
+                "id": "any",
+                "text": "Any"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "type_filters",
+      "filters": [
+        {
+          "id": "rarity",
+          "text": "Item Rarity",
+          "fullSpan": true,
+          "option": {
+            "options": [
+              {
+                "id": null,
+                "text": "Any"
+              },
+              {
+                "id": "normal",
+                "text": "Normal"
+              },
+              {
+                "id": "magic",
+                "text": "Magic"
+              },
+              {
+                "id": "rare",
+                "text": "Rare"
+              },
+              {
+                "id": "unique",
+                "text": "Unique"
+              },
+              {
+                "id": "uniquefoil",
+                "text": "Unique (Foil)"
+              },
+              {
+                "id": "nonunique",
+                "text": "Any Non-Unique"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "trade_filters",
+      "filters": [
+        {
+          "id": "indexed",
+          "text": "Listed",
+          "fullSpan": true,
+          "option": {
+            "options": [
+              {
+                "id": null,
+                "text": "Any Time"
+              },
+              {
+                "id": "1hour",
+                "text": "Up to an Hour Ago"
+              },
+              {
+                "id": "3hours",
+                "text": "Up to 3 Hours Ago"
+              },
+              {
+                "id": "12hours",
+                "text": "Up to 12 Hours Ago"
+              },
+              {
+                "id": "1day",
+                "text": "Up to a Day Ago"
+              },
+              {
+                "id": "3days",
+                "text": "Up to 3 Days Ago"
+              },
+              {
+                "id": "1week",
+                "text": "Up to a Week Ago"
+              },
+              {
+                "id": "2weeks",
+                "text": "Up to 2 Weeks Ago"
+              },
+              {
+                "id": "1month",
+                "text": "Up to 1 Month Ago"
+              },
+              {
+                "id": "2months",
+                "text": "Up to 2 Months Ago"
+              }
+            ]
+          }
+        },
+        {
+          "id": "price",
+          "text": "Buyout Price",
+          "fullSpan": true,
+          "option": {
+            "options": [
+              {
+                "id": null,
+                "text": "Exalted Orb Equivalent"
+              },
+              {
+                "id": "exalted_divine",
+                "text": "Exalted or Divine Orbs"
+              },
+              {
+                "id": "aug",
+                "text": "Orb of Augmentation"
+              },
+              {
+                "id": "transmute",
+                "text": "Orb of Transmutation"
+              },
+              {
+                "id": "exalted",
+                "text": "Exalted Orb"
+              },
+              {
+                "id": "regal",
+                "text": "Regal Orb"
+              },
+              {
+                "id": "chaos",
+                "text": "Chaos Orb"
+              },
+              {
+                "id": "vaal",
+                "text": "Vaal Orb"
+              },
+              {
+                "id": "alch",
+                "text": "Orb of Alchemy"
+              },
+              {
+                "id": "divine",
+                "text": "Divine Orb"
+              },
+              {
+                "id": "annul",
+                "text": "Orb of Annulment"
+              },
+              {
+                "id": "mirror",
+                "text": "Mirror of Kalandra"
+              }
+            ]
+          },
+          "minMax": true
+        }
+      ]
+    }
+  ]
+}

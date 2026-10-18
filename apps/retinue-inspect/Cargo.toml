@@ -6,6 +6,7 @@ license = "Apache-2.0"
 description = "Retinue process, capture and game inspection CLI"
 
 [dependencies]
+retinue-poe2 = { path = "../../crates/retinue-poe2" }
 clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4.6"
 retinue-client = { path = "../../crates/retinue-client" }

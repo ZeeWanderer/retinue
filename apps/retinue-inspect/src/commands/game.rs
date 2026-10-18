@@ -179,6 +179,26 @@ pub enum Ui {
         #[arg(long, default_value_t = 2048)]
         limit: usize,
     },
+    /// Inspect display hierarchy, effective visibility and screen-space leaf bounds.
+    Tree {
+        #[command(flatten)]
+        source: args::Source,
+        /// Movie path substring. Required to keep inspection bounded.
+        movie: String,
+        #[arg(long, default_value_t = 2048)]
+        limit: usize,
+        /// Retain exactly the memory read for offline replay with --capture.
+        #[arg(long)]
+        save: Option<PathBuf>,
+    },
+    /// Read the visible ducat kiosk tooltip.
+    Ducats {
+        #[command(flatten)]
+        source: args::Source,
+        /// Retain the exact reads for offline replay with --capture.
+        #[arg(long)]
+        save: Option<PathBuf>,
+    },
     /// Find text and its display-object references in available memory.
     Find {
         #[command(flatten)]
@@ -301,7 +321,21 @@ impl Ui {
                 limit,
             )?),
             Self::Find { source, terms } => print_json(&memory::ui_find(source.open()?, &terms)?),
+            Self::Tree {
+                source,
+                movie,
+                limit,
+                save,
+            } => print_json(&memory::ui_tree(
+                source.open()?,
+                &movie,
+                limit,
+                save.as_deref(),
+            )?),
             Self::Relic { source } => print_json(&memory::ui_relic(source.open()?)?),
+            Self::Ducats { source, save } => {
+                print_json(&memory::ui_ducats(source.open()?, save.as_deref())?)
+            }
             Self::Capture { directory, terms } => {
                 let evidence = retinue_warframe::observation::ui_capture::capture(
                     game_pid()?,

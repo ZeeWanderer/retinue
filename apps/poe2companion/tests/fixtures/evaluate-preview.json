@@ -1,0 +1,319 @@
+{
+  "evaluation": {
+    "item": {
+      "name": "Dread Loop",
+      "base": "Sapphire Ring",
+      "rarity": "Rare",
+      "category": "accessory.ring",
+      "ranking_status": "ready",
+      "profiles": ["nomods", "fuzzy"],
+      "default_profile": "nomods",
+      "item_level": 82,
+      "properties": [
+        {
+          "text": "Requires Level 64"
+        }
+      ],
+      "modifiers": [
+        {
+          "key": "cold",
+          "text": "+28% to Cold Resistance",
+          "section": "implicit",
+          "id": "implicit.cold",
+          "min": 28,
+          "ranges": {"allmods": {"min": 28}, "fuzzy": {"min": 28}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "life",
+          "text": "+73 to maximum Life",
+          "section": "explicit",
+          "id": "explicit.life",
+          "min": 73,
+          "ranges": {"allmods": {"min": 73}, "fuzzy": {"min": 73}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "fire",
+          "text": "+40% to Fire Resistance",
+          "section": "explicit",
+          "id": "explicit.fire",
+          "min": 40,
+          "ranges": {"allmods": {"min": 40}, "fuzzy": {"min": 40}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "lightning",
+          "text": "+36% to Lightning Resistance",
+          "section": "explicit",
+          "id": "explicit.lightning",
+          "min": 36,
+          "ranges": {"allmods": {"min": 36}, "fuzzy": {"min": 36}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "physical",
+          "text": "Adds 8 to 15 Physical Damage to Attacks",
+          "section": "explicit",
+          "id": "explicit.physical",
+          "min": 11.5,
+          "ranges": {"allmods": {"min": 11.5}, "fuzzy": {"min": 11.5}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        },
+        {
+          "key": "mana",
+          "text": "+64 to maximum Mana",
+          "section": "explicit",
+          "id": "explicit.mana",
+          "min": 64,
+          "ranges": {"allmods": {"min": 64}, "fuzzy": {"min": 64}},
+          "max": null,
+          "supported": true,
+          "exact_selected": true
+        }
+      ],
+      "conditions": [
+        {
+          "id": "modifiable",
+          "text": "Modifiable"
+        }
+      ]
+    },
+    "leagues": [
+      {
+        "id": "Standard",
+        "text": "Standard"
+      }
+    ],
+    "league": "Standard",
+    "search_options": {
+      "status": [
+        {
+          "id": "available",
+          "text": "Instant Buyout and In Person"
+        },
+        {
+          "id": "securable",
+          "text": "Instant Buyout"
+        },
+        {
+          "id": "onlineleague",
+          "text": "In Person (Online in League)"
+        },
+        {
+          "id": "online",
+          "text": "In Person (Online)"
+        },
+        {
+          "id": "any",
+          "text": "Any"
+        }
+      ],
+      "rarity": [
+        {
+          "id": null,
+          "text": "Any"
+        },
+        {
+          "id": "normal",
+          "text": "Normal"
+        },
+        {
+          "id": "magic",
+          "text": "Magic"
+        },
+        {
+          "id": "rare",
+          "text": "Rare"
+        },
+        {
+          "id": "unique",
+          "text": "Unique"
+        },
+        {
+          "id": "uniquefoil",
+          "text": "Unique (Foil)"
+        },
+        {
+          "id": "nonunique",
+          "text": "Any Non-Unique"
+        }
+      ],
+      "indexed": [
+        {
+          "id": null,
+          "text": "Any Time"
+        },
+        {
+          "id": "1hour",
+          "text": "Up to an Hour Ago"
+        },
+        {
+          "id": "3hours",
+          "text": "Up to 3 Hours Ago"
+        },
+        {
+          "id": "12hours",
+          "text": "Up to 12 Hours Ago"
+        },
+        {
+          "id": "1day",
+          "text": "Up to a Day Ago"
+        },
+        {
+          "id": "3days",
+          "text": "Up to 3 Days Ago"
+        },
+        {
+          "id": "1week",
+          "text": "Up to a Week Ago"
+        },
+        {
+          "id": "2weeks",
+          "text": "Up to 2 Weeks Ago"
+        },
+        {
+          "id": "1month",
+          "text": "Up to 1 Month Ago"
+        },
+        {
+          "id": "2months",
+          "text": "Up to 2 Months Ago"
+        }
+      ],
+      "currency": [
+        {
+          "id": null,
+          "text": "Exalted Orb Equivalent"
+        },
+        {
+          "id": "exalted_divine",
+          "text": "Exalted or Divine Orbs"
+        },
+        {
+          "id": "aug",
+          "text": "Orb of Augmentation"
+        },
+        {
+          "id": "transmute",
+          "text": "Orb of Transmutation"
+        },
+        {
+          "id": "exalted",
+          "text": "Exalted Orb"
+        },
+        {
+          "id": "regal",
+          "text": "Regal Orb"
+        },
+        {
+          "id": "chaos",
+          "text": "Chaos Orb"
+        },
+        {
+          "id": "vaal",
+          "text": "Vaal Orb"
+        },
+        {
+          "id": "alch",
+          "text": "Orb of Alchemy"
+        },
+        {
+          "id": "divine",
+          "text": "Divine Orb"
+        },
+        {
+          "id": "annul",
+          "text": "Orb of Annulment"
+        },
+        {
+          "id": "mirror",
+          "text": "Mirror of Kalandra"
+        }
+      ]
+    }
+  },
+  "results": {
+    "search_id": "preview",
+    "url": "https://www.pathofexile.com/trade2/search/poe2/Standard/preview",
+    "total": 48,
+    "returned": 48,
+    "listings": [
+      {
+        "id": "1",
+        "name": "Dread Loop",
+        "base": "Sapphire Ring",
+        "item_level": 82,
+        "amount": 35,
+        "currency": "exalted",
+        "account": "ExampleOne",
+        "online": true,
+        "indexed": "2026-10-11T10:00:00Z",
+        "indexed_at": 1791712800,
+        "quality": 0
+      },
+      {
+        "id": "2",
+        "name": "Beast Circle",
+        "base": "Sapphire Ring",
+        "item_level": 84,
+        "amount": 40,
+        "currency": "exalted",
+        "account": "ExampleTwo",
+        "online": true,
+        "indexed": "2026-10-11T10:01:00Z",
+        "indexed_at": 1791712860,
+        "quality": 0
+      },
+      {
+        "id": "3",
+        "name": "Soul Coil",
+        "base": "Sapphire Ring",
+        "item_level": 81,
+        "amount": 45,
+        "currency": "exalted",
+        "account": "ExampleThree",
+        "online": true,
+        "indexed": "2026-10-11T10:02:00Z",
+        "indexed_at": 1791712920,
+        "quality": 0
+      },
+      {
+        "id": "4",
+        "name": "Bramble Loop",
+        "base": "Sapphire Ring",
+        "item_level": 82,
+        "amount": 50,
+        "currency": "exalted",
+        "account": "ExampleFour",
+        "online": true,
+        "indexed": "2026-10-11T10:03:00Z",
+        "indexed_at": 1791712980,
+        "quality": 0
+      },
+      {
+        "id": "5",
+        "name": "Doom Circle",
+        "base": "Sapphire Ring",
+        "item_level": 83,
+        "amount": 1,
+        "currency": "divine",
+        "account": "ExampleFive",
+        "online": true,
+        "indexed": "2026-10-11T10:04:00Z",
+        "indexed_at": 1791713040,
+        "quality": 0
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@ instructions() -> <<"Select game-prefixed tools for game data. Read wfcli://quer
 definitions() ->
     [#{<<"name">> => <<"daemon_status">>, <<"description">> => <<"Inspect Retinue daemon and game services">>,
        <<"inputSchema">> => #{<<"type">> => <<"object">>, <<"properties">> => #{}}},
-     #{<<"name">> => <<"poe2_session">>, <<"description">> => <<"Last-observed PoE2 log state, not live inventory">>,
+     #{<<"name">> => <<"poe2_session">>, <<"description">> => <<"PoE2 native session: scene, area, character, XP, gold, panels, read issues and recent changes">>,
        <<"inputSchema">> => #{<<"type">> => <<"object">>, <<"properties">> => #{}}} |
      [Definition#{<<"name">> := <<"warframe_", (maps:get(<<"name">>, Definition))/binary>>}
       || Definition <- wf_mcp_tools:definitions()]].

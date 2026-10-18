@@ -24,7 +24,7 @@ impl Game {
     fn interfaces(self) -> BTreeMap<&'static str, u32> {
         match self {
             Self::Warframe => local_protocol::interfaces(),
-            Self::Poe2 => BTreeMap::from([("session", 1)]),
+            Self::Poe2 => BTreeMap::from([("session", 2)]),
         }
     }
 }
@@ -287,7 +287,7 @@ mod tests {
         let hello = hello_request(Game::Poe2);
         assert_eq!(hello["envelope"], 2);
         assert_eq!(hello["game"], "poe2");
-        assert_eq!(hello["interfaces"], json!({"session": 1}));
+        assert_eq!(hello["interfaces"], json!({"session": 2}));
         assert_eq!(hello["client"], "retinue-inspect");
     }
 
@@ -317,7 +317,7 @@ mod tests {
             require_compatible(
                 &json!({
                     "ok": true, "compatible": true, "envelope": 2,
-                    "game": "poe2", "interfaces": {"session": 2},
+                    "game": "poe2", "interfaces": {"session": 3},
                 }),
                 Game::Poe2
             )

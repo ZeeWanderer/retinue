@@ -1,0 +1,129 @@
+{
+  "source": "https://www.pathofexile.com/api/trade2/data/stats",
+  "captured": "2026-10-16",
+  "result": [
+    {
+      "id": "explicit",
+      "label": "Explicit",
+      "entries": [
+        {
+          "id": "explicit.stat_4220027924",
+          "text": "#% to Cold Resistance",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_1671376347",
+          "text": "#% to Lightning Resistance",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_3261801346",
+          "text": "# to Dexterity",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_4080418644",
+          "text": "# to Strength",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_1509134228",
+          "text": "#% increased Physical Damage",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_3981240776",
+          "text": "# to Spirit",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_53045048",
+          "text": "# to Evasion Rating (Local)",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_124859000",
+          "text": "#% increased Evasion Rating (Local)",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_2144192055",
+          "text": "# to Evasion Rating",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_2106365538",
+          "text": "#% increased Evasion Rating",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_210067635",
+          "text": "#% increased Attack Speed (Local)",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_681332047",
+          "text": "#% increased Attack Speed",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_1366840608",
+          "text": "#% increased Charges",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_1120862500",
+          "text": "Recover # Mana when Used",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_3739186583",
+          "text": "Knocks Back Enemies on Hit",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_3675300253",
+          "text": "Strikes deal Splash Damage",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_1961849903",
+          "text": "Cannot use Projectile Attacks",
+          "type": "explicit"
+        },
+        {
+          "id": "explicit.stat_2704225257",
+          "text": "# to Spirit",
+          "type": "explicit"
+        }
+      ]
+    },
+    {
+      "id": "implicit",
+      "label": "Implicit",
+      "entries": [
+        {
+          "id": "implicit.stat_1810482573",
+          "text": "Used when you become Stunned",
+          "type": "implicit"
+        }
+      ]
+    },
+    {
+      "id": "rune",
+      "label": "Augment",
+      "entries": [
+        {
+          "id": "rune.stat_3523867985",
+          "text": "#% increased Armour, Evasion and Energy Shield",
+          "type": "augment"
+        },
+        {
+          "id": "rune.stat_1509134228",
+          "text": "#% increased Physical Damage",
+          "type": "augment"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+Item Class: Body Armours
+Rarity: Rare
+Sorrow Skin
+Runner Vest
+--------
+Quality: +20% (augmented)
+Evasion Rating: 1230 (augmented)
+--------
+Requires: Level 62, 94 Dex
+--------
+Sockets: S S
+--------
+Item Level: 80
+--------
+36% increased Armour, Evasion and Energy Shield (rune)
+--------
+{ Prefix Modifier "Nightmare's" (Tier: 3) — Evasion }
+86(80-91)% increased Evasion Rating
+{ Prefix Modifier "Queen's" (Tier: 1) }
++59(57-61) to Spirit
+{ Prefix Modifier "Buck's" (Tier: 5) — Evasion }
++15(7-26) to Evasion Rating
+18(14-20)% increased Evasion Rating
+{ Suffix Modifier "of the Polar Bear" (Tier: 3) — Elemental, Cold, Resistance }
++31(31-35)% to Cold Resistance
+{ Suffix Modifier "of the Mongoose" (Tier: 8) — Attribute }
++5(5-8) to Dexterity
+{ Suffix Modifier "of the Lightning" (Tier: 2) — Elemental, Lightning, Resistance }
++39(36-40)% to Lightning Resistance

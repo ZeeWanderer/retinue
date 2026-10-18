@@ -30,6 +30,8 @@ platform_mcp_is_not_warframe_default_test() ->
     {ok, #{<<"tools">> := Tools}} = retinue_mcp_server:request(retinue_mcp, #{<<"method">> => <<"tools/list">>}),
     Names = [maps:get(<<"name">>, Tool) || Tool <- Tools],
     ?assert(lists:member(<<"poe2_session">>, Names)),
+    [Poe2] = [Tool || #{<<"name">> := <<"poe2_session">>} = Tool <- Tools],
+    ?assertNotEqual(nomatch, binary:match(maps:get(<<"description">>, Poe2), <<"native session">>)),
     ?assert(lists:member(<<"warframe_query">>, Names)),
     ?assertNot(lists:member(<<"query">>, Names)).
 

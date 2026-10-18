@@ -11,6 +11,8 @@ mod args;
 mod files;
 #[path = "commands/game.rs"]
 mod game;
+#[path = "commands/poe2.rs"]
+mod poe2;
 #[path = "commands/scripts.rs"]
 mod scripts;
 #[path = "commands/support.rs"]
@@ -43,6 +45,9 @@ enum Command {
     /// Inspect Warframe memory, events and resource files.
     #[command(subcommand, name = "warframe", alias = "game")]
     Game(game::Game),
+    /// Inspect Path of Exile 2 native bindings and state.
+    #[command(subcommand)]
+    Poe2(poe2::Command),
     /// Inspect the daemon handshake, datasets and subscriptions.
     Daemon {
         /// Game namespace for this daemon connection.
@@ -100,6 +105,7 @@ fn run(command: Command) -> Result<(), String> {
         Command::Native(Native::Report(command)) => command.run(false),
         Command::Doctor => doctor(),
         Command::Game(command) => command.run(),
+        Command::Poe2(command) => command.run(),
         Command::Completion { shell } => {
             let mut script = Vec::new();
             let invoked = std::env::args_os().next().map(std::path::PathBuf::from);
@@ -144,6 +150,26 @@ fn run_daemon(game: daemon::Game, command: Daemon) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn poe2_adapter_live_and_replay_commands_parse() {
+        for args in [
+            vec!["poe2", "adapter"],
+            vec!["poe2", "adapter", "--exe", "/game/PathOfExileSteam.exe"],
+            vec!["poe2", "process", "--pid", "123"],
+            vec![
+                "poe2",
+                "snapshot",
+                "--pid",
+                "123",
+                "--output",
+                "research/capture",
+            ],
+            vec!["poe2", "replay", "research/capture"],
+        ] {
+            assert!(Cli::try_parse_from(std::iter::once("retinue-inspect").chain(args)).is_ok());
+        }
+    }
 
     #[test]
     fn daemon_game_selection_accepts_only_implemented_namespaces() {

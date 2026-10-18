@@ -1,0 +1,19 @@
+Item Class: Skill Gems
+Rarity: Gem
+Tame Beast
+--------
+Minion, Companion, Persistent, Duration
+Level: 13
+Cost: 65 Mana
+--------
+Requires: Level 52, 92 Dex
+--------
+Sockets: G G 
+--------
+Conjure Azmeri wisps to engulf a Rare Beast for a duration, Hindering them. If you defeat the Beast while it is engulfed in wisps, it will be captured by this gem, transforming the gem to instead allow you to summon the Beast as a Reviving Companion.
+--------
+While this Gem is Socketed you can view Monster Categories on Enemies
+Wisp duration is 10.4 seconds
+Tamed Beast retains up to four monster modifiers when summoned
+--------
+Skills can be managed in the Skills Panel.

@@ -1,0 +1,17 @@
+[package]
+name = "retinue-poe2"
+version = "0.2.1"
+edition = "2024"
+license = "Apache-2.0"
+description = "Read-only Path of Exile 2 native observation"
+
+[dependencies]
+pelite = { version = "0.10", default-features = false, features = ["std"] }
+retinue-native = { path = "../retinue-native" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+steamlocate = "2.1"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,18 @@
+Item Class: Rings
+Rarity: Rare
+Gloom Finger
+Gold Ring
+--------
+Item Level: 82
+--------
+{ Prefix Modifier "Healthy" (Tier: 2) — Life }
++82(70-89) to maximum Life
+{ Suffix Modifier "of the Furnace" (Tier: 1) — Elemental, Fire, Resistance }
++35(30-35)% to Fire Resistance
+{ Prefix Modifier "Jagged" (Tier: 3) — Attack, Physical, Damage }
+Adds 10(8-12) to 20(18-22) Physical Damage
+--------
++10 to maximum Life (implicit)
+--------
+{ Future Modifier "Unmapped" (Rank: 4) — FutureTag }
+Unknown future modifier 3(2-4)

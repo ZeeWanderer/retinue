@@ -205,7 +205,7 @@ fn hello_response(reader: &mut BufReader<UnixStream>, game: &str) -> Value {
     assert_eq!(hello["game"], game);
     let interfaces = match game {
         "warframe" => json!(retinue_client::local_protocol::interfaces()),
-        "poe2" => json!({"session": 1}),
+        "poe2" => json!({"session": 2}),
         _ => panic!("unexpected game"),
     };
     assert_eq!(hello["interfaces"], interfaces);
@@ -485,6 +485,20 @@ fn cli_help_validation_completion_and_literals() {
     let completion = run(&["completion", "bash"], None);
     assert!(completion.status.success());
     assert!(String::from_utf8_lossy(&completion.stdout).contains("retinue-inspect"));
+    let help = run(&["warframe", "ui", "tree", "--help"], None);
+    assert!(help.status.success());
+    let help = String::from_utf8_lossy(&help.stdout);
+    for option in ["--save", "--capture", "--limit"] {
+        assert!(help.contains(option));
+    }
+    assert_eq!(
+        run(&["warframe", "ui", "tree"], None).status.code(),
+        Some(2)
+    );
+    let help = run(&["warframe", "ui", "ducats", "--help"], None);
+    assert!(help.status.success());
+    let help = String::from_utf8_lossy(&help.stdout);
+    assert!(help.contains("--save") && help.contains("--capture"));
     assert!(
         document(run(&["warframe", "adapter", "--list"], None))
             .as_array()
@@ -720,7 +734,7 @@ fn poe2_daemon_get_and_subscribe_use_session_namespace() {
     assert_eq!(report["handshake"]["game"], "poe2");
     assert_eq!(
         report["handshake"]["required_interfaces"],
-        json!({"session": 1})
+        json!({"session": 2})
     );
     assert_eq!(report["response"]["data"]["revision"], 7);
 

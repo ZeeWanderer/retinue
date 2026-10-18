@@ -1,0 +1,33 @@
+Item Class: Spears
+Rarity: Unique
+Tyranny's Grip
+Runemastered Ironhead Spear
+--------
+Quality: +20% (augmented)
+Physical Damage: 344-465 (augmented)
+Critical Hit Chance: 5.00%
+Attacks per Second: 1.13 (augmented)
+--------
+Requires: Level 55, 31 Str, 76 Dex
+--------
+Sockets: S
+--------
+Item Level: 61
+--------
+18% increased Physical Damage (rune)
+--------
+{ Unique Modifier — Attack, Speed }
+10(15-10)% reduced Attack Speed
+{ Unique Modifier — Attribute }
++22(15-30) to Strength
+{ Unique Modifier — Attack }
+Strikes deal Splash Damage — Unscalable Value
+{ Unique Modifier — Attack }
+Knocks Back Enemies on Hit — Unscalable Value
+{ Unique Modifier }
+Cannot use Projectile Attacks — Unscalable Value
+{ Unique Modifier — Damage, Physical, Attack }
+187(150-200)% increased Physical Damage
+--------
+The might of the Eternal Empire was formidable,
+but rebels of every culture stood together as one.

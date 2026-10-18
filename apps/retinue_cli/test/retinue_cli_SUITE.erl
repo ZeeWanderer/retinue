@@ -1,11 +1,38 @@
 -module(retinue_cli_SUITE).
 
 -export([all/0, cli_main/0, help_scopes/1, warframe_alias/1,
-         poe2_companion/1, poe2_observed_json/1, completion_scopes/1]).
+         poe2_companion/1, poe2_observed_json/1, completion_scopes/1, health_commands/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
-all() -> [help_scopes, warframe_alias, poe2_companion, poe2_observed_json, completion_scopes].
+all() -> [help_scopes, warframe_alias, poe2_companion, poe2_observed_json, completion_scopes, health_commands].
+
+health_commands(Config) ->
+    {0, Text} = run("retinue", ["doctor"], Config),
+    contains(Text, <<"2 checks have not run or are waiting for the game.">>),
+    contains(Text, <<"Incident history: no unresolved adapter failures">>),
+    {0, Json} = run("wfcli", ["doctor", "--json"], Config),
+    ?assertMatch(#{<<"status">> := <<"incomplete">>, <<"failures">> := 0}, jsone:decode(Json)),
+    {0, Incidents} = run("retinue", ["diagnostics", "incidents", "--json"], Config),
+    ?assertMatch(#{<<"checks">> := [], <<"retention">> := #{<<"max_checks">> := 512}}, jsone:decode(Incidents)),
+    {1, Unavailable} = run("checks-corrupt", ["diagnostics", "incidents"], Config),
+    contains(Unavailable, <<"Stored check history is unavailable">>),
+    contains(Unavailable, <<"Use doctor for live health.">>),
+    {1, CorruptDoctor} = run("checks-corrupt", ["doctor"], Config),
+    contains(CorruptDoctor, <<"could not verify stored failures">>),
+    {1, FailedDoctor} = run("checks-open", ["doctor", "--json"], Config),
+    ?assertMatch(#{<<"status">> := <<"failed">>, <<"failures">> := 1}, jsone:decode(FailedDoctor)),
+    {0, RecoveredDoctor} = run("checks-recovered", ["doctor", "--json"], Config),
+    ?assertMatch(#{<<"status">> := <<"incomplete">>, <<"failures">> := 0}, jsone:decode(RecoveredDoctor)),
+    {0, RecoveredIncidents} = run("checks-recovered", ["diagnostics", "incidents", "--json"], Config),
+    ?assertMatch(#{<<"checks">> := []}, jsone:decode(RecoveredIncidents)),
+    {0, RecoveryHistory} = run("checks-recovered", ["diagnostics", "incidents", "--all", "--json"], Config),
+    ?assertMatch(#{<<"checks">> := [#{<<"last_result">> := <<"resolved">>}]}, jsone:decode(RecoveryHistory)),
+    {0, WFHelp} = run("wfcli", ["--help"], Config),
+    contains(WFHelp, <<"Everyday:">>),
+    contains(WFHelp, <<"doctor">>),
+    {0, Canonical} = run("wfcli", ["diagnostics", "capture", "status", "--help"], Config),
+    contains(Canonical, <<"capture status">>).
 
 help_scopes(Config) ->
     {0, Root} = run("retinue", ["--help"], Config),
@@ -41,22 +68,24 @@ poe2_companion(Config) ->
         ?assertEqual(jsone:decode(Output), jsone:decode(Canonical))
     end, ["status", "events"]),
     {0, Status} = run("retinue", ["poe2", "companion", "status"], Config),
-    contains(Status, <<"PoE2 log observer">>),
-    contains(Status, <<"Last-observed state: no observations">>),
+    contains(Status, <<"PoE2 native session">>),
+    contains(Status, <<"Native state: no observation">>),
     {0, Events} = run("poe2cli", ["companion", "events"], Config),
-    contains(Events, <<"No observed PoE2 log events.">>).
+    contains(Events, <<"No observed PoE2 session events.">>).
 
 poe2_observed_json(Config) ->
     {0, StatusText} = run("poe2fixture", ["companion", "status", "--json", "--utc"], Config),
     Status = jsone:decode(StatusText),
     ?assert(is_integer(maps:get(<<"updated_at">>, Status))),
     ?assertEqual(1, maps:get(<<"revision">>, Status)),
-    ?assertEqual(<<"/logs/Client.txt">>, maps:get(<<"source">>, Status)),
-    [Event] = maps:get(<<"events">>, Status),
-    ?assertEqual(<<"2026/10/11 03:04:05">>, maps:get(<<"timestamp_local">>, Event)),
-    ?assertEqual(10, maps:get(<<"offset">>, Event)),
+    ?assertEqual(2, maps:get(<<"schema">>, Status)),
+    ?assertEqual(<<"fixture">>, maps:get(<<"stream">>, Status)),
+    ?assertEqual(retinue_poe2_fixture:snapshot(), maps:get(<<"current">>, Status)),
+    Events = maps:get(<<"events">>, Status),
+    ?assertEqual(7, length(Events)),
+    ?assert(lists:all(fun(E) -> maps:get(<<"observed_at">>, E) =:= 1000 end, Events)),
     {0, EventsText} = run("poe2fixture", ["companion", "events", "--json", "--utc"], Config),
-    ?assertEqual([Event], jsone:decode(EventsText)).
+    ?assertEqual(Events, jsone:decode(EventsText)).
 
 completion_scopes(Config) ->
     lists:foreach(fun({Name, Prefix, Args, Expected}) ->
@@ -95,19 +124,37 @@ collect(Port, Acc, Deadline) ->
 
 cli_main() ->
     [Root, Name | Args] = init:get_plain_arguments(),
-    ok = retinue_test_daemon:start(filename:join(Root, "daemon")),
+    DaemonRoot = filename:join(Root, "daemon"),
+    case Name of
+        "checks-corrupt" ->
+            Path = filename:join(DaemonRoot, "checks.json"),
+            ok = filelib:ensure_dir(Path),
+            ok = file:write_file(Path, <<"invalid JSON">>);
+        _ -> ok
+    end,
+    ok = retinue_test_daemon:start(DaemonRoot),
     case Name of
         "retinue" -> retinue_cli:main(retinue, Args);
+        "checks-corrupt" -> retinue_cli:main(retinue, Args);
+        Name when Name =:= "checks-open"; Name =:= "checks-recovered" ->
+            Time = erlang:system_time(millisecond),
+            Context = #{<<"version">> => <<"0.1.0">>, <<"session">> => <<"previous">>},
+            retinue_checks:observe(<<"warframe.companion">>, Context,
+                #{<<"relic_rewards">> => #{<<"state">> => <<"fail">>, <<"checked_at">> => Time - 1000,
+                                          <<"error">> => <<"anchor not found">>}}),
+            case Name of
+                "checks-recovered" -> retinue_checks:observe(<<"warframe.companion">>, Context,
+                    #{<<"relic_rewards">> => #{<<"state">> => <<"pass">>, <<"checked_at">> => Time}});
+                _ -> ok
+            end,
+            _ = retinue_checks:report(),
+            retinue_cli:main(warframe, Args);
         "wfcli" -> retinue_cli:main(warframe, Args);
         "poe2cli" -> retinue_cli:main(poe2, Args);
         "poe2fixture" ->
-            Event = #{<<"kind">> => <<"area_name">>, <<"area_name">> => <<"The Riverbank">>,
-                      <<"timestamp_local">> => <<"2026/10/11 03:04:05">>,
-                      <<"client_pid">> => 42, <<"tick_ms">> => 1000, <<"offset">> => 10},
-            Batch = #{<<"source">> => <<"/logs/Client.txt">>, <<"generation">> => <<"fixture">>,
-                      <<"cursor">> => 10, <<"events">> => [Event]},
+            Sample = retinue_poe2_fixture:sample(1),
             {ok, _} = retinue_poe2_service:request(
-                #{<<"op">> => <<"publish">>, <<"dataset">> => <<"session">>, <<"data">> => Batch}),
+                #{<<"op">> => <<"publish">>, <<"dataset">> => <<"session">>, <<"data">> => Sample}),
             retinue_cli:main(poe2, Args)
     end,
     halt(0).
