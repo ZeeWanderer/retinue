@@ -78,6 +78,7 @@ pub(crate) fn spawn(
         let mut metadata_bridge: Option<MetadataBridge> = None;
         let mut ui_discovery: Option<crate::runtime::Worker> = None;
         let mut status = CollectorStatus::default();
+        let mut health_revision = 0;
         let mut diagnostics = diagnostics::Watches::new(requests);
         let mut next_scan = Instant::now();
         let mut next_inventory_attempt = Instant::now();
@@ -127,6 +128,7 @@ pub(crate) fn spawn(
                     }
                 };
                 if session_changed {
+                    health_revision = 0;
                     debug = DebugCollector::default();
                     drop(ui_discovery.take());
                     drop(inventory_bridge.take());
@@ -300,8 +302,36 @@ pub(crate) fn spawn(
                 let _ = relic.send(RelicTrigger::IntakeGap);
             }
             status.debug_output_queue = queue;
+            if let Some(session) = sessions.current() {
+                let revision = session.health_revision();
+                if revision != health_revision {
+                    let (revision, checks) = session.health();
+                    let mut context = json!({});
+                    session.health_context(&mut context);
+                    context["session"] = json!(format!(
+                        "{}:{}:{}",
+                        std::process::id(),
+                        context["game_started"],
+                        status.session_generation.unwrap_or_default()
+                    ));
+                    if outbound
+                        .send(Outbound::Publish {
+                            dataset: "checks",
+                            source: "adapters",
+                            data: json!({"context": context, "checks": checks}),
+                        })
+                        .is_ok()
+                    {
+                        health_revision = revision;
+                    }
+                }
+            }
             diagnostics.tick(|| {
                 let mut data = collector_snapshot(&status);
+                if let Some(session) = sessions.current() {
+                    data["adapters"] = session.health().1;
+                    session.health_context(&mut data);
+                }
                 data["relic_inbox"] = json!(relic.stats());
                 data
             });
@@ -561,6 +591,7 @@ fn publish_collector(outbound: &OutboundSender, status: &CollectorStatus) {
 fn collector_snapshot(status: &CollectorStatus) -> serde_json::Value {
     json!({
             "companion_pid": std::process::id(),
+            "version": env!("WFCLI_VERSION"),
             "game_pid": status.game_pid,
             "session_generation": status.session_generation,
             "session_error": status.session_error,

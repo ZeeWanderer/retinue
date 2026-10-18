@@ -176,6 +176,7 @@ pub(super) fn snapshot_key(dataset: &str, source: &str) -> Option<super::Publica
         ("player", "collector"),
         ("player", "capture"),
         ("game_metadata", "warframe"),
+        ("checks", "adapters"),
     ]
     .into_iter()
     .find(|key| *key == (dataset, source))

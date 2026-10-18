@@ -3,11 +3,49 @@
 %%%-------------------------------------------------------------------
 -module(retinue_client_transport).
 
--export([call/1, one_shot/1, subscribe/1, next/2, unsubscribe/1]).
+-export([call/1, call_running/1, inspect/1, one_shot/1, subscribe/1, next/2, unsubscribe/1]).
 
 -define(REQUEST_TIMEOUT_MS, 120000).
 -define(RESUBSCRIBE_RETRIES, 40).
 -define(RESUBSCRIBE_SLEEP_MS, 50).
+
+call_running(Request) ->
+    case retinue_client:status() of
+        {running, Node, Info} ->
+            Offered = maps:get(erlang_distribution_rpc, maps:get(protocols, Info, #{}), #{}),
+            case retinue_protocol:compatibility(retinue_protocol:contract(), Offered) of
+                ok ->
+                    try gen_server:call({retinue_daemon, Node}, Request, 5000) of
+                        {error, _} = Error -> Error;
+                        Reply -> {ok, Reply}
+                    catch exit:Reason -> {error, {daemon_call_failed, Reason}} end;
+                {error, Mismatches} -> {error, {daemon_contract_mismatch, Mismatches}}
+            end;
+        {stopped, _} -> {error, daemon_stopped};
+        Error -> Error
+    end.
+
+%% Unlike normal requests, diagnostics must not repair the state being inspected.
+inspect(#{game := Game, source := companion_diagnostics, action := status} = Request) ->
+    case retinue_client:status() of
+        {running, Node, _Info} ->
+            try gen_server:call({retinue_daemon, Node}, {submit, self(), Request}, 5000) of
+                {ok, Ref} ->
+                    try
+                        receive
+                            {retinue_daemon, Ref, Reply} -> Reply
+                        after 6000 -> {error, companion_diagnostic_timeout}
+                        end
+                    after
+                        try gen_server:call({retinue_daemon, Node},
+                                            {unsubscribe, {Game, Ref}}, 1000)
+                        catch exit:_ -> ok end
+                    end;
+                {error, _} = Error -> Error
+            catch exit:Reason -> {error, {diagnostic_unavailable, Reason}} end;
+        {stopped, _} -> {error, daemon_stopped};
+        {error, _} = Error -> Error
+    end.
 
 -doc "Call daemon request API, auto-starting daemon if needed.".
 -spec call(term()) -> {ok, term()} | {error, term()}.

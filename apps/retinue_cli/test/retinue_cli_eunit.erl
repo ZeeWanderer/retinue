@@ -6,7 +6,7 @@ command_tree_test() ->
     Tree = retinue_cli:command(),
     ?assertEqual("retinue", argparse:validate(Tree, #{progname => "retinue"})),
     Commands = maps:get(commands, Tree),
-    ?assertEqual(["arc", "completion", "daemon", "diagnostics", "help", "mcp", "paths", "poe2", "warframe"],
+    ?assertEqual(["arc", "completion", "daemon", "diagnostics", "doctor", "help", "mcp", "paths", "poe2", "warframe"],
                  lists:sort(maps:keys(Commands))),
     Warframe = maps:get("warframe", Commands),
     ?assertEqual(lists:sort(wf_cli:command_names()),
@@ -16,7 +16,7 @@ command_tree_test() ->
                      maps:get(Name, Commands))
     end, ["daemon", "paths"]),
     ?assertNotEqual(maps:get("mcp", maps:get(commands, Warframe)), maps:get("mcp", Commands)),
-    ?assertEqual(["logs"], maps:keys(maps:get(commands, maps:get("diagnostics", Commands)))).
+    ?assertEqual(["incidents", "logs"], lists:sort(maps:keys(maps:get(commands, maps:get("diagnostics", Commands))))).
 
 warframe_parser_parity_test() ->
     Cases = [["--json", "--utc", "daemon", "status"],

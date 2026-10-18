@@ -25,8 +25,8 @@ use retinue_client::local_protocol::{
 };
 #[cfg(test)]
 use retinue_client::local_protocol::{
-    INTERFACE_ASSETS, INTERFACE_DATASETS, INTERFACE_GAME_METADATA, INTERFACE_MARKET,
-    INTERFACE_PLAYER, INTERFACE_RELICS,
+    INTERFACE_ASSETS, INTERFACE_CHECKS, INTERFACE_DATASETS, INTERFACE_GAME_METADATA,
+    INTERFACE_MARKET, INTERFACE_PLAYER, INTERFACE_RELICS,
 };
 
 const CLIENT_VERSION: &str = env!("WFCLI_VERSION");
@@ -1986,7 +1986,8 @@ mod tests {
                 "market": INTERFACE_MARKET,
                 "relics": INTERFACE_RELICS,
                 "assets": INTERFACE_ASSETS,
-                "diagnostics": INTERFACE_DIAGNOSTICS
+                "diagnostics": INTERFACE_DIAGNOSTICS,
+                "checks": INTERFACE_CHECKS
             }
         }));
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
@@ -2002,7 +2003,8 @@ mod tests {
                 "market": INTERFACE_MARKET,
                 "relics": INTERFACE_RELICS,
                 "assets": INTERFACE_ASSETS,
-                "diagnostics": INTERFACE_DIAGNOSTICS
+                "diagnostics": INTERFACE_DIAGNOSTICS,
+                "checks": INTERFACE_CHECKS
             }
         }));
         assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
@@ -2050,7 +2052,8 @@ mod tests {
                 "market": INTERFACE_MARKET,
                 "relics": INTERFACE_RELICS,
                 "assets": INTERFACE_ASSETS,
-                "diagnostics": INTERFACE_DIAGNOSTICS
+                "diagnostics": INTERFACE_DIAGNOSTICS,
+                "checks": INTERFACE_CHECKS
             },
             "features": ["companion.command", "diagnostics.report"]
         }))

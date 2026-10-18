@@ -14,7 +14,8 @@ handshake_version() -> 1.
 -spec interfaces() -> #{atom() := pos_integer()}.
 interfaces() ->
     #{daemon => 2,
-      poe2_session => 1,
+      poe2_session => 2,
+      poe2_trade => 2,
       worldstate => 2,
       query => 2,
       metadata => 1,
@@ -24,6 +25,7 @@ interfaces() ->
       market => 1,
       notifications => 1,
       diagnostics => 1,
+      checks => 1,
       companion => 2}.
 
 -doc "Optional Erlang RPC features offered by this build.".

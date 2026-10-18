@@ -2,10 +2,14 @@
 -export([command/0, command_names/0, public_command_names/0, command_groups/0]).
 
 command() ->
-    #{commands => maps:from_list(lists:append([Commands || {_, Commands} <- groups()]))}.
+    #{commands => maps:from_list(lists:append([Commands || {_, Commands} <- groups()])),
+      groups => [{Label, [Name || {Name, _} <- Commands]} || {Label, Commands} <- groups()]}.
 
 groups() ->
-    [{"Tools", [{"forma-plan", wf_forma_plan:command()},
+    [{"Everyday", [{"doctor", retinue_doctor:command(warframe)},
+                   {"gui", wf_gui_cli:command()},
+                   {"companion", wf_companion_cli:command()}]},
+     {"Tools", [{"forma-plan", wf_forma_plan:command()},
                 {"build-stats", wf_build_stats_cli:command()},
                 {"visualize", wf_visualize:command()},
                 {"notifications", wf_notification_cli:command()},
@@ -15,10 +19,8 @@ groups() ->
                {"market", wf_market_cli:command()}] ++ wf_catalog_cli:commands()},
      {"Worldstate", wf_worldstate_cli:commands()},
      {"Applications", [{"daemon", retinue_daemon_cli:command()},
-                       {"companion", wf_companion_cli:command()},
-                       {"gui", wf_gui_cli:command()},
                        {"mcp", wf_mcp_cli:command()}]},
-     {"Utility", [{"diagnostics", wf_diagnostics_cli:command()},
+     {"Maintenance", [{"diagnostics", wf_diagnostics_cli:command()},
                   {"update", wf_update_cli:command()},
                   {"completion", retinue_completion:command()},
                   {"paths", retinue_path_cli:command()},

@@ -51,9 +51,33 @@ struct State {
     retired: AtomicBool,
     identity: Mutex<Option<Arc<ProcessIdentity>>>,
     ui: OnceLock<Result<ui::Reader, String>>,
+    health: retinue_client::health::Health,
 }
 
 impl Session {
+    pub(crate) fn record<T>(&self, adapter: &'static str, result: &Result<T, String>) {
+        if self.is_current() {
+            self.0.health.record(adapter, result);
+        }
+    }
+
+    pub(crate) fn health(&self) -> (u64, serde_json::Value) {
+        self.0.health.snapshot()
+    }
+
+    pub(crate) fn health_revision(&self) -> u64 {
+        self.0.health.revision()
+    }
+
+    pub(crate) fn health_context(&self, data: &mut serde_json::Value) {
+        data["game_started"] = self.process_started().into();
+        if let Ok(identity) = self.0.identity.try_lock()
+            && let Some(identity) = identity.as_ref()
+        {
+            data["game_build"] = identity.executable.sha256.clone().into();
+        }
+    }
+
     pub(crate) fn key(&self) -> ProcessKey {
         self.0.key
     }
@@ -132,7 +156,9 @@ impl Session {
             .name("wfcompanion-ui-discovery".into())
             .spawn(move || {
                 let started = Instant::now();
-                match session.read_ui(|_| Ok(())) {
+                let result = session.read_ui(|_| Ok(()));
+                session.record("ui_bindings", &result);
+                match result {
                     Ok(()) => crate::incident::info(
                         "observer.ui_bindings_ready",
                         format!(
@@ -164,6 +190,7 @@ impl Session {
             retired: AtomicBool::new(false),
             identity: Mutex::new(None),
             ui: OnceLock::new(),
+            health: retinue_client::health::Health::default(),
         }))
     }
 }
@@ -206,6 +233,7 @@ impl Sessions {
                 retired: AtomicBool::new(false),
                 identity: Mutex::new(None),
                 ui: OnceLock::new(),
+                health: retinue_client::health::Health::default(),
             }))
         });
         true

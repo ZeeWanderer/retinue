@@ -5,6 +5,9 @@
 
 -export([
     status/0,
+    inspect/2,
+    call_running/1,
+    check_history/0,
     start/0,
     start/1,
     stop/0,
@@ -31,6 +34,15 @@
 -ifdef(TEST).
 -export([handshake_compatibility/2, readiness_result/2, terminate_port_process/1]).
 -endif.
+
+inspect(Game, Request) -> retinue_client_transport:inspect(Request#{game => Game}).
+call_running(Request) -> retinue_client_transport:call_running(Request).
+
+check_history() ->
+    case call_running(diagnostic_checks) of
+        {error, daemon_stopped} -> retinue_checks:stored_report();
+        Reply -> Reply
+    end.
 
 -type control_result() ::
     {ok, started | already_running | stopped | restarted, node()} | {error, term()}.

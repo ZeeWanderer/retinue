@@ -25,19 +25,24 @@ scoped_args(Scope, Args) when Scope =:= warframe; Scope =:= poe2; Scope =:= arc 
 
 context() ->
     #{tree => command(), progname => "retinue",
-      groups => [{"Games", ["warframe", "poe2", "arc"]},
+      groups => [{"Everyday", ["doctor"]},
+                 {"Games", ["warframe", "poe2", "arc"]},
                  {"Platform", platform_commands()}]}.
 
 command() ->
-    Platform = #{"daemon" => retinue_daemon_cli:command(),
+    Platform = #{"doctor" => retinue_doctor:command(),
+                 "daemon" => retinue_daemon_cli:command(),
                  "paths" => retinue_path_cli:command(),
                  "diagnostics" => retinue_diagnostics_cli:command(),
                  "completion" => retinue_completion:command(),
                  "mcp" => retinue_mcp_cli:command(),
                  "help" => retinue_help:command()},
     WarframeScope = scope("warframe", wf_cli:command()),
-    Poe2Scope = scope("poe2", #{commands => #{"companion" => retinue_poe2_cli:command()}}),
-    ArcScope = scope("arc", #{commands => #{"companion" => retinue_arc_cli:command()}}),
+    Poe2Scope = scope("poe2", #{commands => #{"companion" => retinue_poe2_cli:command(),
+        "doctor" => retinue_doctor:command(poe2),
+        "diagnostics" => retinue_diagnostics_cli:command(poe2)}}),
+    ArcScope = scope("arc", #{commands => #{"companion" => retinue_arc_cli:command(),
+        "doctor" => retinue_doctor:command(arc)}}),
     #{arguments => [(retinue_cli_args:flag(output_format, "json", "print JSON (UTC timestamps)"))#{
                        action => {store, json}},
                     retinue_cli_args:flag(utc, "utc", "display timestamps in UTC"),

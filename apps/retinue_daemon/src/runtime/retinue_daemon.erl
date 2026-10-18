@@ -96,6 +96,10 @@ init([]) ->
     {reply, term(), state()} | {noreply, state()}.
 handle_call(status, _From, State) ->
     {reply, status(State), State};
+handle_call(diagnostic_checks, _From, State) ->
+    Reply = try retinue_checks:report()
+            catch exit:Reason -> {error, {checks_unavailable, Reason}} end,
+    {reply, Reply, State};
 handle_call({hello, ClientContract}, _From, State) ->
     Reply0 = (retinue_protocol:negotiate(ClientContract))#{
                version => retinue_build:version(),

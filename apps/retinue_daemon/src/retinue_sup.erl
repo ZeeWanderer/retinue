@@ -56,11 +56,11 @@ init([]) ->
 
 child_specs() ->
     [worker(retinue_activity), subtree(retinue_games_sup),
-     worker(retinue_local_api), worker(retinue_daemon)].
+     worker(retinue_local_api), worker(retinue_daemon), worker(retinue_checks)].
 
 worker_specs() ->
     wf_sup:child_specs() ++ retinue_poe2_sup:child_specs() ++
-        [worker(retinue_activity), worker(retinue_local_api), worker(retinue_daemon)].
+        [worker(retinue_activity), worker(retinue_checks), worker(retinue_local_api), worker(retinue_daemon)].
 
 owner(Child) ->
     case lists:keyfind(Child, 1, [{maps:get(id, Spec), wf_sup}

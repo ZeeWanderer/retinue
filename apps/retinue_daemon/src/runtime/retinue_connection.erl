@@ -129,7 +129,9 @@ handle_request(#{<<"op">> := <<"hello">>} = Request, State) ->
         true -> maps:get(parent, State) ! {client_identified, self(), ClientInfo};
         false -> ok
     end,
-    State1 = State#{hello => Compatible, client => Client, game => Game, features => Features},
+    State1 = State#{hello => Compatible, client => Client, game => Game, features => Features,
+                    interfaces => maps:get(<<"interfaces">>, Request, #{}),
+                    client_info => ClientInfo},
     {ok, case Compatible of
              true -> identify_game(Game, State1);
              false -> State1
@@ -141,9 +143,36 @@ handle_request(#{<<"game">> := Game} = Request, State = #{game := Selected})
   when Game =/= Selected ->
     send_error(maps:get(socket, State), request_id(Request), wrong_game),
     {ok, State};
+handle_request(#{<<"op">> := <<"publish">>, <<"dataset">> := <<"checks">>} = Request, State) ->
+    Reply = case maps:get(<<"checks">>, maps:get(interfaces, State), undefined) of
+        1 -> publish_checks(maps:get(<<"data">>, Request, undefined), State);
+        _ -> {error, checks_interface_required}
+    end,
+    case Reply of
+        ok -> send_ok(maps:get(socket, State), request_id(Request), <<"checks">>, #{<<"accepted">> => true});
+        {error, Reason} -> send_error(maps:get(socket, State), request_id(Request), Reason)
+    end,
+    {ok, State};
 handle_request(Request, State) ->
     Adapter = maps:get(adapter, State),
     Adapter:request(Request, State).
+
+publish_checks(#{<<"context">> := Context, <<"checks">> := Checks}, State) ->
+    case retinue_checks:valid_report(Context, Checks) of
+        true ->
+            Client = maps:get(client, State),
+            Role = case Client of
+                <<"wfcompanion">> -> <<"companion">>;
+                <<"poe2companion">> -> <<"companion">>;
+                <<"arccompanion">> -> <<"companion">>;
+                _ -> Client
+            end,
+            Component = <<(maps:get(game, State))/binary, ".", Role/binary>>,
+            Version = maps:get(version, maps:get(client_info, State), null),
+            retinue_checks:observe(Component, Context#{<<"version">> => Version}, Checks);
+        false -> {error, invalid_check_report}
+    end;
+publish_checks(_, _) -> {error, invalid_check_report}.
 
 start_local_request(Id, Dataset, Work, State) ->
     Pending = queue:in({Id, Dataset, Work}, maps:get(worker_queue, State)),

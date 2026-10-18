@@ -20,6 +20,7 @@ impl Refresh {
             let mut reader = match session.read(Reader::open_for_identity) {
                 Ok(reader) => reader,
                 Err(error) => {
+                    session.record::<()>("native_inventory", &Err(error.clone()));
                     crate::incident::warn("inventory.native_refresh_unavailable", error);
                     return;
                 }
@@ -34,6 +35,7 @@ impl Refresh {
                         Ok(snapshot)
                     });
                 let finished = Instant::now();
+                session.record("native_inventory", &snapshot);
                 let captured_at = super::unix_time_millis();
                 match sender.try_send((started, finished, captured_at, snapshot)) {
                     Ok(()) => {}

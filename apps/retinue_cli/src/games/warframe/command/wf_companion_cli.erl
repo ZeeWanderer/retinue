@@ -1,6 +1,6 @@
 -module(wf_companion_cli).
 
--export([command/0]).
+-export([command/0, diagnostic_commands/0]).
 -import(retinue_cli_args, [flag/3]).
 
 -define(COMPANION_RECONNECT_RETRIES, 30).
@@ -12,6 +12,19 @@
 -endif.
 
 command() ->
+    Node = commands(),
+    Children = maps:get(commands, Node),
+    Node#{commands := maps:map(fun(Name, Child) ->
+        case lists:member(Name, diagnostic_names() ++ ["diagnostics"]) of
+            true -> Child#{help := hidden, summary => maps:get(help, Child)};
+            false -> Child
+        end
+    end, Children)}.
+
+diagnostic_commands() -> maps:with(diagnostic_names(), maps:get(commands, commands())).
+diagnostic_names() -> ["probe", "screenshot", "relic-ocr", "capture", "preview", "logs"].
+
+commands() ->
     #{help => "manage native game companion",
       commands => #{
         "status" => #{help => "show connections, collectors and metadata cache", handler => fun(_) -> status() end},

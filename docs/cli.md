@@ -16,11 +16,45 @@ poe2cli companion status
 help, and completion tree as `retinue`. Development links add `d`: `retinued`, `wfclid`,
 `poe2clid`, and `arcclid`. `arccli` selects the ARC Raiders scaffold.
 
-Root commands include `daemon`, `paths`, `diagnostics`, and `completion`.
+Root commands include `doctor`, `daemon`, `paths`, `diagnostics`, and `completion`.
 Root `mcp` exposes platform tools and game-prefixed tools; `retinue warframe mcp` exposes
 the focused Warframe adapter.
 Warframe commands below use the short `wfcli` alias. PoE2 session and event commands are
 documented in the [PoE2 guide](poe2.md).
+
+## Health
+
+```bash
+retinue doctor
+wfcli doctor
+poe2cli doctor --json
+retinue diagnostics incidents
+retinue diagnostics incidents --all
+```
+
+`doctor` checks the running daemon and existing companion observations without
+starting or repairing anything. It distinguishes failed, waiting and untested
+adapters and gives the next action. The incomplete summary counts `UNTESTED` and
+`WAIT` rows: features not observed this session or waiting for a game, not a
+development checklist. Recorded failures remain visible until a successful rerun,
+including failures from previous sessions or versions. They are labelled separately
+from live results. Exit status is 1 for live or unresolved recorded failures;
+JSON `status` also distinguishes incomplete checks from a pass. Warframe checks
+require live companion diagnostics; PoE2 checks require a fresh sample from its
+connected observer. ARC Raiders currently has no memory observation. This does
+not verify rendering, input or every trade service.
+
+`diagnostics incidents` shows unresolved adapter failures; `--all` includes
+recoveries. The game-scoped forms filter the same registry. Only a successful
+rerun resolves a failure; a Retinue version change without rerun is unverified,
+not recovery. Previously resolved incidents do not reopen after an update.
+The private state file is `$XDG_STATE_HOME/retinue/checks.json`. Healthy-only checks
+stay in memory. History retains up to 512 checks, pruning resolved records after
+30 days and oldest resolved entries before open failures at capacity.
+
+Raw logs remain separate: daemon rotation keeps a 1 MiB active file and two
+archives; Warframe companion keeps one archive. See `diagnostics logs` for warning
+details, including failures not yet connected to named checks.
 
 ## Commands
 

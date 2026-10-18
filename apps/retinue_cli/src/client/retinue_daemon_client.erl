@@ -45,7 +45,7 @@ status() ->
       fun(Node) ->
           case ping(Node) of
               pong ->
-                  case daemon_call(Node, status) of
+                  case daemon_call(Node, status, 5000) of
                       {ok, #{status := running} = Status} -> {running, Node, Status};
                       {ok, Other} -> {error, {unexpected_status, Other}};
                       {error, _Reason} = Error -> Error
@@ -357,7 +357,8 @@ sibling_ebin_dirs(Dir) ->
 -spec format_error(term()) -> string().
 format_error({daemon_contract_mismatch, Mismatches}) ->
     lists:flatten(io_lib:format(
-      "client requires daemon interfaces not offered by the running build: ~p",
+      "client requires daemon interfaces not offered by the running build: ~p. "
+      "Update or rebuild the Retinue apps together, then update the running daemon",
       [Mismatches]));
 format_error({daemon_build_mismatch, Client, Server}) ->
     lists:flatten(io_lib:format(
@@ -554,7 +555,10 @@ stop_release_daemon(Node) ->
     end.
 
 daemon_call(Node, Request) ->
-    try gen_server:call({retinue_daemon, Node}, Request, ?REQUEST_TIMEOUT_MS) of
+    daemon_call(Node, Request, ?REQUEST_TIMEOUT_MS).
+
+daemon_call(Node, Request, Timeout) ->
+    try gen_server:call({retinue_daemon, Node}, Request, Timeout) of
         Reply -> {ok, Reply}
     catch
         exit:{nodedown, _Node} -> {error, {daemon_call_failed, noconnection}};

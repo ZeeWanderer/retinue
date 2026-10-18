@@ -29,6 +29,7 @@ start(TestRoot) ->
     application:set_env(retinue_daemon, build_cache_file, filename:join(TestRoot, "builds.cache")),
     application:set_env(retinue_daemon, poe2_session_file, filename:join(TestRoot, "poe2-session.json")),
     application:set_env(retinue_daemon, incident_log_file, filename:join(TestRoot, "retinue_daemon.log")),
+    application:set_env(retinue_daemon, checks_file, filename:join(TestRoot, "checks.json")),
     persistent_term:put({?MODULE, test_root}, TestRoot),
     application:set_env(retinue_cli, test_local_daemon, true),
     application:set_env(retinue_daemon, daemon_enabled, true),
@@ -58,6 +59,7 @@ stop() ->
     application:unset_env(retinue_daemon, build_cache_file),
     application:unset_env(retinue_daemon, poe2_session_file),
     application:unset_env(retinue_daemon, incident_log_file),
+    application:unset_env(retinue_daemon, checks_file),
     ok.
 
 cleanup_test_root(undefined) -> ok;

@@ -12,7 +12,8 @@ platform_children_follow_activity_dependencies_test() ->
     ?assertMatch([#{id := retinue_activity, type := worker},
                   #{id := retinue_games_sup, type := supervisor, shutdown := infinity},
                   #{id := retinue_local_api, type := worker},
-                  #{id := retinue_daemon, type := worker}], retinue_sup:child_specs()).
+                  #{id := retinue_daemon, type := worker},
+                  #{id := retinue_checks, type := worker}], retinue_sup:child_specs()).
 
 game_supervisors_restart_independently_test_() ->
     [fun() ->

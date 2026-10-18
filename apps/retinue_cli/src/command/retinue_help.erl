@@ -39,20 +39,16 @@ text(["query-syntax"]) ->
 text(["warframe", "query-syntax"]) -> query_syntax("retinue warframe");
 text([]) ->
     #{tree := Tree, progname := Name, groups := GroupNames} = retinue_cli_runtime:context(),
-    Commands = maps:get(commands, Tree),
-    Groups = [{Group, [{Cmd, maps:get(help, maps:get(Cmd, Commands), "")}
-                      || Cmd <- Names]} || {Group, Names} <- GroupNames],
-    Width = lists:max([length(Cmd) || {_, Rows} <- Groups, {Cmd, _} <- Rows]),
-    ["USAGE:\n  ", Name, " <command> [options]\n\n",
-     [[Group, ":\n", [["  ", string:pad(Cmd, Width), "  ", Summary, "\n"]
-                      || {Cmd, Summary} <- Rows], "\n"]
-      || {Group, Rows} <- Groups],
-     "Global options: --json (structured output), --utc (UTC timestamps).\n",
-     "Use '", Name, " COMMAND --help' for options, '", Name,
-     " help query-syntax' for queries.\n"];
+    grouped(Name, Tree, GroupNames);
 text(Path) ->
     #{tree := Tree, progname := Name} = retinue_cli_runtime:context(),
     Node = retinue_cli_args:node(Path, Tree),
+    case maps:find(groups, Node) of
+        {ok, Groups} -> grouped(string:join([Name | Path], " "), Node, Groups);
+        error -> command_help(Name, Path, Node)
+    end.
+
+command_help(Name, Path, Node) ->
     Help = retinue_cli_args:flag(help, "help", "show this help"),
     Display = Node#{help => maps:get(summary, Node, maps:get(help, Node, "")),
                     arguments => [Help#{short => $h} | [display_argument(Arg)
@@ -60,6 +56,17 @@ text(Path) ->
     [argparse:help(Display, #{progname => string:join([Name | Path], " "),
                              columns => min(100, retinue_tty:terminal_width())}),
      maps:get(notes, Node, "")].
+
+grouped(Name, Node, Groups) ->
+    Commands = maps:get(commands, Node),
+    Rows = [{Group, [{Cmd, maps:get(help, maps:get(Cmd, Commands))} || Cmd <- Names,
+        maps:get(help, maps:get(Cmd, Commands)) =/= hidden]} || {Group, Names} <- Groups],
+    Width = lists:max([length(Cmd) || {_, Items} <- Rows, {Cmd, _} <- Items]),
+    ["USAGE:\n  ", Name, " <command> [options]\n\n",
+     [[Group, ":\n", [["  ", string:pad(Cmd, Width), "  ", Summary, "\n"]
+                      || {Cmd, Summary} <- Items], "\n"] || {Group, Items} <- Rows],
+     "Global options: --json, --utc. Start with '", Name, " doctor' for companion health.\n",
+     "Use '", Name, " COMMAND --help' for options.\n"].
 
 query_syntax(Name) ->
     [wf_help_text:query_guide(), "\n", wf_help_text:query_examples(Name)].

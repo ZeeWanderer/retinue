@@ -194,9 +194,11 @@ fn read_rewards(
             let context = context.clone();
             let deadline = *observed_at + REWARD_CAPTURE_DELAY;
             Some(MemoryProbe::spawn(move || {
-                retry_reward_memory(&context, deadline, || {
+                let result = retry_reward_memory(&context, deadline, || {
                     session.read_ui(game_observer::ui::Reader::relic_rewards)
-                })
+                });
+                session.record("relic_rewards", &result);
+                result
             }))
         }
         _ => None,
@@ -380,8 +382,11 @@ fn show_suggestions(
     fallback_era: Option<&str>,
 ) -> Result<String, String> {
     let started = Instant::now();
-    let memory_probe =
-        MemoryProbe::spawn(move || session.read_ui(game_observer::ui::Reader::relic_selection));
+    let memory_probe = MemoryProbe::spawn(move || {
+        let result = session.read_ui(game_observer::ui::Reader::relic_selection);
+        session.record("relic_selection", &result);
+        result
+    });
     let remaining = SUGGESTION_CAPTURE_DELAY.saturating_sub(observed_at.elapsed());
     let memory = memory_probe.receiver.recv_timeout(remaining);
     context.check()?;

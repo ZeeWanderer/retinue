@@ -21,7 +21,7 @@ game_worker_failure_is_isolated_test_() ->
             exit(maps:get(Worker, Before), kill),
             assert_restarted([Worker], Before)
         end)
-    end}} || Worker <- [wf_query_service, retinue_poe2_service]].
+    end}} || Worker <- [wf_query_service, retinue_poe2_service, retinue_checks]].
 
 game_supervisor_failure_is_isolated_test_() ->
     [{atom_to_list(Supervisor), {timeout, 15, fun() ->
@@ -119,18 +119,18 @@ games_supervisor_kill_preserves_activity_test_() ->
         with_daemon(fun() ->
             Before = tree_snapshot(retinue_sup),
             Restarted = maps:keys(tree_snapshot(retinue_games_sup)) ++
-                        [retinue_local_api, retinue_daemon],
+                        [retinue_local_api, retinue_daemon, retinue_checks],
             exit(maps:get(retinue_games_sup, Before), kill),
             assert_restarted(Restarted, Before)
         end)
     end}.
 
-local_api_failure_restarts_only_facade_test_() ->
+local_api_failure_restarts_facade_and_check_ledger_test_() ->
     {timeout, 15, fun() ->
         with_daemon(fun() ->
             Before = tree_snapshot(retinue_sup),
             exit(maps:get(retinue_local_api, Before), kill),
-            assert_restarted([retinue_local_api, retinue_daemon], Before)
+            assert_restarted([retinue_local_api, retinue_daemon, retinue_checks], Before)
         end)
     end}.
 

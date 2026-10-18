@@ -33,4 +33,5 @@ format(#{level := Level, meta := Meta} = Event, _Config) ->
     [json:encode(#{<<"timestamp_ms">> => Millis,
                    <<"level">> => case Level of warning -> <<"warn">>; _ -> atom_to_binary(Level) end,
                    <<"event">> => <<"daemon.log">>,
+                   <<"version">> => unicode:characters_to_binary(retinue_build:version()),
                    <<"message">> => unicode:characters_to_binary(string:trim(Message))}), $\n].

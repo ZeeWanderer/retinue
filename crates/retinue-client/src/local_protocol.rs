@@ -10,6 +10,7 @@ pub fn interfaces() -> BTreeMap<&'static str, u32> {
 pub fn companion_interfaces() -> BTreeMap<&'static str, u32> {
     BTreeMap::from([
         ("assets", INTERFACE_ASSETS),
+        ("checks", INTERFACE_CHECKS),
         ("datasets", INTERFACE_DATASETS),
         ("diagnostics", INTERFACE_DIAGNOSTICS),
         ("game_metadata", INTERFACE_GAME_METADATA),
@@ -44,6 +45,7 @@ mod tests {
                 "assets",
                 "build_stats",
                 "builds",
+                "checks",
                 "datasets",
                 "diagnostics",
                 "game_metadata",

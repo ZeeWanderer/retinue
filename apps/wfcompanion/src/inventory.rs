@@ -322,20 +322,26 @@ impl Decoder {
             sampling::Content::AccountState(state) => {
                 match state {
                     sampling::AccountState::Unavailable { reason } => {
+                        self.session.record::<()>("account", &Err(reason.clone()));
                         crate::incident::warn("inventory.account_seed_unavailable", reason)
                     }
-                    sampling::AccountState::Available => crate::incident::info(
-                        "inventory.account_seed_ready",
-                        format!("game_pid={game_pid}"),
-                    ),
+                    sampling::AccountState::Available => {
+                        self.session.record("account", &Ok(()));
+                        crate::incident::info(
+                            "inventory.account_seed_ready",
+                            format!("game_pid={game_pid}"),
+                        );
+                    }
                     sampling::AccountState::NotObserved => {}
                 }
                 Ok(())
             }
-            sampling::Content::Account(seed) => self
-                .events
-                .send(Event::Account { game_pid, seed })
-                .map_err(|_| ()),
+            sampling::Content::Account(seed) => {
+                self.session.record("account", &Ok(()));
+                self.events
+                    .send(Event::Account { game_pid, seed })
+                    .map_err(|_| ())
+            }
             sampling::Content::Payload { source, bytes } => {
                 match decode_new_payload(
                     &bytes,
@@ -345,6 +351,7 @@ impl Decoder {
                     &mut self.seen_payloads,
                 ) {
                     Ok(Some((mut data, snapshot))) => {
+                        self.session.record("http_inventory", &Ok(()));
                         crate::incident::info(
                             "inventory.native_payload_accepted",
                             format!(
@@ -363,8 +370,16 @@ impl Decoder {
                         self.last_native = None;
                         publish_inventory(data, &self.session, "native_http_buffer", &self.events)
                     }
-                    Ok(None) => Ok(()),
+                    Ok(None) => {
+                        // A known-good duplicate verifies decoding without another publication.
+                        if memchr::memmem::find(&bytes, INVENTORY_MARKER).is_some() {
+                            self.session.record("http_inventory", &Ok(()));
+                        }
+                        Ok(())
+                    }
                     Err(error) => {
+                        self.session
+                            .record::<()>("http_inventory", &Err(error.clone()));
                         crate::incident::warn(
                             "inventory.native_payload_rejected",
                             format!("source={source} bytes={} error={error}", bytes.len()),
@@ -786,6 +801,57 @@ mod tests {
                     .into_bytes(),
             },
         }
+    }
+
+    #[test]
+    fn deduplicated_reads_still_resolve_health_failures() {
+        let (sender, receiver) = channel();
+        let mut decoder = decoder(sender);
+        decoder.accept(sample(1, 3)).unwrap();
+        receiver.recv().unwrap();
+        let mut bad = sample(2, 3);
+        bad.content = sampling::Content::Payload {
+            source: "direct",
+            bytes: br#"{"LastInventorySync":"invalid"}"#.to_vec(),
+        };
+        decoder.accept(bad).unwrap();
+        assert_eq!(
+            decoder.session.health().1["http_inventory"]["state"],
+            "fail"
+        );
+        let mut unrelated = sample(3, 3);
+        unrelated.content = sampling::Content::Payload {
+            source: "direct",
+            bytes: b"{}".to_vec(),
+        };
+        decoder.accept(unrelated).unwrap();
+        assert_eq!(
+            decoder.session.health().1["http_inventory"]["state"],
+            "fail"
+        );
+        decoder.accept(sample(4, 3)).unwrap();
+        assert_eq!(
+            decoder.session.health().1["http_inventory"]["state"],
+            "pass"
+        );
+        assert!(receiver.try_recv().is_err());
+
+        for (sequence, state) in [
+            (
+                5,
+                sampling::AccountState::Unavailable {
+                    reason: "read failed".into(),
+                },
+            ),
+            (6, sampling::AccountState::Available),
+        ] {
+            let mut account = sample(sequence, 3);
+            account.content = sampling::Content::AccountState(state);
+            decoder.accept(account).unwrap();
+        }
+        let health = decoder.session.health().1;
+        assert_eq!(health["account"]["state"], "pass");
+        assert_eq!(health["account"]["last_failure"]["error"], "read failed");
     }
 
     #[test]

@@ -1,6 +1,9 @@
 -module(retinue_incidents).
 
--export([path/1, read/3, retained/2]).
+-export([path/1, read/3, retained/2, policy/1]).
+
+policy(daemon) -> #{rotation_bytes => 1024 * 1024, archives => 2};
+policy(companion) -> #{rotation_bytes => 1024 * 1024, archives => 1}.
 
 path(daemon) -> retinue_paths:file(state, "daemon.log");
 path(companion) ->
@@ -10,7 +13,7 @@ path(companion) ->
     end.
 
 read(Source, Path, Limit) ->
-    Report = #{application => Source, path => unicode:characters_to_binary(Path)},
+    Report = #{application => Source, path => unicode:characters_to_binary(Path), retention => policy(Source)},
     case file:open(Path, [read, binary, raw]) of
         {ok, File} ->
             try read_tail(File, Report, Limit)
@@ -28,7 +31,7 @@ read_tail(File, Report, Limit) ->
         {ok, Size} ->
             Start = max(0, Size - 1024 * 1024),
             case file:pread(File, Start, Size - Start) of
-                {ok, Bytes} -> Report#{entries => entries(Bytes, Start, Limit), truncated => Start > 0};
+                {ok, Bytes} -> Report#{entries => entries(Bytes, Start, Limit), bytes => Size, truncated => Start > 0};
                 eof -> Report#{entries => []};
                 {error, Reason} -> Report#{error => file_error(Reason)}
             end;

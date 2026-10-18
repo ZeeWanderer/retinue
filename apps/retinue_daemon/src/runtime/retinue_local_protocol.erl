@@ -7,19 +7,21 @@
          features/0, features/1, contract/0, contract/1, negotiate/1]).
 
 -define(ENVELOPE_VERSION, 2).
--define(INTERFACE_SESSION, 1).
+-define(INTERFACE_SESSION, 2).
+-define(INTERFACE_TRADE, 2).
 -define(INTERFACE_DATASETS, 1).
 -define(INTERFACE_PLAYER, 2).
 -define(INTERFACE_GAME_METADATA, 2).
 -define(INTERFACE_WORLDSTATE, 1).
 -define(INTERFACE_NOTIFICATIONS, 1).
--define(INTERFACE_MARKET, 1).
+-define(INTERFACE_MARKET, 2).
 -define(INTERFACE_OVERFRAME, 1).
 -define(INTERFACE_RELICS, 1).
 -define(INTERFACE_ASSETS, 1).
 -define(INTERFACE_BUILDS, 1).
 -define(INTERFACE_BUILD_STATS, 1).
 -define(INTERFACE_DIAGNOSTICS, 1).
+-define(INTERFACE_CHECKS, 1).
 
 -doc "Version of the JSON-lines handshake and framing envelope.".
 -spec envelope_version() -> pos_integer().
@@ -39,17 +41,20 @@ interfaces() ->
       <<"assets">> => ?INTERFACE_ASSETS,
       <<"builds">> => ?INTERFACE_BUILDS,
       <<"build_stats">> => ?INTERFACE_BUILD_STATS,
-      <<"diagnostics">> => ?INTERFACE_DIAGNOSTICS}.
+      <<"diagnostics">> => ?INTERFACE_DIAGNOSTICS,
+      <<"checks">> => ?INTERFACE_CHECKS}.
 
 -doc "Optional Unix-socket features offered by retinue_daemon.".
 -spec features() -> [binary()].
 features() -> [<<"companion.command">>, <<"companion.diagnostics">>, <<"diagnostics.report">>].
 
 interfaces(<<"warframe">>) -> interfaces();
-interfaces(<<"poe2">>) -> #{<<"session">> => ?INTERFACE_SESSION};
+interfaces(<<"poe2">>) -> #{<<"session">> => ?INTERFACE_SESSION, <<"trade">> => ?INTERFACE_TRADE,
+                           <<"checks">> => ?INTERFACE_CHECKS};
 interfaces(_) -> #{}.
 
 features(<<"warframe">>) -> features();
+features(<<"poe2">>) -> [<<"trade.prediction">>];
 features(_) -> [].
 
 -doc "Return current Unix-socket handshake contract.".

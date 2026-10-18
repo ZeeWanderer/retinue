@@ -7,8 +7,13 @@
 -endif.
 
 command() ->
-    #{help => "inspect incidents and resolution failures",
-      commands => #{"logs" => logs_command(all), "unresolved" => #{
+    Shared = retinue_diagnostics_cli:command(warframe),
+    Live = wf_companion_diagnostics_cli:command(),
+    Commands = maps:merge(maps:merge(maps:get(commands, Shared),
+                                    wf_companion_cli:diagnostic_commands()), maps:get(commands, Live)),
+    #{help => "inspect live checks, captures, incidents and logs",
+      arguments => maps:get(arguments, Live),
+      commands => Commands#{"logs" => logs_command(all), "unresolved" => #{
           help => "show current identity, metadata and asset failures",
           handler => fun(Args) -> show(maps:get(output_format, Args, table)) end}}}.
 

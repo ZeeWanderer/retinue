@@ -1,6 +1,7 @@
 //! Shared, game-independent support for Retinue native clients.
 
 pub mod child;
+pub mod health;
 pub mod local_protocol;
 pub mod paths;
 pub mod process;

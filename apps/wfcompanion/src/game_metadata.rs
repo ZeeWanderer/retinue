@@ -120,12 +120,14 @@ fn scan(session: Session, outbound: OutboundSender, stopping: Arc<AtomicBool>, e
     }
     let mut previous_error = None;
     while !stopping.load(Ordering::Relaxed) && session.is_current() {
-        match session
+        let result = session
             .read(|identity| metadata::capture_for_identity(game_pid, identity.clone()))
             .and_then(|captured| {
                 serde_json::to_value(captured)
                     .map_err(|error| format!("could not serialize game metadata: {error}"))
-            }) {
+            });
+        session.record("equipment_pools", &result);
+        match result {
             Ok(data) => {
                 let _ = events.send(Event::Captured {
                     game_pid,

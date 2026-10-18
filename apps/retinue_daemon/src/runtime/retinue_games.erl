@@ -22,10 +22,10 @@ unsubscribe(Game, _Ref) -> {error, {unsupported_game, Game}}.
 owner(#{game := warframe} = Request) -> wf_protocol:owner(Request);
 owner(_) -> undefined.
 
-status() -> #{warframe => wf_rpc:status(), poe2 => safe_status(retinue_poe2_service),
+status() -> #{warframe => wf_rpc:status(), poe2 => poe2_health(),
               arc => #{observation => not_implemented}}.
 
-safe_status(Module) -> try Module:status() catch _:_ -> unavailable end.
+poe2_health() -> try retinue_poe2_service:health() catch _:_ -> unavailable end.
 
 paths(Games) ->
     [{state, retinue_paths:root(state)}, {runtime, retinue_paths:root(runtime)},

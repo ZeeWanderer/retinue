@@ -273,6 +273,7 @@ impl Sink {
         let line = serde_json::json!({
             "timestamp_ms": record.time.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
             "pid": std::process::id(),
+            "version": env!("WFCLI_VERSION"),
             "level": record.level,
             "event": record.event,
             "message": record.message,
