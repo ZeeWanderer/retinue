@@ -47,7 +47,7 @@ Install with [Homebrew](https://brew.sh) on Linux:
 
 ```bash
 brew tap zeewanderer/sundries
-brew install retinue
+brew install zeewanderer/sundries/retinue
 ```
 
 Upgrading from `wfcli`? Follow [storage migration](docs/data-sources.md#migrate-wfcli-storage)
