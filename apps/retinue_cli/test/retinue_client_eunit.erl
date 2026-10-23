@@ -95,8 +95,10 @@ autostart_unit_runs_supervised_persistent_release_test() ->
                     binary:match(Unit, <<"ExecStart=\"/tmp/retinue daemon/bin/retinue-daemon\" foreground">>)),
     ?assertNotEqual(nomatch,
                     binary:match(Unit, <<"Environment=\"PATH=/opt/erlang/bin:/usr/bin\"">>)),
-    ?assertNotEqual(nomatch, binary:match(Unit, <<"WorkingDirectory=">>)),
+    ?assertNotEqual(nomatch, binary:match(Unit, <<"WorkingDirectory=-">>)),
     ?assertEqual(nomatch, binary:match(Unit, <<"WorkingDirectory=\"">>)),
+    ?assertNotEqual(nomatch, binary:match(Unit, <<"ExecStartPre=:/bin/sh -ec ">>)),
+    ?assertNotEqual(nomatch, binary:match(Unit, <<"TimeoutStartSec=90">>)),
     ?assertNotEqual(nomatch, binary:match(Unit, <<"ERL_CRASH_DUMP=">>)),
     ?assertNotEqual(nomatch, binary:match(Unit, <<"Restart=on-failure">>)).
 

@@ -42,6 +42,8 @@ Development and production use separate units:
 - `retinue-daemon.service` for production builds
 
 The client detects its installation and refreshes stale service ownership before startup.
+Source-build services wait up to 90 seconds for the executable and state directory
+when a drive mounts late at login. During this wait the service is `activating`.
 
 ## Updates
 

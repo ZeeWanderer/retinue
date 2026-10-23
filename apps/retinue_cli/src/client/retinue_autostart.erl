@@ -6,7 +6,8 @@
 -export([enable/0, disable/0, status/0, installed/0, active/0, start/0, stop/0]).
 
 -ifdef(TEST).
--export([unit_file/1, unit_file/2, unit_path/0, unit_name/0, active_result/1]).
+-export([unit_file/1, unit_file/2, unit_path/0, unit_name/0, active_result/1,
+         wait_for_paths/0]).
 -endif.
 
 -define(COMMAND_TIMEOUT, 30000).
@@ -263,6 +264,7 @@ unit_file(Script, Path) ->
     InstallRoot = retinue_build:install_root(),
     UpdateRoot = retinue_build:update_root(),
     CrashDump = retinue_paths:file(state, "erl_crash.dump"),
+    StateRoot = retinue_paths:root(state),
     iolist_to_binary([
         "[Unit]\n",
         "Description=Retinue daemon (", Flavor, ")\n\n",
@@ -276,7 +278,11 @@ unit_file(Script, Path) ->
         "Environment=LD_PRELOAD=\n",
         "Environment=LD_LIBRARY_PATH=\n",
         "Environment=", systemd_quote("PATH=" ++ Path), "\n",
-        "WorkingDirectory=", systemd_path(retinue_paths:root(state)), "\n",
+        "WorkingDirectory=-", systemd_path(StateRoot), "\n",
+        "ExecStartPre=:/bin/sh -ec ", systemd_quote(wait_for_paths()),
+        " retinue-wait-paths ", systemd_quote(filename:absname(Script)),
+        " ", systemd_quote(StateRoot), "\n",
+        "TimeoutStartSec=90\n",
         "ExecStart=", systemd_quote(filename:absname(Script)), " foreground\n",
         "Restart=on-failure\n",
         "RestartSec=2\n",
@@ -284,6 +290,10 @@ unit_file(Script, Path) ->
         "[Install]\n",
         "WantedBy=default.target\n"
     ]).
+
+wait_for_paths() ->
+    %% User services cannot order themselves after mounts in the system manager.
+    "until [ -x \"$1\" ] && [ -d \"$2\" ]; do /bin/sleep 1; done".
 
 ensure_runtime_dirs() ->
     ok = retinue_paths:ensure_private(retinue_paths:root(state)),
