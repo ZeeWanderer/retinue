@@ -1,7 +1,21 @@
-# Linux/Proton Companion
+# Warframe Companion
 
 `wfcompanion` observes local Warframe state, publishes player data to `retinue-daemon`, and renders
-Wayland overlays for relic rewards and relic selection.
+Wayland overlays for relic rewards, relic selection and ducat-kiosk tooltips.
+
+## Overlays
+
+Relic rewards show Market prices and collection progress:
+
+![Relic reward overlay](images/wfcompanion-relic-rewards.webp)
+
+Relic selection ranks your owned relics:
+
+![Owned relic recommendations](images/wfcompanion-relic-suggestions.webp)
+
+The ducat kiosk adds platinum prices and collection badges to item tooltips:
+
+![Ducat-kiosk price and collection badges](images/wfcompanion-ducat-kiosk.webp)
 
 ## Requirements
 
@@ -9,7 +23,7 @@ Wayland overlays for relic rewards and relic selection.
 - Tesseract 5 with English language data
 - built `wfcli`, `retinue-daemon`, and `wfcompanion` executables
 
-Source-build requirements are listed in the [repository README](../README.md#build).
+Source-build requirements are listed in [development workflows](developer/workflows.md#build).
 
 ## Steam Launch Mode
 

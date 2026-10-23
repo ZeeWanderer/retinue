@@ -1,8 +1,24 @@
 # Retinue
 
-Linux/Proton game companions with a shared daemon, CLI, and MCP server. Warframe includes
-a desktop GUI, relic and ducat-kiosk overlays, Market tools, and build planning.
-Path of Exile 2 includes an in-game price checker with editable trade filters and estimates.
+Linux/Proton game companions with a shared daemon, CLI, and MCP server.
+
+## Warframe
+
+Relic rewards, relic recommendations and ducat-kiosk prices in-game. Foundry,
+Mastery Helper, Inventory, Market and build planning in a native Qt desktop app.
+
+![Relic rewards with prices and collection progress](docs/images/wfcompanion-relic-rewards.webp)
+
+[Companion features and setup](docs/companion.md) | [Desktop GUI](docs/gui.md)
+
+## Path of Exile 2
+
+Hover an item and press **Alt+E** to check prices, edit trade filters or open the
+trade website. Optional estimates help gauge equipment value.
+
+![PoE2 Evaluate overlay with item filters and an estimated value](docs/images/poe2companion-evaluate.webp)
+
+[PoE2 features and setup](docs/poe2.md)
 
 ## Applications
 
@@ -17,29 +33,8 @@ Path of Exile 2 includes an in-game price checker with editable trade filters an
 | [`wfgui`](docs/gui.md) | Native Qt desktop client for Warframe account and world-state views |
 | [`retinue-inspect`](docs/wfinspect.md) | Generic memory/capture inspection and Warframe research; `wfinspect` is an alias |
 
-Clients start `retinue-daemon` when needed. Concurrent clients reuse its caches and rate-limited work.
-The [project structure](docs/developer/structure.md) describes OTP libraries and ownership.
-
-## Desktop GUI
-
-`wfgui` provides Foundry, Mastery Helper, Inventory, Relic Planner, and Market views alongside
-live world timers and fissures.
-
-![wfgui Foundry view](docs/images/wfgui-foundry.png)
-
-## In-game Overlays
-
-`wfcompanion` adds Market values and collection progress to relic rewards, ranks owned relics
-during selection, and shows prices and collection badges in ducat-kiosk tooltips.
-
-![Relic reward overlay](docs/images/wfcompanion-relic-rewards.webp)
-
-![Owned relic recommendations](docs/images/wfcompanion-relic-suggestions.webp)
-
-![Ducat-kiosk price and collection badges](docs/images/wfcompanion-ducat-kiosk.webp)
-
-In Path of Exile 2, hover an item and press **Alt+E** to compare asking prices, adjust search
-filters, or open the trade website. See the [PoE2 guide](docs/poe2.md).
+Clients share daemon caches and rate-limited requests. ARC Raiders is a launch
+scaffold only.
 
 ## Install
 
@@ -99,20 +94,7 @@ Inspect either with `retinue daemon autostart status`.
 
 ## Build
 
-Required toolchains:
-
-| Area | Requirements |
-| --- | --- |
-| Common | Git, GNU Make, CMake, and a C/C++ compiler |
-| Erlang | Erlang/OTP 29 and Rebar3 |
-| Companion | Rust, Cargo, Python 3, `jq`, MinGW-w64, pkg-config, and libxkbcommon development files |
-| Desktop GUI | LLVM with libc++, Ninja, vcpkg, Autoconf, Autoconf Archive, Automake, and Libtool |
-
-`wfcompanion` runtime integration requires KDE Plasma on Wayland, KScreen, and Tesseract 5 with
-English language data. `sccache` is optional. FFmpeg with VP9 support is used for animated overlay
-previews, and `zip` is used for release archives.
-
-Initialize dependencies and build development and production trees:
+Install the [build dependencies](docs/developer/workflows.md#build), then:
 
 ```bash
 git submodule update --init
@@ -120,35 +102,9 @@ export VCPKG_ROOT=/path/to/vcpkg
 make build
 ```
 
-Build one environment:
-
-```bash
-make dev   # debug builds in dev/
-make prod  # optimized builds in prod/
-```
-
-Use `prod/bin/` directly or add it to your shell's `PATH`.
-
-Compiler output stays under `_build/`; downloads and compiler caches stay under `.cache/`.
-Repository-root links select either staged environment:
-
-| Development | Production |
-| --- | --- |
-| `retinued` | `retinue` |
-| `wfclid` | `wfcli` |
-| `poe2clid` | `poe2cli` |
-| `arcclid` | `arccli` |
-| `retinue-daemond` | `retinue-daemon` |
-| `wfcompaniond` | `wfcompanion` |
-| `poe2companiond` | `poe2companion` |
-| `arccompaniond` | `arccompanion` |
-| `retinue-inspectd` | `retinue-inspect` |
-| `wfinspectd` | `wfinspect` |
-| `wf-luau-decompilerd` | `wf-luau-decompiler` |
-| `wfguid` | `wfgui` |
-
-Common contributor commands and individual build targets are documented in
-[Development workflows](docs/developer/workflows.md).
+`make dev` and `make prod` build one flavor. Executables are in `dev/bin/` and
+`prod/bin/`; root links with a `d` suffix select development builds.
+See [development workflows](docs/developer/workflows.md) for individual targets and tests.
 
 ## Run
 
