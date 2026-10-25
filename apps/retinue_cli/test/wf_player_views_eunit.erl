@@ -2,6 +2,43 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+foundry_filter_metadata_test() ->
+    Frame = <<"/Lotus/Powersuits/Test/Test">>,
+    Weapon = <<"/Lotus/Weapons/Test">>,
+    Product = <<"/Lotus/Weapons/TestDual">>,
+    Instance = fun(Id, Type, Extra) ->
+        maps:merge(#{<<"ItemId">> => #{<<"$oid">> => Id}, <<"ItemType">> => Type}, Extra)
+    end,
+    Raw = #{<<"Suits">> => [
+                Instance(<<"frame-1">>, Frame, #{<<"ArchonCrystalUpgrades">> =>
+                    [#{<<"UpgradeType">> => <<"/Lotus/Upgrades/TestShard">>}]}),
+                Instance(<<"frame-2">>, Frame, #{<<"ArchonCrystalUpgrades">> => []})],
+            <<"LongGuns">> => [
+                Instance(<<"gun-1">>, Weapon, #{<<"SkillTree">> => <<"/Lotus/Types/TestTree">>}),
+                Instance(<<"gun-2">>, Weapon, #{<<"SkillTree">> => <<>>}),
+                Instance(<<"gun-3">>, Product, #{<<"Features">> => 512})]},
+    Definition = fun(Id, Category, Parts) ->
+        #{<<"uniqueName">> => Id, <<"name">> => Id, <<"category">> => Category,
+          <<"masterable">> => true, <<"components">> => Parts}
+    end,
+    Catalog = [Definition(Frame, <<"Warframes">>, []),
+               Definition(Weapon, <<"Primary">>, []),
+               Definition(Product, <<"Primary">>, [#{<<"uniqueName">> => Weapon}])],
+    Snapshot = #{data => #{<<"inventory">> => #{<<"raw">> => Raw}}},
+    {ok, View} = wf_player_views:foundry(Snapshot, Catalog),
+    Items = maps:from_list([{maps:get(<<"id">>, Item), Item}
+                           || Item <- maps:get(<<"items">>, View)]),
+    ?assert(maps:get(<<"has_archon_shards">>, maps:get(Frame, Items))),
+    ?assert(maps:get(<<"has_incarnon">>, maps:get(Weapon, Items))),
+    ?assert(maps:get(<<"used_for_crafting">>, maps:get(Weapon, Items))),
+    ?assertNot(maps:get(<<"used_for_crafting">>, maps:get(Frame, Items))),
+    ?assert(maps:get(<<"has_incarnon">>, maps:get(Product, Items))),
+    ?assertNot(maps:get(<<"has_archon_shards">>, maps:get(Weapon, Items))),
+    {ok, Empty} = wf_player_views:foundry(#{}, Catalog),
+    ?assert(lists:all(fun(Item) -> not maps:get(<<"has_archon_shards">>, Item)
+                                 andalso not maps:get(<<"has_incarnon">>, Item)
+                     end, maps:get(<<"items">>, Empty))).
+
 inventory_and_mastery_join_test() ->
     Relic = <<"/Lotus/Types/Game/Projections/T1Test">>,
     Chassis = <<"/Lotus/Types/Recipes/TestPrimeChassis">>,
@@ -95,6 +132,7 @@ inventory_and_mastery_join_test() ->
         [Component || Component <- maps:get(<<"components">>, FoundryItem),
                       maps:get(<<"id">>, Component) =:= Chassis],
     ?assertEqual(true, maps:get(<<"owned_relic">>, ChassisComponent)),
+    ?assertEqual(<<"Test Prime Chassis">>, maps:get(<<"full_name">>, ChassisComponent)),
     ?assertEqual(<<"Test Prime Chassis Blueprint">>,
                  maps:get(<<"market_name">>, ChassisComponent)),
     ?assertEqual(true, maps:get(<<"market_required">>, ChassisComponent)),
@@ -258,12 +296,59 @@ mastery_market_names_test() ->
     [Item] = [Value || Value <- maps:get(<<"items">>, Mastery),
                        maps:get(<<"id">>, Value) =:= Parent],
     [Lex, OrokinCell, FormaBlueprint] = maps:get(<<"components">>, Item),
+    ?assertEqual(<<"Lex Prime">>, maps:get(<<"full_name">>, Lex)),
+    ?assertEqual(<<"Orokin Cell">>, maps:get(<<"full_name">>, OrokinCell)),
+    ?assertEqual(<<"Forma">>, maps:get(<<"full_name">>, FormaBlueprint)),
     ?assertEqual(<<"Lex Prime Set">>, maps:get(<<"market_name">>, Lex)),
     ?assertEqual(null, maps:get(<<"market_name">>, OrokinCell)),
     ?assertEqual(<<"Forma">>, maps:get(<<"name">>, FormaBlueprint)),
     ?assertEqual(null, maps:get(<<"market_name">>, FormaBlueprint)),
     ?assertEqual(false, maps:get(<<"market_required">>, FormaBlueprint)),
     ?assertEqual(true, maps:get(<<"buyable">>, Item)).
+
+foundry_full_component_names_are_distinct_from_market_blueprints_test() ->
+    Snapshot = #{data => #{<<"inventory">> => #{<<"index">> => #{}}}},
+    Catalog = [#{<<"uniqueName">> => <<"/Lotus/Powersuits/Test/Frame">>,
+                 <<"name">> => <<"Test Frame">>, <<"category">> => <<"Warframes">>,
+                 <<"masterable">> => true,
+                 <<"components">> => [
+                     #{<<"uniqueName">> => <<"/Lotus/Types/Recipes/Test/FrameBlueprint">>,
+                       <<"name">> => <<"Blueprint">>},
+                     #{<<"uniqueName">> => <<"/Lotus/Types/Items/Test/FrameChassis">>,
+                       <<"name">> => <<"Test Frame Chassis">>}]}],
+    {ok, View} = wf_player_views:foundry(Snapshot, Catalog),
+    [Item] = maps:get(<<"items">>, View),
+    [Blueprint, Chassis] = maps:get(<<"components">>, Item),
+    ?assertEqual(<<"Test Frame Blueprint">>, maps:get(<<"full_name">>, Blueprint)),
+    ?assertEqual(<<"Test Frame Chassis">>, maps:get(<<"full_name">>, Chassis)),
+    ?assertEqual(null, maps:get(<<"market_name">>, Chassis)).
+
+foundry_full_names_preserve_cross_recipe_identity_test() ->
+    VoltPart = <<"/Lotus/Types/Recipes/WarframeRecipes/VOLTHelmetComponent">>,
+    Catalog = [#{<<"uniqueName">> => <<"/Lotus/Powersuits/Dragon/Dragon">>,
+                 <<"name">> => <<"Chroma">>, <<"category">> => <<"Warframes">>,
+                 <<"masterable">> => true,
+                 <<"components">> => [
+                     #{<<"uniqueName">> => VoltPart, <<"name">> => <<"Neuroptics">>,
+                       <<"fullName">> => <<"Volt Neuroptics">>}]}],
+    {ok, View} = wf_player_views:foundry(#{}, Catalog),
+    [Item] = maps:get(<<"items">>, View),
+    [Part] = maps:get(<<"components">>, Item),
+    ?assertEqual(VoltPart, maps:get(<<"id">>, Part)),
+    ?assertEqual(<<"Neuroptics">>, maps:get(<<"name">>, Part)),
+    ?assertEqual(<<"Volt Neuroptics">>, maps:get(<<"full_name">>, Part)).
+
+foundry_weapon_blueprint_has_parent_name_test() ->
+    Catalog = [#{<<"uniqueName">> => <<"/Lotus/Weapons/Test/TwinKrohkur">>,
+                 <<"name">> => <<"Twin Krohkur">>, <<"category">> => <<"Melee">>,
+                 <<"masterable">> => true,
+                 <<"components">> => [
+                     #{<<"uniqueName">> => <<"/Lotus/Weapons/Test/TwinKrohkurBlueprint">>,
+                       <<"name">> => <<"Blueprint">>}]}],
+    {ok, View} = wf_player_views:foundry(#{}, Catalog),
+    [Item] = maps:get(<<"items">>, View),
+    [Blueprint] = maps:get(<<"components">>, Item),
+    ?assertEqual(<<"Twin Krohkur Blueprint">>, maps:get(<<"full_name">>, Blueprint)).
 
 duplicate_recipe_slots_share_owned_count_test() ->
     Twin = <<"/Lotus/Weapons/Test/TwinKrohkur">>,

@@ -5,6 +5,107 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+empty_upstream_rewards_use_current_drop_feed_test() ->
+    Market = [(item(<<"cheap_prime_part">>, 15))#{
+        <<"i18n">> => #{<<"en">> => #{<<"name">> => <<"Cheap Prime Part">>,
+                                       <<"thumb">> => <<"cheap.png">>}}}],
+    with_catalog_http(empty_rewards(), drop_fixture(), fun() ->
+        {ok, Catalog} = wf_relic_recommendations:fetch(Market, #{}),
+        Result = wf_relic_recommendations:build(
+            <<"axi">>, Catalog, Market, quotes(), player(), planner_options()),
+        [Relic] = maps:get(<<"items">>, Result),
+        [Reward] = maps:get(<<"rewards">>, Relic),
+        ?assertEqual(<<"cheap_prime_part">>, maps:get(<<"slug">>, Reward)),
+        ?assertEqual(<<"Cheap Prime Part">>, maps:get(<<"name">>, Reward)),
+        ?assertEqual(100, maps:get(<<"chance">>, Reward)),
+        ?assertEqual(<<"cheap.png">>, maps:get(<<"image_name">>, maps:get(<<"asset">>, Reward))),
+        ?assertEqual(10, maps:get(<<"expected_platinum">>, Relic)),
+        ?assertEqual(15, maps:get(<<"expected_ducats">>, Relic)),
+        ?assertEqual([<<"cheap_prime_part">>], wf_relic_recommendations:price_slugs(
+            <<"axi">>, Catalog, Market, player(), 1))
+    end).
+
+unavailable_reward_sources_cannot_publish_empty_success_test() ->
+    with_catalog_http(empty_rewards(), jsone:encode(#{<<"relics">> => []}), fun() ->
+        ?assertEqual({error, empty_relic_rewards}, wf_relic_recommendations:fetch([], #{}))
+    end).
+
+unavailable_rewards_keep_last_good_relic_test() ->
+    {ok, Previous} = wf_relic_recommendations:parse(fixture()),
+    with_catalog_http(empty_rewards(), {error, timeout}, fun() ->
+        {ok, Catalog} = wf_relic_recommendations:fetch([], Previous),
+        ?assertEqual(maps:get(<<"relic-a">>, Previous), maps:get(<<"relic-a">>, Catalog))
+    end).
+
+valid_primary_does_not_request_fallback_test() ->
+    with_catalog_http(fixture(), unexpected_fallback, fun() ->
+        {ok, Expected} = wf_relic_recommendations:parse(fixture()),
+        ?assertEqual({ok, Expected}, wf_relic_recommendations:fetch([], #{})),
+        ?assertEqual(false, get(relic_fallback_called))
+    end).
+
+partial_invalid_reward_arrays_are_not_accepted_as_complete_test() ->
+    [Relic] = jsone:decode(empty_rewards()),
+    Broken = Relic#{<<"rewards">> => [
+        #{<<"chance">> => 100, <<"item">> => #{<<"name">> => <<"Forma Blueprint">>}},
+        #{<<"item">> => #{<<"name">> => <<"Missing chance">>}}]},
+    {ok, Catalog} = wf_relic_recommendations:parse(jsone:encode([Broken])),
+    ?assertNot(wf_relic_recommendations:usable(Catalog)),
+    with_catalog_http(jsone:encode([Broken]), drop_fixture(), fun() ->
+        {ok, Repaired} = wf_relic_recommendations:fetch([], #{}),
+        [Reward] = maps:get(rewards, maps:get(<<"relic-a">>, Repaired)),
+        ?assertEqual(<<"Cheap Prime Part">>, maps:get(name, Reward))
+    end).
+
+generic_era_templates_are_not_playable_relics_test() ->
+    Values = jsone:decode(empty_rewards()),
+    Template = #{<<"name">> => <<"Axi Relic">>, <<"uniqueName">> => <<"template">>,
+                 <<"rewards">> => []},
+    {ok, Catalog} = wf_relic_recommendations:parse(jsone:encode([Template | Values])),
+    ?assertEqual([<<"relic-a">>], maps:keys(Catalog)).
+
+malformed_drop_rows_do_not_publish_partial_probabilities_test() ->
+    Drops = jsone:encode(#{<<"relics">> => [#{<<"tier">> => <<"Axi">>,
+        <<"relicName">> => <<"A1">>, <<"state">> => <<"Intact">>,
+        <<"rewards">> => [#{<<"itemName">> => <<"Part">>, <<"chance">> => 50},
+                          #{<<"itemName">> => <<"Other">>, <<"chance">> => <<"50">>}]}]}),
+    with_catalog_http(empty_rewards(), Drops, fun() ->
+        ?assertEqual({error, empty_relic_rewards}, wf_relic_recommendations:fetch([], #{}))
+    end).
+
+empty_rewards() ->
+    jsone:encode([#{<<"uniqueName">> => <<"relic-a">>,
+        <<"name">> => <<"Axi A1 Intact">>, <<"rewards">> => []}]).
+
+drop_fixture() ->
+    jsone:encode(#{<<"relics">> => [#{<<"tier">> => <<"Axi">>,
+        <<"relicName">> => <<"A1">>, <<"state">> => <<"Intact">>,
+        <<"rewards">> => [#{<<"itemName">> => <<"Cheap Prime Part">>,
+                            <<"chance">> => 100, <<"rarity">> => <<"Common">>}]}]}).
+
+with_catalog_http(Primary, Fallback, Fun) ->
+    Previous = application:get_env(retinue_daemon, relic_catalog_http_fun),
+    put(relic_fallback_called, false),
+    application:set_env(retinue_daemon, relic_catalog_http_fun, fun(Url, _) ->
+        case lists:suffix("Relics.json", Url) of
+            true -> {ok, 200, Primary};
+            false ->
+                put(relic_fallback_called, true),
+                case Fallback of
+                    {error, _} -> Fallback;
+                    _ -> {ok, 200, Fallback}
+                end
+        end
+    end),
+    try Fun()
+    after
+        erase(relic_fallback_called),
+        case Previous of
+            {ok, Old} -> application:set_env(retinue_daemon, relic_catalog_http_fun, Old);
+            undefined -> application:unset_env(retinue_daemon, relic_catalog_http_fun)
+        end
+    end.
+
 parses_and_ranks_owned_relics_test() ->
     {ok, Catalog} = wf_relic_recommendations:parse(fixture()),
     Result = wf_relic_recommendations:build(

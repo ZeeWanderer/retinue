@@ -38,7 +38,14 @@ foundry(Snapshot, Catalog) ->
     Mastery = mastery_index(maps:get(<<"mastery">>, Player, [])),
     Pending = pending_index(maps:get(<<"pending_recipes">>, Player, []), Catalog),
     Subsumed = subsumed_index(maps:get(<<"raw">>, Player, #{})),
-    Items = [foundry_item(Item, Owned, Mastery, Pending, Subsumed)
+    Equipment = foundry_equipment(maps:get(<<"equipment">>, Player, [])),
+    Crafting = maps:from_keys(
+                 [Id || Item <- Catalog,
+                        Component <- maps:get(<<"components">>, Item, []),
+                        Id <- [maps:get(<<"uniqueName">>, Component, undefined)],
+                        is_binary(Id), byte_size(Id) > 0,
+                        Id =/= maps:get(<<"uniqueName">>, Item, undefined)], true),
+    Items = [foundry_item(Item, Owned, Mastery, Pending, Subsumed, Equipment, Crafting)
              || Item <- Catalog, mastery_item_supported(Item)],
     Sorted = lists:sort(fun name_before/2, Items),
     {ok, (base_response(Snapshot, Player))#{
@@ -128,7 +135,8 @@ cached_view(View, Build, Catalog, Meta, ExtraVersion) ->
            maps:get(version, Meta, undefined), maps:get(fetched_at, Meta, undefined),
            ExtraVersion, ?MODULE:module_info(md5),
            wf_item_catalog:module_info(md5),
-           maps:get(recipe_version, Meta, undefined)},
+           maps:get(recipe_version, Meta, undefined),
+           maps:get(name_version, Meta, undefined)},
     case cache_lookup(Key) of
         {ok, Result} -> Result;
         error ->
@@ -486,7 +494,23 @@ mastery_item(Item, Owned, Mastery, Pending) ->
       <<"components">> => Components,
       <<"asset">> => asset(Unique, maps:get(<<"imageName">>, Item, undefined))}.
 
-foundry_item(Item, Owned, Mastery, Pending, Subsumed) ->
+foundry_equipment(Items) ->
+    lists:foldl(
+      fun(Item, Acc) ->
+          Id = maps:get(<<"item_type">>, Item),
+          Previous = maps:get(Id, Acc, #{}),
+          Features = maps:get(<<"features">>, Item, #{}),
+          SkillTree = maps:get(<<"skill_tree">>, Item, <<>>),
+          Shards = maps:get(<<"archon_crystal_upgrades">>, Item, []),
+          Acc#{Id => #{
+              <<"has_archon_shards">> => maps:get(<<"has_archon_shards">>, Previous, false)
+                                          orelse (is_list(Shards) andalso Shards =/= []),
+              <<"has_incarnon">> => maps:get(<<"has_incarnon">>, Previous, false)
+                                      orelse maps:get(<<"incarnon_genesis">>, Features, false)
+                                      orelse (is_binary(SkillTree) andalso byte_size(SkillTree) > 0)}}
+      end, #{}, Items).
+
+foundry_item(Item, Owned, Mastery, Pending, Subsumed, Equipment, Crafting) ->
     Base = mastery_item(Item, Owned, Mastery, Pending),
     Unique = maps:get(<<"id">>, Base),
     Components = maps:get(<<"components">>, Base),
@@ -496,10 +520,15 @@ foundry_item(Item, Owned, Mastery, Pending, Subsumed) ->
                                maps:get(<<"required">>, Component))
                            || Component <- Components]),
     Ready = Components =/= [] andalso Available >= Required,
-    Base#{<<"group">> => foundry_group(maps:get(<<"category">>, Base),
-                                        maps:get(<<"type">>, Base)),
+    Installed = maps:get(Unique, Equipment, #{}),
+    Group = foundry_group(maps:get(<<"category">>, Base), maps:get(<<"type">>, Base)),
+    Base#{<<"group">> => Group,
           <<"subsumed">> => maps:get(Unique, Subsumed, false),
           <<"ready_to_build">> => Ready,
+          <<"used_for_crafting">> => maps:is_key(Unique, Crafting),
+          <<"has_archon_shards">> => maps:get(<<"has_archon_shards">>, Installed, false),
+          <<"has_incarnon">> => lists:member(Group, [<<"primary">>, <<"secondary">>, <<"melee">>])
+                                  andalso maps:get(<<"has_incarnon">>, Installed, false),
           <<"components_owned">> => Available,
           <<"components_required">> => Required}.
 
@@ -533,6 +562,7 @@ mastery_component(Item, Component, Required, OwnedCount, Owned) ->
     #{<<"id">> => Unique,
       <<"name">> => Name,
       <<"name_source">> => NameSource,
+      <<"full_name">> => component_full_name(Item, Component),
       <<"market_name">> => MarketName,
       <<"market_required">> =>
           contains(ExternalName, <<"Blueprint">>) andalso
@@ -590,7 +620,23 @@ component_external_name(Item, Component) ->
             case contains(Name, <<"Kavasa Prime">>) orelse
                  resource_component(Unique) orelse standalone_component(Unique) of
                 true -> Name;
-                false -> maybe_blueprint(join_component_name(Parent, Name), Category)
+                false ->
+                    FullName = join_component_name(Parent, Name),
+                    maybe_blueprint(FullName, Category)
+            end
+    end.
+
+component_full_name(Item, Component) ->
+    Unique = maps:get(<<"uniqueName">>, Component, <<>>),
+    Name = maps:get(<<"name">>, Component, fallback_name(Unique)),
+    case maps:get(<<"fullName">>, Component, undefined) of
+        Full when is_binary(Full), byte_size(Full) > 0 -> Full;
+        _ ->
+            case Name =/= <<"Blueprint">> andalso
+                 (resource_component(Unique) orelse standalone_component(Unique)
+                  orelse contains(Name, <<"Kavasa Prime">>)) of
+                true -> Name;
+                false -> join_component_name(maps:get(<<"name">>, Item, <<>>), Name)
             end
     end.
 

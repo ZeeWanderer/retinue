@@ -19,17 +19,20 @@
 load() ->
     Path = source(),
     RecipePath = recipe_source(),
+    NamePath = filename:join(filename:dirname(RecipePath), "ExportResources_en.json"),
+    NameVersion = file_signature(NamePath),
     case {file:read_file_info(Path, [{time, posix}]),
           file:read_file_info(RecipePath, [{time, posix}])} of
         {{ok, #file_info{mtime = Modified, size = Size}},
          {ok, #file_info{mtime = RecipeModified, size = RecipeSize}}} ->
             Signature = {{Path, Modified, Size},
-                         {RecipePath, RecipeModified, RecipeSize}},
+                         {RecipePath, RecipeModified, RecipeSize},
+                         {NamePath, NameVersion}, ?MODULE:module_info(md5)},
             case persistent_term:get(?CACHE_KEY, undefined) of
                 #{signature := Signature, entries := Entries, meta := Meta} ->
                     {ok, Entries, Meta};
-                _ -> load_file(Path, RecipePath, Signature,
-                               {RecipeModified, RecipeSize})
+                _ -> load_file(Path, RecipePath, NamePath, Signature,
+                               {RecipeModified, RecipeSize}, NameVersion)
             end;
         {{error, Reason}, _} -> {error, {item_catalog_missing, Path, Reason}};
         {_, {error, Reason}} ->
@@ -101,20 +104,28 @@ lookup(Identity, Index) when is_binary(Identity), is_map(Index) ->
     maps:get(Identity, Index, undefined);
 lookup(_Identity, _Index) -> undefined.
 
-load_file(Path, RecipePath, Signature, RecipeVersion) ->
+file_signature(Path) ->
+    case file:read_file_info(Path, [{time, posix}]) of
+        {ok, #file_info{mtime = Modified, size = Size}} -> {Modified, Size};
+        {error, _Reason} -> undefined
+    end.
+
+load_file(Path, RecipePath, NamePath, Signature, RecipeVersion, NameVersion) ->
     case file:read_file(Path) of
         {ok, Body} ->
             try jsone:decode(Body, [{object_format, map}]) of
                 #{<<"entries">> := Entries0} = Wrapper when is_list(Entries0) ->
                     case recipe_aliases(RecipePath) of
                         {ok, Aliases} ->
-                            Entries = attach_recipe_aliases(Entries0, Aliases),
+                            Names = resource_names(NamePath),
+                            Entries = attach_recipe_aliases(Entries0, Aliases, Names),
                             Meta = #{source => maps:get(<<"source">>, Wrapper,
                                                        <<"WFCD">>),
                                      version => maps:get(<<"version">>, Wrapper,
                                                         <<"unknown">>),
                                      fetched_at => maps:get(<<"fetchedAt">>, Wrapper, 0),
-                                     recipe_version => RecipeVersion},
+                                     recipe_version => RecipeVersion,
+                                     name_version => NameVersion},
                             persistent_term:put(
                               ?CACHE_KEY,
                               #{signature => Signature, entries => Entries,
@@ -145,14 +156,65 @@ add_recipe_alias(Recipe, Acc) ->
         false -> Acc
     end.
 
-attach_recipe_aliases(Items, Aliases) ->
-    [attach_item_aliases(Item, Aliases) || Item <- Items].
+resource_names(Path) ->
+    case wf_exports:load_items(filename:dirname(Path), [filename:basename(Path)]) of
+        {ok, Items} ->
+            maps:from_list(
+              [{retinue_text:to_binary(maps:get(uniqueName, Item)),
+                retinue_text:to_binary(maps:get(name, Item))}
+               || Item <- Items, present(maps:get(uniqueName, Item, undefined)),
+                  present(maps:get(name, Item, undefined))]);
+        {error, _Reason} -> #{}
+    end.
 
-attach_item_aliases(Item, Aliases) ->
+attach_recipe_aliases(Items, Aliases, Names) ->
+    Relics = relic_locations(Items),
+    [attach_item_aliases(Item, Aliases, Names, Relics) || Item <- Items].
+
+attach_item_aliases(Item, Aliases, Names, Relics) ->
     with_recipe_aliases(
-      Item#{<<"components">> => [with_recipe_aliases(Component, Aliases)
+      Item#{<<"components">> => [with_relic_drops(with_component_name(
+                                  with_recipe_aliases(Component, Aliases), Names), Relics)
                                   || Component <- maps:get(<<"components">>, Item, [])]},
       Aliases).
+
+relic_locations(Items) ->
+    lists:foldl(fun(Item, Index) ->
+        case Item of
+            #{<<"category">> := <<"Relics">>, <<"name">> := Name,
+              <<"uniqueName">> := Id} ->
+                case re:run(Name, <<"^(.+) (Intact|Exceptional|Flawless|Radiant)$">>,
+                            [{capture, [1, 2], binary}]) of
+                    {match, [Base, Refinement]} ->
+                        Locations = [<<Base/binary, " Relic (", Refinement/binary, ")">>
+                                     | case Refinement of
+                                           <<"Intact">> -> [<<Base/binary, " Relic">>];
+                                           _ -> []
+                                       end],
+                        lists:foldl(fun(Location, Acc) ->
+                            maps:update_with(Location,
+                              fun(Previous) when Previous =:= Id -> Id;
+                                 (_) -> ambiguous end, Id, Acc)
+                        end, Index, Locations);
+                    nomatch -> Index
+                end;
+            _ -> Index
+        end
+    end, #{}, Items).
+
+with_relic_drops(Component, Relics) ->
+    Component#{<<"drops">> => [
+        case {maps:get(<<"uniqueName">>, Drop, undefined),
+              maps:get(maps:get(<<"location">>, Drop, undefined), Relics, undefined)} of
+            {undefined, Id} when is_binary(Id) -> Drop#{<<"uniqueName">> => Id};
+            _ -> Drop
+        end || Drop <- maps:get(<<"drops">>, Component, [])]}.
+
+with_component_name(Component, Names) ->
+    case maps:find(maps:get(<<"uniqueName">>, Component, undefined), Names) of
+        {ok, Name} -> Component#{<<"fullName">> => Name};
+        error -> Component
+    end.
 
 with_recipe_aliases(Item, Aliases) ->
     case maps:get(maps:get(<<"uniqueName">>, Item, undefined), Aliases, []) of

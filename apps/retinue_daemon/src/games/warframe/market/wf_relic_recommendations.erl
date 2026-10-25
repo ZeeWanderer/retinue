@@ -3,36 +3,144 @@
 %%%-------------------------------------------------------------------
 -module(wf_relic_recommendations).
 
--export([fetch/0, parse/1, build/6, price_slugs/5, price_slugs/6,
-         catalog_version/0]).
+-export([fetch/2, parse/1, build/6, price_slugs/5, price_slugs/6,
+         catalog_version/0, usable/1]).
 
 -define(URL,
         "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Relics.json").
+-define(DROPS_URL, "https://drops.warframestat.us/data/relics.json").
 -define(VOID_TRACES, <<"/Lotus/Types/Items/MiscItems/VoidTearDrop">>).
 
 -doc "Return compact relic-catalog schema version.".
 -spec catalog_version() -> pos_integer().
-catalog_version() -> 3.
+catalog_version() -> 4.
 
 -doc "Fetch and compact the WFCD relic catalog.".
--spec fetch() -> {ok, map()} | {error, term()}.
-fetch() ->
+-spec fetch([map()], map()) -> {ok, map()} | {error, term()}.
+fetch(Items, Previous) ->
+    case fetch_body(?URL) of
+        {ok, Body} ->
+            case parse(Body) of
+                {ok, Catalog} -> complete_rewards(Catalog, Items, Previous);
+                Error -> report_catalog_error(Error)
+            end;
+        Error -> report_catalog_error(Error)
+    end.
+
+fetch_body(Url) ->
     Headers = [{"user-agent", "retinue (+https://github.com/ZeeWanderer/retinue)"},
                {"accept", "application/json"}],
     Result = try
         case application:get_env(retinue_daemon, relic_catalog_http_fun) of
-            {ok, Fun} when is_function(Fun, 2) -> Fun(?URL, Headers);
-            _ -> real_http_get(?URL, Headers)
+            {ok, Fun} when is_function(Fun, 2) -> Fun(Url, Headers);
+            _ -> real_http_get(Url, Headers)
         end
     catch HttpClass:HttpReason ->
         {error, {relic_catalog_http_crash, HttpClass, HttpReason}}
     end,
     case Result of
-        {ok, 200, Body} -> parse(iolist_to_binary(Body));
+        {ok, 200, Body} -> {ok, iolist_to_binary(Body)};
         {ok, Status, _Body} -> {error, {relic_catalog_http_status, Status}};
         {error, Reason} -> {error, {relic_catalog_http_failed, Reason}};
         Other -> {error, {invalid_relic_catalog_http_result, Other}}
     end.
+
+complete_rewards(Catalog, Items, Previous) ->
+    Missing = missing_rewards(Catalog),
+    report_check(<<"relic_catalog">>, missing_error(Missing)),
+    case Missing of
+        [] -> {ok, Catalog};
+        _ ->
+            case fetch_drop_rewards(Items) of
+                {ok, Drops} ->
+                    Repaired = maps:map(fun(_Id, Relic) ->
+                        case maps:get(rewards, Relic) of
+                            [] -> Relic#{rewards => maps:get(maps:get(name, Relic), Drops, [])};
+                            _ -> Relic
+                        end
+                    end, Catalog),
+                    report_check(<<"relic_drop_fallback">>, missing_error(missing_rewards(Repaired))),
+                    keep_usable_rewards(Repaired, Previous);
+                {error, Reason} ->
+                    report_check(<<"relic_drop_fallback">>, Reason),
+                    keep_usable_rewards(Catalog, Previous)
+            end
+    end.
+
+keep_usable_rewards(Catalog, Previous) ->
+    Merged = maps:map(fun(Id, Relic) ->
+        case {maps:get(rewards, Relic), maps:get(Id, Previous, undefined)} of
+            {[], #{rewards := [_ | _]} = Cached} -> Cached;
+            _ -> Relic
+        end
+    end, Catalog),
+    case usable(Merged) of
+        true -> {ok, Merged};
+        false -> {error, empty_relic_rewards}
+    end.
+
+-spec usable(map()) -> boolean().
+usable(Catalog) ->
+    maps:fold(fun(_Id, Relic, Found) ->
+        Found orelse maps:get(rewards, Relic, []) =/= []
+    end, false, Catalog).
+
+missing_rewards(Catalog) ->
+    lists:sort([maps:get(name, Relic) || Relic <- maps:values(Catalog),
+                                      maps:get(rewards, Relic) =:= []]).
+
+missing_error([]) -> null;
+missing_error(Names) ->
+    {missing_relic_rewards, length(Names), lists:sublist(Names, 4)}.
+
+report_catalog_error({error, Reason} = Error) ->
+    report_check(<<"relic_catalog">>, Reason),
+    Error.
+
+report_check(Id, Error) ->
+    {State, Message} = case Error of
+        null -> {<<"pass">>, null};
+        _ -> {<<"fail">>, iolist_to_binary(io_lib:format("~0p", [Error]))}
+    end,
+    retinue_checks:observe(<<"warframe.data">>,
+        #{<<"version">> => list_to_binary(retinue_build:version())},
+        #{Id => #{<<"state">> => State, <<"error">> => Message,
+                  <<"checked_at">> => erlang:system_time(millisecond)}}).
+
+fetch_drop_rewards(Items) ->
+    case fetch_body(?DROPS_URL) of
+        {ok, Body} -> parse_drop_rewards(Body, Items);
+        Error -> Error
+    end.
+
+parse_drop_rewards(Body, Items) ->
+    ByName = maps:from_list([{string:lowercase(Name), maps:get(<<"slug">>, Item)}
+        || Item <- Items, is_binary(maps:get(<<"slug">>, Item, undefined)),
+           Name <- [maps:get(<<"name">>, maps:get(<<"en">>, maps:get(<<"i18n">>, Item, #{}), #{}), undefined)],
+           is_binary(Name)]),
+    try jsone:decode(Body, [{object_format, map}]) of
+        #{<<"relics">> := [_ | _] = Rows} ->
+            Drops = maps:from_list(lists:filtermap(fun(Row) -> drop_rewards(Row, ByName) end, Rows)),
+            case map_size(Drops) of
+                0 -> {error, empty_relic_drop_rewards};
+                _ -> {ok, Drops}
+            end;
+        _ -> {error, invalid_relic_drop_catalog}
+    catch error:Reason -> {error, {invalid_relic_drop_json, Reason}}
+    end.
+
+drop_rewards(#{<<"tier">> := Era, <<"relicName">> := Code, <<"state">> := Grade,
+               <<"rewards">> := [_ | _] = Rewards}, ByName)
+  when is_binary(Era), is_binary(Code), is_binary(Grade) ->
+    Compact = [#{name => Name, chance => Chance, rarity => maps:get(<<"rarity">>, Reward, undefined),
+                 slug => maps:get(string:lowercase(Name), ByName, undefined)}
+        || #{<<"itemName">> := Name, <<"chance">> := Chance} = Reward <- Rewards,
+           is_binary(Name), byte_size(Name) > 0, is_number(Chance), Chance > 0, Chance =< 100],
+    case length(Compact) =:= length(Rewards) of
+        true -> {true, {<<Era/binary, " ", Code/binary, " ", Grade/binary>>, Compact}};
+        false -> false
+    end;
+drop_rewards(_, _) -> false.
 
 -doc "Parse WFCD Relics.json into the fields needed by recommendation scoring.".
 -spec parse(binary()) -> {ok, map()} | {error, term()}.
@@ -97,16 +205,26 @@ real_http_get(Url, Headers) ->
 compact(#{<<"uniqueName">> := Unique, <<"name">> := Name,
           <<"rewards">> := Rewards} = Relic)
   when is_binary(Unique), is_binary(Name), is_list(Rewards) ->
-    case era(Name, Unique) of
+    case catalog_era(Name, Unique) of
         undefined -> false;
         Era ->
-            CompactRewards = lists:filtermap(fun compact_reward/1, Rewards),
+            ParsedRewards = lists:filtermap(fun compact_reward/1, Rewards),
+            CompactRewards = case length(ParsedRewards) =:= length(Rewards) of
+                true -> ParsedRewards;
+                false -> []
+            end,
             {true, {Unique, #{name => Name, era => Era,
                               image_name => maps:get(<<"imageName">>, Relic, undefined),
                               vaulted => maps:get(<<"vaulted">>, Relic, false) =:= true,
                               rewards => CompactRewards}}}
     end;
 compact(_Relic) -> false.
+
+catalog_era(Name, Unique) ->
+    case binary:split(Name, <<" ">>, [global, trim_all]) of
+        [_Era, _Code, _Grade | _] -> era(Name, Unique);
+        _ -> undefined
+    end.
 
 compact_reward(#{<<"chance">> := Chance, <<"item">> := Item} = Reward)
   when (is_integer(Chance) orelse is_float(Chance)), is_map(Item) ->

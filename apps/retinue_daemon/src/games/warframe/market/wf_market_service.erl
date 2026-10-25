@@ -10,7 +10,7 @@
          terminate/2, code_change/3]).
 
 -ifdef(TEST).
--export([root_slugs/2, worker_snapshot/2]).
+-export([root_slugs/2, worker_snapshot/2, ensure_relic_catalog/1]).
 -endif.
 
 -define(SERVER, ?MODULE).
@@ -487,24 +487,26 @@ ensure_relic_catalog(Snapshot) ->
     case Fresh of
         true -> {ok, Snapshot};
         false ->
-            case wf_relic_recommendations:fetch() of
+            case wf_relic_recommendations:fetch(maps:get(items, Snapshot, []), Relics) of
                 {ok, NewRelics} ->
-                    {ok, Snapshot#{relics => NewRelics,
+                    {ok, (maps:remove(relics_stale_reason, Snapshot))#{relics => NewRelics,
                                   relics_version =>
                                       wf_relic_recommendations:catalog_version(),
                                   relics_fetched_at => Now,
                                   relics_attempted_at => Now,
                                   updated_at => Now}};
-                {error, Reason} when map_size(Relics) > 0 ->
-                    {ok, Snapshot#{relics_attempted_at => Now,
-                                  relics_stale_reason => retinue_text:to_list(Reason)}};
                 {error, Reason} ->
-                    {error, Reason, Snapshot#{relics_attempted_at => Now}}
+                    Failed = Snapshot#{relics_attempted_at => Now,
+                                       relics_stale_reason => retinue_text:to_list(Reason)},
+                    case wf_relic_recommendations:usable(Relics) of
+                        true -> {ok, Failed};
+                        false -> {error, Reason, Failed}
+                    end
             end
     end.
 
 relic_catalog_ready(Snapshot) ->
-    map_size(maps:get(relics, Snapshot, #{})) > 0 andalso
+    wf_relic_recommendations:usable(maps:get(relics, Snapshot, #{})) andalso
     maps:get(relics_version, Snapshot, undefined) =:=
         wf_relic_recommendations:catalog_version().
 

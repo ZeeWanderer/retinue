@@ -9,6 +9,29 @@ market_cache_tracks_relic_schema_test() ->
     ?assertEqual(wf_relic_recommendations:catalog_version(),
                  maps:get(relics_version, wf_market_cache:empty())).
 
+empty_reward_cache_is_not_fresh_or_a_valid_fallback_test() ->
+    Relics = #{<<"relic">> => #{name => <<"Axi A1 Intact">>, rewards => []}},
+    Snapshot = #{relics => Relics, items => [],
+                 relics_version => wf_relic_recommendations:catalog_version(),
+                 relics_fetched_at => erlang:system_time(millisecond)},
+    Previous = application:get_env(retinue_daemon, relic_catalog_http_fun),
+    application:set_env(retinue_daemon, relic_catalog_http_fun,
+                        fun(_, _) -> {error, source_unavailable} end),
+    try
+        ?assertMatch({error, _, _}, wf_market_service:ensure_relic_catalog(Snapshot)),
+        Good = #{<<"relic">> => #{name => <<"Axi A1 Intact">>,
+                                  rewards => [#{name => <<"Part">>, chance => 100}]}},
+        Stale = Snapshot#{relics => Good, relics_fetched_at => 0},
+        {ok, Kept} = wf_market_service:ensure_relic_catalog(Stale),
+        ?assertEqual(Good, maps:get(relics, Kept)),
+        ?assert(maps:is_key(relics_stale_reason, Kept))
+    after
+        case Previous of
+            {ok, Old} -> application:set_env(retinue_daemon, relic_catalog_http_fun, Old);
+            undefined -> application:unset_env(retinue_daemon, relic_catalog_http_fun)
+        end
+    end.
+
 market_cache_reports_unusable_parent_test() ->
     Blocker = filename:join("/tmp", "wfcli-market-blocker-" ++
                                      integer_to_list(erlang:unique_integer([positive]))),
