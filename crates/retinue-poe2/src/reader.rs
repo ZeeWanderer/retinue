@@ -1,9 +1,15 @@
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 
 use retinue_native::process::ProcessMemory;
 use serde::{Deserialize, Serialize};
 
 use crate::layout::Layout;
+
+mod social;
+pub use social::{Identity, PartyMember, Social};
+mod entities;
+pub use entities::{Entities, UniqueMonster};
 
 const STATES: [&str; 12] = [
     "AreaLoadingState",
@@ -27,6 +33,8 @@ pub struct Snapshot {
     pub player: Option<Player>,
     pub area: Option<Area>,
     pub panels: BTreeMap<String, Option<bool>>,
+    pub social: Option<Social>,
+    pub entities: Option<Entities>,
     pub issues: Vec<Issue>,
 }
 
@@ -59,6 +67,8 @@ pub fn read(memory: &ProcessMemory, base: u64, layout: &Layout) -> Result<Snapsh
         memory,
         base,
         layout,
+        component_tables: RefCell::new(BTreeMap::new()),
+        component_slot: Cell::new(None),
     };
     let global = base
         .checked_add(layout.root_rva)
@@ -95,6 +105,7 @@ pub fn read(memory: &ProcessMemory, base: u64, layout: &Layout) -> Result<Snapsh
         states,
         ..Snapshot::default()
     };
+    let mut social_frame = None;
     if snapshot.states.iter().any(|state| state == "InGameState") {
         let ingame = reader.pointer(root + 0x90)?;
         let frame = reader.pointer(ingame + u64::from(layout.ingame_data_offset))?;
@@ -110,6 +121,7 @@ pub fn read(memory: &ProcessMemory, base: u64, layout: &Layout) -> Result<Snapsh
                     }),
                 }
             }
+            social_frame = Some((ingame, frame));
         }
         match reader.panels() {
             Ok(panels) => snapshot.panels = panels,
@@ -124,6 +136,34 @@ pub fn read(memory: &ProcessMemory, base: u64, layout: &Layout) -> Result<Snapsh
     }
     if reader.pointer(global)? != root || reader.vector(root + 0x28, 16)? != active {
         return Err("game state changed during observation".into());
+    }
+    if let Some((ingame, frame)) = social_frame {
+        let social = reader
+            .social(frame, snapshot.player.as_ref())
+            .and_then(|social| {
+                if reader.pointer(global)? != root
+                    || reader.vector(root + 0x28, 16)? != active
+                    || reader.pointer(root + 0x90)? != ingame
+                    || reader.pointer(ingame + u64::from(layout.ingame_data_offset))? != frame
+                {
+                    return Err("game state changed during social observation".into());
+                }
+                Ok(social)
+            });
+        snapshot.social = snapshot.field("social", social);
+        if snapshot.player.is_some() {
+            let entities = reader.entities(frame).and_then(|entities| {
+                if reader.pointer(global)? != root
+                    || reader.vector(root + 0x28, 16)? != active
+                    || reader.pointer(root + 0x90)? != ingame
+                    || reader.pointer(ingame + u64::from(layout.ingame_data_offset))? != frame
+                {
+                    return Err("game state changed during entity observation".into());
+                }
+                Ok(entities)
+            });
+            snapshot.entities = snapshot.field("entities", entities);
+        }
     }
     Ok(snapshot)
 }
@@ -164,6 +204,8 @@ struct Reader<'a> {
     memory: &'a ProcessMemory,
     base: u64,
     layout: &'a Layout,
+    component_tables: RefCell<BTreeMap<u64, Vec<Option<String>>>>,
+    component_slot: Cell<Option<usize>>,
 }
 
 impl Reader<'_> {
@@ -199,11 +241,10 @@ impl Reader<'_> {
         if address < 65536
             || address > 0x0000_7fff_ffff_0000
             || !address.is_multiple_of(8)
-            || !self.memory.regions().iter().any(|region| {
-                region.permissions.starts_with('r')
-                    && address >= region.start
-                    && address + 8 <= region.end
-            })
+            || !self
+                .memory
+                .mapped_region(address, 8)
+                .is_some_and(|region| region.permissions.starts_with('r'))
         {
             return Err(format!("invalid native pointer 0x{address:x}"));
         }
@@ -297,17 +338,27 @@ impl Reader<'_> {
         let mut slots = BTreeSet::new();
         for component in components {
             let vtable = self.pointer(component)?;
-            let entries = self
-                .bytes(vtable, 15 * 8)?
-                .chunks_exact(8)
-                .map(|b| {
-                    u64::from_le_bytes(b.try_into().unwrap())
-                        .checked_sub(self.base)
-                        .and_then(|rva| u32::try_from(rva).ok())
-                        .and_then(|rva| self.layout.component_getters.get(&rva))
-                        .cloned()
-                })
-                .collect::<Vec<_>>();
+            let cached = self.component_tables.borrow().get(&vtable).cloned();
+            let entries = match cached {
+                Some(entries) => entries,
+                None => {
+                    let entries = self
+                        .bytes(vtable, 15 * 8)?
+                        .chunks_exact(8)
+                        .map(|b| {
+                            u64::from_le_bytes(b.try_into().unwrap())
+                                .checked_sub(self.base)
+                                .and_then(|rva| u32::try_from(rva).ok())
+                                .and_then(|rva| self.layout.component_getters.get(&rva))
+                                .cloned()
+                        })
+                        .collect::<Vec<_>>();
+                    self.component_tables
+                        .borrow_mut()
+                        .insert(vtable, entries.clone());
+                    entries
+                }
+            };
             for (index, name) in entries.iter().enumerate() {
                 if name.as_deref() == Some("Stats") {
                     slots.insert(index);
@@ -319,6 +370,10 @@ impl Reader<'_> {
             return Err("component-name getter missing or ambiguous".into());
         }
         let index = *slots.first().unwrap();
+        if self.component_slot.get().is_some_and(|slot| slot != index) {
+            return Err("inconsistent component-name getter slots".into());
+        }
+        self.component_slot.set(Some(index));
         let mut result = BTreeMap::new();
         for (component, entries) in tables {
             if let Some(name) = &entries[index]

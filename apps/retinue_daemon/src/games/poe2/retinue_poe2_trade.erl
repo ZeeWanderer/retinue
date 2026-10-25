@@ -17,6 +17,8 @@ init(Options) ->
     process_flag(trap_exit, true),
     {ok, #{http => maps:get(http, Options, fun retinue_poe2_trade_http:request/4),
            enrich => maps:get(enrich, Options, fun retinue_poe2_catalog:enrich/1),
+           enrich_cached => maps:get(enrich_cached, Options,
+               maps:get(enrich, Options, fun retinue_poe2_catalog:enrich_cached/1)),
            clock => maps:get(clock, Options, fun ?MODULE:clock/0),
            cache => #{}, limits => #{}, results => #{}, active => undefined}}.
 
@@ -27,6 +29,9 @@ handle_call({request, Request0}, From, State) ->
     end;
 handle_call(_, _, State) -> {reply, retinue_poe2_trade_query:error(unsupported_request), State}.
 
+start_request(#{<<"op">> := <<"trade_restore">>} = Request, _, State) ->
+    {Reply, _} = execute(Request, State),
+    {reply, with_budget(Reply, State), State};
 start_request(Request, From, State = #{active := undefined}) ->
     Parent = self(),
     {Pid, Ref} = spawn_opt(fun() ->
@@ -40,7 +45,7 @@ start_request(Request, From, State = #{active := #{request := Request, waiters :
   when length(Waiters) < 16 ->
     {noreply, State#{active => Active#{waiters => [From | Waiters]}}};
 start_request(_, _, State) ->
-    {reply, retinue_poe2_trade_query:error(trade_busy, 1), State}.
+    {reply, with_budget(retinue_poe2_trade_query:error(trade_busy, 1), State), State}.
 
 handle_cast({request, Recipient, Id, Request0}, State) ->
     From = {local, Recipient, Id},
@@ -54,13 +59,17 @@ handle_cast({request, Recipient, Id, Request0}, State) ->
     end;
 handle_cast(_, State) -> {noreply, State}.
 handle_info({trade_done, Pid, Reply, Next}, State = #{active := #{pid := Pid} = Active}) ->
-    finish(Reply, Active),
+    finish(with_budget(Reply, Next), Active),
     Cache = case maps:get(discard_stats, Active, false) of
         true -> maps:remove(stats, maps:get(cache, Next));
         false -> maps:get(cache, Next)
     end,
+    Results = case maps:get(discard_results, Active, false) of
+        true -> #{};
+        false -> maps:get(results, Next)
+    end,
     {noreply, State#{cache => Cache, limits => maps:get(limits, Next),
-                    results => maps:get(results, Next), active => undefined}};
+                    results => Results, active => undefined}};
 handle_info({trade_timeout, Pid}, State = #{active := #{pid := Pid} = Active}) ->
     exit(Pid, kill),
     failed(upstream_timeout, Active, State);
@@ -69,9 +78,15 @@ handle_info({'DOWN', Ref, process, _, _}, State = #{active := #{ref := Ref} = Ac
 handle_info(_, State) -> {noreply, State}.
 
 failed(Reason, Active, State) ->
-    finish(retinue_poe2_trade_query:error(Reason, 60), Active),
     Limits = maps:get(limits, State),
-    {noreply, State#{active => undefined, limits => Limits#{global => now(State) + 60}}}.
+    Next = State#{active => undefined, limits => Limits#{global => now(State) + 60}},
+    finish(with_budget(retinue_poe2_trade_query:error(Reason, 60), Next), Active),
+    {noreply, Next}.
+
+with_budget({Status, Data}, State) when is_map(Data) ->
+    {Status, Data#{<<"rate_budget">> => retinue_poe2_trade_http:budget(
+        maps:get(limits, State), now(State))}};
+with_budget(Reply, _) -> Reply.
 
 finish(Reply, #{ref := Ref, timer := Timer, waiters := Waiters}) ->
     erlang:cancel_timer(Timer),
@@ -87,9 +102,10 @@ terminate(_, _) -> ok.
 code_change(_, State0, _) ->
     Active = case maps:get(active, State0) of
         undefined -> undefined;
-        Worker -> Worker#{discard_stats => true}
+        Worker -> Worker#{discard_stats => true, discard_results => true}
     end,
-    State = State0#{cache => maps:remove(stats, maps:get(cache, State0)), active => Active},
+    State = State0#{cache => maps:remove(stats, maps:get(cache, State0)),
+                    results => #{}, active => Active},
     case erlang:fun_info(maps:get(clock, State), module) of
         {module, ?MODULE} -> {ok, State#{clock => fun ?MODULE:clock/0}};
         _ -> {ok, State}
@@ -98,12 +114,17 @@ code_change(_, State0, _) ->
 clock() -> erlang:system_time(second).
 
 validate(#{<<"op">> := <<"trade_leagues">>}) -> {ok, #{<<"op">> => <<"trade_leagues">>}};
+validate(#{<<"op">> := <<"trade_fetch">>, <<"search_id">> := Id, <<"offset">> := Offset} = Request)
+  when is_binary(Id), byte_size(Id) > 0, byte_size(Id) =< 1024,
+       is_integer(Offset), Offset >= 0, Offset < 10000, Offset rem 10 =:= 0 ->
+    {ok, maps:with([<<"op">>, <<"search_id">>, <<"offset">>], Request)};
 validate(#{<<"op">> := Op, <<"text">> := Text} = Request)
-  when Op =:= <<"trade_item">>; Op =:= <<"trade_search">>; Op =:= <<"trade_predict">> ->
+  when Op =:= <<"trade_item">>; Op =:= <<"trade_search">>; Op =:= <<"trade_predict">>;
+       Op =:= <<"trade_restore">> ->
     case retinue_poe2_trade_item:parse(Text, #{}) of
         {ok, _} -> {ok, maps:with([<<"op">>, <<"text">>, <<"league">>, <<"status">>,
                                    <<"rarity">>, <<"currency">>, <<"indexed">>, <<"item_level">>,
-                                   <<"sort">>, <<"base">>, <<"filters">>, <<"conditions">>], Request)};
+                                   <<"sort">>, <<"base">>, <<"filters">>, <<"conditions">>, <<"refresh">>], Request)};
         {error, Reason} -> retinue_poe2_trade_query:error(Reason)
     end;
 validate(_) -> retinue_poe2_trade_query:error(invalid_trade_request).
@@ -113,6 +134,8 @@ execute(#{<<"op">> := <<"trade_leagues">>}, State) ->
         {ok, Leagues, Next} -> {{ok, league_context(Leagues)}, Next};
         {error, Error, Next} -> {{error, Error}, Next}
     end;
+execute(#{<<"op">> := <<"trade_fetch">>, <<"search_id">> := Id, <<"offset">> := Offset}, State) ->
+    fetch(Id, Offset, State);
 execute(#{<<"op">> := <<"trade_predict">>} = Request, State) ->
     case prepare(Request, State) of
         {ok, Item, Leagues, Next} ->
@@ -126,25 +149,41 @@ execute(#{<<"op">> := <<"trade_predict">>} = Request, State) ->
 execute(Request, State) ->
     case prepare(Request, State) of
         {ok, Item, Leagues, Next} ->
-            case metadata(filters, Next) of
+            case metadata(filters, metadata_source(Request), Next) of
                 {ok, Options, Ready} ->
                     case maps:get(<<"op">>, Request) of
                         <<"trade_item">> -> {{ok, (league_context(Leagues))#{
                             <<"item">> => maps:remove(prediction_item, Item),
-                            <<"auto_search_allowed">> => retinue_poe2_trade_http:automatic_allowed(
-                                maps:get(limits, Ready), now(Ready)),
                             <<"prediction_available">> => maps:get(prediction_item, Item) =/= undefined,
                             <<"search_options">> => Options}}, Ready};
                         <<"trade_search">> ->
                             case retinue_poe2_trade_query:build(Request, Item, Leagues, Options) of
-                                {ok, Query} -> search(maps:get(<<"league">>, Request), Query, Ready);
+                                {ok, Query} -> search(maps:get(<<"league">>, Request), Query,
+                                                      maps:get(<<"refresh">>, Request, false), Ready);
+                                Error -> {Error, Ready}
+                            end;
+                        <<"trade_restore">> ->
+                            case retinue_poe2_trade_query:build(Request, Item, Leagues, Options) of
+                                {ok, Query} ->
+                                    Key = {maps:get(<<"league">>, Request), Query},
+                                    restore_reply(cached_result(Key, Ready), Ready);
                                 Error -> {Error, Ready}
                             end
                     end;
+                {error, cache_miss, Ready} -> restore_reply(null, Ready);
                 {error, Error, Failed} -> {{error, Error}, Failed}
             end;
+        {error, cache_miss, Next} -> restore_reply(null, Next);
         {error, Error, Next} -> {{error, Error}, Next}
     end.
+
+restore_reply(Result, State) ->
+    {{ok, #{<<"results">> => Result,
+            <<"auto_search_allowed">> => retinue_poe2_trade_http:automatic_allowed(
+                maps:get(limits, State), now(State))}}, State}.
+
+metadata_source(#{<<"op">> := <<"trade_restore">>}) -> cached;
+metadata_source(_) -> upstream.
 
 league_context(Leagues) ->
     Default = case Leagues of
@@ -153,15 +192,19 @@ league_context(Leagues) ->
     end,
     #{<<"leagues">> => Leagues, <<"league">> => Default}.
 
-prepare(#{<<"text">> := Text}, State) ->
-    case metadata(leagues, State) of
+prepare(#{<<"text">> := Text} = Request, State) ->
+    Source = metadata_source(Request),
+    case metadata(leagues, Source, State) of
         {ok, Leagues, State1} ->
-            case metadata(stats, State1) of
+            case metadata(stats, Source, State1) of
                 {ok, Catalog, State2} ->
                     {ok, Item} = retinue_poe2_trade_item:parse(Text, Catalog),
-                    case resolve_base(Item, State2) of
+                    case resolve_base(Item, Source, State2) of
                         {ok, Resolved, State3} ->
-                            Enrich = maps:get(enrich, State3, fun retinue_poe2_catalog:enrich/1),
+                            Enrich = case Source of
+                                cached -> maps:get(enrich_cached, State3, fun retinue_poe2_catalog:enrich_cached/1);
+                                upstream -> maps:get(enrich, State3, fun retinue_poe2_catalog:enrich/1)
+                            end,
                             Payload = retinue_poe2_prediction_item:build(Resolved),
                             {ok, (Enrich(Resolved))#{prediction_item => Payload}, Leagues, State3};
                         Error -> Error
@@ -171,8 +214,8 @@ prepare(#{<<"text">> := Text}, State) ->
         Error -> Error
     end.
 
-resolve_base(Item = #{<<"rarity">> := <<"Magic">>, <<"base">> := Name}, State) ->
-    case metadata(items, State) of
+resolve_base(Item = #{<<"rarity">> := <<"Magic">>, <<"base">> := Name}, Source, State) ->
+    case metadata(items, Source, State) of
         {ok, Bases, Next} ->
             Matches = [B || B <- Bases, string:find(<<" ", Name/binary, " ">>,
                                                    <<" ", B/binary, " ">>) =/= nomatch],
@@ -184,9 +227,9 @@ resolve_base(Item = #{<<"rarity">> := <<"Magic">>, <<"base">> := Name}, State) -
             end;
         Error -> Error
     end;
-resolve_base(Item = #{<<"rarity">> := Rarity, <<"base">> := Base}, State)
+resolve_base(Item = #{<<"rarity">> := Rarity, <<"base">> := Base}, Source, State)
   when Rarity =:= <<"Currency">>; Rarity =:= <<"Quest">> ->
-    case metadata(items, State) of
+    case metadata(items, Source, State) of
         {ok, Bases, Next} ->
             Resolved = case lists:member(Base, Bases) of
                 true -> Item;
@@ -195,7 +238,14 @@ resolve_base(Item = #{<<"rarity">> := Rarity, <<"base">> := Base}, State)
             {ok, Resolved, Next};
         Error -> Error
     end;
-resolve_base(Item, State) -> {ok, Item, State}.
+resolve_base(Item, _, State) -> {ok, Item, State}.
+
+metadata(Name, cached, State = #{cache := Cache}) ->
+    case maps:get(Name, Cache, undefined) of
+        #{data := Data} -> {ok, Data, State};
+        _ -> {error, cache_miss, State}
+    end;
+metadata(Name, upstream, State) -> metadata(Name, State).
 
 metadata(Name, State = #{cache := Cache}) ->
     Now = now(State),
@@ -243,13 +293,11 @@ metadata_data(items, #{<<"result">> := Groups}) ->
     true = Bases =/= [],
     {ok, Bases}.
 
-search(League, Query, State = #{results := Results}) ->
+search(League, Query, Refresh, State) ->
     Key = {League, Query},
-    Now = now(State),
-    case maps:get(Key, Results, undefined) of
-        #{expires := Expiry, value := {done, Data}} when Expiry > Now -> {{ok, Data}, State};
-        #{expires := Expiry, value := {pending, Data, Ids}} when Expiry > Now ->
-            fetch(Key, Data, Ids, State);
+    case cached_result(Key, State) of
+        Data when is_map(Data), Refresh =/= true ->
+            {{ok, Data}, State};
         _ ->
             Path = <<"/api/trade2/search/poe2/", (uri_string:quote(League))/binary>>,
             case http(search, post, Path, [], iolist_to_binary(json:encode(Query)), State) of
@@ -258,7 +306,8 @@ search(League, Query, State = #{results := Results}) ->
                         {ok, Json} ->
                             case retinue_poe2_trade_query:search_result(Json, League) of
                                 {ok, Data, Ids} ->
-                                    fetch(Key, Data, Ids, cache_result(Key, {pending, Data, Ids}, 120, Next));
+                                    Entry = #{data => Data, ids => Ids, pages => #{}},
+                                    {{ok, Data}, cache_result(Key, Entry, Next)};
                                 Error -> {Error, Next}
                             end;
                         Error -> {Error, Next}
@@ -268,8 +317,24 @@ search(League, Query, State = #{results := Results}) ->
             end
     end.
 
-fetch(Key, Data, [], State) -> {{ok, Data}, cache_result(Key, {done, Data}, 30, State)};
-fetch(Key, Data, Ids, State) ->
+fetch(Id, Offset, State = #{results := Results}) ->
+    Matches = [{Key, Value} || {Key, #{value := Value}} <- maps:to_list(Results),
+        maps:get(<<"search_id">>, maps:get(data, Value)) =:= Id],
+    case Matches of
+        [{Key, Entry} | _] ->
+            case maps:get(Offset, maps:get(pages, Entry), undefined) of
+                undefined ->
+                    case Offset < length(maps:get(ids, Entry)) of
+                        true -> fetch_page(Key, Entry, Offset, State);
+                        false -> {retinue_poe2_trade_query:error(invalid_fetch_offset), State}
+                    end;
+                Page -> {{ok, Page}, State}
+            end;
+        [] -> {retinue_poe2_trade_query:error(search_expired), State}
+    end.
+
+fetch_page(Key, Entry = #{data := Data, ids := All, pages := Pages}, Offset, State) ->
+    Ids = lists:sublist(All, Offset + 1, 10),
     Joined = iolist_to_binary(lists:join(<<",">>, Ids)),
     Path = <<"/api/trade2/fetch/", Joined/binary, "?query=",
              (uri_string:quote(maps:get(<<"search_id">>, Data)))/binary, "&realm=poe2">>,
@@ -279,8 +344,23 @@ fetch(Key, Data, Ids, State) ->
                 {ok, Json} ->
                     case retinue_poe2_trade_query:listings(Json) of
                         {ok, Rows} ->
-                            Result = Data#{<<"listings">> => Rows},
-                            {{ok, Result}, cache_result(Key, {done, Result}, 30, Next)};
+                            ById = maps:from_list([{maps:get(<<"id">>, Row), Row} || Row <- Rows]),
+                            Ordered = [maps:get(Id, ById) || Id <- Ids, maps:is_key(Id, ById)],
+                            After = Offset + length(Ids),
+                            Result = #{<<"search_id">> => maps:get(<<"search_id">>, Data),
+                                       <<"offset">> => Offset, <<"listings">> => Ordered,
+                                       <<"next_offset">> => case After < length(All) of
+                                           true -> After;
+                                           false -> null
+                                       end},
+                            Bounded = case map_size(Pages) >= 8 of
+                                true -> maps:remove(lists:min(maps:keys(Pages) -- [0]), Pages);
+                                false -> Pages
+                            end,
+                            Results = maps:get(results, Next),
+                            Cached = maps:get(Key, Results),
+                            Updated = Cached#{value => Entry#{pages => Bounded#{Offset => Result}}},
+                            {{ok, Result}, Next#{results => Results#{Key => Updated}}};
                         Error -> {Error, Next}
                     end;
                 Error -> {Error, Next}
@@ -289,15 +369,26 @@ fetch(Key, Data, Ids, State) ->
         {error, Error, Next} -> {{error, Error}, Next}
     end.
 
-cache_result(Key, Value, TTL, State = #{results := Results}) ->
-    Now = now(State),
-    Live = maps:filter(fun(_, #{expires := Expiry}) -> Expiry > Now end, Results),
-    Bounded = case map_size(Live) >= 16 andalso not maps:is_key(Key, Live) of
-        true -> [{_, Oldest} | _] = lists:sort([{maps:get(expires, V), K} || {K, V} <- maps:to_list(Live)]),
-                maps:remove(Oldest, Live);
-        false -> Live
+cached_result(Key, #{results := Results}) ->
+    case maps:get(Key, Results, undefined) of
+        #{value := #{data := Data, pages := Pages}} -> cached_pages(Data, Pages, []);
+        _ -> null
+    end.
+
+cached_pages(Data = #{<<"next_offset">> := Offset}, Pages, Rows) ->
+    case maps:get(Offset, Pages, undefined) of
+        #{<<"listings">> := Listings, <<"next_offset">> := Next} ->
+            cached_pages(Data#{<<"next_offset">> => Next}, Pages, [Listings | Rows]);
+        _ -> Data#{<<"listings">> => lists:append(lists:reverse(Rows))}
+    end.
+
+cache_result(Key, Value, State = #{results := Results}) ->
+    Bounded = case map_size(Results) >= 10 andalso not maps:is_key(Key, Results) of
+        true -> [{_, Oldest} | _] = lists:sort([{maps:get(order, V), K} || {K, V} <- maps:to_list(Results)]),
+                maps:remove(Oldest, Results);
+        false -> Results
     end,
-    State#{results => Bounded#{Key => #{expires => Now + TTL, value => Value}}}.
+    State#{results => Bounded#{Key => #{order => erlang:unique_integer([monotonic]), value => Value}}}.
 
 http(Group, Method, Path, Headers, Body, State = #{limits := Limits, http := HTTP}) ->
     Now = now(State),

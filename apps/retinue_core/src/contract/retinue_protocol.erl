@@ -15,7 +15,7 @@ handshake_version() -> 1.
 interfaces() ->
     #{daemon => 2,
       poe2_session => 2,
-      poe2_trade => 2,
+      poe2_trade => 5,
       worldstate => 2,
       query => 2,
       metadata => 1,

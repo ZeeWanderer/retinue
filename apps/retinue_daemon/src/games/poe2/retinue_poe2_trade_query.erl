@@ -175,14 +175,15 @@ require(true, _) -> ok;
 require(false, Reason) -> throw(Reason).
 
 search_result(#{<<"id">> := Id, <<"total">> := Total, <<"result">> := Ids}, League)
-  when is_binary(Id), is_integer(Total), Total >= 0, is_list(Ids) ->
+  when is_binary(Id), is_integer(Total), Total >= 0, is_list(Ids), length(Ids) =< 10000 ->
     case token(Id, 1024) andalso lists:all(fun(I) -> token(I, 128) end, Ids) of
         true ->
             Url = <<"https://www.pathofexile.com/trade2/search/poe2/",
                     (quote(League))/binary, "/", (quote(Id))/binary>>,
             {ok, #{<<"search_id">> => Id, <<"url">> => Url, <<"total">> => Total,
                    <<"returned">> => length(Ids),
-                   <<"listings">> => []}, lists:sublist(Ids, 10)};
+                   <<"next_offset">> => case Ids of [] -> null; _ -> 0 end,
+                   <<"listings">> => []}, Ids};
         false -> error(invalid_search_response)
     end;
 search_result(_, _) -> error(invalid_search_response).

@@ -80,7 +80,7 @@ record_checks(#{<<"observed_at">> := Time} = Snapshot, #{version := Version}) ->
         #{<<"status">> := <<"observed">>, <<"current">> := Current} ->
             Issues = maps:from_list([{maps:get(<<"field">>, I), maps:get(<<"reason">>, I)}
                                     || I <- maps:get(<<"issues">>, Current)]),
-            Fields = [<<"player">>, <<"area">>, <<"panels">>, <<"gold">>] ++ maps:keys(Issues),
+            Fields = [<<"player">>, <<"area">>, <<"panels">>, <<"gold">>, <<"social">>, <<"entities">>] ++ maps:keys(Issues),
             maps:from_list([{Field, evidence(maps:get(Field, Issues, null), Time)}
                 || Field <- lists:usort([<<"native_state">> | Fields]),
                    Field =:= <<"native_state">> orelse maps:is_key(Field, Issues) orelse

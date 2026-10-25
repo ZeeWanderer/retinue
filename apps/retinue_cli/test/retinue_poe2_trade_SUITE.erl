@@ -15,6 +15,8 @@ supervised_restart(Config) ->
         Trade = whereis(retinue_poe2_trade),
         ?assert(is_pid(whereis(retinue_poe2_catalog))),
         ?assertEqual(retinue_poe2_sup, retinue_sup:owner(retinue_poe2_catalog)),
+        ?assert(is_pid(whereis(retinue_poe2_assets))),
+        ?assertEqual(retinue_poe2_sup, retinue_sup:owner(retinue_poe2_assets)),
         ?assert(is_pid(Trade)),
         ?assertEqual(retinue_poe2_sup, retinue_sup:owner(retinue_poe2_trade)),
         ?assert(is_pid(whereis(retinue_poe2_prediction))),
@@ -57,6 +59,10 @@ anonymous_search(_) ->
             <<"base">> => true, <<"filters">> => [Filter]}),
         Encoded = iolist_to_binary(retinue_local_protocol:encode(#{<<"id">> => 1,
             <<"ok">> => true, <<"dataset">> => <<"trade">>, <<"data">> => Data})),
-        ?assertMatch({ok, #{<<"data">> := #{<<"total">> := 25, <<"listings">> := [_]}}},
-                     retinue_local_protocol:decode(Encoded))
+        ?assertMatch({ok, #{<<"data">> := #{<<"total">> := 25, <<"listings">> := [],
+                                          <<"next_offset">> := 0}}},
+                     retinue_local_protocol:decode(Encoded)),
+        ?assertMatch({ok, #{<<"listings">> := [_], <<"next_offset">> := 10}},
+            retinue_poe2_trade:request(Server, #{<<"op">> => <<"trade_fetch">>,
+                <<"search_id">> => maps:get(<<"search_id">>, Data), <<"offset">> => 0}))
     after gen_server:stop(Server) end.

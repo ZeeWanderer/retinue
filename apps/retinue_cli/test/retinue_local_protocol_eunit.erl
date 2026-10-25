@@ -46,7 +46,7 @@ interface_mismatch_is_rejected_test() ->
 
 game_is_required_and_interfaces_are_scoped_test() ->
     Contract = retinue_local_protocol:contract(<<"poe2">>),
-    ?assertEqual(#{<<"session">> => 2, <<"trade">> => 2, <<"checks">> => 1}, maps:get(<<"interfaces">>, Contract)),
+    ?assertEqual(#{<<"session">> => 2, <<"trade">> => 5, <<"checks">> => 1}, maps:get(<<"interfaces">>, Contract)),
     ?assertEqual(true, maps:get(<<"compatible">>, retinue_local_protocol:negotiate(Contract))),
     lists:foreach(fun(Bad) ->
         ?assertEqual(false, maps:get(<<"compatible">>, retinue_local_protocol:negotiate(Bad)))
@@ -58,11 +58,11 @@ game_is_required_and_interfaces_are_scoped_test() ->
 trade_is_poe2_only_test() ->
     ?assertNot(maps:is_key(<<"trade">>, retinue_local_protocol:interfaces(<<"warframe">>))),
     ?assertMatch(#{<<"compatible">> := true}, retinue_local_protocol:negotiate(
-        (retinue_local_protocol:contract(<<"poe2">>))#{<<"interfaces">> => #{<<"trade">> => 2}})).
+        (retinue_local_protocol:contract(<<"poe2">>))#{<<"interfaces">> => #{<<"trade">> => 5}})).
 
 native_session_rpc_contract_test() ->
     ?assertEqual(2, maps:get(poe2_session, retinue_protocol:interfaces())),
-    ?assertEqual(2, maps:get(poe2_trade, retinue_protocol:interfaces())),
+    ?assertEqual(5, maps:get(poe2_trade, retinue_protocol:interfaces())),
     Required = (retinue_protocol:contract())#{interfaces => #{poe2_session => 1}},
     ?assertMatch(#{compatible := false, mismatches := [#{interface := poe2_session}]},
                  retinue_protocol:negotiate(Required)).

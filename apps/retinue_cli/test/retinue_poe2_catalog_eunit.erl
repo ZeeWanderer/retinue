@@ -115,6 +115,9 @@ cache_refresh_and_coalescing_test() ->
     {ok, Server} = retinue_poe2_catalog:start_link(#{name => undefined, loader => Loader,
         clock => fun() -> atomics:get(Clock, 1) end}),
     try
+        ?assertMatch(#{<<"ranking_status">> := <<"unavailable">>},
+            gen_server:call(Server, {enrich_cached, item()})),
+        receive {loading, _} -> error(cache_lookup_loaded) after 0 -> ok end,
         spawn(fun() -> Parent ! {first, retinue_poe2_catalog:enrich(Server, item())} end),
         Worker = receive {loading, Pid} -> Pid after 1000 -> error(no_loader) end,
         Server ! {catalog_cached, Worker, Data},
@@ -125,6 +128,9 @@ cache_refresh_and_coalescing_test() ->
         Worker ! {result, {ok, Data, cached}},
         await_idle(Server),
         atomics:put(Clock, 1, 4000),
+        ?assertMatch(#{<<"ranking_status">> := <<"ready">>},
+            gen_server:call(Server, {enrich_cached, item()})),
+        receive {loading, _} -> error(cache_lookup_refreshed) after 0 -> ok end,
         ?assertEqual(<<"ready">>, maps:get(<<"ranking_status">>, retinue_poe2_catalog:enrich(Server, item()))),
         Refresh = receive {loading, Next} -> Next after 1000 -> error(no_refresh) end,
         Refresh ! {result, {error, offline}},
@@ -173,7 +179,7 @@ reload_safe_callbacks_test() ->
             ok = sys:resume(Server),
             ?assertEqual(State, sys:get_state(Server))
         after gen_server:stop(Server) end
-    end, [{retinue_poe2_catalog, [loader, clock]}, {retinue_poe2_trade, [http, enrich, clock]}]),
+    end, [{retinue_poe2_catalog, [loader, clock]}, {retinue_poe2_trade, [http, enrich, enrich_cached, clock]}]),
     Clock = fun() -> 42 end,
     State = #{clock => Clock, loader => fun retinue_poe2_catalog:load/1},
     ?assertMatch({ok, #{clock := Clock}}, retinue_poe2_catalog:code_change(old, State, hot_update)).

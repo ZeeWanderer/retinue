@@ -471,6 +471,25 @@ automatic_search_rate_budget_test() ->
     ?assertNot(retinue_poe2_trade_http:automatic_allowed(Blocked, 1000)),
     ?assert(retinue_poe2_trade_http:automatic_allowed(Blocked, 1012)).
 
+rate_budget_projects_shared_windows_and_remaining_cooldown_test() ->
+    Headers = #{<<"x-rate-limit-policy">> => <<"shared">>, <<"x-rate-limit-rules">> => <<"ip">>,
+        <<"x-rate-limit-ip">> => <<"10:10:60,20:60:120">>,
+        <<"x-rate-limit-ip-state">> => <<"5:10:0,8:60:0">>},
+    Search = retinue_poe2_trade_http:observe(search, 200, Headers, #{}, 1000),
+    Shared = retinue_poe2_trade_http:observe(fetch, 200, Headers, Search, 1000),
+    ?assertMatch(#{<<"retry_after_ms">> := 0, <<"windows">> := [
+        #{<<"usage">> := 0.5, <<"expires_in_ms">> := 10000},
+        #{<<"usage">> := 0.4, <<"expires_in_ms">> := 60000}]},
+        retinue_poe2_trade_http:budget(Shared, 1000)),
+    ?assertMatch(#{<<"windows">> := [#{<<"usage">> := 0.4, <<"expires_in_ms">> := 50000}]},
+        retinue_poe2_trade_http:budget(Shared, 1010)),
+    Blocked = retinue_poe2_trade_http:observe(fetch, 429,
+        #{<<"retry-after">> => <<"12">>}, #{}, 1000),
+    ?assertMatch(#{<<"retry_after_ms">> := 7000, <<"windows">> := []},
+        retinue_poe2_trade_http:budget(Blocked, 1005)),
+    ?assertMatch(#{<<"retry_after_ms">> := 0, <<"windows">> := []},
+        retinue_poe2_trade_http:budget(#{}, 1000)).
+
 league_default_preserves_api_order_test() ->
     Http = fun(get, <<"/api/trade2/data/leagues">>, _, _) ->
         Body = json:encode(#{<<"result">> => [
@@ -486,21 +505,32 @@ league_default_preserves_api_order_test() ->
 
 service_cache_test() ->
     with_service(fun(Server, Calls, Clock) ->
-        {ok, First} = retinue_poe2_trade:request(Server, item_request()),
+        Read = fun(Request) ->
+            {ok, Data} = retinue_poe2_trade:request(Server, Request),
+            ?assertMatch(#{<<"observed_at_ms">> := _, <<"windows">> := _, <<"retry_after_ms">> := _},
+                maps:get(<<"rate_budget">>, Data)),
+            maps:remove(<<"rate_budget">>, Data)
+        end,
+        First = Read(item_request()),
         ?assertMatch(#{<<"league">> := <<"Standard">>, <<"leagues">> := [#{<<"id">> := <<"Standard">>}]}, First),
         ?assert(maps:is_key(<<"search_options">>, First)),
         ?assertEqual(3, atomics:get(Calls, 1)),
-        ?assertEqual({ok, First}, retinue_poe2_trade:request(Server, item_request())),
+        ?assertEqual(First, Read(item_request())),
         ?assertEqual(3, atomics:get(Calls, 1)),
         atomics:add(Clock, 1, 61),
-        ?assertEqual({ok, First}, retinue_poe2_trade:request(Server, item_request())),
+        ?assertEqual(First, Read(item_request())),
         ?assertEqual(6, atomics:get(Calls, 1)),
-        {ok, Result} = retinue_poe2_trade:request(Server, search_request()),
+        Result = Read(search_request()),
         ?assertMatch(#{<<"search_id">> := <<"search-id">>, <<"total">> := 25,
+                       <<"listings">> := [], <<"next_offset">> := 0}, Result),
+        ?assertEqual(7, atomics:get(Calls, 1)),
+        ?assertEqual(Result, Read(search_request())),
+        ?assertEqual(7, atomics:get(Calls, 1)),
+        Page = Read(fetch_request(0)),
+        ?assertMatch(#{<<"offset">> := 0, <<"next_offset">> := 10,
                        <<"listings">> := [#{<<"amount">> := 20, <<"currency">> := <<"exalted">>,
-                       <<"online">> := true}]}, Result),
-        ?assertEqual(8, atomics:get(Calls, 1)),
-        ?assertEqual({ok, Result}, retinue_poe2_trade:request(Server, search_request())),
+                       <<"online">> := true}]}, Page),
+        ?assertEqual(Page, Read(fetch_request(0))),
         ?assertEqual(8, atomics:get(Calls, 1))
     end, fun http/4).
 
@@ -549,21 +579,164 @@ pending_fetch_retry_test() ->
         end
     end,
     with_service(fun(Server, Calls, Clock) ->
-        ?assertMatch({error, #{<<"reason">> := <<"rate_limited">>, <<"retry_after_seconds">> := 12}},
+        ?assertMatch({ok, #{<<"listings">> := []}},
             retinue_poe2_trade:request(Server, search_request())),
+        ?assertMatch({error, #{<<"reason">> := <<"rate_limited">>, <<"retry_after_seconds">> := 12}},
+            retinue_poe2_trade:request(Server, fetch_request(0))),
         ?assertEqual(5, atomics:get(Calls, 1)),
         ?assertMatch({error, #{<<"retry_after_seconds">> := 12}},
-            retinue_poe2_trade:request(Server, search_request())),
+            retinue_poe2_trade:request(Server, fetch_request(0))),
         ?assertEqual(5, atomics:get(Calls, 1)),
         atomics:add(Clock, 1, 12),
-        ?assertMatch({ok, _}, retinue_poe2_trade:request(Server, search_request())),
+        ?assertMatch({ok, _}, retinue_poe2_trade:request(Server, fetch_request(0))),
         ?assertEqual(6, atomics:get(Calls, 1))
     end, HTTP).
+
+pagination_refresh_and_retention_test() ->
+    with_service(fun(Server, Calls, Clock) ->
+        ?assertMatch({error, #{<<"reason">> := <<"search_expired">>}},
+            retinue_poe2_trade:request(Server, fetch_request(0))),
+        ?assertEqual(0, atomics:get(Calls, 1)),
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        lists:foreach(fun({Offset, Next, Id}) ->
+            ?assertMatch({ok, #{<<"offset">> := Offset, <<"next_offset">> := Next,
+                               <<"listings">> := [#{<<"id">> := Id}]}},
+                retinue_poe2_trade:request(Server, fetch_request(Offset)))
+        end, [{0, 10, <<"1">>}, {10, 20, <<"11">>}, {20, null, <<"21">>}]),
+        ?assertEqual(7, atomics:get(Calls, 1)),
+        lists:foreach(fun(Offset) ->
+            ?assertMatch({error, _}, retinue_poe2_trade:request(Server, fetch_request(Offset)))
+        end, [-1, 1, 30, 10000, <<"0">>]),
+        ?assertEqual(7, atomics:get(Calls, 1)),
+        {ok, _} = retinue_poe2_trade:request(Server, (search_request())#{<<"refresh">> => true}),
+        {ok, _} = retinue_poe2_trade:request(Server, fetch_request(0)),
+        ?assertEqual(9, atomics:get(Calls, 1)),
+        atomics:add(Clock, 1, 601),
+        ?assertMatch({ok, #{<<"offset">> := 0}},
+            retinue_poe2_trade:request(Server, fetch_request(0))),
+        ?assertEqual(9, atomics:get(Calls, 1))
+    end, fun http/4).
+
+cache_restore_never_fetches_and_keeps_completed_pages_test() ->
+    with_service(fun(Server, Calls, Clock) ->
+        Restore = (search_request())#{<<"op">> => <<"trade_restore">>},
+        ?assertMatch({ok, #{<<"results">> := null}}, retinue_poe2_trade:request(Server, Restore)),
+        ?assertEqual(0, atomics:get(Calls, 1)),
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        {ok, _} = retinue_poe2_trade:request(Server, fetch_request(0)),
+        {ok, _} = retinue_poe2_trade:request(Server, fetch_request(10)),
+        atomics:add(Clock, 1, 86400),
+        {ok, #{<<"results">> := Result}} = retinue_poe2_trade:request(Server, Restore),
+        ?assertMatch(#{<<"next_offset">> := 20, <<"listings">> := [#{<<"id">> := <<"1">>}, #{<<"id">> := <<"11">>}]}, Result),
+        SameQuery = Restore#{<<"text">> => binary:replace(item(), <<"Doom Shelter">>, <<"Other Name">>)},
+        ?assertMatch({ok, #{<<"results">> := Result}}, retinue_poe2_trade:request(Server, SameQuery)),
+        ?assertMatch({ok, #{<<"results">> := null}},
+            retinue_poe2_trade:request(Server, Restore#{<<"sort">> => <<"desc">>})),
+        ?assertEqual(6, atomics:get(Calls, 1)),
+        {ok, _} = retinue_poe2_trade:request(Server, (search_request())#{<<"refresh">> => true}),
+        ?assertMatch({ok, #{<<"results">> := #{<<"listings">> := [], <<"next_offset">> := 0}}},
+            retinue_poe2_trade:request(Server, Restore)),
+        ?assertEqual(10, atomics:get(Calls, 1))
+    end, fun http/4).
+
+cache_evicts_oldest_completion_not_last_access_test() ->
+    with_service(fun(Server, _, _) ->
+        Request = fun(N) -> (search_request())#{<<"item_level">> => #{<<"min">> => N}} end,
+        Restore = fun(N) -> retinue_poe2_trade:request(Server,
+            (Request(N))#{<<"op">> => <<"trade_restore">>}) end,
+        {ok, _} = retinue_poe2_trade:request(Server, Request(1)),
+        {ok, _} = retinue_poe2_trade:request(Server, fetch_request(0)),
+        lists:foreach(fun(N) -> {ok, _} = retinue_poe2_trade:request(Server, Request(N)) end, lists:seq(2, 10)),
+        ?assertMatch({ok, #{<<"results">> := #{<<"listings">> := [_]}}}, Restore(1)),
+        {ok, _} = retinue_poe2_trade:request(Server, Request(11)),
+        ?assertMatch({ok, #{<<"results">> := null}}, Restore(1)),
+        ?assertMatch({ok, #{<<"results">> := #{}}}, Restore(2)),
+        {ok, _} = retinue_poe2_trade:request(Server, (Request(2))#{<<"refresh">> => true}),
+        {ok, _} = retinue_poe2_trade:request(Server, Request(12)),
+        ?assertMatch({ok, #{<<"results">> := #{}}}, Restore(2)),
+        ?assertMatch({ok, #{<<"results">> := null}}, Restore(3)),
+        ?assertEqual(10, map_size(maps:get(results, sys:get_state(Server))))
+    end, fun http/4).
+
+cache_restore_does_not_wait_for_an_upstream_request_test() ->
+    Parent = self(),
+    HTTP = fun(Method, Path, Headers, Body) ->
+        case Method =:= post andalso maps:get(<<"sort">>, json:decode(Body), #{}) =:= #{<<"price">> => <<"desc">>} of
+            true -> Parent ! {searching, self()}, receive finish -> ok after 2000 -> error(not_released) end;
+            false -> ok
+        end,
+        http(Method, Path, Headers, Body)
+    end,
+    with_service(fun(Server, Calls, _) ->
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        spawn(fun() -> Parent ! {search_done, retinue_poe2_trade:request(Server,
+            (search_request())#{<<"sort">> => <<"desc">>})} end),
+        Worker = receive {searching, Pid} -> Pid after 1000 -> error(no_worker) end,
+        try
+            Restore = (search_request())#{<<"op">> => <<"trade_restore">>},
+            ?assertMatch({ok, #{<<"results">> := #{}}}, gen_server:call(Server, {request, Restore}, 1000)),
+            ?assertEqual(5, atomics:get(Calls, 1))
+        after Worker ! finish end,
+        receive {search_done, Reply} -> ?assertMatch({ok, _}, Reply) after 1000 -> error(no_reply) end
+    end, HTTP).
+
+cache_keeps_first_page_when_pagination_reaches_its_bound_test() ->
+    HTTP = fun
+        (post, _, _, _) -> {ok, 200, #{}, iolist_to_binary(json:encode(#{
+            <<"id">> => <<"search-id">>, <<"total">> => 150,
+            <<"result">> => [integer_to_binary(N) || N <- lists:seq(1, 150)]}))};
+        (Method, Path, Headers, Body) -> http(Method, Path, Headers, Body)
+    end,
+    with_service(fun(Server, Calls, _) ->
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        lists:foreach(fun(Offset) -> {ok, _} = retinue_poe2_trade:request(Server, fetch_request(Offset)) end,
+            lists:seq(0, 80, 10)),
+        ?assertEqual(13, atomics:get(Calls, 1)),
+        {ok, #{<<"results">> := Restored}} = retinue_poe2_trade:request(Server,
+            (search_request())#{<<"op">> => <<"trade_restore">>}),
+        ?assertMatch(#{<<"listings">> := [#{<<"id">> := <<"1">>}], <<"next_offset">> := 10}, Restored),
+        [#{value := #{pages := Pages}}] = maps:values(maps:get(results, sys:get_state(Server))),
+        ?assertEqual(8, map_size(Pages)),
+        ?assertEqual(13, atomics:get(Calls, 1))
+    end, HTTP).
+
+cache_restore_succeeds_during_network_cooldown_test() ->
+    HTTP = fun(Method, Path, Headers, Body) ->
+        case Method =:= post andalso maps:get(<<"sort">>, json:decode(Body), #{}) =:= #{<<"price">> => <<"desc">>} of
+            true -> {ok, 429, #{<<"retry-after">> => <<"60">>}, <<>>};
+            false -> http(Method, Path, Headers, Body)
+        end
+    end,
+    with_service(fun(Server, Calls, _) ->
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        {ok, _} = retinue_poe2_trade:request(Server, fetch_request(0)),
+        ?assertMatch({error, #{<<"reason">> := <<"rate_limited">>,
+                               <<"rate_budget">> := #{<<"retry_after_ms">> := 60000}}},
+            retinue_poe2_trade:request(Server, (search_request())#{<<"sort">> => <<"desc">>})),
+        ?assertMatch({ok, #{<<"auto_search_allowed">> := false,
+                           <<"results">> := #{<<"listings">> := [_]}}},
+            retinue_poe2_trade:request(Server, (search_request())#{<<"op">> => <<"trade_restore">>})),
+        ?assertEqual(6, atomics:get(Calls, 1))
+    end, HTTP).
+
+deleted_page_still_advances_test() ->
+    Http = fun(Method, Path, Headers, Body) ->
+        case Path of
+            <<"/api/trade2/fetch/", _/binary>> -> {ok, 200, #{}, <<"{\"result\":[null]}">>};
+            _ -> http(Method, Path, Headers, Body)
+        end
+    end,
+    with_service(fun(Server, _, _) ->
+        {ok, _} = retinue_poe2_trade:request(Server, search_request()),
+        ?assertMatch({ok, #{<<"next_offset">> := 10, <<"listings">> := []}},
+            retinue_poe2_trade:request(Server, fetch_request(0)))
+    end, Http).
 
 upstream_errors_test() ->
     lists:foreach(fun({Status, Reason}) ->
         with_service(fun(Server, _, _) ->
-            ?assertEqual({error, #{<<"reason">> => Reason}}, retinue_poe2_trade:request(Server, item_request()))
+            ?assertMatch({error, #{<<"reason">> := Reason, <<"rate_budget">> := #{}}},
+                retinue_poe2_trade:request(Server, item_request()))
         end, fun(_, _, _, _) -> {ok, Status, #{}, <<"not JSON">>} end)
     end, [{403, <<"anonymous_trade_unavailable">>}, {500, <<"upstream_unavailable">>},
            {200, <<"invalid_metadata_response">>}, {302, <<"trade_request_rejected">>}]).
@@ -678,8 +851,9 @@ http(post, <<"/api/trade2/search/poe2/Standard">>, [], Body) ->
         <<"result">> => [integer_to_binary(N) || N <- lists:seq(1, 25)]}))};
 http(get, <<"/api/trade2/fetch/", Tail/binary>>, [], <<>>) ->
     [Ids, _] = binary:split(Tail, <<"?">>),
-    10 = length(binary:split(Ids, <<",">>, [global])),
-    {ok, 200, #{}, iolist_to_binary(json:encode(#{<<"result">> => [#{<<"id">> => <<"1">>,
+    [First | _] = Split = binary:split(Ids, <<",">>, [global]),
+    true = length(Split) =< 10,
+    {ok, 200, #{}, iolist_to_binary(json:encode(#{<<"result">> => [#{<<"id">> => First,
         <<"item">> => #{<<"name">> => <<"Goldrim">>, <<"baseType">> => <<"Felt Cap">>, <<"ilvl">> => 77},
         <<"listing">> => #{<<"indexed">> => <<"2025-02-17T09:15:53Z">>,
             <<"price">> => #{<<"amount">> => 20, <<"currency">> => <<"exalted">>},
@@ -696,6 +870,8 @@ item_request() -> #{<<"op">> => <<"trade_item">>, <<"text">> => item()}.
 search_request() -> #{<<"op">> => <<"trade_search">>, <<"text">> => item(),
                       <<"league">> => <<"Standard">>, <<"status">> => <<"securable">>,
                       <<"base">> => true, <<"filters">> => []}.
+fetch_request(Offset) -> #{<<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>,
+                          <<"offset">> => Offset}.
 item() -> equipment(<<"+82 to maximum Life\nAdds 10 to 20 Physical Damage\n",
     "12.5% reduced Movement Speed\nUnknown future modifier\n+46 to Evasion Rating\n",
     "+10 to maximum Life (implicit)\n+15 to maximum Life (rune)\nBonded: +25 to maximum Life (augment)">>).

@@ -215,13 +215,9 @@ impl ProcessMemory {
     }
 
     pub fn supports_private_range(&self, address: u64, length: usize) -> bool {
-        let Some(end) = address.checked_add(length as u64) else {
-            return false;
-        };
         let mapped = self
-            .regions
-            .iter()
-            .any(|region| region.supports_heap() && region.contains_range(address, end));
+            .mapped_region(address, length)
+            .is_some_and(Region::supports_heap);
         mapped
             && self
                 .backing
@@ -230,12 +226,9 @@ impl ProcessMemory {
     }
 
     pub fn supports_read_range(&self, address: u64, length: usize) -> bool {
-        let Some(end) = address.checked_add(length as u64) else {
-            return false;
-        };
-        let mapped = self.regions.iter().any(|region| {
-            region.permissions.starts_with('r') && region.contains_range(address, end)
-        });
+        let mapped = self
+            .mapped_region(address, length)
+            .is_some_and(|region| region.permissions.starts_with('r'));
         mapped
             && self
                 .backing
@@ -243,8 +236,18 @@ impl ProcessMemory {
                 .is_none_or(|capture| capture.contains_range(address, length))
     }
 
+    pub fn mapped_region(&self, address: u64, length: usize) -> Option<&Region> {
+        let end = address.checked_add(length as u64)?;
+        let index = self
+            .regions
+            .partition_point(|region| region.start <= address);
+        self.regions
+            .get(index.checked_sub(1)?)
+            .filter(|region| region.contains_range(address, end))
+    }
+
     #[cfg(any(test, feature = "test-support"))]
-    pub fn from_test_bytes(bytes: &[u8], regions: Vec<Region>) -> Self {
+    pub fn from_test_bytes(bytes: &[u8], mut regions: Vec<Region>) -> Self {
         use std::sync::atomic::{AtomicU64, Ordering};
 
         static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
@@ -262,6 +265,7 @@ impl ProcessMemory {
         drop(output);
         let file = File::open(&path).expect("open test memory");
         fs::remove_file(path).expect("unlink test memory");
+        regions.sort_by_key(|region| region.start);
         Self {
             pid: 0,
             backing: MemoryBacking::Live(file),
@@ -487,7 +491,8 @@ fn hash_file(path: &PathBuf) -> Result<String, String> {
 }
 
 pub fn parse_regions(maps: &str) -> Vec<Region> {
-    maps.lines()
+    let mut regions = maps
+        .lines()
         .filter_map(|line| {
             let mut fields = line.split_whitespace();
             let range = fields.next()?;
@@ -504,7 +509,9 @@ pub fn parse_regions(maps: &str) -> Vec<Region> {
                 path,
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    regions.sort_by_key(|region| region.start);
+    regions
 }
 
 fn decode_maps_path(path: &str) -> String {
@@ -517,6 +524,34 @@ fn decode_maps_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mapped_regions_are_indexed_without_weakening_read_bounds() {
+        let maps = "3000-3100 ---p 00000000 00:00 0\n1000-1100 rw-p 00000000 00:00 0\n2000-2100 r--p 00000000 00:00 0 /image\n";
+        let memory = ProcessMemory::from_capture(
+            1,
+            maps.into(),
+            vec![CaptureBlock {
+                address: 0x1080,
+                length: 16,
+                file_offset: 0,
+            }],
+            vec![0; 16],
+        )
+        .unwrap();
+        assert_eq!(memory.mapped_region(0x1080, 16).unwrap().start, 0x1000);
+        assert!(memory.supports_read_range(0x1080, 16));
+        assert!(memory.supports_private_range(0x1080, 16));
+        assert!(memory.mapped_region(0x10f8, 8).is_some());
+        assert!(!memory.supports_read_range(0x10f8, 8));
+        assert!(memory.mapped_region(0x10f8, 9).is_none());
+        assert!(memory.mapped_region(0x1100, 1).is_none());
+        assert!(memory.mapped_region(0x1800, 1).is_none());
+        assert!(memory.mapped_region(0xfff, 1).is_none());
+        assert!(memory.mapped_region(u64::MAX, 8).is_none());
+        assert!(!memory.supports_read_range(0x3000, 1));
+        assert!(!memory.supports_private_range(0x2000, 1));
+    }
 
     #[test]
     fn capture_budget_is_checked_before_touching_memory() {

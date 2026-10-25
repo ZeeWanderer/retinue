@@ -17,6 +17,27 @@ const UI_ROOT: &str = "83 3d ???? ff 75 ? 48 8d 05 ???? 48 89 05 ???? 48 8d 0d ?
     33 c0 48 89 05 ???? 48 89 05 ???? e8 ???? 48 8d 0d ???? e8 ????
     48 8d 05 ${'} 48 83 c4 28 c3";
 const VISIBILITY: &str = "66 0f 6e c0 8b 82 u4 0f 5b c0 c1 e8 07 f3 0f 59 c1 a8 01 74 09";
+const SOCIAL_RECORDS: &str = "48 8b 81 u4 48 8b a9 u4 48 89 84 24 88 00 00 00
+    48 3b e8 0f 84 ? 00 00 00 48 83 7d 58 07";
+const PARTY: &str = "49 8b 88 u4 49 8b 90 u4 48 3b d1 74 ? 48 8b c2
+    0f 1f 80 00 00 00 00 83 38 00 74 ? 48 83 c0 50 48 3b c1 75 ?";
+const ENTITIES: &str = "48 8b 86 u4 48 8b 18 48 3b d8 0f 84 ???? 66 90
+    48 8b 7b 28 f6 87 u4 01 75 ? 81 bf u4 00 00 00 40 73 ? f6 87 ???? 04";
+const ENTITIES_CONFIRM: &str = "48 8b 87 u4 48 8b 18 48 3b d8 0f 84 ????
+    0f 1f 80 00 00 00 00 48 8b 73 28 f6 86 u4 01 75 ? 48 8b ce e8 ???? 84 c0";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EntityLayout {
+    pub tree_offset: u32,
+    pub id_offset: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SocialLayout {
+    pub server_offset: u32,
+    pub records_offset: u32,
+    pub party_offset: u32,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GoldLayout {
@@ -37,6 +58,10 @@ pub struct Layout {
     pub ingame_data_offset: u32,
     pub gold: Result<GoldLayout, String>,
     pub panels: Result<PanelLayout, String>,
+    #[serde(default = "missing_social")]
+    pub social: Result<SocialLayout, String>,
+    #[serde(default = "missing_entities")]
+    pub entities: Result<EntityLayout, String>,
     pub component_getters: BTreeMap<u32, String>,
     pub image_size: u32,
     pub image_sha256: String,
@@ -77,11 +102,44 @@ impl Layout {
                 flags_offset,
             })
         })();
+        let social = (|| {
+            let server_offset = signature::<2>(image, "server data", SERVER_DATA)?[1];
+            let records = signature::<3>(image, "social records", SOCIAL_RECORDS)?;
+            let party = signature::<3>(image, "party", PARTY)?;
+            if records[1] != records[2].saturating_add(8) || party[1] != party[2].saturating_add(8)
+            {
+                return Err("inconsistent PoE2 social vector operands".into());
+            }
+            let layout = SocialLayout {
+                server_offset,
+                records_offset: records[2],
+                party_offset: party[2],
+            };
+            layout.validate()?;
+            Ok(layout)
+        })();
         let layout = Self {
             root_rva: root.into(),
             ingame_data_offset: ingame,
             gold,
             panels,
+            social,
+            entities: (|| {
+                let fields = signature::<4>(image, "entity tree", ENTITIES)?;
+                let confirm = signature::<3>(image, "entity tree confirmation", ENTITIES_CONFIRM)?;
+                if fields[1] != confirm[1]
+                    || fields[2] != confirm[2]
+                    || fields[2] != fields[3].saturating_add(4)
+                {
+                    return Err("inconsistent PoE2 entity tree operands".into());
+                }
+                let layout = EntityLayout {
+                    tree_offset: fields[1],
+                    id_offset: fields[3],
+                };
+                layout.validate()?;
+                Ok(layout)
+            })(),
             component_getters: component_getters(image)?,
             image_size: image.optional_header().SizeOfImage,
             image_sha256: format!("{:x}", Sha256::digest(bytes)),
@@ -101,12 +159,11 @@ impl Layout {
         if !image_pointer(self.root_rva)
             || self.image_sha256.len() != 64
             || !self.image_sha256.bytes().all(|c| c.is_ascii_hexdigit())
-            || self.component_getters.len() > 128
-            || self.component_getters.iter().any(|(rva, name)| {
-                *rva < 4096
-                    || *rva >= self.image_size
-                    || !["Stats", "Player", "Life", "Positioned"].contains(&name.as_str())
-            })
+            || self.component_getters.len() > 2048
+            || self
+                .component_getters
+                .iter()
+                .any(|(rva, name)| *rva < 4096 || *rva >= self.image_size || !component_name(name))
         {
             return Err("invalid PoE2 native layout".into());
         }
@@ -119,6 +176,39 @@ impl Layout {
                 return Err("invalid PoE2 UI root".into());
             }
             field(panels.flags_offset, 4)?;
+        }
+        if let Ok(social) = &self.social {
+            social.validate()?;
+        }
+        if let Ok(entities) = &self.entities {
+            entities.validate()?;
+        }
+        Ok(())
+    }
+}
+
+fn missing_entities() -> Result<EntityLayout, String> {
+    Err("entity bindings are absent from this capture".into())
+}
+
+impl EntityLayout {
+    fn validate(&self) -> Result<(), String> {
+        field(self.tree_offset, 8)?;
+        field(self.id_offset, 4)
+    }
+}
+
+fn missing_social() -> Result<SocialLayout, String> {
+    Err("social bindings are absent from this capture".into())
+}
+
+impl SocialLayout {
+    fn validate(&self) -> Result<(), String> {
+        field(self.server_offset, 8)?;
+        field(self.records_offset, 8)?;
+        field(self.party_offset, 8)?;
+        if self.records_offset.abs_diff(self.party_offset) < 24 {
+            return Err("overlapping PoE2 social vectors".into());
         }
         Ok(())
     }
@@ -143,19 +233,33 @@ fn field(offset: u32, alignment: u32) -> Result<(), String> {
 fn component_getters(image: PeFile<'_>) -> Result<BTreeMap<u32, String>, String> {
     let scanner = image.scanner();
     let mut result = BTreeMap::new();
-    for name in ["Stats", "Player", "Life", "Positioned"] {
-        let pattern = pelite::pattern::parse(&format!("48 8d 05 ${{ \"{name}\" 00 }} c3"))
-            .map_err(|e| e.to_string())?;
-        let mut matches = scanner.matches(&pattern, image.headers().code_range());
-        let mut found = [0];
-        while matches.next(&mut found) {
-            result.insert(found[0], name.into());
-            if result.len() > 128 {
-                return Err("too many PoE2 component name getters".into());
-            }
+    let pattern = pelite::pattern::parse("48 8d 05 ${'} c3").map_err(|e| e.to_string())?;
+    let mut matches = scanner.matches(&pattern, image.headers().code_range());
+    let mut found = [0; 2];
+    while matches.next(&mut found) {
+        let Ok(bytes) = image.derva_slice::<u8>(found[1], 64) else {
+            continue;
+        };
+        let Some(end) = bytes.iter().position(|b| *b == 0) else {
+            continue;
+        };
+        let Ok(name) = std::str::from_utf8(&bytes[..end]) else {
+            continue;
+        };
+        if component_name(name) {
+            result.insert(found[0], name.to_owned());
+        }
+        if result.len() > 2048 {
+            return Err("too many PoE2 component name getters".into());
         }
     }
     Ok(result)
+}
+
+fn component_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() < 64
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 fn signature<const N: usize>(

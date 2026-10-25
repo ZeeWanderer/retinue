@@ -35,8 +35,13 @@ request(#{<<"op">> := <<"trade_predict">>} = Request, State = #{game := <<"poe2"
         false -> send_error(maps:get(socket, State), request_id(Request), feature_not_negotiated)
     end,
     {ok, State};
+request(#{<<"op">> := <<"currency_asset">>, <<"currency">> := Currency} = Request,
+        State = #{game := <<"poe2">>}) ->
+    {ok, start_local_request(request_id(Request), <<"trade">>,
+                             fun() -> retinue_poe2_assets:resolve(Currency) end, State)};
 request(#{<<"op">> := Op} = Request, State = #{game := <<"poe2">>})
-  when Op =:= <<"trade_item">>; Op =:= <<"trade_search">>; Op =:= <<"trade_leagues">> ->
+  when Op =:= <<"trade_item">>; Op =:= <<"trade_search">>; Op =:= <<"trade_leagues">>;
+       Op =:= <<"trade_fetch">>; Op =:= <<"trade_restore">> ->
     %% Trade waits must not consume the request permits used by native publishes.
     retinue_poe2_trade:submit(self(), request_id(Request), Request),
     {ok, State};

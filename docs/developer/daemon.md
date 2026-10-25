@@ -159,6 +159,24 @@ Schema 2 stores the current snapshot and up to 128 events in
 life value followed by zero for the same character and process. Missing reads,
 disconnects and cached snapshots do not establish death or a running game.
 
+The optional `social` snapshot contains party members and a local account/league
+identity only when the reader finds an unambiguous matching character. It does
+not imply web authentication. Missing social reads remain unknown and report
+health failures independently of player/area data. The full social directory is
+not published or persisted. This additive field keeps the session interface at 2.
+
+The optional `entities` observation contains a bounded entity count and qualifying
+unique monsters (ID, address, name, current life), with tree/area identity.
+`unique_monster_death` requires positive life followed by zero across consecutive
+valid observations (no more than 65 seconds apart) of the same entity, character,
+stream, process and area.
+Disappearance is not death; the event makes no claim about the killer.
+Unknown reads report an independent entity-adapter issue. Inspector captures and
+replays use the same reader. Empty monster lists validate traversal, not the
+live behavior of monster-specific fields.
+
+## PoE2 Trade
+
 PoE2 trade parsing, category defaults, modifier ranking and query construction live
 in the daemon. The companion consumes profile choices, selected rows and numeric
 bounds. `retinue_poe2_catalog` lazily caches RePoE base items, mods and stat mappings
@@ -171,6 +189,31 @@ Catalog warnings are retained in the daemon incident log.
 maps known local-stat identities to their properties. Profiles rank properties
 and modifier groups together and provide `quick_selected`, `exact_selected` and
 `base_selected`. The client must not reinterpret Exact Match as enabling every row.
+
+Trade interface 5 separates `trade_search`, `trade_restore` and `trade_fetch`. Search returns its
+ID, URL, counts and `next_offset`; the daemon retains the upstream listing IDs.
+Fetch accepts that search ID and an offset, returning up to ten normalized listings
+and the next offset (or `null`). Only daemon-issued, retained searches can be fetched.
+Offsets advance by requested IDs, including deleted listings, not by displayed rows.
+Returned rows follow the search order. The client rejects replies from superseded
+requests and starts the next batch when the third-from-last row becomes visible.
+
+The daemon retains the ten most recently completed queries, each with at most
+10,000 IDs and eight cached pages. Keys use the canonical query and league; the
+current trade client is English-only. This is an in-memory session cache without
+time expiry. Reads do not change eviction order; the first page is retained when
+later pages reach the bound. Explicit refresh replaces a query and its pages only
+after a successful response.
+
+`trade_restore` accepts the same query inputs and returns `results` (or `null`) and
+`auto_search_allowed`, a current rate-budget check. It uses cached metadata without
+network refresh, even while another upstream request is pending. Results include
+contiguous cached pages and the next missing offset. The companion restores these
+before considering automatic search; manual Search/Refresh bypasses the cache.
+Search and fetch share the existing upstream rate-limit accounting. Failed fetches
+do not discard search metadata or previously displayed rows, and are not retried
+automatically. The overlay displays cooldowns using a monotonic deadline.
+
 Long-lived process state must use external callbacks (`fun Module:function/Arity`)
 or MFA tuples, not local functions from a reloadable module. Code purging invalidates
 local functions; `code_change/3` must refresh module-owned callbacks when necessary.

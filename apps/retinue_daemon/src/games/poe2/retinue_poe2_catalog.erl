@@ -1,6 +1,6 @@
 -module(retinue_poe2_catalog).
 -behaviour(gen_server).
--export([start_link/0, start_link/1, enrich/1, enrich/2, index/1, annotate/2]).
+-export([start_link/0, start_link/1, enrich/1, enrich/2, enrich_cached/1, index/1, annotate/2]).
 -export([load/1, clock/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -12,7 +12,10 @@ start_link(Options) ->
     end.
 enrich(Item) -> enrich(?MODULE, Item).
 enrich(Server, Item) ->
-    try gen_server:call(Server, {enrich, Item}, 5000)
+    enrich(Server, Item, enrich).
+enrich_cached(Item) -> enrich(?MODULE, Item, enrich_cached).
+enrich(Server, Item, Mode) ->
+    try gen_server:call(Server, {Mode, Item}, 5000)
     catch exit:_ -> retinue_poe2_trade_profiles:prepare(Item#{<<"ranking_status">> => <<"unavailable">>}) end.
 
 init(Options) ->
@@ -22,6 +25,12 @@ init(Options) ->
            data => undefined, worker => undefined, waiters => [], refresh => undefined,
            timeout => maps:get(timeout, Options, 30000)}}.
 
+handle_call({enrich_cached, Item}, _, State = #{data := Data}) ->
+    Reply = case Data of
+        undefined -> unavailable(Item);
+        _ -> annotate(Item, Data)
+    end,
+    {reply, Reply, State};
 handle_call({enrich, Item}, From, State) ->
     Next = refresh(State),
     case maps:get(data, Next) of

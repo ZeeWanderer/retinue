@@ -9,6 +9,28 @@ unix_socket_lifecycle_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(State) -> fun() -> lifecycle(State) end end}.
 
+poe2_currency_requests_leave_session_responsive_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         Parent = self(),
+         Data = #{<<"id">> => <<"future-coin">>, <<"text">> => <<"Future Coin">>,
+                  <<"path">> => <<"/tmp/icon.png">>, <<"digest">> => <<"hash">>, <<"tier">> => null},
+         {ok, Assets} = retinue_poe2_assets:start_link(#{loader => fun(_, _) ->
+             Parent ! {asset_worker, self()}, receive continue -> {ok, Data} end end}),
+         Client = connect_client(Path, <<"poe2companion">>, retinue_local_protocol:contract(<<"poe2">>)),
+         try
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 70,
+                 <<"op">> => <<"currency_asset">>, <<"currency">> => <<"future-coin">>})),
+             Worker = receive {asset_worker, Pid} -> Pid after 1000 -> error(no_asset_worker) end,
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 71,
+                 <<"op">> => <<"get">>, <<"dataset">> => <<"session">>})),
+             ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 71, <<>>)),
+             Worker ! continue,
+             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>, <<"data">> := Data},
+                          receive_response(Client, 70, <<>>))
+         after socket:close(Client), gen_server:stop(Assets) end
+     end end}.
+
 shared_check_publications_do_not_touch_player_data_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(#{socket := Path, root := Root}) -> fun() ->
@@ -85,7 +107,26 @@ poe2_trade_does_not_block_session_test_() ->
              ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 24,
                  <<"op">> => <<"trade_item">>, <<"text">> => <<"not an item">>})),
              ?assertMatch(#{<<"ok">> := false, <<"error">> := #{<<"reason">> := <<"invalid_item_text">>}},
-                 receive_response(Client, 24, <<>>))
+                 receive_response(Client, 24, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 25,
+                 <<"op">> => <<"trade_search">>, <<"text">> => retinue_poe2_trade_eunit:item(),
+                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []})),
+             ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"listings">> := [], <<"next_offset">> := 0}},
+                 receive_response(Client, 25, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 26,
+                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 10})),
+             ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"listings">> := [#{<<"id">> := <<"11">>}],
+                                                             <<"next_offset">> := 20}},
+                 receive_response(Client, 26, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 27,
+                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 0})),
+             ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 27, <<>>)),
+             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 28,
+                 <<"op">> => <<"trade_restore">>, <<"text">> => retinue_poe2_trade_eunit:item(),
+                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []})),
+             ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"auto_search_allowed">> := true,
+                 <<"results">> := #{<<"listings">> := [#{<<"id">> := <<"1">>}, #{<<"id">> := <<"11">>}],
+                                    <<"next_offset">> := 20}}}, receive_response(Client, 28, <<>>))
          after socket:close(Client), gen_server:stop(Trade) end
      end end}.
 

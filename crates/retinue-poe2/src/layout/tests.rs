@@ -84,6 +84,40 @@ fn fixture(code_shift: usize, data_shift: usize, fields: u32) -> Vec<u8> {
         48 8d 0d 00 00 00 00 e8 00 00 00 00 48 8d 05 00 00 00 00 48 83 c4 28 c3",
     );
     relative(&mut bytes, area + 66, 0x3300 + data_shift);
+    let social = root + 0x700;
+    emit(
+        &mut bytes,
+        social,
+        "48 8b 81 e0 27 00 00 48 8b a9 d8 27 00 00 48 89 84 24 88 00 00 00
+          48 3b e8 0f 84 11 00 00 00 48 83 7d 58 07",
+    );
+    put32(&mut bytes, social + 3, 0x27e0 + fields);
+    put32(&mut bytes, social + 10, 0x27d8 + fields);
+    let party = root + 0x780;
+    emit(
+        &mut bytes,
+        party,
+        "49 8b 88 08 23 00 00 49 8b 90 00 23 00 00 48 3b d1 74 12 48 8b c2
+          0f 1f 80 00 00 00 00 83 38 00 74 11 48 83 c0 50 48 3b c1 75 12",
+    );
+    put32(&mut bytes, party + 3, 0x2308 + fields);
+    put32(&mut bytes, party + 10, 0x2300 + fields);
+    let entities = root + 0x800;
+    emit(&mut bytes, entities,
+        "48 8b 86 f0 06 00 00 48 8b 18 48 3b d8 0f 84 11 00 00 00 66 90
+         48 8b 7b 28 f6 87 8c 00 00 00 01 75 12 81 bf 88 00 00 00 00 00 00 40 73 12 f6 87 8d 00 00 00 04");
+    put32(&mut bytes, entities + 3, 0x6f0 + fields);
+    put32(&mut bytes, entities + 27, 0x8c + fields);
+    put32(&mut bytes, entities + 36, 0x88 + fields);
+    let confirm = root + 0x880;
+    emit(
+        &mut bytes,
+        confirm,
+        "48 8b 87 f0 06 00 00 48 8b 18 48 3b d8 0f 84 11 00 00 00
+         0f 1f 80 00 00 00 00 48 8b 73 28 f6 86 8c 00 00 00 01 75 12 48 8b ce e8 11 00 00 00 84 c0",
+    );
+    put32(&mut bytes, confirm + 3, 0x6f0 + fields);
+    put32(&mut bytes, confirm + 32, 0x8c + fields);
     bytes
 }
 
@@ -100,6 +134,13 @@ fn discovers_relocated_code_data_and_fields() {
         assert_eq!(gold.server_offset, 0x5b0 + fields);
         assert_eq!(gold.data_offset, 0x1b0 + fields);
         assert_eq!(gold.value_offset, 0x39d0 + fields);
+        let social = layout.social.unwrap();
+        assert_eq!(social.server_offset, 0x5b0 + fields);
+        assert_eq!(social.records_offset, 0x27d8 + fields);
+        assert_eq!(social.party_offset, 0x2300 + fields);
+        let entities = layout.entities.unwrap();
+        assert_eq!(entities.tree_offset, 0x6f0 + fields);
+        assert_eq!(entities.id_offset, 0x88 + fields);
     }
 }
 
@@ -107,17 +148,17 @@ fn discovers_relocated_code_data_and_fields() {
 fn component_names_are_decoded_from_literal_return_getters() {
     let mut bytes = fixture(0, 0, 0);
     bytes[0x2200..0x2207].copy_from_slice(b"Player\0");
-    emit(&mut bytes, 0x1900, "48 8d 05 00 00 00 00 c3");
-    relative(&mut bytes, 0x1903, 0x2200);
+    emit(&mut bytes, 0x1e00, "48 8d 05 00 00 00 00 c3");
+    relative(&mut bytes, 0x1e03, 0x2200);
     assert_eq!(
         Layout::discover(&bytes)
             .unwrap()
             .component_getters
-            .get(&0x1900)
+            .get(&0x1e00)
             .unwrap(),
         "Player"
     );
-    bytes[0x1907] = 0x90;
+    bytes[0x1e07] = 0x90;
     assert!(
         Layout::discover(&bytes)
             .unwrap()
@@ -136,7 +177,7 @@ fn rejects_missing_ambiguous_or_invalid_bindings() {
             .contains("game root signature not found")
     );
     let mut bytes = fixture(0, 0, 0);
-    bytes.copy_within(0x1100..0x1124, 0x1900);
+    bytes.copy_within(0x1100..0x1124, 0x1d00);
     assert!(Layout::discover(&bytes).unwrap_err().contains("ambiguous"));
     for target in [0x1100, 0x2100, 0x3101, 0x4000] {
         let mut bytes = fixture(0, 0, 0);
@@ -163,4 +204,37 @@ fn unrelated_bindings_do_not_disable_state_and_player_observation() {
     assert_eq!(layout.root_rva, 0x3100);
     assert!(layout.gold.unwrap_err().contains("server data"));
     assert!(layout.panels.unwrap_err().contains("UI visibility"));
+}
+
+#[test]
+fn social_operands_must_be_unique_and_describe_adjacent_vector_bounds() {
+    for fault in 0..3 {
+        let mut bytes = fixture(0, 0, 0);
+        match fault {
+            0 => bytes[0x1800] = 0,
+            1 => bytes.copy_within(0x1800..0x1824, 0x1c00),
+            _ => put32(&mut bytes, 0x1883, 0x2310),
+        }
+        let layout = Layout::discover(&bytes).unwrap();
+        assert!(layout.social.is_err());
+        assert!(layout.gold.is_ok());
+    }
+}
+
+#[test]
+fn entity_bindings_require_independent_agreement() {
+    for fault in 0..5 {
+        let mut bytes = fixture(0, 0, 0);
+        match fault {
+            0 => bytes[0x1900] = 0,
+            1 => bytes.copy_within(0x1900..0x1936, 0x1c00),
+            2 => put32(&mut bytes, 0x1983, 0x700),
+            3 => put32(&mut bytes, 0x1924, 0x90),
+            _ => put32(&mut bytes, 0x19a0, 0x90),
+        }
+        let layout = Layout::discover(&bytes).unwrap();
+        assert!(layout.entities.is_err(), "fault {fault}");
+        assert!(layout.social.is_ok());
+        assert!(layout.gold.is_ok());
+    }
 }

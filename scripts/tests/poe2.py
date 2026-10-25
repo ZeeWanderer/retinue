@@ -3,7 +3,8 @@
 
 Run: python3 scripts/tests/poe2.py [--stage prod]
 No games, memory reads, builds, or live daemon access. Native reader/transport tests
-run separately. Evidence stays in /tmp. All owned processes are stopped.
+run separately. Reports stay under research/retinue/tests/poe2 unless --output
+is supplied. Temporary runtime files are removed; all owned processes are stopped.
 """
 
 import argparse
@@ -11,12 +12,15 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import tempfile
 import time
+
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 def sample(sequence, status="observed"):
@@ -28,6 +32,11 @@ def sample(sequence, status="observed"):
                    "experience": 100, "gold": 42, "life": 100},
         "area": {"name": "The Riverbank", "in_town": False, "change_key": 7},
         "panels": {"inventory": False, "stash": None}, "issues": [],
+        "social": {"local": {"character": "ExampleCharacter", "account": "Example#1234",
+                              "league": "Standard"}, "party": []},
+        "entities": {"tree": 0x100000, "area_key": 7, "count": 2,
+                     "unique_monsters": [{"id": 3, "address": 0x110000,
+                                          "name": "Example Unique", "life": 100}]},
     }
     return {"stream": "native-fixture", "sequence": sequence,
             "observed_at": 1791678000000 + sequence * 30000, "status": status,
@@ -87,7 +96,7 @@ class Peer:
         require(reply.get("id") == 1 and reply.get("ok") is True
                 and reply.get("compatible") is True and reply.get("game") == "poe2"
                 and reply.get("envelope") == 2
-                and reply.get("interfaces") == {"session": 2, "trade": 2, "checks": 1},
+                and reply.get("interfaces") == {"session": 2, "trade": 5, "checks": 1},
                 f"real daemon contract mismatch: {reply}")
 
     def snapshot(self, sequence):
@@ -110,7 +119,7 @@ class Peer:
             self.sock.settimeout(8)
 
 
-def execute(stage, root, report):
+def execute(stage, root, evidence, report):
     release = stage / "libexec/retinue_daemon"
     erts = only(release.glob("erts-*/bin"), "staged Erlang runtime")
     boot = only(release.glob("releases/*/start_clean.boot"), "clean boot file")
@@ -145,7 +154,7 @@ def execute(stage, root, report):
         "RETINUE_BUILD_FLAVOR": (stage / "BUILD_FLAVOR").read_text().strip(),
         "RETINUE_PACKAGE_MANAGER": "standalone",
         "POE2_E2E_READY": str(ready_path),
-        "ERL_CRASH_DUMP": str(root / "erl-crash.dump"),
+        "ERL_CRASH_DUMP": str(evidence / "erl-crash.dump"),
         "ERL_AFLAGS": "+S 2:2 +A 2",
         "ERL_EPMD_ADDRESS": "127.0.0.1",
     })
@@ -161,7 +170,7 @@ def execute(stage, root, report):
     peer = publisher = None
 
     def spawn(name, command, stdin=subprocess.DEVNULL):
-        log = (root / f"{name}.log").open("wb")
+        log = (evidence / f"{name}.log").open("wb")
         handles.append(log)
         process = subprocess.Popen(command, cwd=root, env=env, stdin=stdin,
                                    stdout=log, stderr=subprocess.STDOUT)
@@ -171,9 +180,9 @@ def execute(stage, root, report):
     def command(name, arguments, as_json=True):
         output = subprocess.run([str(cli), *arguments], cwd=root, env=env,
                                 capture_output=True, timeout=10)
-        (root / f"{name}.out").write_bytes(output.stdout)
-        (root / f"{name}.err").write_bytes(output.stderr)
-        require(output.returncode == 0, f"staged CLI failed: {name}; see {root}")
+        (evidence / f"{name}.out").write_bytes(output.stdout)
+        (evidence / f"{name}.err").write_bytes(output.stderr)
+        require(output.returncode == 0, f"staged CLI failed: {name}; see {evidence}")
         return json.loads(output.stdout) if as_json else output.stdout.decode()
 
     def status(name):
@@ -210,7 +219,7 @@ def execute(stage, root, report):
             "-kernel", "inet_dist_use_interface", "{127,0,0,1}",
             "-pa", *map(str, ebins), "-eval", evaluation], stdin=subprocess.PIPE)
         await_ready(ready_path.exists, daemon, "isolated production application", timeout=30)
-        wire = (root / "subscription.jsonl").open("w")
+        wire = (evidence / "subscription.jsonl").open("w")
         handles.append(wire)
         peer = Peer(socket_path, wire)
         peer.hello("poe2-e2e")
@@ -266,11 +275,15 @@ def execute(stage, root, report):
         publish(sample(5))
         dead = sample(6)
         dead["snapshot"]["player"].update(life=0, experience=200, level=3, gold=99)
+        dead["snapshot"]["entities"]["unique_monsters"][0]["life"] = 0
         dead["snapshot"]["panels"].update(inventory=True, stash=False)
         observed = publish(dead)
         deaths = [event for event in observed["events"] if event["kind"] == "death"]
         require(len(deaths) == 1 and deaths[0]["from"] == 100 and deaths[0]["to"] == 0
                 and deaths[0]["character"] == "ExampleCharacter", "death transition mismatch")
+        unique_deaths = [event for event in observed["events"] if event["kind"] == "unique_monster_death"]
+        require(len(unique_deaths) == 1 and unique_deaths[0]["name"] == "Example Unique"
+                and "killer" not in unique_deaths[0], "unique monster death/attribution mismatch")
         for event in observed["events"]:
             require({"kind", "stream", "sequence", "observed_at", "process", "from", "to"} <= set(event),
                     "normalized event lacks native identity")
@@ -369,13 +382,25 @@ def execute(stage, root, report):
             require(report["api_socket_removed"], "isolated API socket not removed")
 
 
-def main():
+def report_directory(output):
+    if output is not None:
+        output = output.resolve()
+        output.mkdir(mode=0o700, parents=True)
+        return output
+    parent = REPOSITORY / "research/retinue/tests/poe2"
+    parent.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ-", time.gmtime())
+    return Path(tempfile.mkdtemp(prefix=stamp, dir=parent))
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stage", type=Path,
-                        default=Path(__file__).resolve().parents[2] / "prod")
-    args = parser.parse_args()
-    root = Path(tempfile.mkdtemp(prefix="rpoe-", dir="/tmp"))
-    report = {"result": "failed"}
+                        default=REPOSITORY / "prod")
+    parser.add_argument("--output", type=Path, help="new directory for retained reports")
+    args = parser.parse_args(argv)
+    evidence = report_directory(args.output)
+    report = {"result": "failed", "evidence": str(evidence)}
 
     def expired(_signum, _frame):
         raise TimeoutError("PoE2 E2E exceeded 60-second deadline")
@@ -386,16 +411,22 @@ def main():
     signal.signal(signal.SIGALRM, expired)
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    signal.alarm(60)
-    try:
-        execute(args.stage.resolve(), root, report)
-        report["result"] = "passed"
-    except Exception as error:
-        report["error"] = str(error)
-    finally:
-        signal.alarm(0)
-        (root / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-    print(f"poe2 e2e: {report['result']}; evidence: {root}")
+    # AF_UNIX socket paths must stay short even in a deeply nested checkout.
+    with tempfile.TemporaryDirectory(prefix="rpoe-", dir="/tmp") as temporary:
+        root = Path(temporary)
+        signal.alarm(60)
+        try:
+            execute(args.stage.resolve(), root, evidence, report)
+            report["result"] = "passed"
+        except Exception as error:
+            report["error"] = str(error)
+        finally:
+            signal.alarm(0)
+            (evidence / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+            for name in ("cache", "state"):
+                if (root / name).is_dir():
+                    shutil.copytree(root / name, evidence / name)
+    print(f"poe2 e2e: {report['result']}; evidence: {evidence}")
     if report["result"] != "passed":
         print(report["error"])
     return 0 if report["result"] == "passed" else 1

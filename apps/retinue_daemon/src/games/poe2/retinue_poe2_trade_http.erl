@@ -1,6 +1,6 @@
 -module(retinue_poe2_trade_http).
--export([request/4, data/1, predict/1, headers/1, freshness/2, validators/1,
-         cooldown/3, spend/3, observe/5, retry_after/2, automatic_allowed/2]).
+-export([request/4, data/1, predict/1, image/1, headers/1, freshness/2, validators/1,
+         cooldown/3, spend/3, observe/5, retry_after/2, automatic_allowed/2, budget/2]).
 
 -define(TIMEOUT, 8000).
 -define(MAX_BODY, 8388608).
@@ -14,6 +14,13 @@ data(Path) ->
 
 predict(Body) ->
     request("prediction.poeoverlay.com", 65536, post, <<"/api/item/price">>, [], Body, 15000).
+
+image(Path) ->
+    case retinue_poe2_assets:image_path(Path) of
+        {ok, Safe} -> request("web.poecdn.com", 2097152, get, Safe,
+                              [{<<"accept">>, <<"image/png">>}], <<>>);
+        error -> {error, invalid_image_path}
+    end.
 
 request(Host, MaxBody, Method, Path, Conditional, Body) ->
     request(Host, MaxBody, Method, Path, Conditional, Body, ?TIMEOUT).
@@ -30,10 +37,10 @@ request(Host, MaxBody, Method, Path, Conditional, Body, Timeout) ->
         try
             case gun:await_up(Conn, remaining(Deadline)) of
                 {ok, _} ->
-                    Headers = [{<<"accept">>, <<"application/json">>},
-                               {<<"accept-encoding">>, <<"identity">>},
-                               {<<"user-agent">>, <<"Retinue/PoE2-Trade">>},
-                               {<<"content-type">>, <<"application/json">>} | Conditional],
+                    Headers = maps:to_list(maps:merge(#{<<"accept">> => <<"application/json">>,
+                               <<"accept-encoding">> => <<"identity">>,
+                               <<"user-agent">> => <<"Retinue/PoE2-Trade">>,
+                               <<"content-type">> => <<"application/json">>}, maps:from_list(Conditional))),
                     Ref = gun:request(Conn, string:uppercase(atom_to_binary(Method)), Path, Headers, Body, #{flow => 1}),
                     response(Conn, Ref, Deadline, MaxBody);
                 _ -> {error, upstream_unavailable}
@@ -110,6 +117,17 @@ automatic_allowed(Limits, Now) ->
             maps:get(expires, W) =< Now orelse maps:get(count, W) / maps:get(limit, W) < 0.75
         end, maps:get(windows, Bucket, []))
     end, [search, fetch]).
+
+budget(Limits, Now) ->
+    Keys = lists:usort([bucket(Group, Limits) || Group <- [search, fetch]]),
+    Windows = [#{<<"usage">> => min(1.0, maps:get(count, W) / maps:get(limit, W)),
+                 <<"expires_in_ms">> => (maps:get(expires, W) - Now) * 1000}
+               || Key <- Keys, W <- maps:get(windows, maps:get(Key, Limits, #{}), []),
+                  maps:get(expires, W) > Now, maps:get(count, W) > 0],
+    #{<<"observed_at_ms">> => erlang:system_time(millisecond),
+      <<"windows">> => Windows,
+      <<"retry_after_ms">> => max(cooldown(search, Limits, Now),
+                                   cooldown(fetch, Limits, Now)) * 1000}.
 
 spend(Group, Limits, Now) ->
     Key = bucket(Group, Limits),

@@ -17,7 +17,7 @@ pub enum Command {
         #[arg(long)]
         pid: Option<u32>,
     },
-    /// Read character, zone and UI state; optionally retain only the bytes read.
+    /// Read character, zone, social, entity and UI state; optionally capture the bytes read.
     Snapshot {
         #[arg(long)]
         pid: Option<u32>,

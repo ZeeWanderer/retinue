@@ -49,6 +49,8 @@ current(Current) ->
      field("scene", scene(maps:get(<<"scene">>, Current))),
      area(maps:get(<<"area">>, Current)),
      player(maps:get(<<"player">>, Current)),
+     social(maps:get(<<"social">>, Current, null)),
+     entities(maps:get(<<"entities">>, Current, null)),
      panels(maps:get(<<"panels">>, Current)),
      issues(maps:get(<<"issues">>, Current))].
 
@@ -62,6 +64,19 @@ player(Player) ->
     [field(Label, maps:get(Key, Player)) || {Label, Key} <-
         [{"character", <<"name">>}, {"class", <<"class">>}, {"level", <<"level">>},
          {"XP", <<"experience">>}, {"gold", <<"gold">>}, {"life", <<"life">>}]].
+
+social(null) -> [];
+social(#{<<"local">> := Local, <<"party">> := Party}) ->
+    [case Local of
+         null -> [];
+         _ -> [field("account (observed)", maps:get(<<"account">>, Local)),
+               field("league (observed)", maps:get(<<"league">>, Local))]
+     end,
+     field("party members", length(Party))].
+
+entities(null) -> [];
+entities(#{<<"count">> := Count, <<"unique_monsters">> := Monsters}) ->
+    [field("nearby entities", Count), field("unique monsters", length(Monsters))].
 
 panels(Panels) when map_size(Panels) =:= 0 -> field("panels", null);
 panels(Panels) ->
@@ -90,6 +105,8 @@ event_details(#{<<"kind">> := <<"panel">>, <<"panel">> := Panel, <<"to">> := Vis
     io_lib:format("Panel: ~ts; ~ts", [label(Panel), visible(Visible)]);
 event_details(#{<<"kind">> := <<"death">>, <<"character">> := Name}) ->
     io_lib:format("Death: ~ts (observed life reached zero)", [value(Name)]);
+event_details(#{<<"kind">> := <<"unique_monster_death">>, <<"name">> := Name}) ->
+    io_lib:format("Unique monster death: ~ts (killer unknown)", [value(Name)]);
 event_details(#{<<"kind">> := Kind, <<"character">> := Name, <<"from">> := From, <<"to">> := To}) ->
     Label = case Kind of <<"xp">> -> "XP"; <<"level">> -> "Level"; <<"gold">> -> "Gold" end,
     io_lib:format("~s: ~ts; ~ts -> ~ts", [Label, value(Name), value(From), value(To)]).

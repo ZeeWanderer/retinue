@@ -38,6 +38,27 @@ waiting_error_and_partial_status_test() ->
         [<<"character: unknown">>, <<"zone: unknown">>, <<"panels: unknown">>,
          <<"read issues">>, <<"player: component unreadable">>]).
 
+social_account_is_observed_not_authenticated_test() ->
+    Current = (retinue_poe2_fixture:snapshot())#{<<"social">> => #{
+        <<"local">> => #{<<"character">> => <<"ExampleCharacter">>,
+                         <<"account">> => <<"Example#1234">>, <<"league">> => <<"Standard">>},
+        <<"party">> => []}},
+    Text = format(status, #{<<"current">> => Current}),
+    contains(Text, <<"account (observed): Example#1234">>),
+    contains(Text, <<"league (observed): Standard">>),
+    contains(Text, <<"party members: 0">>),
+    ?assertEqual(nomatch, binary:match(Text, <<"authenticated">>)).
+
+entity_observation_status_test() ->
+    Current = (retinue_poe2_fixture:snapshot())#{<<"entities">> => #{
+        <<"count">> => 12, <<"unique_monsters">> => [#{<<"name">> => <<"Example Unique">>}]}},
+    Text = format(status, #{<<"current">> => Current}),
+    contains(Text, <<"nearby entities: 12">>),
+    contains(Text, <<"unique monsters: 1">>),
+    Event = #{<<"observed_at">> => 1, <<"kind">> => <<"unique_monster_death">>,
+              <<"name">> => <<"Example Unique">>},
+    contains(format(events, [Event]), <<"Unique monster death: Example Unique (killer unknown)">>).
+
 events_use_output_timestamps_test() ->
     {ok, Sample} = retinue_poe2_session:sample(retinue_poe2_fixture:sample(1)),
     {changed, Initial} = retinue_poe2_session:apply(Sample, retinue_poe2_session:empty()),

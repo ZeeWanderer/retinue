@@ -9,7 +9,88 @@ session_test_() ->
          [fun projection_and_retry/1, fun changes/1, fun heartbeat/1, fun persistence/1,
           fun subscriptions/1, fun failed_persistence/1, fun unknown_is_not_zero/1,
           fun death_requires_continuity/1, fun history_bound/1, fun cache_validation/1,
-          fun health_requires_current_producer/1]]}.
+          fun health_requires_current_producer/1, fun social_observation/1,
+          fun entity_observation/1, fun monster_death_requires_continuity/1]]}.
+
+entities(Life) ->
+    #{<<"tree">> => 16#100000, <<"area_key">> => 7, <<"count">> => 2,
+      <<"unique_monsters">> => [#{<<"id">> => 3, <<"address">> => 16#110000,
+                                   <<"name">> => <<"Example Unique">>, <<"life">> => Life}]}.
+
+entity_sample(N, Entities) -> with_snapshot(sample(N), #{<<"entities">> => Entities}).
+
+entity_observation(_) ->
+    ?assertMatch({ok, _}, publish(entity_sample(1, entities(100)))),
+    ?assertMatch({ok, _}, publish(entity_sample(2, entities(0)))),
+    [Death] = [E || #{<<"kind">> := <<"unique_monster_death">>} = E <- at_sequence(2)],
+    ?assertMatch(#{<<"from">> := 100, <<"to">> := 0, <<"id">> := 3,
+                   <<"name">> := <<"Example Unique">>}, Death),
+    ?assertNot(maps:is_key(<<"killer">>, Death)),
+    restart(),
+    ?assert(lists:member(Death, retinue_poe2_service:events())),
+    ?assertMatch({ok, _}, publish(entity_sample(3, entities(0)))),
+    ?assertEqual([], at_sequence(3)),
+    [Monster] = maps:get(<<"unique_monsters">>, entities(1)),
+    lists:foreach(fun(Bad) ->
+        ?assertEqual({error, invalid_session_sample}, publish(entity_sample(4, Bad)))
+    end, [(entities(1))#{<<"count">> => 4097},
+          (entities(1))#{<<"tree">> => 1},
+          (entities(1))#{<<"unique_monsters">> => [Monster, Monster]},
+          (entities(1))#{<<"unique_monsters">> => [Monster#{<<"id">> => 16#40000001}]},
+          entities(-1)]).
+
+monster_death_requires_continuity(_) ->
+    Changes = [
+        fun(S) -> S#{<<"observed_at">> => maps:get(<<"observed_at">>, S) + 100000} end,
+        fun(S) -> S#{<<"stream">> => <<"reloaded">>} end,
+        fun(S) -> S#{<<"process">> => (maps:get(<<"process">>, S))#{<<"started">> => 2}} end,
+        fun(S) -> with_player(S, #{<<"name">> => <<"Other">>}) end,
+        fun(S) -> with_snapshot(S, #{<<"entities">> => (entities(0))#{<<"tree">> => 16#120000}}) end,
+        fun(S) -> with_snapshot(S, #{<<"entities">> => (entities(0))#{<<"area_key">> => 9}}) end,
+        fun(S) ->
+            [M] = maps:get(<<"unique_monsters">>, entities(0)),
+            with_snapshot(S, #{<<"entities">> => (entities(0))#{
+                <<"unique_monsters">> => [M#{<<"address">> => 16#120000}]}})
+        end],
+    Next = lists:foldl(fun(Change, N) ->
+        ?assertMatch({ok, _}, publish(entity_sample(N, entities(100)))),
+        ?assertMatch({ok, _}, publish(Change(entity_sample(N + 1, entities(0))))),
+        ?assertNot(lists:member(<<"unique_monster_death">>, kinds(at_sequence(N + 1)))),
+        N + 2
+    end, 1, Changes),
+    Gaps = [fun retinue_poe2_fixture:waiting/1, fun retinue_poe2_fixture:failed/1,
+            fun(N) -> entity_sample(N, null) end,
+            fun(N) -> entity_sample(N, (entities(1))#{<<"unique_monsters">> => []}) end,
+            fun(N) -> with_snapshot(entity_sample(N, null), #{<<"scene">> => <<"loading">>,
+                <<"states">> => [<<"AreaLoadingState">>], <<"player">> => null}) end],
+    lists:foldl(fun(Gap, N) ->
+        ?assertMatch({ok, _}, publish(entity_sample(N, entities(100)))),
+        ?assertMatch({ok, _}, publish(Gap(N + 1))),
+        ?assertMatch({ok, _}, publish(entity_sample(N + 2, entities(0)))),
+        ?assertNot(lists:member(<<"unique_monster_death">>, kinds(at_sequence(N + 2)))),
+        N + 3
+    end, Next, Gaps).
+
+social_observation(_) ->
+    Identity = #{<<"character">> => <<"ExampleCharacter">>,
+                 <<"account">> => <<"Example#1234">>, <<"league">> => <<"Standard">>},
+    Member = Identity#{<<"class_id">> => 3, <<"level">> => 2},
+    Social = #{<<"local">> => Identity, <<"party">> => [Member]},
+    Sample = with_snapshot(sample(1), #{<<"social">> => Social}),
+    ?assertMatch({ok, _}, publish(Sample)),
+    ?assertEqual(Social, maps:get(<<"social">>, maps:get(<<"current">>, retinue_poe2_service:status()))),
+    restart(),
+    ?assertEqual(Social, maps:get(<<"social">>, maps:get(<<"current">>, retinue_poe2_service:status()))),
+    lists:foreach(fun(Bad) ->
+        ?assertEqual({error, invalid_session_sample}, publish(with_snapshot(sample(2), #{<<"social">> => Bad})))
+    end, [Social#{<<"local">> => Identity#{<<"character">> => <<"SomeoneElse">>}},
+          Social#{<<"party">> => [Member, Member]},
+          Social#{<<"party">> => [Member#{<<"level">> => 0}]},
+          Social#{<<"local">> => Identity#{<<"account">> => <<>>}}]),
+    Failed = with_snapshot(sample(2), #{<<"social">> => null,
+        <<"issues">> => [#{<<"field">> => <<"social">>, <<"reason">> => <<"unreadable">>}]}),
+    ?assertMatch({ok, _}, publish(Failed)),
+    ?assertEqual(null, maps:get(<<"social">>, maps:get(<<"current">>, retinue_poe2_service:status()))).
 
 health_requires_current_producer(_) ->
     Producer = spawn(fun() -> receive stop -> ok end end),

@@ -40,11 +40,71 @@ process(Value) ->
                    {<<"image_base">>, fun u64/1}]).
 
 snapshot(Value) ->
-    object(Value, [{<<"scene">>, fun scene/1}, {<<"states">>, fun states/1},
+    Snapshot = object(Value, [{<<"scene">>, fun scene/1}, {<<"states">>, fun states/1},
                    {<<"player">>, fun(V) -> nullable(V, fun player/1) end},
                    {<<"area">>, fun(V) -> nullable(V, fun area/1) end},
                    {<<"panels">>, fun panels/1},
-                   {<<"issues">>, fun(V) -> array(V, 16, fun issue/1) end}]).
+                   {<<"issues">>, fun(V) -> array(V, 16, fun issue/1) end}]),
+    WithSocial = case maps:find(<<"social">>, Value) of
+        error -> Snapshot;
+        {ok, Raw} ->
+            Social = nullable(Raw, fun social/1),
+            case {Social, maps:get(<<"player">>, Snapshot)} of
+                {#{<<"local">> := #{<<"character">> := Name}}, #{<<"name">> := Name}} -> ok;
+                {#{<<"local">> := Local}, _} when Local =/= null -> throw(invalid);
+                _ -> ok
+            end,
+            Snapshot#{<<"social">> => Social}
+    end,
+    case maps:find(<<"entities">>, Value) of
+        error -> WithSocial;
+        {ok, RawEntities} -> WithSocial#{<<"entities">> => nullable(RawEntities, fun entities/1)}
+    end.
+
+entities(Value) ->
+    Result = object(Value, [{<<"tree">>, fun address/1}, {<<"area_key">>, fun u32/1},
+        {<<"count">>, fun(V) -> number(V, 1, 4096) end},
+        {<<"unique_monsters">>, fun(V) -> array(V, 128, fun unique_monster/1) end}]),
+    Monsters = maps:get(<<"unique_monsters">>, Result),
+    Ids = [maps:get(<<"id">>, M) || M <- Monsters],
+    Addresses = [maps:get(<<"address">>, M) || M <- Monsters],
+    case length(Monsters) =< maps:get(<<"count">>, Result) andalso
+         length(lists:usort(Ids)) =:= length(Ids) andalso
+         length(lists:usort(Addresses)) =:= length(Addresses) of
+        true -> Result#{<<"unique_monsters">> => lists:sort(
+            fun(A, B) -> maps:get(<<"id">>, A) =< maps:get(<<"id">>, B) end, Monsters)};
+        false -> throw(invalid)
+    end.
+
+unique_monster(Value) ->
+    object(Value, [{<<"id">>, fun(V) -> number(V, 0, 16#3fffffff) end},
+        {<<"address">>, fun address/1}, {<<"name">>, fun(V) -> text(V, 512) end},
+        {<<"life">>, fun(V) -> number(V, 0, ?I32) end}]).
+
+address(Value) when is_integer(Value), Value rem 8 =:= 0 ->
+    number(Value, 65536, 16#7fffffff0000);
+address(_) -> throw(invalid).
+
+social(Value) ->
+    Result = object(Value, [{<<"local">>, fun(V) -> nullable(V, fun identity/1) end},
+                            {<<"party">>, fun(V) -> array(V, 64, fun party_member/1) end}]),
+    Members = maps:get(<<"party">>, Result),
+    Names = [maps:get(<<"character">>, Member) || Member <- Members],
+    case length(lists:usort(Names)) =:= length(Names) of
+        true -> Result;
+        false -> throw(invalid)
+    end.
+
+identity(Value) ->
+    object(Value, [{Key, fun(V) -> text(V, 256) end} ||
+        Key <- [<<"character">>, <<"account">>, <<"league">>]]).
+
+party_member(Value) ->
+    object(Value, [{<<"character">>, fun(V) -> text(V, 256) end},
+                   {<<"account">>, fun(V) -> text(V, 256) end},
+                   {<<"league">>, fun(V) -> nullable(V, fun(T) -> text(T, 256) end) end},
+                   {<<"class_id">>, fun(V) -> nullable(V, fun(T) -> number(T, 0, 254) end) end},
+                   {<<"level">>, fun(V) -> nullable(V, fun level/1) end}]).
 
 scene(Value) -> choice(Value, [<<"unknown">>, <<"login">>, <<"select_character">>,
                               <<"loading">>, <<"in_game">>, <<"escape_menu">>]).
@@ -126,7 +186,8 @@ changes(#{<<"status">> := <<"observed">>, <<"snapshot">> := Current,
               change(<<"character">>, OldIdentity, Identity, #{}) ++
               player_changes(Baseline, Player) ++
               panel_changes(maps:get(<<"panels">>, Before, #{}), maps:get(<<"panels">>, Current)) ++
-              death(Baseline, Player),
+              death(Baseline, Player) ++
+              monster_deaths(Sample, Previous, SameCharacter, Before, Current),
     Stamp = (maps:with([<<"stream">>, <<"sequence">>, <<"observed_at">>], Sample))#{
         <<"process">> => maps:with([<<"pid">>, <<"started">>], Process)},
     [maps:merge(Stamp, Detail) || Detail <- Details];
@@ -163,6 +224,24 @@ death(#{<<"life">> := Life}, #{<<"life">> := 0, <<"name">> := Name})
     change(<<"death">>, Life, 0, #{<<"character">> => Name});
 death(_, _) -> [].
 
+monster_deaths(#{<<"stream">> := Stream, <<"observed_at">> := Now},
+               #{<<"stream">> := Stream, <<"observed_at">> := Then}, true,
+               #{<<"entities">> := #{<<"tree">> := Tree, <<"area_key">> := Key,
+                                     <<"unique_monsters">> := Before}},
+               #{<<"entities">> := #{<<"tree">> := Tree, <<"area_key">> := Key,
+                                     <<"unique_monsters">> := Current}})
+  when Now >= Then, Now - Then =< 65000 ->
+    Old = maps:from_list([{maps:get(<<"id">>, M), M} || M <- Before]),
+    lists:append([case maps:get(Id, Old, null) of
+        #{<<"address">> := Address, <<"name">> := Name, <<"life">> := Life} when Life > 0 ->
+            change(<<"unique_monster_death">>, Life, 0,
+                   #{<<"id">> => Id, <<"address">> => Address, <<"name">> => Name,
+                     <<"tree">> => Tree, <<"area_key">> => Key});
+        _ -> []
+    end || #{<<"id">> := Id, <<"address">> := Address, <<"name">> := Name,
+             <<"life">> := 0} <- Current]);
+monster_deaths(_, _, _, _, _) -> [].
+
 restore(#{<<"schema">> := 2, <<"game">> := <<"poe2">>} = Cache) ->
     try
         Sample = normalize_sample(as_sample(Cache)),
@@ -191,6 +270,10 @@ event(Value) ->
         <<"panel">> -> {fun boolean/1, [{<<"panel">>, fun(V) -> choice(V, panel_names()) end}]};
         <<"death">> -> {fun(V) -> number(V, 0, ?I32) end,
                         [{<<"character">>, fun(V) -> text(V, 256) end}]};
+        <<"unique_monster_death">> -> {fun(V) -> number(V, 0, ?I32) end,
+            [{<<"id">>, fun(V) -> number(V, 0, 16#3fffffff) end},
+             {<<"address">>, fun address/1}, {<<"name">>, fun(V) -> text(V, 512) end},
+             {<<"tree">>, fun address/1}, {<<"area_key">>, fun u32/1}]};
         _ -> throw(invalid)
     end,
     Detail = object(Value, [{<<"from">>, fun(V) -> nullable(V, Validate) end},
@@ -199,6 +282,9 @@ event(Value) ->
     case {Kind, Detail} of
         {<<"death">>, #{<<"from">> := From, <<"to">> := 0}} when is_integer(From), From > 0 -> ok;
         {<<"death">>, _} -> throw(invalid);
+        {<<"unique_monster_death">>, #{<<"from">> := From, <<"to">> := 0}}
+          when is_integer(From), From > 0 -> ok;
+        {<<"unique_monster_death">>, _} -> throw(invalid);
         _ -> ok
     end,
     (maps:merge(Base, Detail))#{<<"kind">> => Kind}.

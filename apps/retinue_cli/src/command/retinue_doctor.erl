@@ -241,7 +241,9 @@ poe2(Data, Now) ->
 poe2_observation(#{<<"status">> := <<"observed">>, <<"current">> := Current}) when is_map(Current) ->
     Issues = maps:get(<<"issues">>, Current, []),
     Base = [check(poe2, pass, "Native state", ["fresh memory sample; scene ", text(maps:get(<<"scene">>, Current, null))], "")],
-    Fields = [{<<"player">>, "Character memory"}, {<<"area">>, "Zone memory"}, {<<"panels">>, "Panel memory"}],
+    Fields = [{<<"player">>, "Character memory"}, {<<"area">>, "Zone memory"},
+              {<<"panels">>, "Panel memory"}, {<<"social">>, "Social memory"},
+              {<<"entities">>, "Entity memory"}],
     Base ++ [poe2_field(Key, Label, Current, Issues) || {Key, Label} <- Fields] ++
     [check(poe2, fail, text(maps:get(<<"field">>, I)), text(maps:get(<<"reason">>, I)),
            "Run retinue poe2 diagnostics status.") || I <- Issues,

@@ -73,7 +73,9 @@ live_failure_and_recovery_test() ->
 poe2_cached_and_live_sample_test() ->
     Current = #{<<"scene">> => <<"in_game">>, <<"area">> => #{<<"name">> => <<"Town">>},
                 <<"player">> => #{<<"name">> => <<"Player">>},
-                <<"panels">> => #{<<"inventory">> => false}, <<"issues">> => []},
+                <<"panels">> => #{<<"inventory">> => false}, <<"issues">> => [],
+                <<"social">> => #{<<"local">> => null, <<"party">> => []},
+                <<"entities">> => #{<<"count">> => 1, <<"unique_monsters">> => []}},
     Data = #{<<"status">> => <<"observed">>, <<"current">> => Current, <<"observed_at">> => 99999},
     Info = info([client(poe2)]),
     Check = fun(D) -> report(poe2, Info#{games => #{poe2 => D}}, not_requested) end,
@@ -83,6 +85,11 @@ poe2_cached_and_live_sample_test() ->
     ?assertEqual(failed, maps:get(status, Check(Live#{<<"observed_at">> := 1}))),
     ?assertEqual(incomplete, maps:get(status, Check(Live#{<<"current">> := Current#{
         <<"panels">> := #{<<"inventory">> => null}}}))),
+    ?assertEqual(incomplete, maps:get(status, Check(Live#{<<"current">> := maps:remove(<<"social">>, Current)}))),
+    SocialError = [#{<<"field">> => <<"social">>, <<"reason">> => <<"invalid vector">>}],
+    SocialChecks = maps:get(checks, Check(Live#{<<"current">> := Current#{
+        <<"social">> := null, <<"issues">> := SocialError}})),
+    ?assertMatch([#{state := fail}], [C || #{label := <<"Social memory">>} = C <- SocialChecks]),
     GoldError = [#{<<"field">> => <<"gold">>, <<"reason">> => <<"invalid pointer">>}],
     ?assertEqual(failed, maps:get(status, Check(Live#{<<"current">> := Current#{<<"issues">> := GoldError}}))),
     ?assertEqual(failed, maps:get(status, Check(Live#{<<"receipt">> := #{<<"connected">> => true, <<"received_at">> => 1}}))).
