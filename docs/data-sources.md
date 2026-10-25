@@ -65,7 +65,8 @@ content-addressed so identical images share one cached object.
 
 Saved build groups are durable data in `builds.term` beneath the Warframe data root.
 Refetchable catalogs, original asset objects, observations, and plan results stay in cache.
-GUI derivatives use the Warframe cache's `gui/derivatives/v1` directory. Daemon incidents and
+GUI derivatives use the Warframe cache's `gui/derivatives/v1` (Qt) and
+`gui/derivatives/native-v1` (native renderer) directories. Daemon incidents and
 crash dumps belong to the platform state root; companion incidents remain game-owned.
 PoE2 has a separate [log-session cache](poe2.md#storage).
 

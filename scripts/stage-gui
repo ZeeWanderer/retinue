@@ -3,13 +3,31 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:-}"
+backend="${2:-native}"
 case "$mode" in
     dev|prod) ;;
     *) printf 'usage: %s dev|prod\n' "$0" >&2; exit 2 ;;
 esac
+case "$backend" in
+    qt|native) ;;
+    *) printf 'unknown GUI backend: %s\n' "$backend" >&2; exit 2 ;;
+esac
 
 source "$root/scripts/lib/staging.sh"
 stage_begin "$root/$mode"
+if [[ "$backend" == native ]]; then
+    profile=debug
+    [[ "$mode" == dev ]] || profile=release
+    install -Dm755 "${CARGO_TARGET_DIR:-$root/_build/cargo}/$profile/wfgui" "$stage/bin/wfgui"
+    rm -f "$stage/bin/wfgui-native"
+    install -Dm644 "$root/assets/fonts/roboto/Roboto-LICENSE.txt" "$stage/share/licenses/fonts/Roboto-LICENSE.txt"
+    install -Dm644 "$root/apps/wfgui/resources/Lucide-LICENSE.txt" "$stage/share/licenses/wfgui/Lucide-LICENSE.txt"
+    for icon in "$root/apps/wfgui/resources/app/"wfgui*.png "$root/apps/wfgui/resources/app/wfgui.svg"; do
+        install -Dm644 "$icon" "$stage/share/retinue/games/warframe/icons/$(basename "$icon")"
+    done
+    stage_commit
+    exit 0
+fi
 rm -rf "${stage:?}/lib" "$stage/Qt6"
 rm -f "$stage/share/wfcli/icons/wfgui.svg" "$stage/share/wfcli/icons/"wfgui-*.png \
     "$stage/share/licenses/wfcli/"{Lucide,LLVM}-LICENSE.txt

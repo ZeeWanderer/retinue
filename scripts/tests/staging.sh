@@ -179,19 +179,19 @@ mkdir -p "$repo/dev/lib" "$repo/dev/Qt6" "$repo/dev/share/wfcli/icons" "$repo/de
 printf old-lib > "$repo/dev/lib/qt"
 touch "$repo/dev/share/wfcli/icons/"{wfgui.svg,wfgui-256.png,unrelated.svg} \
     "$repo/dev/share/licenses/wfcli/"{Lucide-LICENSE.txt,LLVM-LICENSE.txt,unrelated.txt}
-if PATH="$repo/commands:$PATH" FAIL_AT=gui bash "$repo/scripts/stage-gui" dev; then
+if PATH="$repo/commands:$PATH" FAIL_AT=gui bash "$repo/scripts/stage-gui" dev qt; then
     fail 'failed GUI installation succeeded'
 fi
 [[ "$(< "$repo/dev/lib/qt")" == old-lib ]] || fail 'GUI failure removed live libraries'
 [[ -f "$repo/dev/share/wfcli/icons/wfgui.svg" && -f "$repo/dev/share/licenses/wfcli/LLVM-LICENSE.txt" ]] || fail 'GUI failure removed live resources'
-PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev
+PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev qt
 [[ "$(< "$repo/dev/lib/qt")" == new-lib && -x "$repo/dev/bin/wfcli" ]] || fail 'GUI activation lost Erlang files'
 [[ ! -e "$repo/dev/share/wfcli/icons/wfgui.svg" && ! -e "$repo/dev/share/wfcli/icons/wfgui-256.png" && \
    ! -e "$repo/dev/share/licenses/wfcli/LLVM-LICENSE.txt" && ! -e "$repo/dev/share/licenses/wfcli/Lucide-LICENSE.txt" ]] || fail 'retired GUI resources remain'
 [[ -f "$repo/dev/share/retinue/games/warframe/icons/wfgui.svg" && -f "$repo/dev/share/licenses/wfgui/LLVM-LICENSE.txt" ]] || fail 'GUI resources missing'
 [[ -f "$repo/dev/share/wfcli/icons/unrelated.svg" && -f "$repo/dev/share/licenses/wfcli/unrelated.txt" ]] || fail 'unrelated resources removed'
 rm "$repo/dev/share/wfcli/icons/unrelated.svg" "$repo/dev/share/licenses/wfcli/unrelated.txt"
-PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev
+PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev qt
 [[ ! -d "$repo/dev/share/wfcli" && ! -d "$repo/dev/share/licenses/wfcli" ]] || fail 'empty retired resource directories remain'
 
 if [[ -w /dev/shm && "$(stat -c %d /dev/shm)" != "$(stat -c %d "$fixture")" ]]; then

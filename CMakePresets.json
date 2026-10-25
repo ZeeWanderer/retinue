@@ -17,7 +17,7 @@
         "VCPKG_INSTALL_OPTIONS": "--x-buildtrees-root=${sourceDir}/.cache/vcpkg/buildtrees;--x-packages-root=${sourceDir}/.cache/vcpkg/packages",
         "VCPKG_OVERLAY_PORTS": "${sourceDir}/cmake/vcpkg-ports",
         "VCPKG_HOST_TRIPLET": "x64-linux-llvm-libcxx",
-        "VCPKG_MANIFEST_DIR": "${sourceDir}/apps/wfgui",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/apps/wfgui/qt",
         "VCPKG_TARGET_TRIPLET": "x64-linux-llvm-libcxx"
       },
       "environment": {
@@ -31,7 +31,7 @@
     {
       "name": "gui-dev",
       "inherits": "gui-base",
-      "displayName": "GUI development",
+      "displayName": "Qt reference development",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/dev"
@@ -40,7 +40,7 @@
     {
       "name": "gui-prod",
       "inherits": "gui-base",
-      "displayName": "GUI production",
+      "displayName": "Qt reference production",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTING": "OFF",

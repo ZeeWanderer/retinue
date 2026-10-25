@@ -4,20 +4,16 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use retinue_client::transport::JsonChannel;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{
-    UnixStream,
-    unix::{OwnedReadHalf, OwnedWriteHalf},
-};
+use tokio::net::UnixStream;
 
 use crate::Sample;
 
 const MAX_FRAME: usize = 128 * 1024;
 
 pub struct Connection {
-    reader: BufReader<OwnedReadHalf>,
-    writer: OwnedWriteHalf,
+    channel: JsonChannel,
     prediction: bool,
 }
 
@@ -29,17 +25,15 @@ impl Connection {
     async fn connect_interfaces(path: &Path, mode: &str, trade: bool) -> io::Result<Self> {
         let stream =
             tokio::time::timeout(Duration::from_secs(2), UnixStream::connect(path)).await??;
-        let (reader, writer) = stream.into_split();
         let mut connection = Self {
-            reader: BufReader::new(reader),
-            writer,
+            channel: JsonChannel::new(stream, MAX_FRAME),
             prediction: false,
         };
         let mut hello = json!({"op":"hello", "id":1, "game":"poe2", "envelope":2,
             "interfaces":{"session":2}, "features":[], "client":"poe2companion",
             "version":env!("CARGO_PKG_VERSION"), "pid":std::process::id(), "mode":mode});
         if trade {
-            hello["interfaces"]["trade"] = json!(2);
+            hello["interfaces"]["trade"] = json!(5);
             hello["features"] = json!(["trade.prediction"]);
         }
         let reply =
@@ -49,12 +43,12 @@ impl Connection {
             || reply["envelope"] != 2
             || reply["interfaces"]["session"] != 2
             || reply["game"] != "poe2"
-            || (trade && reply["interfaces"]["trade"] != 2)
+            || (trade && reply["interfaces"]["trade"] != 5)
         {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 if trade {
-                    "daemon contract mismatch: need envelope 2, poe2 session 2 and trade 2"
+                    "daemon contract mismatch: need envelope 2, poe2 session 2 and trade 5"
                 } else {
                     "daemon contract mismatch: need envelope 2, poe2 session 2"
                 },
@@ -83,46 +77,8 @@ impl Connection {
         Ok(reply)
     }
 
-    async fn frame(&mut self) -> io::Result<Value> {
-        let mut frame = Vec::new();
-        loop {
-            let available = self.reader.fill_buf().await?;
-            if available.is_empty() {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "daemon disconnected",
-                ));
-            }
-            let newline = available.iter().position(|b| *b == b'\n');
-            let count = newline.map_or(available.len(), |n| n + 1);
-            if frame.len() + count > MAX_FRAME {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "daemon frame exceeds limit",
-                ));
-            }
-            frame.extend_from_slice(&available[..count]);
-            self.reader.consume(count);
-            if newline.is_some() {
-                return serde_json::from_slice(&frame).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, "invalid daemon JSON frame")
-                });
-            }
-        }
-    }
-
     async fn request(&mut self, request: &Value) -> io::Result<Value> {
-        let mut bytes = serde_json::to_vec(request)?;
-        bytes.push(b'\n');
-        self.writer.write_all(&bytes).await?;
-        let reply = self.frame().await?;
-        if reply.get("id") != request.get("id") {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "daemon reply ID does not match outstanding request",
-            ));
-        }
-        Ok(reply)
+        self.channel.request(request).await
     }
 
     pub async fn publish(&mut self, sample: &Sample) -> io::Result<()> {

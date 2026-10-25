@@ -10,14 +10,13 @@ build = "build.rs"
 [dependencies]
 bytes = "1"
 ashpd = { version = "0.13.13", default-features = false, features = ["global_shortcuts", "tokio"] }
-fontdue = "0.9.3"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 libc = "0.2"
 memchr = "2.7"
 retinue-client = { path = "../../crates/retinue-client" }
 retinue-native = { path = "../../crates/retinue-native" }
-retinue-overlay = { path = "../../crates/retinue-overlay" }
+retinue-ui = { path = "../../crates/retinue-ui" }
 retinue-warframe = { path = "../../crates/retinue-warframe" }
 rustix = { version = "1", features = ["fs", "process", "time"] }
 serde = { version = "1", features = ["derive"] }

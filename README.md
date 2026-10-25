@@ -5,7 +5,7 @@ Linux/Proton game companions with a shared daemon, CLI, and MCP server.
 ## Warframe
 
 Relic rewards, relic recommendations and ducat-kiosk prices in-game. Foundry,
-Mastery Helper, Inventory, Market and build planning in a native Qt desktop app.
+Mastery Helper, Inventory, Relic Planner, Market and build planning in the desktop app.
 
 ![Relic rewards with prices and collection progress](docs/images/wfcompanion-relic-rewards.webp)
 
@@ -30,7 +30,7 @@ trade website. Optional estimates help gauge equipment value.
 | [`wfcompanion`](docs/companion.md) | Warframe observer and Wayland overlay |
 | [`poe2companion`](docs/poe2.md) | Path of Exile 2 observer and Evaluate price-check overlay |
 | [`arccompanion`](docs/arc.md) | ARC Raiders launch scaffold; observation not implemented |
-| [`wfgui`](docs/gui.md) | Native Qt desktop client for Warframe account and world-state views |
+| [`wfgui`](docs/gui.md) | Rust desktop client for Warframe |
 | [`retinue-inspect`](docs/wfinspect.md) | Generic memory/capture inspection and Warframe research; `wfinspect` is an alias |
 
 Clients share daemon caches and rate-limited requests. ARC Raiders is a launch

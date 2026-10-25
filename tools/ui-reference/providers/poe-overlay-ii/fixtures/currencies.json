@@ -1,0 +1,23 @@
+[
+  {
+    "id": "exalted",
+    "text": "Exalted Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lBZGRNb2RUb1JhcmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/ad7c366789/CurrencyAddModToRare.png",
+    "digest": "61678dd84a34547a8c43d357565349a4116ef231bbb1a1da36dcbaa4f6f35904",
+    "tier": null
+  },
+  {
+    "id": "divine",
+    "text": "Divine Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lNb2RWYWx1ZXMiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/2986e220b3/CurrencyModValues.png",
+    "digest": "7bcdebef85551e18426bc93dd7e0a941b18782f8343be6c0130e2a69af2e53f3",
+    "tier": null
+  },
+  {
+    "id": "perfect-exalted-orb",
+    "text": "Perfect Exalted Orb",
+    "image": "/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvQ3VycmVuY3lBZGRNb2RUb1JhcmUiLCJzY2FsZSI6MSwicmVhbG0iOiJwb2UyIn1d/ad7c366789/CurrencyAddModToRare.png",
+    "digest": "61678dd84a34547a8c43d357565349a4116ef231bbb1a1da36dcbaa4f6f35904",
+    "tier": "III"
+  }
+]

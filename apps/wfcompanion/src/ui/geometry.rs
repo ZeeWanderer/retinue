@@ -1,4 +1,4 @@
-pub(crate) use retinue_overlay::Rect;
+pub(crate) use retinue_ui::Rect;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HitTarget {

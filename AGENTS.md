@@ -5,6 +5,7 @@
 - Keep changes scoped; commit only when requested, with title-only messages.
 - Prefer clear code; comment only non-obvious reasoning.
 - Save large outputs to files. Inspect selected fields or bounded excerpts.
+- Keep retained evidence under ignored `research/`, not `/tmp`.
 
 ## Architecture
 - Follow [project structure](docs/developer/structure.md). Share mechanisms, not game-specific policy.
@@ -14,7 +15,8 @@
 ## Build And Test
 - Use Make targets from [workflows](docs/developer/workflows.md). Rebuild the selected
   dev/prod flavor before manual checks; do not edit staged files.
-- GUI configuration refreshes automatically. Do not default to `make clean` after toolchain updates.
+- `wfgui` is Rust; Qt under `apps/wfgui/qt` is reference-only and excluded from normal builds.
+  Do not default to `make clean` after toolchain updates.
 - Verify the running binary and reload completion. Preserve the user's running game and services.
 - Code, fixture and build changes require `./scripts/test-quiet ct` plus affected-layer tests.
   Documentation-only edits need no tests. Add regression coverage; keep fixtures read-only.

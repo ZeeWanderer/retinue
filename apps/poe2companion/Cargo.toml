@@ -9,11 +9,17 @@ description = "Read-only Linux/Proton Path of Exile 2 native observer for Retinu
 clap = { version = "4.6", features = ["derive"] }
 retinue-client = { path = "../../crates/retinue-client" }
 retinue-poe2 = { path = "../../crates/retinue-poe2" }
-retinue-overlay = { path = "../../crates/retinue-overlay" }
+retinue-ui = { path = "../../crates/retinue-ui" }
 rustix = { version = "1", features = ["fs", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 
 [dev-dependencies]
+retinue-ui = { path = "../../crates/retinue-ui", features = ["benchmark"] }
 tempfile = "3"
+rustix = { version = "1", features = ["time"] }
+
+[build-dependencies]
+sha2 = "0.10"

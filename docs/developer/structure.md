@@ -33,7 +33,7 @@ are `retinue_daemon`; the public executable is `retinue-daemon`.
 - `games/warframe/player/`: canonical Warframe player dataset and queries.
 - `games/warframe/forma/`: planner queue, search, rules, assignment, config, and model.
 - `games/warframe/build/` and `games/warframe/stats/`: saved build groups, plans, and stat calculations.
-- `games/poe2/`: normalized log-session state, bounded events, and its game supervisor.
+- `games/poe2/`: native session projections, trade/account domain data, and its game supervisor.
 
 `retinue_sup` owns the shared runtime and separate `wf_sup` and `retinue_poe2_sup`
 subtrees. Native clients use one socket with a mandatory game-scoped handshake.
@@ -79,9 +79,10 @@ daemon and requests shared data from it.
 
 `apps/retinue-inspect/` builds independently of the companion renderer. `wfinspect` is an alias.
 
-- `crates/retinue-client`: native XDG paths and generated socket contract constants.
-- `crates/retinue-overlay`: shared Blend2D painter, Taffy layout, focus/clipboard,
-  portal shortcuts and interactive Wayland surfaces. Game screens remain in their companions.
+- `crates/retinue-client`: native paths, lifecycle, bounded JSON transport and socket contracts.
+- `crates/retinue-ui`: Blend2D painting, Taffy layout, caches, damage and input.
+  Separate `overlay` and `desktop` features provide layer-shell and ordinary window hosts.
+  Screens, styling and game policy remain in clients.
 - `crates/retinue-native`: game-independent memory queries, capture/replay, work budgets and reports.
 - `crates/retinue-warframe`: game discovery, native adapters, observations, cache and script decoders.
 
@@ -118,7 +119,12 @@ daemon worker or data store until an actual source is implemented.
 
 ## `wfgui`
 
-`apps/wfgui/` is the native C++ Qt Widgets desktop client:
+`apps/wfgui/src/` contains the Rust desktop client, using `retinue-ui` windowing
+and `retinue-client` transport; no overlay host or game-memory dependency.
+All seven page routes have native implementations; parity work is ongoing.
+`resources/` holds GUI assets shared with the
+retained Qt implementation under `qt/`. See [native UI](native-ui.md).
+Qt reference modules:
 
 - `daemon_client`: local JSON-lines transport, daemon startup, reconnect, and request correlation.
 - `relic_model`: typed relic list, filtering, and asset-path updates.
@@ -129,8 +135,8 @@ daemon worker or data store until an actual source is implemented.
 - `relic_card_layout`: responsive card constraints shared by rendering and tests.
 - `main_window` and view widgets: navigation and desktop rendering.
 
-CMake presets use a project vcpkg manifest and LLVM/libc++ overlay triplet. Build it separately
-with `make gui`; `make dev` and `make prod` include the matching GUI build.
+`make gui`, `make dev` and `make prod` build Rust. Qt's CMake/vcpkg build is opt-in
+through `make gui-qt-dev` or `make gui-qt-prod`; it outputs `wfgui-qt`.
 
 ## Runtime Layout
 

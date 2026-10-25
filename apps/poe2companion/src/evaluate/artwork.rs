@@ -1,13 +1,31 @@
-use retinue_overlay::{
+use retinue_ui::{
     Rect,
     image::{self, RgbaImage, imageops},
     painter::{Painter, RasterImage},
+    resources::{Resource, ResourceCache},
 };
 use std::collections::BTreeMap;
+
+include!(concat!(env!("OUT_DIR"), "/chrome-digests.rs"));
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+enum Recipe {
+    HeaderV1,
+    LanczosV1,
+}
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+struct ImageKey {
+    source: [u8; 32],
+    width: u32,
+    height: u32,
+    recipe: Recipe,
+}
 
 struct Frame {
     caps: [RgbaImage; 3],
     divider: Option<RasterImage>,
+    digest: [u8; 32],
 }
 
 #[cfg(test)]
@@ -21,6 +39,7 @@ mod tests {
             for (name, width, height, ink_width, ink_height) in [
                 ("estimate-help", 12.0, 12.0, 12.0, 12.0),
                 ("estimate-approximation", 9.0, 16.0, 8.11, 6.29),
+                ("search-error", 16.0, 16.0, 16.0, 16.0),
             ] {
                 let rect = Rect {
                     x: 0,
@@ -71,6 +90,7 @@ mod tests {
             for selected in [false, true] {
                 let mut painter = Painter::new(&mut pixels, extent, extent).unwrap();
                 painter.clear();
+                artwork.prepare_controls((24, 20), (size, size)).unwrap();
                 artwork.profile_radio(&mut painter, rect, selected);
                 painter.finish().unwrap();
                 let center = ((rect.y + size / 2) * extent + rect.x + size / 2) as usize * 4;
@@ -80,8 +100,7 @@ mod tests {
                     assert_eq!(pixels[center + 3], 0);
                 }
                 assert!(pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
-                let (cached, images) = artwork.profile_scaled.as_ref().unwrap();
-                assert_eq!(*cached, (size, size));
+                let images = artwork.profile_scaled.as_ref().unwrap();
                 assert!(
                     images
                         .iter()
@@ -93,11 +112,11 @@ mod tests {
                         .all(|value| *value == 0)
                 );
             }
-            artwork.profile_scaled.as_mut().unwrap().1[0] =
-                RasterImage::from_rgba(RgbaImage::new(1, 1));
+            let misses = artwork.cache_stats().misses;
+            artwork.prepare_controls((24, 20), (size, size)).unwrap();
             let mut painter = Painter::new(&mut pixels, extent, extent).unwrap();
             artwork.profile_radio(&mut painter, rect, true);
-            assert_eq!(artwork.profile_scaled.as_ref().unwrap().1[0].byte_len(), 4);
+            assert_eq!(artwork.cache_stats().misses, misses);
             painter.finish().unwrap();
         }
     }
@@ -114,19 +133,17 @@ mod tests {
             });
             let mut pixels = vec![0; 120 * 40 * 4];
             let mut painter = Painter::new(&mut pixels, 120, 40).unwrap();
+            artwork.prepare_controls(size, (16, 16)).unwrap();
             artwork.search_ornaments(&mut painter, rects, false);
-            let (cached, images) = artwork.search_scaled.as_ref().unwrap();
-            assert_eq!(*cached, size);
+            let images = artwork.search_scaled.as_ref().unwrap();
             assert!(
                 images
                     .iter()
                     .all(|image| image.byte_len() == (size.0 * size.1 * 4) as usize)
             );
-            // Changing hover must reuse the same size derivatives.
-            artwork.search_scaled.as_mut().unwrap().1[0] =
-                RasterImage::from_rgba(RgbaImage::new(1, 1));
+            let misses = artwork.cache_stats().misses;
             artwork.search_ornaments(&mut painter, rects, true);
-            assert_eq!(artwork.search_scaled.as_ref().unwrap().1[0].byte_len(), 4);
+            assert_eq!(artwork.cache_stats().misses, misses);
             painter.finish().unwrap();
             assert!(pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
         }
@@ -154,17 +171,20 @@ mod tests {
                 };
                 let mut pixels = vec![0; rect.width as usize * rect.height as usize * 4];
                 let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                artwork.begin_frame();
+                artwork.prepare_header(rect, rarity, double).unwrap();
                 artwork.header(&mut painter, rect, rarity, double);
-                let bytes = artwork.header.as_ref().unwrap().1.byte_len();
+                let bytes = artwork.headers[0].1.byte_len();
                 assert_eq!(bytes, rect.width as usize * rect.height as usize * 4);
                 painter.finish().unwrap();
                 assert!(pixels.chunks_exact(4).any(|p| p[3] > 0));
-                // A sentinel detects recomposition without exposing pixel storage.
-                artwork.header.as_mut().unwrap().1 = RasterImage::from_rgba(RgbaImage::new(1, 1));
+                let misses = artwork.cache_stats().misses;
+                artwork.begin_frame();
+                artwork.prepare_header(rect, rarity, double).unwrap();
                 let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
                 artwork.header(&mut painter, rect, rarity, double);
                 painter.finish().unwrap();
-                assert_eq!(artwork.header.as_ref().unwrap().1.byte_len(), 4);
+                assert_eq!(artwork.cache_stats().misses, misses);
             }
         }
     }
@@ -181,17 +201,18 @@ mod tests {
             height: 54,
         };
         for double in [true, false] {
-            artwork.header(
-                &mut painter,
-                Rect {
-                    height: if double { 54 } else { 34 },
-                    ..rect
-                },
-                "Rare",
-                double,
-            );
-            artwork.header.as_mut().unwrap().1 = RasterImage::from_rgba(RgbaImage::new(1, 1));
+            artwork
+                .prepare_header(
+                    Rect {
+                        height: if double { 54 } else { 34 },
+                        ..rect
+                    },
+                    "Rare",
+                    double,
+                )
+                .unwrap();
         }
+        let misses = artwork.cache_stats().misses;
         for double in [true, false, true, false] {
             artwork.header(
                 &mut painter,
@@ -202,21 +223,59 @@ mod tests {
                 "Rare",
                 double,
             );
-            assert_eq!(artwork.header.as_ref().unwrap().1.byte_len(), 4);
+            assert_eq!(artwork.cache_stats().misses, misses);
         }
         painter.finish().unwrap();
+    }
+
+    #[test]
+    fn physical_size_source_revision_and_recipe_are_distinct_keys() {
+        let mut artwork = Artwork::new().unwrap();
+        let rect = Rect {
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 54,
+        };
+        artwork.prepare_header(rect, "Rare", true).unwrap();
+        let original = artwork.headers[0].0;
+        artwork.frames.get_mut("rare-double").unwrap().digest[0] ^= 1;
+        artwork.prepare_header(rect, "Rare", true).unwrap();
+        assert_ne!(original.source, artwork.headers[1].0.source);
+        artwork
+            .prepare_header(
+                Rect {
+                    width: 500,
+                    height: 68,
+                    ..rect
+                },
+                "Rare",
+                true,
+            )
+            .unwrap();
+        assert_eq!(artwork.cache_stats().entries, 3);
+        assert!(artwork.cache.get(&original).is_some());
+        assert!(
+            artwork
+                .cache
+                .get(&ImageKey {
+                    recipe: Recipe::LanczosV1,
+                    ..original
+                })
+                .is_none()
+        );
     }
 }
 
 pub struct Artwork {
     frames: BTreeMap<&'static str, Frame>,
     icons: BTreeMap<&'static str, [RasterImage; 2]>,
-    header: Option<((String, u32, u32), RasterImage)>,
-    previous_header: Option<((String, u32, u32), RasterImage)>,
+    cache: ResourceCache<ImageKey, RasterImage>,
+    headers: Vec<(ImageKey, Resource<RasterImage>)>,
     search_caps: [RgbaImage; 4],
-    search_scaled: Option<((u32, u32), [RasterImage; 4])>,
+    search_scaled: Option<[Resource<RasterImage>; 4]>,
     profile_icons: [RgbaImage; 2],
-    profile_scaled: Option<((u32, u32), [RasterImage; 2])>,
+    profile_scaled: Option<[Resource<RasterImage>; 2]>,
 }
 
 impl Artwork {
@@ -232,6 +291,7 @@ impl Artwork {
                 frames.insert(
                     $name,
                     Frame {
+                        digest: source_digest($name),
                         caps: [
                             decode(include_bytes!(concat!(
                                 "../../assets/frames/",
@@ -252,7 +312,9 @@ impl Artwork {
                         divider: $divider
                             .map(decode)
                             .transpose()?
-                            .map(RasterImage::from_rgba),
+                            .map(RasterImage::from_rgba)
+                            .transpose()
+                            .map_err(|e| e.to_string())?,
                     },
                 );
             }};
@@ -307,6 +369,10 @@ impl Artwork {
                 "estimate-approximation",
                 include_bytes!("../../assets/frames/estimate-approximation.png").as_slice(),
             ),
+            (
+                "search-error",
+                include_bytes!("../../assets/frames/search-error.png").as_slice(),
+            ),
         ] {
             let source = image::load_from_memory(bytes)
                 .map_err(|e| e.to_string())?
@@ -314,17 +380,22 @@ impl Artwork {
             let idle = match name {
                 "listing-eye" | "refresh" => [159, 157, 138],
                 "estimate-approximation" => [203, 201, 191],
+                "search-error" => [232, 13, 13],
                 _ => [115, 113, 94],
             };
+            let [idle_image, active_image] = [idle, [230, 230, 223]].map(|rgb| {
+                let mut image = source.clone();
+                for pixel in image.pixels_mut() {
+                    pixel.0[..3].copy_from_slice(&rgb);
+                }
+                RasterImage::from_rgba(image)
+            });
             icons.insert(
                 name,
-                [idle, [230, 230, 223]].map(|rgb| {
-                    let mut image = source.clone();
-                    for pixel in image.pixels_mut() {
-                        pixel.0[..3].copy_from_slice(&rgb);
-                    }
-                    RasterImage::from_rgba(image)
-                }),
+                [
+                    idle_image.map_err(|e| e.to_string())?,
+                    active_image.map_err(|e| e.to_string())?,
+                ],
             );
         }
         let decode = |bytes: &[u8]| {
@@ -335,8 +406,8 @@ impl Artwork {
         Ok(Self {
             frames,
             icons,
-            header: None,
-            previous_header: None,
+            cache: ResourceCache::new(8 * 1024 * 1024),
+            headers: Vec::with_capacity(2),
             search_caps: [
                 decode(include_bytes!("../../assets/frames/search-left-idle.png"))?,
                 decode(include_bytes!("../../assets/frames/search-right-idle.png"))?,
@@ -358,64 +429,88 @@ impl Artwork {
         })
     }
 
-    pub fn header(&mut self, painter: &mut Painter<'_>, rect: Rect, rarity: &str, double: bool) {
+    #[cfg(test)]
+    pub fn cache_stats(&self) -> retinue_ui::resources::CacheStats {
+        self.cache.stats()
+    }
+
+    pub fn begin_frame(&mut self) {
+        self.headers.clear();
+    }
+
+    fn frame_name(rarity: &str, double: bool) -> String {
         let mut name = rarity.to_ascii_lowercase();
         if double && matches!(name.as_str(), "rare" | "unique") {
             name.push_str("-double");
         }
-        let key = (name, rect.width, rect.height);
-        if self
-            .previous_header
-            .as_ref()
-            .is_some_and(|(cached, _)| cached == &key)
-        {
-            std::mem::swap(&mut self.header, &mut self.previous_header);
-        }
-        if self
-            .header
-            .as_ref()
-            .is_none_or(|(cached, _)| cached != &key)
-        {
-            let frame = self
-                .frames
-                .get(key.0.as_str())
-                .unwrap_or(&self.frames["normal"]);
-            let resize = |image: &RgbaImage| {
-                imageops::resize(
-                    image,
-                    (image.width() as f64 * rect.height as f64 / image.height() as f64)
-                        .round()
-                        .max(1.0) as u32,
-                    rect.height,
-                    imageops::FilterType::Lanczos3,
-                )
-            };
-            let [left, center, right] = frame.caps.each_ref().map(resize);
-            let mut image = RgbaImage::new(rect.width, rect.height);
-            // CSS uses fixed-aspect caps over a repeating, centered middle strip.
-            let center_x = (rect.width as i64 - center.width() as i64) / 2;
-            let mut x = center_x.rem_euclid(center.width() as i64) - center.width() as i64;
-            while x < rect.width as i64 {
-                imageops::overlay(&mut image, &center, x, 0);
-                x += center.width() as i64;
-            }
-            imageops::overlay(
-                &mut image,
-                &right,
-                rect.width as i64 - right.width() as i64,
-                0,
-            );
-            imageops::overlay(&mut image, &left, 0, 0);
-            self.previous_header = self.header.take();
-            self.header = Some((key, RasterImage::from_rgba(image)));
-        }
-        painter.draw_image(
-            &self.header.as_ref().unwrap().1,
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height,
-        );
+        name
+    }
+
+    pub fn prepare_header(&mut self, rect: Rect, rarity: &str, double: bool) -> Result<(), String> {
+        let frame = self
+            .frames
+            .get(Self::frame_name(rarity, double).as_str())
+            .unwrap_or(&self.frames["normal"]);
+        let key = ImageKey {
+            source: frame.digest,
+            width: rect.width,
+            height: rect.height,
+            recipe: Recipe::HeaderV1,
+        };
+        let image = self
+            .cache
+            .try_get_or_insert_with(key, || {
+                let resize = |image: &RgbaImage| {
+                    imageops::resize(
+                        image,
+                        (image.width() as f64 * rect.height as f64 / image.height() as f64)
+                            .round()
+                            .max(1.0) as u32,
+                        rect.height,
+                        imageops::FilterType::Lanczos3,
+                    )
+                };
+                let [left, center, right] = frame.caps.each_ref().map(resize);
+                let mut image = RgbaImage::new(rect.width, rect.height);
+                // CSS uses fixed-aspect caps over a repeating, centered middle strip.
+                let center_x = (rect.width as i64 - center.width() as i64) / 2;
+                let mut x = center_x.rem_euclid(center.width() as i64) - center.width() as i64;
+                while x < rect.width as i64 {
+                    imageops::overlay(&mut image, &center, x, 0);
+                    x += center.width() as i64;
+                }
+                imageops::overlay(
+                    &mut image,
+                    &right,
+                    rect.width as i64 - right.width() as i64,
+                    0,
+                );
+                imageops::overlay(&mut image, &left, 0, 0);
+                RasterImage::from_rgba(image)
+            })
+            .map_err(|e| e.to_string())?;
+        self.headers.push((key, image));
+        Ok(())
+    }
+
+    pub fn header(&self, painter: &mut Painter<'_>, rect: Rect, rarity: &str, double: bool) {
+        let frame = self
+            .frames
+            .get(Self::frame_name(rarity, double).as_str())
+            .unwrap_or(&self.frames["normal"]);
+        let key = ImageKey {
+            source: frame.digest,
+            width: rect.width,
+            height: rect.height,
+            recipe: Recipe::HeaderV1,
+        };
+        let image = &self
+            .headers
+            .iter()
+            .find(|(candidate, _)| *candidate == key)
+            .expect("header prepared before paint")
+            .1;
+        painter.draw_image(image, rect.x, rect.y, rect.width, rect.height);
     }
 
     pub fn divider(&self, painter: &mut Painter<'_>, rect: Rect, rarity: &str, scale: f32) {
@@ -448,31 +543,11 @@ impl Artwork {
         }
     }
 
-    pub fn search_ornaments(
-        &mut self,
-        painter: &mut Painter<'_>,
-        rects: [Rect; 2],
-        highlighted: bool,
-    ) {
-        let size = (rects[0].width, rects[0].height);
-        if self
+    pub fn search_ornaments(&self, painter: &mut Painter<'_>, rects: [Rect; 2], highlighted: bool) {
+        let images = self
             .search_scaled
             .as_ref()
-            .is_none_or(|(cached, _)| *cached != size)
-        {
-            self.search_scaled = Some((
-                size,
-                self.search_caps.each_ref().map(|source| {
-                    RasterImage::from_rgba(imageops::resize(
-                        source,
-                        size.0,
-                        size.1,
-                        imageops::FilterType::Lanczos3,
-                    ))
-                }),
-            ));
-        }
-        let images = &self.search_scaled.as_ref().unwrap().1;
+            .expect("controls prepared before paint");
         for (side, rect) in rects.into_iter().enumerate() {
             painter.draw_image(
                 &images[usize::from(highlighted) * 2 + side],
@@ -484,31 +559,67 @@ impl Artwork {
         }
     }
 
-    pub fn profile_radio(&mut self, painter: &mut Painter<'_>, rect: Rect, selected: bool) {
-        let size = (rect.width, rect.height);
-        if self
-            .profile_scaled
-            .as_ref()
-            .is_none_or(|(cached, _)| *cached != size)
-        {
-            self.profile_scaled = Some((
-                size,
-                self.profile_icons.each_ref().map(|source| {
-                    RasterImage::from_rgba(imageops::resize(
-                        source,
-                        size.0,
-                        size.1,
-                        imageops::FilterType::Lanczos3,
-                    ))
-                }),
-            ));
-        }
+    pub fn profile_radio(&self, painter: &mut Painter<'_>, rect: Rect, selected: bool) {
         painter.draw_image(
-            &self.profile_scaled.as_ref().unwrap().1[usize::from(selected)],
+            &self
+                .profile_scaled
+                .as_ref()
+                .expect("controls prepared before paint")[usize::from(selected)],
             rect.x,
             rect.y,
             rect.width,
             rect.height,
         );
+    }
+
+    pub fn prepare_controls(
+        &mut self,
+        search: (u32, u32),
+        radio: (u32, u32),
+    ) -> Result<(), String> {
+        let mut scaled = |source: &RgbaImage, name: &str, size: (u32, u32)| {
+            self.cache
+                .try_get_or_insert_with(
+                    ImageKey {
+                        source: source_digest(name),
+                        width: size.0,
+                        height: size.1,
+                        recipe: Recipe::LanczosV1,
+                    },
+                    || {
+                        RasterImage::from_rgba(imageops::resize(
+                            source,
+                            size.0,
+                            size.1,
+                            imageops::FilterType::Lanczos3,
+                        ))
+                    },
+                )
+                .map_err(|e| e.to_string())
+        };
+        let search_images: [_; 4] = std::array::from_fn(|index| {
+            scaled(
+                &self.search_caps[index],
+                [
+                    "search-left-idle",
+                    "search-right-idle",
+                    "search-left-highlight",
+                    "search-right-highlight",
+                ][index],
+                search,
+            )
+        });
+        let [a, b, c, d] = search_images;
+        self.search_scaled = Some([a?, b?, c?, d?]);
+        let profile_images: [_; 2] = std::array::from_fn(|index| {
+            scaled(
+                &self.profile_icons[index],
+                ["profile-radio", "profile-radio-selected"][index],
+                radio,
+            )
+        });
+        let [a, b] = profile_images;
+        self.profile_scaled = Some([a?, b?]);
+        Ok(())
     }
 }

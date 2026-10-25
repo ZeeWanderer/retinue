@@ -1,0 +1,25 @@
+# v0.21.2-0.21.3 retain queued mask images without marking them for batch cleanup.
+# Compile a corrected copy; keep the upstream checkout untouched.
+set(mask_source "${BLEND2D_DIR}/blend2d/raster/rastercontext.cpp")
+file(READ "${mask_source}" mask_code)
+set(mask_retain [[    ObjectInternal::retain_impl<RCMode::kMaybe>(command->_payload.box_mask_a.mask_image_i.ptr);]])
+set(mask_cleanup [[    command->add_flags(RenderCommandFlags::kRetainsMaskImageData);
+    ctx_impl->worker_mgr().command_appender().mark_fetch_data();
+]])
+string(FIND "${mask_code}" "${mask_retain}" mask_position)
+string(FIND "${mask_code}" "${mask_cleanup}" cleanup_position)
+if(mask_position EQUAL -1 OR NOT cleanup_position EQUAL -1)
+  message(FATAL_ERROR "Blend2D mask implementation changed; review/remove mask-retention fix")
+endif()
+string(REPLACE "${mask_retain}" "${mask_cleanup}${mask_retain}" mask_code "${mask_code}")
+set(patched_mask_source "${CMAKE_CURRENT_BINARY_DIR}/blend2d-patched/rastercontext.cpp")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/blend2d-patched")
+file(CONFIGURE OUTPUT "${patched_mask_source}" CONTENT "${mask_code}" @ONLY)
+get_target_property(blend_sources blend2d SOURCES)
+list(FIND blend_sources "${mask_source}" mask_source_index)
+if(mask_source_index EQUAL -1)
+  message(FATAL_ERROR "Blend2D target changed; cannot replace mask implementation")
+endif()
+list(REMOVE_ITEM blend_sources "${mask_source}")
+list(APPEND blend_sources "${patched_mask_source}")
+set_property(TARGET blend2d PROPERTY SOURCES "${blend_sources}")

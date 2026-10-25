@@ -5,11 +5,11 @@ mod status;
 use std::time::Duration;
 
 use super::assets::SceneAssets;
-use fontdue::Font;
+use retinue_ui::painter::CachedFont;
 
 use super::scene::Scene;
 use crate::ui::ScreenOutput;
-use retinue_overlay::painter::Painter;
+use retinue_ui::painter::Painter;
 
 pub(super) use status::{
     HEIGHT as STATUS_HEIGHT, INSET as STATUS_INSET, View as StatusView, WIDTH as STATUS_WIDTH,
@@ -39,7 +39,7 @@ pub(super) fn mock_relic_scene() -> crate::relic::Scene {
 
 pub(super) fn draw_static(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     assets: &Assets,
     scene: &Scene,
     scale: u32,
@@ -76,6 +76,6 @@ pub(super) fn draw_animation(
     }
 }
 
-pub(super) fn draw_status(painter: &mut Painter<'_>, font: &Font, view: StatusView<'_>) {
+pub(super) fn draw_status(painter: &mut Painter<'_>, font: &CachedFont, view: StatusView<'_>) {
     status::draw(painter, font, view);
 }

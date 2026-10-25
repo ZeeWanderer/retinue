@@ -101,7 +101,7 @@ case "$game" in
     warframe) ;;
     poe2)
         poe_scenes=(evaluate evaluate-predicting evaluate-estimate evaluate-estimate-error evaluate-searching evaluate-fetching evaluate-results evaluate-listing-preview evaluate-empty evaluate-search-error evaluate-fetch-error evaluate-cooldown evaluate-gem-auto)
-        poe_companion_scenes=(evaluate evaluate-predicting evaluate-estimate evaluate-estimate-error evaluate-searching evaluate-results evaluate-listing-preview evaluate-empty evaluate-search-error)
+        poe_companion_scenes=(evaluate evaluate-predicting evaluate-estimate evaluate-estimate-error evaluate-searching evaluate-fetching evaluate-results evaluate-listing-preview evaluate-empty evaluate-search-error evaluate-fetch-error evaluate-cooldown)
         for requested in $scenes; do
             if [[ "$requested" != all ]] && ! contains_word "$requested" "${poe_scenes[@]}"; then
                 printf 'unknown PoE2 preview scene: %s\n' "$requested" >&2
@@ -115,6 +115,12 @@ case "$game" in
         if ! contains_word image $media; then
             printf 'PoE2 Evaluate previews currently support images only.\n' >&2
             exit 2
+        fi
+        currency_args=()
+        if currency_assets=$(node "$root/tools/ui-reference/providers/poe-overlay-ii/currencies.mjs") && [[ -n "$currency_assets" ]]; then
+            currency_args=(--currency-assets "$currency_assets")
+        else
+            failures+=("poe2/currency assets")
         fi
         for resolution in $resolutions; do
             for scene in "${poe_scenes[@]}"; do
@@ -132,6 +138,7 @@ case "$game" in
                         "$root/dev/bin/poe2companion" preview --scale "${PREVIEW_SCALE:-1}" \
                         --width "${resolution%x*}" --height "${resolution#*x}" --full-frame --state "$state" \
                         --input "$root/apps/poe2companion/tests/fixtures/evaluate-reference.json" \
+                        "${currency_args[@]}" \
                         --output "$output/$resolution/companion/$scene.png"
                 fi
                 if contains_word reference $sets; then

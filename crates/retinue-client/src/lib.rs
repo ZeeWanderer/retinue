@@ -7,6 +7,7 @@ pub mod paths;
 pub mod process;
 pub mod reload;
 pub mod signals;
+pub mod transport;
 
 pub fn executable_path() -> Option<&'static std::path::Path> {
     static PATH: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();

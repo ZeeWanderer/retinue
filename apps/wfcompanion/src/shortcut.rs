@@ -1,6 +1,6 @@
 use crate::{UiEvent, desktop, incident};
-use retinue_overlay::shortcut::Binding;
-pub(crate) use retinue_overlay::shortcut::{Controller, Service};
+use retinue_ui::shortcut::Binding;
+pub(crate) use retinue_ui::shortcut::{Controller, Service};
 
 pub(crate) fn spawn(events: crate::runtime::presentation::Sender) -> Result<Service, String> {
     desktop::ensure_identity()?;

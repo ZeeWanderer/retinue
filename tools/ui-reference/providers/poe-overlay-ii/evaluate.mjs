@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright-core";
 import { repositoryRoot as root } from "../../shared/paths.mjs";
 import { states, exerciseState } from "./states.mjs";
+import { prepareCurrencies } from "./currencies.mjs";
 
 const { values } = parseArgs({ options: {
   source: { type: "string", default: path.join(root, "research/retinue/providers/extracted/app-poe-overlay-ii-1.68.0/dist") },
@@ -31,6 +32,7 @@ if (!states.includes(values.state)) throw new Error(`Unknown state: ${values.sta
 const output = values.output ?? path.join(root, `previews/poe2/${screen.width}x${screen.height}/reference/evaluate`);
 const sample = JSON.parse(await readFile(path.join(root, "apps/poe2companion/tests/fixtures/evaluate-reference.json"), "utf8"));
 await mkdir(path.dirname(output), { recursive: true });
+const currencies = await prepareCurrencies();
 const browser = await chromium.launch({ headless: true, args: ["--allow-file-access-from-files"] });
 const errors = [];
 try {
@@ -40,7 +42,10 @@ try {
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   page.on("requestfailed", request => errors.push(`${request.url()}: ${request.failure()?.errorText}`));
   await page.route(/^https?:\/\//, route => route.abort());
-  await page.addInitScript(({fixture, sample, screen, scenario}) => {
+  for (const [url, body] of currencies.assets) {
+    await page.route(url, route => route.fulfill({body, contentType: "image/png"}));
+  }
+  await page.addInitScript(({fixture, sample, screen, scenario, currencyGroups}) => {
     const noop = () => {};
     const event = { addListener: noop, removeListener: noop };
     window.overwolf = { games: { inputTracking: { onMouseDown: event, onKeyDown: event } } };
@@ -72,6 +77,7 @@ try {
               state.webTradeConfig.league = sample.evaluation.league;
               state.webTradeConfig.language = "en";
               state.webTradeData.leagues = sample.evaluation.leagues;
+              state.webTradeData.staticGroups = currencyGroups;
               state.evaluateConfig.profiles = [
                 { id: "bases", name: "Crafting Base", categories: ["base"], modsConfig: { minRange: 0, selectedTypes: ["implicit", "fractured", "skill"], copySelectedFromPrevious: false }, preset: true },
                 { id: "nomods", name: "Quick Price", categories: ["nonunique", "base"], modsConfig: { minRange: 0, selectedTypes: [], copySelectedFromPrevious: false }, preset: true },
@@ -143,7 +149,7 @@ try {
       }; },
       set: value => { push = value; },
     });
-  }, {fixture, sample, screen, scenario: values.state});
+  }, {fixture, sample, screen, scenario: values.state, currencyGroups: currencies.groups});
   await page.goto(pathToFileURL(path.join(values.source, "renderer/ingame-evaluate.html")).href);
   await page.waitForFunction(() => window.renderPhase === "mounted" && window.reference?.calls.some(call => call.key === "setSize"));
   const requested = await page.evaluate(() => window.reference.calls.filter(call => call.key === "setSize").at(-1).args[0]);
@@ -154,6 +160,7 @@ try {
   await page.waitForTimeout(350);
   await page.evaluate(() => document.fonts.ready);
   const transitions = await exerciseState(page, values.state, sample);
+  await page.evaluate(() => Promise.all([...document.images].map(img => img.decode().catch(() => {}))));
   if (values.exercise) {
     try {
       const { default: exercise } = await import(pathToFileURL(path.resolve(values.exercise)).href);

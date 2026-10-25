@@ -1,5 +1,8 @@
 # Qt GUI
 
+Reference implementation in `apps/wfgui/qt/`. New desktop work belongs in the
+[Rust client](native-ui.md); do not maintain both implementations in parallel.
+
 Use Qt model/view for dense or unbounded collections:
 
 - Keep records in `QAbstractItemModel` implementations and render them with a

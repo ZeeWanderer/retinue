@@ -1,65 +1,56 @@
-use std::{env, fs, path::PathBuf, process::Command};
+use sha2::{Digest, Sha256};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
-fn protocol_define(source: &str, name: &str) -> u32 {
-    source
-        .lines()
-        .find_map(|line| {
-            line.trim()
-                .strip_prefix(&format!("-define({name},"))?
-                .strip_suffix(").")?
-                .trim()
-                .parse()
-                .ok()
-        })
-        .unwrap_or_else(|| panic!("missing or invalid daemon protocol define {name}"))
+#[path = "build/support.rs"]
+mod support;
+
+fn chrome_digests(manifest: &Path, output: &Path) {
+    let mut generated = String::from("fn source_digest(name: &str) -> [u8; 32] { match name {\n");
+    for name in [
+        "normal",
+        "magic",
+        "rare",
+        "unique",
+        "gem",
+        "currency",
+        "quest",
+        "rare-double",
+        "unique-double",
+        "search-left-idle",
+        "search-right-idle",
+        "search-left-highlight",
+        "search-right-highlight",
+        "profile-radio",
+        "profile-radio-selected",
+    ] {
+        let files = if name.starts_with("search-") || name.starts_with("profile-") {
+            vec![format!("{name}.png")]
+        } else {
+            ["left", "center", "right"]
+                .map(|cap| format!("{name}-{cap}.png"))
+                .to_vec()
+        };
+        let mut hash = Sha256::new();
+        for file in files {
+            let path = manifest.join("assets/frames").join(file);
+            println!("cargo:rerun-if-changed={}", path.display());
+            let bytes = fs::read(path).expect("read embedded chrome");
+            hash.update((bytes.len() as u64).to_le_bytes());
+            hash.update(bytes);
+        }
+        let digest: [u8; 32] = hash.finalize().into();
+        generated.push_str(&format!("{name:?} => {digest:?},\n"));
+    }
+    generated.push_str("_ => panic!(\"unknown chrome source\"),\n}}\n");
+    fs::write(output.join("chrome-digests.rs"), generated).expect("write chrome digests");
 }
 
 fn main() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let version_file = manifest.join("../../VERSION");
-    println!("cargo:rerun-if-changed={}", version_file.display());
-    let version = fs::read_to_string(version_file).expect("read root VERSION");
-    assert_eq!(
-        version.trim(),
-        env::var("CARGO_PKG_VERSION").unwrap(),
-        "apps/poe2companion/Cargo.toml version must match root VERSION"
-    );
-
-    let protocol_file = manifest.join("../retinue_daemon/src/runtime/retinue_local_protocol.erl");
-    println!("cargo:rerun-if-changed={}", protocol_file.display());
-    let protocol = fs::read_to_string(protocol_file).expect("read daemon protocol");
-    assert_eq!(
-        protocol_define(&protocol, "ENVELOPE_VERSION"),
-        2,
-        "poe2companion supports envelope 2; review the client before changing its contract"
-    );
-    assert_eq!(
-        protocol_define(&protocol, "INTERFACE_SESSION"),
-        2,
-        "poe2companion supports session 2; review the client before changing its contract"
-    );
-    assert_eq!(
-        protocol_define(&protocol, "INTERFACE_TRADE"),
-        2,
-        "poe2companion supports trade 2; review the client before changing its contract"
-    );
-
-    let setup = manifest.join("../../scripts/setup-fontin.py");
-    println!("cargo:rerun-if-changed={}", setup.display());
-    let output = Command::new("python3")
-        .arg(setup)
-        .output()
-        .expect("run Fontin setup with Python 3");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let font = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
-    println!("cargo:rerun-if-changed={}", font.display());
-    fs::copy(
-        font,
-        PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("Fontin-SmallCaps.ttf"),
-    )
-    .expect("stage Fontin for embedding");
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    support::prepare(&manifest, &env::var("CARGO_PKG_VERSION").unwrap(), &out_dir);
+    chrome_digests(&manifest, &out_dir);
 }

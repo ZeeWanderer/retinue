@@ -16,6 +16,10 @@ mod runtime;
 mod shortcut;
 mod ui;
 
+#[cfg(test)]
+#[path = "../../../tools/render-bench/support.rs"]
+mod render_bench;
+
 use runtime::presentation::Event as UiEvent;
 use std::path::PathBuf;
 use std::process::ExitCode;

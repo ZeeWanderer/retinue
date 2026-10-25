@@ -1,0 +1,26 @@
+[package]
+name = "wfgui"
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+
+[[bin]]
+name = "wfgui"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+futures-util = "0.3"
+pulldown-cmark = { version = "0.13", default-features = false }
+retinue-client = { path = "../../crates/retinue-client" }
+retinue-ui = { path = "../../crates/retinue-ui", default-features = false, features = ["desktop"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+time = { version = "0.3", features = ["parsing"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"] }
+
+[dev-dependencies]
+bytemuck = "1"
+x11rb = { version = "0.13", features = ["xtest"] }

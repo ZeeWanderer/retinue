@@ -18,6 +18,7 @@ Search ornaments retain their SVG sources and 4x PNGs, with `currentColor` set t
 Profile radios likewise retain SVG sources and 4x PNGs: `#9F9D8A` (unchecked)
 and `#FFE3C7` (checked), rendered in a 16px frame inside a 24px control at 100%.
 The listing eye and refresh retain their SVG sources and 4x PNGs for 16px display frames.
+The search-error glyph also retains its source SVG and a 4x PNG for a 16px frame.
 Refresh uses the reference's Material UI Refresh glyph (MIT license).
 The estimate help glyph uses the reference SVG in a 12px frame. The approximation
 symbol uses the Liberation Sans Bold outline at 16px, matching the reference

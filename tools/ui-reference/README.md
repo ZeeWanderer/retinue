@@ -31,10 +31,32 @@ Setup queries Overwolf's installer metadata and reuses or downloads the latest
 compatible OPK under `research/alecaframe/<version>/`. For offline setup, append an
 OPK or extracted extension directory to the setup command.
 
-Scenes: `relic-rewards`, `relic-suggestions`, `relic-planner`, `market-orders`.
-Rewards and suggestions render vendor components; planner and market use
+Scenes: `desktop`, `foundry`, `relic-rewards`, `relic-suggestions`, `relic-planner`, `market-orders`.
+Foundry renders the vendor Vue template with synthetic inventory, including card
+and component close-ups. Rewards and suggestions render vendor components; planner and market use
 reconstructed fixture markup with vendor styles. Do not treat those as live-app
 screenshots.
+
+### Desktop Pages
+
+```bash
+make previews-gui
+make previews-gui GUI_PREVIEW_PAGES='foundry relics' GUI_PREVIEW_SCALES=125 GUI_PREVIEW_LIVE=1
+```
+
+This renders all native pages at 100%, 125% and 200%. Foundry, Mastery, Inventory
+and Relics also render the packaged Aleca Vue template/CSS and a side-by-side pair.
+Reference fixtures test composition, not live account contents. Native fixtures
+are deterministic; `GUI_PREVIEW_LIVE=1` uses read-only daemon data instead.
+Outputs are under `previews/warframe/gui/<resolution>/<scale>/`, separated into
+`native`, `reference`, `side-by-side` and `layout`. Unsupported pairs are not emitted.
+`GUI_PREVIEW_RESOLUTIONS` defaults to `2560x1440`.
+
+`layout/<page>.json` pairs measured native regions and Aleca DOM geometry/styles
+with source-derived Qt dimensions and file references. Measurements use logical
+pixels; native colors use CSS `#RRGGBBAA`. These explain differences, not an
+automatic pixel-parity verdict. Fixtures check composition; use live captures
+to inspect resolved artwork. The crosswalk is in `gui-layout.mjs`.
 
 `ALECA_LAYOUT_SIZE`, `ALECA_LAYOUT_DPI`, `ALECA_LAYOUT_OUTPUT_DIR` control direct
 rendering. Animated suggestions use `ALECA_LAYOUT_MEDIA=video`; FFmpeg needs
@@ -54,7 +76,7 @@ UI parity. Trade services remain separate from the window in both implementation
 ```bash
 node tools/ui-reference/render.mjs poe-overlay-ii evaluate
 node tools/ui-reference/render.mjs poe-overlay-ii evaluate --state results \
-  --width 2560 --height 1440 --scale 1.25 --output /tmp/evaluate-results
+  --width 2560 --height 1440 --scale 1.25 --output research/retinue/providers/evidence/evaluate-results
 make previews-poe2 PREVIEW_MEDIA=image PREVIEW_SCALE=1.25
 ```
 
@@ -71,9 +93,9 @@ fixture feeds the native and reference previews; prices are synthetic.
 `--state`: `ready`, `predicting`, `estimate`, `estimate-error`, `searching`, `fetching`, `results`,
 `listing-preview`, `empty`, `search-error`, `fetch-error`, `cooldown`, `gem-auto`. States use the
 original controls and reducers with deterministic backend replies. Each JSON
-report records the triggering actions and intermediate layout bounds. Separate
-fetch phases, cooldown and automatic gem searches are reference-only;
-the native panel does not implement those states separately yet.
+report records the triggering actions and intermediate layout bounds. Fetching,
+fetch-error and cooldown have matching native previews. The automatic-gem scene
+remains reference-only.
 `listing-preview` is shared by both providers and opens the second result's
 read-only item preview. Each listing fixture carries its own item data.
 
@@ -104,7 +126,10 @@ to Retinue. Run these with the same `--exercise` option.
 `parser-oracle.mjs` runs the original clipboard parser and query builder against
 shared modifier fixtures. `evaluation-behavior.mjs` checks prediction independence
 and automatic-search categories; `results-controls.mjs` checks the trade link and
-refresh glyph. These require the extracted provider, not live trade requests.
+refresh glyph. `results-refresh.mjs` verifies that refresh leaves existing rows
+visible while the new search is pending. `search-cache.mjs` (with `--state results`)
+checks revisits, canonical query identity, retention, eviction and automatic retry
+behavior. These require the extracted provider, not live trade requests.
 
 Both sets use `previews/poe2/<resolution>/<companion|reference>/<scene>.<extension>`.
 

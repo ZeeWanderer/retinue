@@ -87,19 +87,11 @@ pub struct League {
     pub text: String,
 }
 
-impl Evaluation {
-    pub fn auto_search(&self) -> bool {
-        self.auto_search_allowed && self.item.auto_search && self.item.trade_unavailable.is_none()
-    }
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Evaluation {
     pub item: Item,
     pub leagues: Vec<League>,
     pub league: String,
-    #[serde(default)]
-    pub auto_search_allowed: bool,
     #[serde(default)]
     pub search_options: BTreeMap<String, Vec<Choice>>,
     #[serde(default)]
@@ -150,6 +142,22 @@ pub struct Results {
     #[serde(default)]
     pub returned: u64,
     pub listings: Vec<Listing>,
+    #[serde(default)]
+    pub next_offset: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Restoration {
+    pub results: Option<Results>,
+    pub auto_search_allowed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ListingPage {
+    pub search_id: String,
+    pub offset: u32,
+    pub next_offset: Option<u32>,
+    pub listings: Vec<Listing>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -184,6 +192,7 @@ impl Profile {
 
 #[derive(Default)]
 pub struct Model {
+    pub budget: super::budget::Budget,
     pub visible: bool,
     pub generation: u64,
     pub copying: bool,
@@ -195,6 +204,9 @@ pub struct Model {
     pub conditions: Vec<bool>,
     pub league: String,
     pub status: String,
+    character: Option<String>,
+    character_league: Option<String>,
+    league_character: Option<String>,
     pub rarity: Option<String>,
     pub currency: Option<String>,
     pub indexed: Option<String>,
@@ -202,7 +214,12 @@ pub struct Model {
     pub level: Filter,
     pub base: bool,
     pub results: Option<Results>,
+    last_auto_attempt: Option<String>,
     pub error: Option<String>,
+    pub fetching: bool,
+    pub fetch_error: Option<String>,
+    pub retry_at: Option<std::time::Instant>,
+    cooldown_display: u64,
     pub prediction_generation: u64,
     pub predicting: bool,
     pub estimate: Option<Estimate>,
@@ -233,6 +250,46 @@ impl Model {
             ..Self::default()
         }
     }
+    pub fn observe_session(&mut self, snapshot: &retinue_poe2::reader::Snapshot) -> bool {
+        if let Some(player) = &snapshot.player {
+            if self.character.as_deref() != Some(&player.name) {
+                self.character = Some(player.name.clone());
+                self.character_league = None;
+            }
+            if let Some(identity) = snapshot.social.as_ref().and_then(|s| s.local.as_ref())
+                && identity.character == player.name
+            {
+                self.character_league = Some(identity.league.clone());
+            }
+        } else if matches!(snapshot.scene.as_str(), "login" | "select_character") {
+            self.character = None;
+            self.character_league = None;
+            self.league_character = None;
+        }
+        let previous = self.league.clone();
+        self.update_league();
+        if self.league == previous {
+            return false;
+        }
+        self.clear_prediction();
+        self.invalidate();
+        true
+    }
+    fn update_league(&mut self) {
+        let Some(evaluation) = &self.evaluation else {
+            return;
+        };
+        let available = |id: &str| evaluation.leagues.iter().any(|l| l.id == id);
+        if self.character != self.league_character
+            && let Some(league) = &self.character_league
+            && available(league)
+        {
+            self.league = league.clone();
+            self.league_character = self.character.clone();
+        } else if !available(&self.league) {
+            self.league = evaluation.league.clone();
+        }
+    }
     pub fn copy(&mut self) -> u64 {
         self.clear_prediction();
         self.invalidate();
@@ -251,6 +308,8 @@ impl Model {
         self.loading = false;
         self.error = None;
         self.results = None;
+        self.fetching = false;
+        self.fetch_error = None;
     }
     pub fn dismiss(&mut self) {
         self.clear_prediction();
@@ -275,9 +334,6 @@ impl Model {
         self.loading = false;
         self.error = None;
         self.profile = None;
-        if !evaluation.leagues.iter().any(|l| l.id == self.league) {
-            self.league = evaluation.league.clone();
-        }
         if let Some(options) = evaluation.search_options.get("status")
             && !options
                 .iter()
@@ -318,6 +374,7 @@ impl Model {
         self.base = evaluation.item.base_required || evaluation.item.category.is_none();
         let profile = evaluation.item.default_profile;
         self.evaluation = Some(evaluation);
+        self.update_league();
         if let Some(profile) = profile {
             self.apply_profile(profile);
         }
@@ -363,14 +420,101 @@ impl Model {
             self.loading = false;
             self.error = None;
             self.results = Some(results);
+            self.fetch_error = None;
+            self.fetching = false;
         }
+    }
+    pub fn restore(&mut self) -> Option<Value> {
+        if self.loading {
+            return None;
+        }
+        let mut request = self.query().ok()?;
+        request["op"] = json!("trade_restore");
+        self.generation = self.generation.wrapping_add(1);
+        Some(request)
+    }
+    pub fn restored(&mut self, id: u64, reply: Restoration, requested: bool) -> bool {
+        if id != self.generation || self.loading {
+            return false;
+        }
+        if let Some(results) = reply.results {
+            self.searched(id, results);
+            return false;
+        }
+        let eligible = self.evaluation.as_ref().is_some_and(|e| {
+            e.item.trade_unavailable.is_none() && (requested || e.item.auto_search)
+        });
+        if eligible && (requested || self.last_auto_attempt.as_ref() != Some(&self.text)) {
+            self.last_auto_attempt = Some(self.text.clone());
+            return reply.auto_search_allowed && self.retry_after() == 0;
+        }
+        false
+    }
+    pub fn fetch(&mut self, scroll: usize, visible: usize) -> Option<Value> {
+        if self.loading || self.fetching || self.retry_after() > 0 || self.fetch_error.is_some() {
+            return None;
+        }
+        let results = self.results.as_ref()?;
+        let offset = results.next_offset?;
+        if scroll.saturating_add(visible) < results.listings.len().saturating_sub(2) {
+            return None;
+        }
+        self.fetching = true;
+        self.fetch_error = None;
+        Some(json!({"op":"trade_fetch", "search_id":results.search_id, "offset":offset}))
+    }
+    pub fn fetched(&mut self, id: u64, page: ListingPage) {
+        if id != self.generation || !self.fetching {
+            return;
+        }
+        let Some(results) = self.results.as_mut() else {
+            return;
+        };
+        if page.search_id != results.search_id || Some(page.offset) != results.next_offset {
+            return;
+        }
+        let mut seen: std::collections::HashSet<_> =
+            results.listings.iter().map(|row| row.id.clone()).collect();
+        results.listings.extend(
+            page.listings
+                .into_iter()
+                .filter(|row| seen.insert(row.id.clone())),
+        );
+        results.next_offset = page.next_offset;
+        self.fetching = false;
+        self.fetch_error = None;
+    }
+    pub fn retry_after(&self) -> u64 {
+        self.retry_at
+            .map(|at| {
+                at.saturating_duration_since(std::time::Instant::now())
+                    .as_secs_f64()
+                    .ceil() as u64
+            })
+            .unwrap_or(0)
+    }
+    pub fn tick_cooldown(&mut self) -> bool {
+        let seconds = self.retry_after();
+        let changed = seconds != self.cooldown_display;
+        self.cooldown_display = seconds;
+        changed
+    }
+    pub fn cooldown_deadline(&self, now: std::time::Instant) -> Option<std::time::Instant> {
+        self.retry_at
+            .filter(|_| self.cooldown_display > 0)
+            .map(|at| (at - std::time::Duration::from_secs(self.cooldown_display - 1)).max(now))
     }
     pub fn failed(&mut self, id: u64, error: String) {
         if id == self.generation {
             self.visible = true;
             self.copying = false;
             self.loading = false;
-            self.error = Some(error);
+            if self.results.is_some() {
+                self.fetch_error = Some(error);
+            } else {
+                self.error = Some(error);
+            }
+            self.fetching = false;
         }
     }
     pub fn clear_prediction(&mut self) {
@@ -400,6 +544,20 @@ impl Model {
         if self.loading {
             return Err("A request is already running".into());
         }
+        if self.retry_after() > 0 {
+            return Err("Trade requests are cooling down".into());
+        }
+        let mut request = self.query()?;
+        request["refresh"] = json!(true);
+        self.generation = self.generation.wrapping_add(1);
+        self.loading = true;
+        self.error = None;
+        self.fetching = false;
+        self.fetch_error = None;
+        Ok(request)
+    }
+
+    fn query(&self) -> Result<Value, String> {
         let evaluation = self.evaluation.as_ref().ok_or("No item to search")?;
         if evaluation.item.trade_unavailable.is_some() {
             return Err("This item is not listed in the trade catalog".into());
@@ -467,10 +625,6 @@ impl Model {
             }
             request["item_level"] = range;
         }
-        self.generation = self.generation.wrapping_add(1);
-        self.loading = true;
-        self.error = None;
-        self.results = None;
         Ok(request)
     }
 
@@ -541,6 +695,116 @@ pub fn number(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn paged_model() -> Model {
+        let mut m = Model::default();
+        m.searched(
+            0,
+            Results {
+                search_id: "search".into(),
+                returned: 25,
+                next_offset: Some(0),
+                ..Results::default()
+            },
+        );
+        m
+    }
+
+    fn page(offset: u32, end: u32, next: Option<u32>) -> ListingPage {
+        ListingPage {
+            search_id: "search".into(),
+            offset,
+            next_offset: next,
+            listings: (offset..end)
+                .map(|i| Listing {
+                    id: i.to_string(),
+                    ..Listing::default()
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn pages_follow_visible_threshold_and_preserve_server_order() {
+        let mut m = paged_model();
+        assert_eq!(m.fetch(0, 8).unwrap()["offset"], 0);
+        assert!(m.fetch(0, 8).is_none());
+        m.fetched(0, page(0, 10, Some(10)));
+        assert_eq!(m.fetch(0, 8).unwrap()["offset"], 10);
+        m.fetched(0, page(10, 20, Some(20)));
+        assert!(m.fetch(0, 8).is_none());
+        assert!(m.fetch(9, 8).is_none());
+        assert_eq!(m.fetch(10, 8).unwrap()["offset"], 20);
+        m.fetched(0, page(20, 25, None));
+        assert!(m.fetch(20, 8).is_none());
+        assert_eq!(
+            m.results
+                .unwrap()
+                .listings
+                .iter()
+                .map(|l| l.id.clone())
+                .collect::<Vec<_>>(),
+            (0..25).map(|i| i.to_string()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn deleted_rows_advance_and_duplicate_or_stale_replies_do_not_append() {
+        let mut m = paged_model();
+        m.fetch(0, 8).unwrap();
+        m.fetched(0, page(0, 0, Some(10)));
+        assert_eq!(m.fetch(0, 8).unwrap()["offset"], 10);
+        m.fetched(0, page(0, 10, Some(10)));
+        assert!(m.fetching);
+        assert!(m.results.as_ref().unwrap().listings.is_empty());
+        m.fetched(0, page(10, 20, Some(20)));
+        m.fetched(0, page(10, 20, Some(20)));
+        assert_eq!(m.results.as_ref().unwrap().listings.len(), 10);
+        m.invalidate();
+        m.fetched(0, page(20, 25, None));
+        assert!(m.results.is_none());
+        assert!(!m.fetching);
+    }
+
+    #[test]
+    fn failed_fetch_keeps_rows_without_automatic_retry_or_search_error_plaque() {
+        let mut m = paged_model();
+        m.fetch(0, 8).unwrap();
+        m.fetched(0, page(0, 10, Some(10)));
+        m.fetch(0, 8).unwrap();
+        m.failed(0, "rate limited".into());
+        m.retry_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
+        assert_eq!(m.results.as_ref().unwrap().listings.len(), 10);
+        assert_eq!(m.results.as_ref().unwrap().next_offset, Some(10));
+        assert!(m.error.is_none());
+        assert_eq!(m.fetch_error.as_deref(), Some("rate limited"));
+        assert_eq!(m.retry_after(), 30);
+        assert!(m.tick_cooldown());
+        assert!(!m.tick_cooldown());
+        assert!(m.fetch(9, 8).is_none());
+        m.retry_at = Some(std::time::Instant::now());
+        assert!(m.tick_cooldown());
+        assert!(m.fetch(9, 8).is_none());
+        m.invalidate();
+        assert!(m.fetch_error.is_none());
+    }
+
+    #[test]
+    fn cooldown_wakes_at_display_boundary_and_stops_when_finished() {
+        let now = std::time::Instant::now();
+        let mut model = Model::default();
+        assert_eq!(model.cooldown_deadline(now), None);
+        model.retry_at = Some(now + std::time::Duration::from_millis(2500));
+        model.cooldown_display = 3;
+        assert_eq!(
+            model.cooldown_deadline(now),
+            Some(now + std::time::Duration::from_millis(500))
+        );
+        let late = now + std::time::Duration::from_secs(4);
+        assert_eq!(model.cooldown_deadline(late), Some(late));
+        model.cooldown_display = 0;
+        assert_eq!(model.cooldown_deadline(late), None);
+    }
 
     #[test]
     fn prediction_survives_search_edits_but_not_a_new_item_league_or_close() {
@@ -628,6 +892,38 @@ mod tests {
         assert_eq!(model.profile, Some(Profile::Broad));
         model.copy();
         assert_eq!(model.profile, None);
+    }
+
+    #[test]
+    fn refresh_preserves_rows_until_search_returns_and_clears_them_on_filter_edit() {
+        let mut m = fixture();
+        let old = Results {
+            search_id: "old".into(),
+            listings: page(0, 3, None).listings,
+            ..Results::default()
+        };
+        m.results = Some(old);
+        let request = m.search().unwrap();
+        assert_eq!(request["refresh"], true);
+        assert!(m.loading);
+        assert_eq!(m.results.as_ref().unwrap().listings.len(), 3);
+        m.failed(m.generation, "upstream unavailable".into());
+        assert!(m.error.is_none());
+        assert_eq!(m.results.as_ref().unwrap().listings.len(), 3);
+        m.search().unwrap();
+        m.searched(
+            m.generation,
+            Results {
+                search_id: "new".into(),
+                next_offset: Some(0),
+                ..Results::default()
+            },
+        );
+        assert_eq!(m.results.as_ref().unwrap().search_id, "new");
+        assert!(m.results.as_ref().unwrap().listings.is_empty());
+        m.invalidate();
+        assert!(m.results.is_none());
+        assert_eq!(m.search().unwrap()["refresh"], true);
     }
 
     #[test]
@@ -809,17 +1105,134 @@ mod tests {
     fn automatic_search_uses_daemon_eligibility_and_budget() {
         for eligible in [false, true] {
             for allowed in [false, true] {
-                let evaluation = Evaluation {
+                let mut model = Model::default();
+                model.evaluation = Some(Evaluation {
                     item: Item {
                         auto_search: eligible,
                         ..Item::default()
                     },
-                    auto_search_allowed: allowed,
                     ..Evaluation::default()
-                };
-                assert_eq!(evaluation.auto_search(), eligible && allowed);
+                });
+                assert_eq!(
+                    model.restored(
+                        0,
+                        Restoration {
+                            results: None,
+                            auto_search_allowed: allowed
+                        },
+                        false
+                    ),
+                    eligible && allowed
+                );
             }
         }
+    }
+
+    #[test]
+    fn cache_lookup_can_restore_rare_items_during_cooldown_without_searching() {
+        let mut model = fixture();
+        model.retry_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(60));
+        let request = model.restore().unwrap();
+        assert_eq!(request["op"], "trade_restore");
+        assert!(request.get("refresh").is_none());
+        assert!(!model.loading);
+        let restored = Restoration {
+            results: Some(Results {
+                search_id: "cached".into(),
+                listings: page(0, 3, Some(10)).listings,
+                next_offset: Some(10),
+                ..Results::default()
+            }),
+            auto_search_allowed: false,
+        };
+        assert!(!model.restored(model.generation, restored, false));
+        assert_eq!(model.results.as_ref().unwrap().listings.len(), 3);
+        assert_eq!(model.results.as_ref().unwrap().next_offset, Some(10));
+        assert!(!model.loading);
+        assert!(model.search().is_err());
+    }
+
+    #[test]
+    fn cache_miss_tracks_only_the_last_automatic_attempt() {
+        let mut model = fixture();
+        model.evaluation.as_mut().unwrap().item.auto_search = true;
+        let miss = || Restoration {
+            results: None,
+            auto_search_allowed: true,
+        };
+        model.text = "first".into();
+        assert!(model.restored(model.generation, miss(), false));
+        model.search().unwrap();
+        model.failed(model.generation, "upstream failed".into());
+        model.restore().unwrap();
+        assert!(!model.restored(model.generation, miss(), false));
+        model.text = "second".into();
+        model.restore().unwrap();
+        assert!(model.restored(model.generation, miss(), false));
+        model.text = "first".into();
+        model.restore().unwrap();
+        assert!(model.restored(model.generation, miss(), false));
+        model.restore().unwrap();
+        assert!(model.restored(model.generation, miss(), true));
+    }
+
+    #[test]
+    fn cache_miss_on_a_rare_item_waits_for_search_or_a_result_selector() {
+        let mut model = fixture();
+        model.evaluation.as_mut().unwrap().item.auto_search = false;
+        let miss = || Restoration {
+            results: None,
+            auto_search_allowed: true,
+        };
+        model.restore().unwrap();
+        assert!(!model.restored(model.generation, miss(), false));
+        assert!(model.results.is_none());
+        assert!(!model.loading);
+        assert!(model.restored(model.generation, miss(), true));
+    }
+
+    #[test]
+    fn automatic_budget_denial_is_not_retried_but_empty_cached_results_are_hits() {
+        let mut model = fixture();
+        model.evaluation.as_mut().unwrap().item.auto_search = true;
+        let reply = |allowed| Restoration {
+            results: None,
+            auto_search_allowed: allowed,
+        };
+        assert!(!model.restored(model.generation, reply(false), false));
+        assert!(!model.restored(model.generation, reply(true), false));
+        assert!(model.restored(model.generation, reply(true), true));
+        let empty: Restoration = serde_json::from_value(json!({
+            "auto_search_allowed": true,
+            "results": {"search_id":"empty", "url":"", "total":0, "returned":0,
+                "listings":[], "next_offset":null}
+        }))
+        .unwrap();
+        assert!(!model.restored(model.generation, empty, true));
+        assert_eq!(model.results.as_ref().unwrap().total, 0);
+    }
+
+    #[test]
+    fn late_cache_lookup_cannot_replace_a_manual_search_or_edited_query() {
+        let mut model = fixture();
+        let hit = || Restoration {
+            results: Some(Results::default()),
+            auto_search_allowed: true,
+        };
+        model.restore().unwrap();
+        let old = model.generation;
+        assert_eq!(model.search().unwrap()["refresh"], true);
+        assert!(!model.restored(old, hit(), false));
+        assert!(model.results.is_none());
+        assert!(model.loading);
+        model.invalidate();
+        model.restore().unwrap();
+        let old = model.generation;
+        model.filters[0].enabled = !model.filters[0].enabled;
+        model.invalidate();
+        model.restore().unwrap();
+        assert!(!model.restored(old, hit(), false));
+        assert!(model.results.is_none());
     }
 
     #[test]
@@ -895,6 +1308,104 @@ mod tests {
         let mut model = Model::new("Hardcore".into());
         model.evaluated(0, evaluation);
         assert_eq!(model.league, "Hardcore");
+    }
+
+    fn observed_character(name: &str, league: Option<&str>) -> retinue_poe2::reader::Snapshot {
+        use retinue_poe2::reader::{Identity, Player, Snapshot, Social};
+        Snapshot {
+            scene: "in_game".into(),
+            player: Some(Player {
+                name: name.into(),
+                class: None,
+                level: 10,
+                experience: 0,
+                gold: None,
+                life: None,
+            }),
+            social: league.map(|league| Social {
+                local: Some(Identity {
+                    character: name.into(),
+                    account: "Account".into(),
+                    league: league.into(),
+                }),
+                party: vec![],
+            }),
+            ..Snapshot::default()
+        }
+    }
+
+    fn trade_leagues() -> Evaluation {
+        Evaluation {
+            leagues: ["Standard", "Current", "Hardcore"]
+                .into_iter()
+                .map(|id| League {
+                    id: id.into(),
+                    text: id.into(),
+                })
+                .collect(),
+            league: "Current".into(),
+            ..Evaluation::default()
+        }
+    }
+
+    #[test]
+    fn native_league_applies_before_first_search_and_only_once_per_character() {
+        let mut model = Model::new("Standard".into());
+        let session = observed_character("Exile", Some("Current"));
+        assert!(!model.observe_session(&session));
+        model.evaluated(0, trade_leagues());
+        assert_eq!(model.league, "Current");
+        model.league = "Hardcore".into();
+        assert!(!model.observe_session(&session));
+        assert!(!model.observe_session(&observed_character("Exile", None)));
+        let copy = model.copy();
+        model.copied(copy, "Item".into());
+        model.evaluated(copy, trade_leagues());
+        assert_eq!(model.league, "Hardcore");
+        assert!(model.observe_session(&observed_character("Other", Some("Standard"))));
+        assert_eq!(model.league, "Standard");
+    }
+
+    #[test]
+    fn late_identity_invalidates_old_prices_but_read_failures_do_not() {
+        let mut model = Model::new("Standard".into());
+        model.evaluated(0, trade_leagues());
+        let generation = model.generation;
+        let prediction = model.prediction_generation;
+        assert!(model.observe_session(&observed_character("Exile", Some("Current"))));
+        assert_ne!(model.generation, generation);
+        model.searched(generation, Results::default());
+        model.predicted(
+            prediction,
+            Some(Estimate {
+                amount: 2.0,
+                currency: "exalted".into(),
+                uncertainty: None,
+            }),
+        );
+        assert!(model.results.is_none());
+        assert!(model.estimate.is_none());
+        let generation = model.generation;
+        assert!(!model.observe_session(&retinue_poe2::reader::Snapshot::default()));
+        assert!(!model.observe_session(&observed_character("Exile", None)));
+        assert_eq!(model.generation, generation);
+        assert_eq!(model.league, "Current");
+    }
+
+    #[test]
+    fn unavailable_leagues_do_not_guess_and_identity_waits_for_trade_metadata() {
+        let mut model = Model::new("Hardcore".into());
+        model.evaluated(0, trade_leagues());
+        assert!(!model.observe_session(&observed_character("Solo", Some("SSF Current"))));
+        assert_eq!(model.league, "Hardcore");
+        assert!(!model.observe_session(&observed_character("New", Some("Future"))));
+        let mut evaluation = trade_leagues();
+        evaluation.leagues.push(League {
+            id: "Future".into(),
+            text: "Future".into(),
+        });
+        model.evaluated(0, evaluation);
+        assert_eq!(model.league, "Future");
     }
 
     #[test]

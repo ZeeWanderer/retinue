@@ -40,7 +40,7 @@ async fn prediction_requires_its_negotiated_optional_feature() {
             support::write(
                 &mut writer,
                 json!({"id":1,"ok":true,"compatible":true,
-                "game":"poe2","envelope":2,"interfaces":{"session":2,"trade":2},
+                "game":"poe2","envelope":2,"interfaces":{"session":2,"trade":5},
                 "features": if enabled {vec!["trade.prediction"]} else {vec![]}}),
             )
             .await;
@@ -75,9 +75,9 @@ async fn prediction_requires_its_negotiated_optional_feature() {
 #[tokio::test]
 async fn trade_negotiates_its_contract_and_rejects_wrong_datasets() {
     for (trade_version, dataset, expected) in [
-        (2, "trade", None),
-        (1, "trade", Some(ErrorKind::Unsupported)),
-        (2, "session", Some(ErrorKind::InvalidData)),
+        (5, "trade", None),
+        (4, "trade", Some(ErrorKind::Unsupported)),
+        (5, "session", Some(ErrorKind::InvalidData)),
     ] {
         let directory = tempfile::tempdir().unwrap();
         let socket = directory.path().join("daemon.sock");
@@ -87,7 +87,7 @@ async fn trade_negotiates_its_contract_and_rejects_wrong_datasets() {
             let (reader, mut writer) = stream.into_split();
             let mut reader = BufReader::new(reader);
             let hello = support::read(&mut reader).await;
-            assert_eq!(hello["interfaces"], json!({"session":2,"trade":2}));
+            assert_eq!(hello["interfaces"], json!({"session":2,"trade":5}));
             assert_eq!(hello["mode"], "overlay");
             support::write(
                 &mut writer,
@@ -95,7 +95,7 @@ async fn trade_negotiates_its_contract_and_rejects_wrong_datasets() {
                 "game":"poe2","envelope":2,"interfaces":{"session":2,"trade":trade_version}}),
             )
             .await;
-            if trade_version == 2 {
+            if trade_version == 5 {
                 let request = support::read(&mut reader).await;
                 assert_eq!(request, json!({"id":2,"op":"trade_leagues"}));
                 support::write(

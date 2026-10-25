@@ -157,7 +157,8 @@ impl View {
             self.label(
                 p,
                 Rect {
-                    height: px(24, s),
+                    y: list.y + px(4, s),
+                    height: px(19, s),
                     ..list
                 },
                 "No results",
@@ -166,12 +167,7 @@ impl View {
                 false,
             );
         }
-        let now = self.preview_time.unwrap_or_else(|| {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        });
+        let now = self.preview_time.unwrap_or(self.time);
         let scroll = interaction
             .scroll
             .min(results.listings.len().saturating_sub(self.visible_listings));
@@ -182,6 +178,20 @@ impl View {
             .skip(scroll)
             .take(self.visible_listings)
         {
+            if let Some(indexed) = listing.indexed_at {
+                let seconds = now.saturating_sub(indexed);
+                let unit = if seconds >= 86400 {
+                    86400
+                } else if seconds >= 3600 {
+                    3600
+                } else if seconds >= 60 {
+                    60
+                } else {
+                    1
+                };
+                let next = indexed.saturating_add((seconds / unit + 1).saturating_mul(unit));
+                self.age_deadline = Some(self.age_deadline.map_or(next, |at| at.min(next)));
+            }
             let row = Rect {
                 y: list.y + px((index - scroll) as u32 * 32, s),
                 height: px(32, s),
@@ -255,6 +265,16 @@ impl View {
                 }
                 let mut color = if *column == Column::Price { INK } else { MUTED };
                 color[3] = opacity;
+                if *column == Column::Price {
+                    self.hits.push(Hit {
+                        target: Target::ListingCurrency(index),
+                        rect,
+                    });
+                    if self.price_icon(&listing.currency, s) {
+                        self.listing_price(p, rect, listing.amount, &listing.currency, color, s);
+                        continue;
+                    }
+                }
                 self.table_text(
                     p,
                     rect,
@@ -364,6 +384,38 @@ impl View {
         }
     }
 
+    pub(super) fn prepare_artwork(
+        &mut self,
+        layout: &UiLayout<Node>,
+        model: &Model,
+        interaction: &Interaction,
+        s: f32,
+    ) -> Result<(), String> {
+        self.artwork.begin_frame();
+        self.artwork
+            .prepare_controls((px(24, s), px(20, s)), (px(16, s), px(16, s)))?;
+        let item = model.evaluation.as_ref().map(|e| &e.item);
+        self.artwork.prepare_header(
+            layout.bounds(Node::Header),
+            item.map_or("Normal", |item| &item.rarity),
+            item.is_some_and(|item| !item.name.is_empty() && item.name != item.base),
+        )?;
+        if let Some(item) = listing_preview_item(model, interaction) {
+            let (width, height) = listing_header_size(&item, s);
+            self.artwork.prepare_header(
+                Rect {
+                    x: 0,
+                    y: 0,
+                    width,
+                    height,
+                },
+                &item.rarity,
+                !item.name.is_empty() && item.name != item.base,
+            )?;
+        }
+        Ok(())
+    }
+
     pub(super) fn paint_item_row(
         &self,
         p: &mut Painter<'_>,
@@ -384,6 +436,8 @@ impl View {
             + ((rect.height as f32 - row.lines.len() as f32 * 20.0 * s) / 2.0).max(0.0) as u32;
         for (n, line) in row.lines.iter().enumerate() {
             let y = start + px(n as u32 * 20, s);
+            // Fontin's centered raster baseline lands one device pixel below the browser's.
+            let text_y = y.saturating_sub(1);
             if selected {
                 let width = (text_width(&self.item, line, ITEM_TEXT_SIZE * s).ceil() as u32
                     + px(8, s))
@@ -392,11 +446,11 @@ impl View {
                     p,
                     Rect {
                         x: rect.x + (rect.width - width) / 2,
-                        y,
+                        y: y + u(s),
                         width,
-                        height: px(20, s),
+                        height: px(17, s),
                     },
-                    rgba(47, 46, 42, 255),
+                    rgba(255, 255, 255, 41),
                 );
             }
             if let Some((label, value)) = line.split_once(": ")
@@ -409,7 +463,7 @@ impl View {
                     ) / 2;
                 p.draw_text_vertically_centered(
                     &self.item,
-                    TextLine::new(x, y, px(20, s)),
+                    TextLine::new(x, text_y, px(20, s)),
                     ITEM_TEXT_SIZE * s,
                     &prefix,
                     ITEM_LABEL,
@@ -418,7 +472,7 @@ impl View {
                     &self.item,
                     TextLine::new(
                         x + text_width(&self.item, &prefix, ITEM_TEXT_SIZE * s).round() as u32,
-                        y,
+                        text_y,
                         px(20, s),
                     ),
                     ITEM_TEXT_SIZE * s,
@@ -434,7 +488,7 @@ impl View {
                     p,
                     Rect {
                         x: rect.x + px(16, s),
-                        y,
+                        y: text_y,
                         width: rect.width - px(32, s),
                         height: px(20, s),
                     },
@@ -458,28 +512,12 @@ impl View {
         let Some(Target::Listing(index)) = interaction.hover else {
             return;
         };
-        let Some(item) = model
-            .results
-            .as_ref()
-            .and_then(|r| r.listings.get(index))
-            .and_then(|l| l.item.as_ref())
-        else {
+        let Some(item) = listing_preview_item(model, interaction) else {
             return;
         };
-        let mut item = item.clone();
-        if item.rarity != "Unique" {
-            item.name.clear();
-        }
         let rows = self.rows_for_item(&item, s);
         let width = px(CONTENT as u32 + 18, s);
-        let header_height = px(
-            if !item.name.is_empty() && item.name != item.base {
-                54
-            } else {
-                34
-            },
-            s,
-        );
+        let (_, header_height) = listing_header_size(&item, s);
         let height = (header_height
             + px(30, s)
             + (rows.iter().map(Row::height).sum::<f32>() * s).ceil() as u32)
@@ -525,14 +563,15 @@ impl View {
                 self.artwork.divider(
                     p,
                     Rect {
+                        y: bounds.y + u(s),
                         height: px(8, s),
                         ..bounds
                     },
                     &item.rarity,
                     s,
                 );
-                bounds.y += px(8, s);
-                bounds.height -= px(8, s);
+                bounds.y += px(ITEM_SEPARATOR, s);
+                bounds.height -= px(ITEM_SEPARATOR, s);
             }
             let selected =
                 match row.query {
@@ -579,31 +618,7 @@ impl View {
             width: diameter,
             height: diameter,
         };
-        p.fill_rounded_rect(
-            icon.x,
-            icon.y,
-            diameter,
-            diameter,
-            diameter / 2,
-            rgba(232, 13, 13, 255),
-        );
-        let x = (icon.x + diameter / 2) as f64;
-        p.draw_line(
-            (x, (icon.y + px(3, s)) as f64),
-            (x, (icon.y + px(9, s)) as f64),
-            s as f64,
-            PANEL,
-        );
-        fill(
-            p,
-            Rect {
-                x: x as u32,
-                y: icon.y + px(12, s),
-                width: u(s),
-                height: u(s),
-            },
-            PANEL,
-        );
+        self.artwork.icon(p, icon, "search-error", false);
         for (index, line) in wrap(
             &self.ui,
             message,
@@ -628,10 +643,98 @@ impl View {
     }
 }
 
+fn listing_preview_item(model: &Model, interaction: &Interaction) -> Option<Item> {
+    let Target::Listing(index) = interaction.hover? else {
+        return None;
+    };
+    let mut item = model.results.as_ref()?.listings.get(index)?.item.clone()?;
+    if item.rarity != "Unique" {
+        item.name.clear();
+    }
+    Some(item)
+}
+
+fn listing_header_size(item: &Item, scale: f32) -> (u32, u32) {
+    (
+        px(CONTENT as u32 + 18, scale).saturating_sub(2 * px(9, scale)),
+        px(
+            if !item.name.is_empty() && item.name != item.base {
+                54
+            } else {
+                34
+            },
+            scale,
+        ),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluate::model::Results;
+
+    #[test]
+    fn selected_text_includes_reference_side_shadows_without_expanding_the_row() {
+        let view = View::new().unwrap();
+        let row = Row {
+            lines: vec!["Modifiable".into()],
+            modifier: None,
+            separator: false,
+            query: Some(Target::Condition(0)),
+        };
+        for scale in [1.0, 1.2, 1.25, 1.5] {
+            let rect = Rect {
+                x: 0,
+                y: 0,
+                width: px(400, scale),
+                height: px(20, scale),
+            };
+            let draw = |selected| {
+                let mut pixels = vec![0; (rect.width * rect.height * 4) as usize];
+                let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                view.paint_item_row(&mut painter, rect, &row, "Rare", selected, scale);
+                painter.finish().unwrap();
+                pixels
+            };
+            let plain = draw(false);
+            let selected = draw(true);
+            let changed: Vec<_> = selected
+                .chunks_exact(4)
+                .zip(plain.chunks_exact(4))
+                .enumerate()
+                .filter(|(_, (a, b))| a != b)
+                .map(|(i, _)| (i as u32 % rect.width, i as u32 / rect.width))
+                .collect();
+            let left = changed.iter().map(|p| p.0).min().unwrap();
+            let right = changed.iter().map(|p| p.0).max().unwrap();
+            let top = changed.iter().map(|p| p.1).min().unwrap();
+            let bottom = changed.iter().map(|p| p.1).max().unwrap();
+            assert_eq!(
+                right - left + 1,
+                text_width(&view.item, "Modifiable", ITEM_TEXT_SIZE * scale).ceil() as u32
+                    + px(8, scale)
+            );
+            assert_eq!(top, u(scale));
+            assert_eq!(bottom - top + 1, px(17, scale));
+        }
+    }
+
+    #[test]
+    fn item_groups_and_profiles_match_reference_vertical_spacing() {
+        let view = View::new().unwrap();
+        let mut model = fixture();
+        model.results = None;
+        for scale in [1.0, 1.2, 1.25, 1.5] {
+            let rows = view.rows(&model, scale);
+            let layout = view
+                .layout((2560, 1440), (0, 0), scale, &rows, 0, true, &model)
+                .unwrap();
+            let search = layout.bounds(Node::Search);
+            let profiles = layout.bounds(Node::Profiles);
+            assert!((search.y as i32 - px(289, scale) as i32).abs() <= 1);
+            assert!((profiles.y as i32 - px(240, scale) as i32).abs() <= 1);
+        }
+    }
 
     fn fixture() -> Model {
         let data: serde_json::Value = serde_json::from_str(include_str!(
@@ -673,6 +776,59 @@ mod tests {
                 assert_eq!(
                     columns.iter().any(|(c, _)| *c == Column::RequiredLevel),
                     rarity == "Unique"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fetch_states_preserve_table_geometry_and_cooldown_disables_refresh() {
+        let mut model = fixture();
+        let mut view = View::new().unwrap();
+        for scale in [1.0, 1.25] {
+            let rows = view.rows(&model, scale);
+            let base = view
+                .layout((1920, 1080), (100, 32), scale, &rows, 0, true, &model)
+                .unwrap();
+            for state in ["refreshing", "fetching", "failed", "cooldown", "ready"] {
+                model.loading = state == "refreshing";
+                model.fetching = state == "fetching";
+                model.fetch_error =
+                    matches!(state, "failed" | "cooldown").then(|| "rate limited".into());
+                model.retry_at = (state == "cooldown")
+                    .then(|| std::time::Instant::now() + std::time::Duration::from_secs(30));
+                let layout = view
+                    .layout((1920, 1080), (100, 32), scale, &rows, 0, true, &model)
+                    .unwrap();
+                for node in [
+                    Node::Status,
+                    Node::ResultFilters,
+                    Node::Table,
+                    Node::Listings,
+                ] {
+                    assert_eq!(layout.bounds(node), base.bounds(node));
+                }
+                assert!(layout.find_bounds(Node::Error).is_none());
+                let mut pixels = vec![0; 1920 * 1080 * 4];
+                view.paint(
+                    &mut pixels,
+                    Frame {
+                        size: (1920, 1080),
+                        scale,
+                        zoom: scale,
+                        phase: 0.0,
+                    },
+                    &model,
+                    &Interaction::default(),
+                )
+                .unwrap();
+                assert_eq!(
+                    view.hits.iter().any(|h| h.target == Target::Search),
+                    matches!(state, "failed" | "ready")
+                );
+                assert_eq!(
+                    view.hits.iter().any(|h| h.target == Target::TradeLink),
+                    state == "ready"
                 );
             }
         }

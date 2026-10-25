@@ -1,12 +1,12 @@
-use std::collections::{BTreeMap, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, mpsc};
-use std::thread;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::relic::{AssetRefresh, Scene};
-use retinue_overlay::painter::{RasterImage, load_scene_icon};
+use retinue_ui::painter::{RasterImage, load_scene_icon};
+use retinue_ui::preparation::Preparation;
+use retinue_ui::resources::{Resource, ResourceCache};
 
 const DECODED_BUDGET: usize = 64 * 1024 * 1024;
 const IMAGE_BUDGET: usize = 16 * 1024 * 1024;
@@ -56,20 +56,37 @@ impl PendingRefreshes {
 
 #[derive(Clone, Default)]
 pub(super) struct SceneAssets {
-    pub(super) images: BTreeMap<String, Arc<RasterImage>>,
+    pub(super) images: BTreeMap<String, Resource<RasterImage>>,
     pub(super) issues: Vec<Value>,
 }
 
-impl SceneAssets {
-    pub(super) fn prepare(&mut self, scene: &Scene, current: impl Fn() -> bool) {
-        self.prepare_with_budget(scene, DECODED_BUDGET, current);
+pub(super) struct Preparer {
+    cache: ResourceCache<[u8; 32], RasterImage>,
+}
+
+impl Default for Preparer {
+    fn default() -> Self {
+        Self {
+            cache: ResourceCache::new(DECODED_BUDGET),
+        }
+    }
+}
+
+impl Preparer {
+    pub(super) fn prepare(&mut self, scene: &Scene, current: impl Fn() -> bool) -> SceneAssets {
+        self.prepare_with_budget(scene, DECODED_BUDGET, current)
     }
 
-    fn prepare_with_budget(&mut self, scene: &Scene, budget: usize, current: impl Fn() -> bool) {
-        let mut previous = std::mem::take(&mut self.images);
-        self.issues.clear();
+    fn prepare_with_budget(
+        &mut self,
+        scene: &Scene,
+        budget: usize,
+        current: impl Fn() -> bool,
+    ) -> SceneAssets {
+        let mut assets = SceneAssets::default();
         let Scene::Rewards(rewards) = scene else {
-            return;
+            self.cache.clear();
+            return assets;
         };
         let requested = rewards
             .items
@@ -80,119 +97,91 @@ impl SceneAssets {
                     .iter()
                     .chain(reward.parts.iter().filter_map(|part| part.asset.as_ref()))
             })
-            .map(|asset| (&asset.digest, asset))
+            .map(|asset| (&asset.digest, (source_key(&asset.digest), asset)))
             .collect::<BTreeMap<_, _>>();
-        previous.retain(|digest, _| requested.contains_key(digest));
+        let sources: BTreeSet<_> = requested.values().map(|(key, _)| *key).collect();
+        self.cache.retain(|key| sources.contains(key));
         let mut used = 0;
-        for (digest, asset) in requested {
+        let mut retained = BTreeSet::new();
+        for (digest, (key, asset)) in requested {
             if !current() {
-                return;
+                break;
             }
             if digest == crate::assets::FORMA_ASSET.image.key {
                 continue;
             }
             let remaining = budget.saturating_sub(used);
-            let image = if let Some(image) = previous.remove(digest) {
-                if image.byte_len() <= remaining {
+            let image = if let Some(image) = self.cache.get(&key) {
+                if image.byte_len() <= remaining.min(IMAGE_BUDGET) {
                     Ok(image)
                 } else {
                     Err("image exceeds decoded asset budget".to_owned())
                 }
             } else {
                 load_scene_icon(&asset.path, remaining.min(IMAGE_BUDGET))
-                    .map(Arc::new)
+                    .map(|image| self.cache.insert(key, image))
                     .map_err(|error| error.to_string())
             };
             match image {
                 Ok(image) => {
                     used += image.byte_len();
-                    self.images.insert(digest.clone(), image);
+                    retained.insert(key);
+                    assets.images.insert(digest.clone(), image);
                 }
-                Err(error) => self.issues.push(json!({
+                Err(error) => assets.issues.push(json!({
                     "kind": "asset_decode", "identity": asset.id,
                     "reason": error, "fallback": asset.image_name, "class": "companion"
                 })),
             }
         }
+        if current() {
+            self.cache.retain(|key| retained.contains(key));
+        }
+        assets
     }
 }
 
-struct Request {
-    revision: u64,
-    scene: Scene,
+fn source_key(digest: &str) -> [u8; 32] {
+    Sha256::digest(digest.as_bytes()).into()
 }
 
 pub(super) struct Loader {
-    revision: Arc<AtomicU64>,
-    sender: Option<mpsc::SyncSender<Request>>,
-    receiver: Option<mpsc::Receiver<(u64, SceneAssets)>>,
-    worker: Option<thread::JoinHandle<()>>,
-    pending: Option<Request>,
+    worker: Option<Preparation<Scene, SceneAssets>>,
 }
 
 impl Loader {
-    pub(super) fn spawn() -> Self {
-        let (sender, requests) = mpsc::sync_channel::<Request>(1);
-        let (results, receiver) = mpsc::sync_channel(1);
-        let revision = Arc::new(AtomicU64::new(0));
-        let current_revision = revision.clone();
-        let worker = thread::spawn(move || {
-            let mut assets = SceneAssets::default();
-            while let Ok(request) = requests.recv() {
-                let current = || current_revision.load(Ordering::Acquire) == request.revision;
-                if !current() {
-                    continue;
-                }
-                assets.prepare(&request.scene, current);
-                if current() && results.send((request.revision, assets.clone())).is_err() {
-                    break;
-                }
-            }
-        });
-        Self {
-            revision,
-            sender: Some(sender),
-            receiver: Some(receiver),
-            worker: Some(worker),
-            pending: None,
-        }
+    pub(super) fn spawn(notify: impl Fn() + Send + 'static) -> std::io::Result<Self> {
+        let mut preparer = Preparer::default();
+        Ok(Self {
+            worker: Some(Preparation::spawn(
+                "wf-overlay-assets",
+                move |scene, token| preparer.prepare(&scene, || token.is_current()),
+                notify,
+            )?),
+        })
     }
 
     pub(super) fn request(&mut self, scene: Scene) {
-        let revision = self.revision.fetch_add(1, Ordering::AcqRel) + 1;
-        self.pending = Some(Request { revision, scene });
-        self.flush();
+        if let Some(worker) = &mut self.worker
+            && let Err(error) = worker.request(scene)
+        {
+            self.failed(error);
+        }
     }
 
     pub(super) fn poll(&mut self) -> Option<SceneAssets> {
-        self.flush();
-        let mut ready = None;
-        while let Ok((revision, assets)) = self.receiver.as_ref().unwrap().try_recv() {
-            if revision == self.revision.load(Ordering::Acquire) {
-                ready = Some(assets);
+        match self.worker.as_mut()?.poll() {
+            Ok(ready) => ready,
+            Err(error) => {
+                self.failed(error);
+                None
             }
         }
-        ready
     }
 
-    fn flush(&mut self) {
-        if let Some(request) = self.pending.take()
-            && let Err(mpsc::TrySendError::Full(request)) =
-                self.sender.as_ref().unwrap().try_send(request)
-        {
-            self.pending = Some(request);
-        }
-    }
-}
-
-impl Drop for Loader {
-    fn drop(&mut self) {
-        self.revision.fetch_add(1, Ordering::AcqRel);
-        self.sender.take();
-        self.receiver.take();
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
+    fn failed(&mut self, error: impl std::fmt::Display) {
+        crate::incident::warn("overlay.asset_worker_failed", error.to_string());
+        self.worker = None;
     }
 }
 
@@ -289,18 +278,19 @@ mod tests {
     #[test]
     fn scene_cache_has_a_byte_budget_and_reuses_images() {
         let scene = super::super::screens::mock_relic_scene();
-        let mut assets = SceneAssets::default();
-        assets.prepare(&scene, || true);
+        let mut preparer = Preparer::default();
+        let mut assets = preparer.prepare(&scene, || true);
         assert!(!assets.images.is_empty());
         let previous = assets.images.clone();
-        assets.prepare(&scene, || true);
+        assets = preparer.prepare(&scene, || true);
         assert!(
             assets
                 .images
                 .iter()
-                .all(|(id, image)| Arc::ptr_eq(image, &previous[id]))
+                .all(|(id, image)| std::ptr::eq(&**image, &*previous[id]))
         );
-        assets.prepare_with_budget(&scene, 1024, || true);
+        assert!(preparer.cache.stats().hits > 0);
+        assets = preparer.prepare_with_budget(&scene, 1024, || true);
         assert!(
             assets
                 .images
@@ -310,49 +300,121 @@ mod tests {
                 <= 1024
         );
         assert!(!assets.issues.is_empty());
-        assets = SceneAssets::default();
-        assets.prepare_with_budget(&scene, 1, || true);
+        assets = Preparer::default().prepare_with_budget(&scene, 1, || true);
         assert!(assets.images.is_empty());
         assert!(!assets.issues.is_empty());
     }
 
     #[test]
-    fn stale_load_result_is_not_installed() {
-        let (sender, _) = mpsc::sync_channel(1);
-        let (results, receiver) = mpsc::sync_channel(1);
-        let mut loader = Loader {
-            revision: Arc::new(AtomicU64::new(2)),
-            sender: Some(sender),
-            receiver: Some(receiver),
-            worker: None,
-            pending: None,
+    fn changed_sources_are_decoded_again_and_old_handles_remain_valid() {
+        let mut scene = super::super::screens::mock_relic_scene();
+        let Scene::Rewards(rewards) = &mut scene else {
+            unreachable!()
         };
-        results.send((1, SceneAssets::default())).unwrap();
-        assert!(loader.poll().is_none());
-        results.send((2, SceneAssets::default())).unwrap();
-        assert!(loader.poll().is_some());
+        rewards.items.truncate(1);
+        let mut preparer = Preparer::default();
+        let previous = preparer.prepare(&scene, || true);
+        let Scene::Rewards(rewards) = &mut scene else {
+            unreachable!()
+        };
+        let asset = rewards
+            .items
+            .iter_mut()
+            .flat_map(|item| &mut item.parts)
+            .filter_map(|part| part.asset.as_mut())
+            .find(|asset| previous.images.contains_key(&asset.digest))
+            .unwrap();
+        let old_digest = asset.digest.clone();
+        let old_path = asset.path.clone();
+        asset.digest = "replacement".into();
+        let current = preparer.prepare(&scene, || true);
+        let old = &previous.images[&old_digest];
+        let new = &current.images["replacement"];
+        assert!(!std::ptr::eq(&**old, &**new));
+        assert_eq!(old.byte_len(), new.byte_len());
+        assert!(preparer.cache.get(&source_key(&old_digest)).is_none());
+
+        let Scene::Rewards(rewards) = &mut scene else {
+            unreachable!()
+        };
+        for asset in rewards.items.iter_mut().flat_map(|item| {
+            item.asset
+                .iter_mut()
+                .chain(item.parts.iter_mut().filter_map(|part| part.asset.as_mut()))
+        }) {
+            if asset.path == old_path {
+                asset.path = "/missing-but-already-cached.png".into();
+            }
+        }
+        let cached = preparer.prepare(&scene, || true);
+        assert!(std::ptr::eq(
+            &*cached.images["replacement"],
+            &*current.images["replacement"]
+        ));
+        let empty = preparer.prepare(&Scene::Reading, || true);
+        assert!(empty.images.is_empty());
+        assert_eq!(preparer.cache.stats().cached_bytes, 0);
+        assert!(preparer.cache.stats().retained_bytes > 0);
+        drop((cached, current, previous));
+        assert_eq!(preparer.cache.stats().live_bytes, 0);
     }
 
     #[test]
-    fn pending_load_is_replaced_with_the_latest_scene() {
-        let (sender, requests) = mpsc::sync_channel(1);
-        let (_results, receiver) = mpsc::sync_channel(1);
-        let mut loader = Loader {
-            revision: Arc::new(AtomicU64::new(0)),
-            sender: Some(sender),
-            receiver: Some(receiver),
-            worker: None,
-            pending: None,
+    fn cancelled_preparation_does_not_read_files() {
+        let scene = super::super::screens::mock_relic_scene();
+        let mut preparer = Preparer::default();
+        let cancelled = preparer.prepare(&scene, || false);
+        assert!(cancelled.images.is_empty());
+        assert!(cancelled.issues.is_empty());
+        assert_eq!(preparer.cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn failed_decode_is_reported_and_retried_after_source_recovers() {
+        let mut scene = super::super::screens::mock_relic_scene();
+        let Scene::Rewards(rewards) = &mut scene else {
+            unreachable!()
         };
+        rewards.items.truncate(1);
+        let mut broken = scene.clone();
+        let Scene::Rewards(rewards) = &mut broken else {
+            unreachable!()
+        };
+        let asset = rewards
+            .items
+            .iter_mut()
+            .flat_map(|item| &mut item.parts)
+            .find_map(|part| part.asset.as_mut())
+            .unwrap();
+        let digest = asset.digest.clone();
+        asset.path = "/missing-scene-image.png".into();
+        let mut preparer = Preparer::default();
+        let failed = preparer.prepare(&broken, || true);
+        assert!(!failed.images.contains_key(&digest));
+        assert!(!failed.issues.is_empty());
+        let recovered = preparer.prepare(&scene, || true);
+        assert!(recovered.images.contains_key(&digest));
+        assert!(recovered.issues.is_empty());
+    }
+
+    #[test]
+    fn loader_notifies_and_delivers_prepared_scene() {
+        let (ready, results) = std::sync::mpsc::channel();
+        let mut loader = Loader::spawn(move || {
+            let _ = ready.send(());
+        })
+        .unwrap();
+        loader.request(super::super::screens::mock_relic_scene());
+        results
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(!loader.poll().unwrap().images.is_empty());
         loader.request(Scene::Reading);
-        loader.request(Scene::Error("obsolete".to_owned()));
-        loader.request(Scene::Error("latest".to_owned()));
-        assert_eq!(requests.recv().unwrap().revision, 1);
-        loader.flush();
-        let request = requests.recv().unwrap();
-        assert_eq!(request.revision, 3);
-        assert_eq!(request.scene, Scene::Error("latest".to_owned()));
-        assert!(loader.pending.is_none());
+        results
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(loader.poll().unwrap().images.is_empty());
+        assert!(loader.poll().is_none());
     }
 
     #[test]
@@ -390,10 +452,10 @@ mod tests {
                 asset.digest = asset.path.clone();
             }
         }
-        let mut assets = SceneAssets::default();
+        let mut preparer = Preparer::default();
         for pass in ["decode", "reuse"] {
             let started = std::time::Instant::now();
-            assets.prepare(&scene, || true);
+            let assets = preparer.prepare(&scene, || true);
             eprintln!(
                 "scene_assets pass={pass} elapsed_us={} images={} bytes={} errors={}",
                 started.elapsed().as_micros(),

@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::overlay::assets::SceneAssets;
 use crate::ui::ScreenOutput;
-use fontdue::Font;
-use retinue_overlay::painter::{Painter, RasterImage, load_icon};
+use retinue_ui::painter::CachedFont;
+use retinue_ui::painter::{Painter, RasterImage, load_icon};
+use retinue_ui::resources::Resource;
 
 mod fixture;
 mod reward;
@@ -48,10 +48,10 @@ impl Assets {
 
     #[cfg(test)]
     fn cache_scene(&mut self, scene: &crate::relic::Scene) -> Vec<serde_json::Value> {
-        self.scene_assets.prepare(scene, || true);
+        self.scene_assets = crate::overlay::assets::Preparer::default().prepare(scene, || true);
         self.scene_assets.issues.clone()
     }
-    fn resources<'a>(&'a self, font: &'a Font) -> Resources<'a> {
+    fn resources<'a>(&'a self, font: &'a CachedFont) -> Resources<'a> {
         Resources {
             font,
             platinum_icon: &self.platinum_icon,
@@ -64,19 +64,19 @@ impl Assets {
 }
 
 struct Resources<'a> {
-    font: &'a Font,
+    font: &'a CachedFont,
     platinum_icon: &'a RasterImage,
     ducat_icon: &'a RasterImage,
     icons: &'a SuggestionIcons,
     permanent_images: &'a BTreeMap<String, RasterImage>,
-    scene_images: &'a BTreeMap<String, Arc<RasterImage>>,
+    scene_images: &'a BTreeMap<String, Resource<RasterImage>>,
 }
 
 impl Resources<'_> {
     fn asset_image(&self, digest: &str) -> Option<&RasterImage> {
         self.permanent_images
             .get(digest)
-            .or_else(|| self.scene_images.get(digest).map(Arc::as_ref))
+            .or_else(|| self.scene_images.get(digest).map(|image| &**image))
     }
 }
 
@@ -90,7 +90,7 @@ pub(super) struct View {
 
 pub(super) fn draw_static_relic_scene(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     assets: &Assets,
     scene: &crate::relic::Scene,
     view: View,

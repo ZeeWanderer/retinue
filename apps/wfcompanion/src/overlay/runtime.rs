@@ -31,23 +31,33 @@ use wayland_client::globals::registry_queue_init;
 use wayland_client::protocol::{wl_output, wl_pointer, wl_seat, wl_shm, wl_surface};
 use wayland_client::{Connection, QueueHandle};
 
-use super::renderer::{FrameKey, LOADING_FRAME_INTERVAL, Renderer};
+use super::renderer::{FrameKey, LOADING_FRAME_INTERVAL, Renderer, SurfaceScene};
 use super::scene::Presentation;
 use super::screens::{STATUS_HEIGHT, STATUS_INSET, STATUS_WIDTH, StatusView};
 use crate::UiEvent;
 use crate::incident;
 use crate::runtime::presentation;
-use crate::ui::{HitTarget, Rect};
-use retinue_overlay::focus::FocusDetector;
-use retinue_overlay::layer::OverlayLayerState;
-use retinue_overlay::painter::Painter;
+use crate::ui::HitTarget;
+use retinue_ui::damage::{Damage, RepaintTracker};
+use retinue_ui::focus::FocusDetector;
+use retinue_ui::layer::OverlayLayerState;
+use retinue_ui::schedule::Deadlines;
 
 const STATUS_SURFACE_WIDTH: u32 = STATUS_WIDTH + STATUS_INSET;
 const STATUS_SURFACE_HEIGHT: u32 = STATUS_HEIGHT + STATUS_INSET;
-const EVENT_INTERVAL: Duration = Duration::from_millis(50);
 const FOCUS_INTERVAL: Duration = Duration::from_millis(100);
 const MAX_SURFACE_BUFFERS: usize = 3;
 const DEBUG_HUD: bool = cfg!(debug_assertions);
+
+fn buffer_dimensions(width: u32, height: u32, scale: u32) -> Option<(u32, u32, i32)> {
+    let width = width.checked_mul(scale)?;
+    let height = height.checked_mul(scale)?;
+    let pixels = u64::from(width) * u64::from(height);
+    if pixels == 0 || pixels > 40_000_000 {
+        return None;
+    }
+    Some((width, height, i32::try_from(width.checked_mul(4)?).ok()?))
+}
 
 pub(crate) fn run(
     events: &presentation::Receiver,
@@ -89,6 +99,9 @@ pub(crate) fn run(
     )?;
     let renderer = Renderer::load()?;
     let loop_signal = event_loop.get_signal();
+    let asset_signal = loop_signal.clone();
+    let event_signal = loop_signal.clone();
+    events.set_waker(Some(Arc::new(move || event_signal.wakeup())));
     let mut overlay = Overlay {
         registry_state: RegistryState::new(&globals),
         seat_state: SeatState::new(&globals, &queue_handle),
@@ -100,7 +113,7 @@ pub(crate) fn run(
         interactive_input_region,
         themed_pointer: None,
         renderer,
-        asset_loader: super::assets::Loader::spawn(),
+        asset_loader: super::assets::Loader::spawn(move || asset_signal.wakeup())?,
         pool,
         buffers: Vec::new(),
         width: STATUS_SURFACE_WIDTH,
@@ -110,7 +123,7 @@ pub(crate) fn run(
         closed: false,
         configure_pending: true,
         mapped: false,
-        redraw: Redraw::Full,
+        repaint: RepaintTracker::default(),
         overlay_enabled: true,
         hud: HudVisibility::for_build(DEBUG_HUD),
         contextual_surface: false,
@@ -143,8 +156,9 @@ pub(crate) fn run(
 
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
         while !overlay.stopping.load(Ordering::Relaxed) && !overlay.closed {
-            event_loop.dispatch(overlay.dispatch_interval(), &mut overlay)?;
             overlay.tick(&queue_handle, events);
+            let timeout = overlay.dispatch_timeout();
+            event_loop.dispatch(timeout, &mut overlay)?;
         }
         if overlay.closed {
             Err("compositor closed overlay surface".into())
@@ -152,19 +166,10 @@ pub(crate) fn run(
             Ok(())
         }
     })();
+    events.set_waker(None);
     overlay.shortcut.set_enabled(false);
     overlay.unmap();
     result
-}
-
-fn copy_frame_rect(source: &[u8], target: &mut [u8], frame_width: u32, bounds: Rect) {
-    let stride = frame_width as usize * 4;
-    let row_bytes = bounds.width as usize * 4;
-    let x = bounds.x as usize * 4;
-    for row in bounds.y as usize..(bounds.y + bounds.height) as usize {
-        let start = row * stride + x;
-        target[start..start + row_bytes].copy_from_slice(&source[start..start + row_bytes]);
-    }
 }
 
 struct Overlay {
@@ -180,7 +185,7 @@ struct Overlay {
     renderer: Renderer,
     asset_loader: super::assets::Loader,
     pool: SlotPool,
-    buffers: Vec<SurfaceBuffer>,
+    buffers: Vec<Buffer>,
     width: u32,
     height: u32,
     scale: i32,
@@ -188,7 +193,7 @@ struct Overlay {
     closed: bool,
     configure_pending: bool,
     mapped: bool,
-    redraw: Redraw,
+    repaint: RepaintTracker,
     overlay_enabled: bool,
     hud: HudVisibility,
     contextual_surface: bool,
@@ -221,18 +226,6 @@ struct Overlay {
     focus: Option<FocusDetector>,
     last_focus_check: Instant,
     loop_signal: LoopSignal,
-}
-
-struct SurfaceBuffer {
-    buffer: Buffer,
-    frame_key: Option<FrameKey>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Redraw {
-    None,
-    Loading,
-    Full,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -286,13 +279,30 @@ impl Overlay {
         self.reported_asset_issues = Some(issues);
     }
 
-    fn dispatch_interval(&self) -> Duration {
-        if self.loading_active() && !self.frame_pending {
-            EVENT_INTERVAL
-                .min(LOADING_FRAME_INTERVAL.saturating_sub(self.last_loading_frame.elapsed()))
-        } else {
-            EVENT_INTERVAL
+    fn dispatch_timeout(&mut self) -> Option<Duration> {
+        let mut deadlines = Deadlines::default();
+        deadlines.control(Some(self.last_focus_check + FOCUS_INTERVAL));
+        deadlines.control(
+            self.relic_scene
+                .as_ref()
+                .and_then(|(_, expires, _)| *expires),
+        );
+        deadlines.control(self.ducat_scene.as_ref().map(|(_, expires, _)| *expires));
+        if self.loading_active() {
+            deadlines.visual(Some(self.last_loading_frame + LOADING_FRAME_INTERVAL));
         }
+        deadlines.timeout(Instant::now(), self.animation_drawable())
+    }
+
+    fn animation_drawable(&mut self) -> bool {
+        self.mapped
+            && self.configured
+            && !self.frame_pending
+            && (self.buffers.len() < MAX_SURFACE_BUFFERS
+                || self
+                    .buffers
+                    .iter()
+                    .any(|buffer| buffer.canvas(&mut self.pool).is_some()))
     }
 
     fn loading_active(&self) -> bool {
@@ -305,13 +315,16 @@ impl Overlay {
     }
 
     fn request_full_redraw(&mut self) {
-        self.redraw = Redraw::Full;
+        self.repaint.invalidate(Damage::Full);
     }
 
     fn request_loading_redraw(&mut self) {
-        if self.redraw == Redraw::None {
-            self.redraw = Redraw::Loading;
-        }
+        let damage = self
+            .renderer
+            .frame()
+            .and_then(|frame| frame.output.animation_bounds)
+            .map_or(Damage::Full, Damage::rect);
+        self.repaint.invalidate(damage);
     }
 
     fn tick(&mut self, queue_handle: &QueueHandle<Self>, events: &presentation::Receiver) {
@@ -330,9 +343,6 @@ impl Overlay {
         if let Some(assets) = self.asset_loader.poll() {
             self.report_asset_issues(assets.issues.clone());
             self.renderer.install_scene_assets(assets);
-            for buffer in &mut self.buffers {
-                buffer.frame_key = None;
-            }
             self.request_full_redraw();
         }
         self.update_focus();
@@ -524,7 +534,8 @@ impl Overlay {
             self.frame_pending = false;
             return;
         }
-        if !self.frame_pending && self.last_loading_frame.elapsed() >= LOADING_FRAME_INTERVAL {
+        if self.animation_drawable() && self.last_loading_frame.elapsed() >= LOADING_FRAME_INTERVAL
+        {
             self.last_loading_frame = Instant::now();
             self.request_loading_redraw();
         }
@@ -665,7 +676,7 @@ impl Overlay {
             return;
         }
         if should_draw {
-            if self.redraw != Redraw::None || !self.mapped {
+            if self.repaint.is_dirty() || !self.mapped {
                 self.draw(queue_handle);
             }
         } else if self.mapped {
@@ -683,6 +694,7 @@ impl Overlay {
         self.configured = false;
         self.configure_pending = true;
         self.buffers.clear();
+        self.repaint.reset();
         true
     }
 
@@ -694,6 +706,7 @@ impl Overlay {
             self.layer.wl_surface().attach(None, 0, 0);
             self.layer.commit();
             self.buffers.clear();
+            self.repaint.reset();
             self.configured = false;
             self.configure_pending = false;
             self.mapped = false;
@@ -705,7 +718,7 @@ impl Overlay {
 
     fn acquire_surface_buffer(&mut self, width: u32, height: u32, stride: i32) -> Option<usize> {
         for index in 0..self.buffers.len() {
-            if self.buffers[index].buffer.canvas(&mut self.pool).is_some() {
+            if self.buffers[index].canvas(&mut self.pool).is_some() {
                 return Some(index);
             }
         }
@@ -713,33 +726,34 @@ impl Overlay {
             return None;
         }
 
-        let (buffer, _) = self
-            .pool
-            .create_buffer(
-                width as i32,
-                height as i32,
-                stride,
-                wl_shm::Format::Argb8888,
-            )
-            .expect("create overlay buffer");
-        self.buffers.push(SurfaceBuffer {
-            buffer,
-            frame_key: None,
-        });
+        let (buffer, _) = match self.pool.create_buffer(
+            width as i32,
+            height as i32,
+            stride,
+            wl_shm::Format::Argb8888,
+        ) {
+            Ok(buffer) => buffer,
+            Err(error) => {
+                incident::error("overlay.render_failed", error.to_string());
+                return None;
+            }
+        };
+        self.buffers.push(buffer);
+        self.repaint.add_buffer();
         Some(self.buffers.len() - 1)
     }
 
     fn draw(&mut self, queue_handle: &QueueHandle<Self>) {
         let was_mapped = self.mapped;
-        let requested_redraw = if was_mapped {
-            self.redraw
-        } else {
-            Redraw::Full
-        };
+        if !was_mapped {
+            self.request_full_redraw();
+        }
         let scale = self.scale.max(1) as u32;
-        let width = self.width * scale;
-        let height = self.height * scale;
-        let stride = width as i32 * 4;
+        let Some((width, height, stride)) = buffer_dimensions(self.width, self.height, scale)
+        else {
+            incident::error("overlay.render_failed", "surface dimensions overflow");
+            return;
+        };
         let scene_visible =
             self.overlay_enabled && self.relic_scene.is_some() && self.warframe_active;
         let status_visible = self.overlay_enabled
@@ -774,19 +788,25 @@ impl Overlay {
                     .presentation
                     .scene(scene.clone(), self.interaction_active),
             };
-            if let Err(error) = self.renderer.prepare_frame(key) {
-                incident::error("overlay.render_failed", error);
-                return;
+            match self.renderer.prepare_frame(key) {
+                Ok(true) => self.request_full_redraw(),
+                Ok(false) => {}
+                Err(error) => {
+                    incident::error("overlay.render_failed", error);
+                    return;
+                }
             }
         }
         let Some(buffer_index) = self.acquire_surface_buffer(width, height, stride) else {
             return;
         };
+        let Some(plan) = self.repaint.plan(buffer_index, (width, height)) else {
+            return;
+        };
         let buffer = &mut self.buffers[buffer_index];
-        let canvas = buffer
-            .buffer
-            .canvas(&mut self.pool)
-            .expect("selected overlay buffer is writable");
+        let Some(canvas) = buffer.canvas(&mut self.pool) else {
+            return;
+        };
 
         let animation_bounds = if scene_visible {
             self.renderer
@@ -796,83 +816,44 @@ impl Overlay {
         } else {
             None
         };
-        let partial_animation = scene_visible
-            && requested_redraw == Redraw::Loading
-            && animation_bounds.is_some()
-            && buffer.frame_key.as_ref() == self.renderer.frame().map(|cache| &cache.key);
-        let damage = if scene_visible {
-            let cache = self
-                .renderer
-                .frame()
-                .expect("visible relic scene has cached frame");
-            if partial_animation {
-                let bounds = animation_bounds.expect("loading scene has animation bounds");
-                copy_frame_rect(&cache.pixels, canvas, width, bounds);
-                bounds
-            } else {
-                canvas.copy_from_slice(&cache.pixels);
-                buffer.frame_key = Some(cache.key.clone());
-                Rect {
-                    x: 0,
-                    y: 0,
-                    width,
-                    height,
-                }
-            }
-        } else {
-            buffer.frame_key = None;
-            Rect {
-                x: 0,
-                y: 0,
-                width,
-                height,
-            }
-        };
-
-        let mut painter = match Painter::new(canvas, width, height) {
-            Ok(painter) => painter,
-            Err(error) => {
-                incident::error("overlay.render_failed", error.to_string());
-                return;
-            }
-        };
-        if !scene_visible {
-            painter.clear();
-        }
-        if !scene_visible
-            && self.overlay_enabled
+        let scene = if scene_visible {
+            SurfaceScene::Relic(loading_elapsed.unwrap_or_default())
+        } else if self.overlay_enabled
             && self.warframe_active
             && let Some((scene, _, _)) = &self.ducat_scene
         {
-            self.renderer.draw_ducats(&mut painter, scene);
-        }
-        if animation_bounds.is_some()
-            && let Some(elapsed) = loading_elapsed
+            SurfaceScene::Ducats(scene)
+        } else {
+            SurfaceScene::Empty
+        };
+        let status = status
+            .as_ref()
+            .map(|(origin, daemon, player, detail)| StatusView {
+                scale,
+                origin: (*origin, *origin),
+                daemon,
+                player,
+                detail,
+            });
+        if let Err(error) =
+            self.renderer
+                .paint_surface(canvas, (width, height), plan.repair, scene, status)
         {
-            self.renderer.draw_animation(&mut painter, elapsed);
-        }
-        if !partial_animation && let Some((origin, daemon, player, detail)) = status.as_ref() {
-            self.renderer.draw_status(
-                &mut painter,
-                StatusView {
-                    scale,
-                    origin: (*origin, *origin),
-                    daemon,
-                    player,
-                    detail,
-                },
-            );
-        }
-        if let Err(error) = painter.finish() {
-            incident::error("overlay.render_failed", error.to_string());
+            self.repaint.failed(buffer_index);
+            incident::error("overlay.render_failed", error);
             return;
         }
 
+        if let Err(error) = buffer.attach_to(self.layer.wl_surface()) {
+            self.repaint.failed(buffer_index);
+            incident::error("overlay.render_failed", error.to_string());
+            return;
+        }
         self.layer.wl_surface().damage_buffer(
-            damage.x as i32,
-            damage.y as i32,
-            damage.width as i32,
-            damage.height as i32,
+            plan.damage.x as i32,
+            plan.damage.y as i32,
+            plan.damage.width as i32,
+            plan.damage.height as i32,
         );
         if animation_bounds.is_some() && !self.frame_pending {
             self.layer
@@ -887,13 +868,9 @@ impl Overlay {
             } else {
                 self.empty_input_region.wl_region()
             }));
-        buffer
-            .buffer
-            .attach_to(self.layer.wl_surface())
-            .expect("attach overlay buffer");
         self.layer.commit();
         self.mapped = true;
-        self.redraw = Redraw::None;
+        self.repaint.submitted(buffer_index);
         if !was_mapped {
             incident::info(
                 "overlay.mapped",
@@ -991,6 +968,7 @@ impl CompositorHandler for Overlay {
             self.scale = scale.max(1);
             self.layer.wl_surface().set_buffer_scale(self.scale);
             self.buffers.clear();
+            self.repaint.reset();
             self.request_full_redraw();
         }
     }
@@ -1074,6 +1052,7 @@ impl LayerShellHandler for Overlay {
             configure.new_size.1
         };
         self.buffers.clear();
+        self.repaint.reset();
         self.configured = true;
         self.configure_pending = false;
         self.request_full_redraw();
@@ -1285,25 +1264,13 @@ mod tests {
     }
 
     #[test]
-    fn frame_rect_copy_leaves_other_pixels_untouched() {
-        let source = vec![7; 8 * 6 * 4];
-        let mut target = vec![3; source.len()];
-        copy_frame_rect(
-            &source,
-            &mut target,
-            8,
-            Rect {
-                x: 2,
-                y: 1,
-                width: 3,
-                height: 2,
-            },
-        );
-
-        assert_eq!(&target[(8 + 2) * 4..(8 + 5) * 4], &[7; 12]);
-        assert_eq!(&target[(2 * 8 + 2) * 4..(2 * 8 + 5) * 4], &[7; 12]);
-        assert_eq!(target[0], 3);
-        assert_eq!(target[(3 * 8 + 2) * 4], 3);
+    fn surface_dimensions_validate_scaled_buffer_size() {
+        assert_eq!(buffer_dimensions(1920, 1080, 2), Some((3840, 2160, 15360)));
+        assert_eq!(buffer_dimensions(0, 1080, 1), None);
+        assert_eq!(buffer_dimensions(1920, 1080, 0), None);
+        assert_eq!(buffer_dimensions(u32::MAX, 1080, 2), None);
+        assert_eq!(buffer_dimensions(1920, u32::MAX, 2), None);
+        assert_eq!(buffer_dimensions(8000, 8000, 1), None);
     }
 
     #[test]

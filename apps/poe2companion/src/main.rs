@@ -45,6 +45,9 @@ enum Command {
         /// Normalized evaluation/results JSON; defaults to a deterministic sample.
         #[arg(long)]
         input: Option<std::path::PathBuf>,
+        /// Offline currency image manifest for reproducible previews.
+        #[arg(long)]
+        currency_assets: Option<std::path::PathBuf>,
         #[arg(long, default_value_t = 1.0)]
         scale: f32,
         #[arg(long, default_value_t = 1920)]
@@ -79,6 +82,7 @@ fn main() -> ExitCode {
     if let Some(Command::Preview {
         output,
         input,
+        currency_assets,
         scale,
         width,
         height,
@@ -94,6 +98,7 @@ fn main() -> ExitCode {
                 (*width, *height),
                 *full_frame,
                 *state,
+                currency_assets.as_deref(),
             )
             .map(|()| 0),
         );

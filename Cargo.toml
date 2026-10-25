@@ -5,9 +5,10 @@ members = [
     "apps/poe2companion",
     "apps/retinue-inspect",
     "apps/wfcompanion",
+    "apps/wfgui",
     "crates/retinue-client",
     "crates/retinue-native",
-    "crates/retinue-overlay",
+    "crates/retinue-ui",
     "crates/retinue-poe2",
     "crates/retinue-warframe",
 ]

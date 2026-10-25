@@ -47,6 +47,7 @@ struct State<T> {
     stats: Stats,
     senders: usize,
     closed: bool,
+    wake: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 pub(crate) fn channel<T>(
@@ -63,6 +64,7 @@ pub(crate) fn channel<T>(
             stats: Stats::default(),
             senders: 1,
             closed: false,
+            wake: None,
         }),
         ready: Condvar::new(),
     });
@@ -104,8 +106,12 @@ impl<T: Message> Sender<T> {
         state.stats.bytes = state.stats.bytes - replaced_bytes + size;
         state.stats.peak_items = state.stats.peak_items.max(state.stats.items);
         state.stats.peak_bytes = state.stats.peak_bytes.max(state.stats.bytes);
+        let wake = state.wake.clone();
         drop(state);
         self.0.ready.notify_one();
+        if let Some(wake) = wake {
+            wake();
+        }
         drop(replaced);
         Ok(())
     }
@@ -126,8 +132,14 @@ impl<T> Clone for Sender<T> {
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        self.0.state.lock().unwrap().senders -= 1;
+        let mut state = self.0.state.lock().unwrap();
+        state.senders -= 1;
+        let wake = state.wake.clone().filter(|_| state.senders == 0);
+        drop(state);
         self.0.ready.notify_one();
+        if let Some(wake) = wake {
+            wake();
+        }
     }
 }
 
@@ -143,6 +155,16 @@ impl<T> State<T> {
 }
 
 impl<T> Receiver<T> {
+    pub(crate) fn set_waker(&self, wake: Option<Arc<dyn Fn() + Send + Sync>>) {
+        let mut state = self.0.state.lock().unwrap();
+        state.wake = wake.clone();
+        let ready = !state.messages.is_empty() || state.senders == 0;
+        drop(state);
+        if ready && let Some(wake) = wake {
+            wake();
+        }
+    }
+
     pub(crate) fn try_recv(&self) -> Result<T, mpsc::TryRecvError> {
         let mut state = self.0.state.lock().unwrap();
         state.pop().ok_or(if state.senders == 0 {
@@ -170,7 +192,13 @@ impl<T> Receiver<T> {
 
     pub(crate) fn drain(&self, max: usize) -> Vec<T> {
         let mut state = self.0.state.lock().unwrap();
-        (0..max).map_while(|_| state.pop()).collect()
+        let messages = (0..max).map_while(|_| state.pop()).collect();
+        let wake = state.wake.clone().filter(|_| !state.messages.is_empty());
+        drop(state);
+        if let Some(wake) = wake {
+            wake();
+        }
+        messages
     }
 
     #[cfg(test)]
@@ -237,6 +265,30 @@ mod tests {
             Limit { items: 2, bytes: 8 },
             Limit { items: 2, bytes: 4 },
         )
+    }
+
+    #[test]
+    fn waker_covers_existing_messages_partial_drains_and_disconnect() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let (sender, receiver) = test_channel();
+        sender.send(Entry(1, 1, false)).unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let count = calls.clone();
+        receiver.set_waker(Some(Arc::new(move || {
+            count.fetch_add(1, Ordering::Relaxed);
+        })));
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        sender.send(Entry(2, 1, false)).unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        assert_eq!(receiver.drain(1), vec![Entry(1, 1, false)]);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        assert_eq!(receiver.drain(1), vec![Entry(2, 1, false)]);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        drop(sender);
+        assert_eq!(calls.load(Ordering::Relaxed), 4);
+        receiver.set_waker(None);
+        assert!(receiver.drain(1).is_empty());
+        assert_eq!(calls.load(Ordering::Relaxed), 4);
     }
 
     #[test]

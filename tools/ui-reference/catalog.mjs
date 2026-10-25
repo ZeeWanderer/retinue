@@ -1,5 +1,7 @@
 export const providers = {
   alecaframe: {
+    desktop: "desktop.mjs",
+    foundry: "foundry.mjs",
     "relic-rewards": "rewards.mjs",
     "relic-suggestions": "suggestions.mjs",
     "relic-planner": "planner.mjs",

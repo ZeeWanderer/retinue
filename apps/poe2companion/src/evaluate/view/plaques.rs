@@ -142,23 +142,59 @@ impl View {
             return;
         };
         let amount = number((estimate.amount * 100.0).round() / 100.0);
-        self.plaque_line(
-            p,
-            value,
-            &[
-                ("\u{2248}", 16.0, rgba(203, 201, 191, 255), true),
-                (&amount, 16.0, INK, true),
-                (&estimate.currency, 16.0, rgba(203, 201, 191, 255), false),
-            ],
-            4.0,
-            s,
-        );
+        if self.price_icon(&estimate.currency, s) {
+            let amount_width = text_width(&self.ui_bold, &amount, 16.0 * s).ceil() as u32;
+            let width = amount_width + px(37, s);
+            let x = value.x + value.width.saturating_sub(width) / 2;
+            self.artwork.icon(
+                p,
+                Rect {
+                    x,
+                    y: value.y + px(1, s),
+                    width: px(9, s),
+                    height: px(16, s),
+                },
+                "estimate-approximation",
+                false,
+            );
+            p.draw_text_vertically_centered(
+                &self.ui_bold,
+                TextLine::new(x + px(13, s), value.y, value.height),
+                16.0 * s,
+                &amount,
+                INK,
+            );
+            self.currency_icon(
+                p,
+                &estimate.currency,
+                Rect {
+                    x: x + px(17, s) + amount_width,
+                    y: value.y,
+                    width: px(20, s),
+                    height: px(20, s),
+                },
+                s,
+            );
+        } else {
+            self.plaque_line(
+                p,
+                value,
+                &[
+                    ("\u{2248}", 16.0, rgba(203, 201, 191, 255), true),
+                    (&amount, 16.0, INK, true),
+                    (&estimate.currency, 16.0, rgba(203, 201, 191, 255), false),
+                ],
+                4.0,
+                s,
+            );
+        }
         if let Some(range) = &estimate.uncertainty {
             let (label, color) = reliability(range.confidence);
             let bounds = format!(
-                "{}\u{2013}{}ex",
+                "{}\u{2013}{}{}",
                 number((range.low * 100.0).round() / 100.0),
-                number((range.high * 100.0).round() / 100.0)
+                number((range.high * 100.0).round() / 100.0),
+                crate::evaluate::currency::abbreviation(&estimate.currency)
             );
             self.plaque_line(
                 p,

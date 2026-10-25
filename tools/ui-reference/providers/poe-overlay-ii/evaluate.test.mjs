@@ -10,6 +10,18 @@ import { states } from "./states.mjs";
 
 const source = path.join(repositoryRoot, "research/retinue/providers/extracted/app-poe-overlay-ii-1.68.0/dist/renderer/ingame-evaluate.html");
 
+test("reference listings and estimates use CDN currency icons", {skip: !existsSync(source)}, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "retinue-currencies-"));
+  try {
+    for (const state of ["results", "estimate"]) {
+      const result = spawnSync(process.execPath, ["tools/ui-reference/render.mjs", "poe-overlay-ii", "evaluate",
+        "--state", state, "--exercise", "tools/ui-reference/providers/poe-overlay-ii/currency-layout.mjs",
+        "--output", path.join(directory, state)], {cwd: repositoryRoot, encoding: "utf8", timeout: 45000});
+      assert.equal(result.status, 0, result.stderr);
+    }
+  } finally { await rm(directory, {recursive: true, force: true}); }
+});
+
 test("original renderer states and search interactions produce named full-resolution artifacts", {skip: !existsSync(source)}, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "retinue-evaluate-"));
   try {
@@ -44,7 +56,7 @@ test("original renderer states and search interactions produce named full-resolu
 test("profile rules match the original ranking, query builder and UI", {skip: !existsSync(source)}, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "retinue-profile-"));
   try {
-    for (const exercise of ["profile-ranking", "property-ranking", "profile-ranges", "profile-defaults", "profile-interactions", "motion", "plaque-layout", "evaluation-behavior", "parser-oracle"]) {
+    for (const exercise of ["profile-ranking", "property-ranking", "profile-ranges", "profile-defaults", "profile-interactions", "motion", "plaque-layout", "item-layout", "evaluation-behavior", "parser-oracle"]) {
       const output = path.join(directory, exercise);
       const result = spawnSync(process.execPath, ["tools/ui-reference/render.mjs", "poe-overlay-ii", "evaluate",
         "--exercise", `tools/ui-reference/providers/poe-overlay-ii/${exercise}.mjs`, "--output", output],
@@ -53,6 +65,19 @@ test("profile rules match the original ranking, query builder and UI", {skip: !e
       const report = JSON.parse(await readFile(`${output}.json`, "utf8"));
       assert.deepEqual(report.errors, []);
     }
+  } finally {
+    await rm(directory, {recursive: true, force: true});
+  }
+});
+
+test("result refresh preserves the original table while searching", {skip: !existsSync(source)}, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "retinue-results-refresh-"));
+  try {
+    const result = spawnSync(process.execPath, ["tools/ui-reference/render.mjs", "poe-overlay-ii", "evaluate",
+      "--state", "results", "--exercise", "tools/ui-reference/providers/poe-overlay-ii/results-refresh.mjs",
+      "--output", path.join(directory, "refresh")],
+      {cwd: repositoryRoot, encoding: "utf8", timeout: 45000});
+    assert.equal(result.status, 0, result.stderr);
   } finally {
     await rm(directory, {recursive: true, force: true});
   }

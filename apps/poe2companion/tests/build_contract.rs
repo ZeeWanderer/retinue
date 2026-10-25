@@ -1,21 +1,11 @@
-use std::{fs, path::Path, process::Command};
+use std::{fs, panic::catch_unwind};
+
+#[path = "../build/support.rs"]
+mod support;
 
 #[test]
 fn build_guard_rejects_version_and_protocol_drift() {
     let dir = tempfile::tempdir().unwrap();
-    let guard = dir.path().join("contract-check");
-    let output = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
-        .arg("--edition=2024")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("build.rs"))
-        .arg("-o")
-        .arg(&guard)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
     let manifest = dir.path().join("apps/poe2companion");
     let protocol_dir = dir.path().join("apps/retinue_daemon/src/runtime");
     fs::create_dir_all(&manifest).unwrap();
@@ -30,8 +20,8 @@ fn build_guard_rejects_version_and_protocol_drift() {
     )
     .unwrap();
     for (version, envelope, session, trade, expected_error) in [
-        (env!("CARGO_PKG_VERSION"), 2, 2, 2, None),
-        ("999.0.0", 2, 2, 2, Some("version must match root VERSION")),
+        (env!("CARGO_PKG_VERSION"), 2, 2, 5, None),
+        ("999.0.0", 2, 2, 5, Some("version must match root VERSION")),
         (
             env!("CARGO_PKG_VERSION"),
             3,
@@ -53,7 +43,7 @@ fn build_guard_rejects_version_and_protocol_drift() {
             2,
             Some("supports session 2"),
         ),
-        (env!("CARGO_PKG_VERSION"), 2, 2, 1, Some("supports trade 2")),
+        (env!("CARGO_PKG_VERSION"), 2, 2, 4, Some("supports trade 5")),
     ] {
         fs::write(dir.path().join("VERSION"), format!("{version}\n")).unwrap();
         fs::write(
@@ -63,21 +53,18 @@ fn build_guard_rejects_version_and_protocol_drift() {
             ),
         )
         .unwrap();
-        let output = Command::new(&guard)
-            .env("CARGO_MANIFEST_DIR", &manifest)
-            .env("CARGO_PKG_VERSION", env!("CARGO_PKG_VERSION"))
-            .env("OUT_DIR", dir.path())
-            .output()
-            .unwrap();
+        let result =
+            catch_unwind(|| support::prepare(&manifest, env!("CARGO_PKG_VERSION"), dir.path()));
         if let Some(message) = expected_error {
-            assert!(!output.status.success());
-            assert!(String::from_utf8_lossy(&output.stderr).contains(message));
+            let error = result.expect_err("build guard accepted drift");
+            let error = error
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| error.downcast_ref::<&str>().copied())
+                .unwrap();
+            assert!(error.contains(message), "{error}");
         } else {
-            assert!(
-                output.status.success(),
-                "{}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+            result.unwrap();
             assert_eq!(
                 fs::read(dir.path().join("Fontin-SmallCaps.ttf")).unwrap(),
                 b"font fixture"

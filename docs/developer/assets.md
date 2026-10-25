@@ -103,6 +103,19 @@ concurrent requests for the same canonical URL.
 
 ## Catalog And Fallbacks
 
+PoE2 currencies use the official trade static catalog and `web.poecdn.com`, not a
+bundled currency list. `retinue_poe2_assets` owns two background fetch slots,
+coalesced requests and immutable image objects under the PoE2 cache's
+`assets/currencies/objects/`. URL-keyed source records let currency tiers share
+downloads and pixels. Catalog freshness is one day; image freshness is one
+week. Cached images return immediately during refresh. Unreferenced objects are
+pruned on refresh after a one-day grace period for readers. Asset failures enter
+the rotating daemon incident log; repeated identical failures are suppressed.
+
+These requests do not occupy the trade queue. Evaluate retains text while icons
+load, decodes/resamples off the UI thread, and uses a 2 MiB session RAM cache keyed
+by content digest and physical size. Price/estimate data never waits for artwork.
+
 Preferred item source is the daemon-managed WFCD item catalog because it covers both tradable and
 non-tradable game content and exposes component relationships. Warframe Market icon or thumbnail
 paths may be fallback metadata for tradable items, but they are not a complete game catalog.
@@ -135,3 +148,6 @@ Individual widgets must not decode full-size pixmaps or maintain separate thumbn
 Accept daemon descriptors through `acceptThumbnailAsset` before updating models. Its ordered
 background writer owns source freshness; decode jobs only read identities. Clearing derivatives
 retains source markers so delayed jobs cannot revive superseded images.
+
+The [shared overlay rendering plan](overlay-rendering.md) covers runtime-only
+derivatives, optional disk persistence and reusable partial-repaint machinery.

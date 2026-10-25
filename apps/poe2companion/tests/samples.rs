@@ -4,7 +4,7 @@ use poe2companion::{Observation, Sample, Status};
 use retinue_client::reload::Checkpoint;
 use retinue_poe2::{
     process::Process,
-    reader::{Area, Issue, Player, Snapshot},
+    reader::{Area, Entities, Identity, Issue, Player, Snapshot, Social, UniqueMonster},
 };
 use serde_json::json;
 
@@ -33,6 +33,25 @@ fn native_sample_preserves_process_snapshot_identity_and_unavailable_fields() {
             change_key: 9,
         }),
         panels: BTreeMap::from([("inventory".into(), Some(false)), ("stash".into(), None)]),
+        social: Some(Social {
+            local: Some(Identity {
+                character: "Test".into(),
+                account: "Example#1234".into(),
+                league: "Standard".into(),
+            }),
+            party: vec![],
+        }),
+        entities: Some(Entities {
+            tree: 0x100000,
+            area_key: 9,
+            count: 2,
+            unique_monsters: vec![UniqueMonster {
+                id: 1,
+                address: 0x110000,
+                name: "Example Unique".into(),
+                life: 100,
+            }],
+        }),
         issues: vec![Issue {
             field: "stash".into(),
             reason: "unavailable".into(),
@@ -52,6 +71,11 @@ fn native_sample_preserves_process_snapshot_identity_and_unavailable_fields() {
     assert_eq!(encoded["snapshot"]["panels"]["inventory"], false);
     assert!(encoded["snapshot"]["panels"]["stash"].is_null());
     assert!(encoded["snapshot"]["player"]["gold"].is_null());
+    assert_eq!(encoded["snapshot"]["social"]["local"]["league"], "Standard");
+    assert_eq!(
+        encoded["snapshot"]["entities"]["unique_monsters"][0]["life"],
+        100
+    );
     let restored: Sample = serde_json::from_value(encoded).unwrap();
     assert_eq!(restored.stream, sample.stream);
     assert_eq!(restored.sequence, 7);

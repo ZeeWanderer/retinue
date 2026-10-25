@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" WFCLI_VERSION LIMIT_COUNT 1)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/apps/wfgui/vcpkg.json" WFCLI_VCPKG_MANIFEST)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/apps/wfgui/qt/vcpkg.json" WFCLI_VCPKG_MANIFEST)
 string(JSON WFCLI_VCPKG_VERSION GET "${WFCLI_VCPKG_MANIFEST}" version-string)
 if(NOT WFCLI_VCPKG_VERSION STREQUAL WFCLI_VERSION)
-  message(FATAL_ERROR "apps/wfgui/vcpkg.json version must match root VERSION")
+  message(FATAL_ERROR "apps/wfgui/qt/vcpkg.json version must match root VERSION")
 endif()
 set(WFCLI_LOCAL_PROTOCOL_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl")
@@ -62,4 +62,4 @@ if(BUILD_TESTING)
       "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/vcpkg-test"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tests/gui-vcpkg.cmake")
 endif()
-add_subdirectory(apps/wfgui)
+add_subdirectory(apps/wfgui/qt)

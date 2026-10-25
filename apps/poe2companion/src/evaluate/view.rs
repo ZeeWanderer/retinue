@@ -1,21 +1,26 @@
 use super::artwork::Artwork;
 use super::model::{Item, Model, Profile, number};
-use retinue_overlay::{
+use retinue_ui::{
     Rect,
+    damage::Damage,
     fontdue::{Font, FontSettings},
     layout::{UiLayout, UiTree},
     line_edit::{Colors, LineEdit},
-    painter::{Painter, TextLine, css_rgba as rgba, text_width, wrap_text},
+    painter::{CachedFont, GlyphCache, Painter, TextLine, css_rgba as rgba, text_width, wrap_text},
     taffy::{self, prelude::*},
 };
 
 mod plaques;
+mod prices;
 mod results;
+#[cfg(test)]
+mod scheduling_benchmark;
 
 const MAIN: f32 = 424.0;
 const CONTENT: f32 = 400.0;
 const RAIL: f32 = 132.0;
 const ITEM_TEXT_SIZE: f32 = 14.4;
+const ITEM_SEPARATOR: u32 = 10;
 const ITEM_LABEL: [u8; 4] = rgba(127, 127, 127, 255);
 const ITEM_VALUE: [u8; 4] = rgba(255, 255, 255, 255);
 const INK: [u8; 4] = rgba(230, 230, 223, 255);
@@ -56,6 +61,8 @@ pub enum Target {
     ItemScroll,
     EstimateInfo,
     EstimateAmount,
+    RateBudget,
+    ListingCurrency(usize),
     ScaleDown,
     ScaleUp,
 }
@@ -129,6 +136,7 @@ enum Node {
     Table,
     Listings,
     Footer,
+    RateBudget,
 }
 
 impl Interaction {
@@ -173,10 +181,13 @@ impl Interaction {
 }
 
 pub struct View {
-    ui: Font,
-    ui_bold: Font,
-    ui_semibold: Font,
-    item: Font,
+    pub currencies: std::collections::BTreeMap<String, super::currency::Icon>,
+    ui: CachedFont,
+    ui_bold: CachedFont,
+    ui_semibold: CachedFont,
+    item: CachedFont,
+    #[cfg(test)]
+    glyphs: GlyphCache,
     artwork: Artwork,
     pub hits: Vec<Hit>,
     pub bounds: Rect,
@@ -186,7 +197,14 @@ pub struct View {
     pub visible_options: usize,
     pub editor: LineEdit,
     pub preview_time: Option<u64>,
+    render_budget: std::num::NonZeroU32,
+    #[cfg(test)]
+    render_threads: u32,
     scale: f32,
+    animation: Damage,
+    budget_fill: (f32, bool),
+    time: u64,
+    age_deadline: Option<u64>,
 }
 
 impl View {
@@ -203,24 +221,35 @@ impl View {
             }));
     }
     pub fn new() -> Result<Self, String> {
+        let glyphs = GlyphCache::new(2 * 1024 * 1024);
         Ok(Self {
-            ui: Font::from_bytes(
+            currencies: Default::default(),
+            ui: CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Regular.ttf").as_slice(),
                 FontSettings::default(),
+                &glyphs,
             )?,
-            ui_bold: Font::from_bytes(
+            ui_bold: CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Bold.ttf").as_slice(),
                 FontSettings::default(),
+                &glyphs,
             )?,
-            ui_semibold: Font::from_bytes(
+            ui_semibold: CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Semibold.ttf").as_slice(),
                 FontSettings::default(),
+                &glyphs,
             )?,
-            item: Font::from_bytes(
+            item: CachedFont::from_bytes(
                 include_bytes!(concat!(env!("OUT_DIR"), "/Fontin-SmallCaps.ttf")).as_slice(),
                 FontSettings::default(),
+                &glyphs,
             )?,
+            #[cfg(test)]
+            glyphs,
             artwork: Artwork::new()?,
+            render_budget: retinue_ui::painter::render_thread_budget(4),
+            #[cfg(test)]
+            render_threads: 0,
             hits: Vec::new(),
             panel: Rect {
                 x: 0,
@@ -240,6 +269,10 @@ impl View {
             editor: LineEdit::new(include_bytes!("../../assets/Lato-Regular.ttf"), "Lato"),
             preview_time: None,
             scale: 1.0,
+            animation: Damage::None,
+            budget_fill: (0.0, false),
+            time: current_time(),
+            age_deadline: None,
         })
     }
 
@@ -256,6 +289,56 @@ impl View {
             .iter()
             .find(|h| h.target == target)
             .map(|h| h.rect.inset(px(3, self.scale)))
+    }
+
+    pub fn target_damage(&self, target: Option<Target>) -> Damage {
+        let Some(target) = target else {
+            return Damage::None;
+        };
+        self.hits
+            .iter()
+            .filter(|hit| hit.target == target)
+            .map(|hit| hit.rect)
+            .reduce(Rect::union)
+            .map(|rect| Damage::rect(rect.expanded(px(6, self.scale))))
+            .unwrap_or(Damage::Full)
+    }
+
+    pub fn animation_damage(&self) -> Damage {
+        self.animation
+    }
+
+    pub fn budget_damage(&self, fill: (f32, bool)) -> Damage {
+        if fill == self.budget_fill {
+            Damage::None
+        } else {
+            self.target_damage(Some(Target::RateBudget))
+        }
+    }
+
+    pub fn time_damage(&mut self, now: u64) -> Damage {
+        if self.preview_time.is_some() || now == self.time {
+            return Damage::None;
+        }
+        let changed = now < self.time || self.age_deadline.is_some_and(|deadline| now >= deadline);
+        self.time = now;
+        if changed && self.age_deadline.is_some() {
+            self.target_damage(Some(Target::Results))
+        } else {
+            Damage::None
+        }
+    }
+
+    pub fn time_deadline(&self, now: std::time::Instant) -> Option<std::time::Instant> {
+        if self.preview_time.is_some() {
+            return None;
+        }
+        self.age_deadline.map(|deadline| {
+            let target = std::time::UNIX_EPOCH + std::time::Duration::from_secs(deadline);
+            now + target
+                .duration_since(std::time::SystemTime::now())
+                .unwrap_or_default()
+        })
     }
 
     pub fn begin_edit(&mut self, target: Target, value: &str, select: bool) {
@@ -317,15 +400,32 @@ impl View {
         model: &Model,
         interaction: &Interaction,
     ) -> Result<(), String> {
+        let repair = Rect {
+            x: 0,
+            y: 0,
+            width: render.size.0,
+            height: render.size.1,
+        };
+        self.paint_region(pixels, render, model, interaction, repair)
+    }
+
+    pub fn paint_region(
+        &mut self,
+        pixels: &mut [u8],
+        render: Frame,
+        model: &Model,
+        interaction: &Interaction,
+        repair: Rect,
+    ) -> Result<(), String> {
         let Frame {
             size,
             scale,
             zoom,
             phase,
         } = render;
-        let mut p = Painter::new(pixels, size.0, size.1).map_err(|e| e.to_string())?;
-        p.clear();
         self.hits.clear();
+        self.animation = Damage::None;
+        self.age_deadline = None;
         let s = scale
             .min(size.0 as f32 / (MAIN + RAIL + 24.0))
             .min(size.1 as f32 / 640.0);
@@ -353,12 +453,21 @@ impl View {
             two_titles,
             model,
         )?;
+        self.prepare_artwork(&layout, model, interaction, s)?;
+        let mut p = Painter::with_threads(pixels, size.0, size.1, self.render_budget)
+            .map_err(|e| e.to_string())?;
+        #[cfg(test)]
+        {
+            self.render_threads = p.thread_count();
+        }
+        p.clip_to_rect(repair);
+        p.clear();
         let main = layout.bounds(Node::Main);
         self.panel = main;
         self.bounds = layout.bounds(Node::Root);
-        fill(&mut p, main, rgba(0, 0, 0, 225));
+        fill(&mut p, main, rgba(0, 0, 0, 217));
         let bar = layout.bounds(Node::Bar);
-        fill(&mut p, bar, rgba(28, 27, 23, 255));
+        fill(&mut p, bar, rgba(22, 21, 18, 255));
         self.hits.push(Hit {
             target: Target::Drag,
             rect: bar,
@@ -512,14 +621,15 @@ impl View {
                 self.artwork.divider(
                     &mut p,
                     Rect {
+                        y: r.y + u(s),
                         height: px(8, s),
                         ..r
                     },
                     rarity,
                     s,
                 );
-                r.y += px(8, s);
-                r.height = r.height.saturating_sub(px(8, s));
+                r.y += px(ITEM_SEPARATOR, s);
+                r.height = r.height.saturating_sub(px(ITEM_SEPARATOR, s));
             }
             let mut selected = false;
             if let Some(query) = row.query {
@@ -659,6 +769,7 @@ impl View {
         self.artwork.divider(
             &mut p,
             Rect {
+                y: profiles.y + u(s),
                 height: px(8, s),
                 ..profiles
             },
@@ -684,7 +795,7 @@ impl View {
             let label = profile.label();
             let rect = Rect {
                 x,
-                y: profiles.y + px(8, s) + profiles.height.saturating_sub(px(32, s)) / 2,
+                y: profiles.y + px(ITEM_SEPARATOR, s),
                 height: px(24, s),
                 width,
                 ..profiles
@@ -773,8 +884,22 @@ impl View {
                         "Based on recent similar trades. Higher reliability with more consistent market data.",
                     ),
                     Target::EstimateAmount => {
-                        Some("Estimate in Exalted Orbs; not a guaranteed sale price")
+                        Some("Estimated asking price; not a guaranteed sale price")
                     }
+                    Target::RateBudget => Some(if self.budget_fill.1 {
+                        "Trade requests are cooling down. Wait before searching again."
+                    } else {
+                        "Trade request usage. A full bar requires a short cooldown."
+                    }),
+                    Target::ListingCurrency(index) => model
+                        .results
+                        .as_ref()
+                        .and_then(|r| r.listings.get(index))
+                        .map(|row| {
+                            self.currencies
+                                .get(&row.currency)
+                                .map_or(row.currency.as_str(), |icon| icon.source.text.as_str())
+                        }),
                     Target::Menu(Menu::Settings) => Some("Settings"),
                     Target::Profile(Profile::Base) => {
                         Some("Match base, item level and fixed modifiers")
@@ -821,24 +946,64 @@ impl View {
         s: f32,
         phase: f32,
     ) {
+        let cooldown = model.retry_after();
+        self.budget_fill = model.budget.fill(std::time::Instant::now());
+        if let Some(rect) = layout.find_bounds(Node::RateBudget) {
+            p.fill_rounded_rect(
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
+                px(3, s),
+                rgba(11, 11, 11, 255),
+            );
+            let width = (rect.width as f32 * self.budget_fill.0).round() as u32;
+            if width > 0 {
+                let x = if self.budget_fill.1 {
+                    rect.x + rect.width - width
+                } else {
+                    rect.x
+                };
+                p.fill_rounded_rect(
+                    x,
+                    rect.y,
+                    width,
+                    rect.height,
+                    px(3, s),
+                    rgba(118, 109, 78, 255),
+                );
+            }
+            self.hits.push(Hit {
+                target: Target::RateBudget,
+                rect,
+            });
+        }
         let unavailable = model
             .evaluation
             .as_ref()
             .is_some_and(|e| e.item.trade_unavailable.is_some());
         if let Some(search) = layout.find_bounds(Node::Search) {
-            let hovered = !unavailable && interaction.hover == Some(Target::Search);
+            let hovered =
+                !unavailable && cooldown == 0 && interaction.hover == Some(Target::Search);
             let highlighted = hovered || model.loading;
             let background = if highlighted {
                 rgba(35, 34, 29, 255)
             } else {
                 rgba(22, 21, 18, 255)
             };
+            let disabled = unavailable || cooldown > 0;
             let border = if model.loading {
+                ACCENT
+            } else if disabled {
+                rgba(50, 49, 46, 255)
+            } else {
+                rgba(118, 109, 78, 255)
+            };
+            let mut inner_border = if model.loading {
                 ACCENT
             } else {
                 rgba(118, 109, 78, 255)
             };
-            let mut inner_border = border;
             inner_border[3] = 102;
             for (rect, radius, color) in [
                 (search, 4, border),
@@ -867,7 +1032,7 @@ impl View {
                 },
             );
             self.artwork.search_ornaments(p, ornaments, highlighted);
-            if !model.loading && !unavailable {
+            if !model.loading && !unavailable && cooldown == 0 {
                 self.hits
                     .extend(std::iter::once(search).chain(ornaments).map(|rect| Hit {
                         target: Target::Search,
@@ -876,16 +1041,18 @@ impl View {
             }
             let label = if model.loading {
                 if model.evaluation.is_some() {
-                    "Searching..."
+                    "Searching...".into()
                 } else {
-                    "Reading item..."
+                    "Reading item...".into()
                 }
             } else if model.evaluation.is_none() {
-                "Retry"
+                "Retry".into()
+            } else if cooldown > 0 {
+                format!("Search {cooldown}s")
             } else {
-                "Search"
+                "Search".into()
             };
-            let text_width = text_width(&self.ui_bold, label, 14.0 * s).ceil() as u32;
+            let text_width = text_width(&self.ui_bold, &label, 14.0 * s).ceil() as u32;
             p.draw_text_vertically_centered(
                 &self.ui_bold,
                 TextLine::new(
@@ -894,10 +1061,15 @@ impl View {
                     search.height.saturating_sub(u(s)),
                 ),
                 14.0 * s,
-                label,
-                if unavailable { MUTED } else { ACCENT },
+                &label,
+                if disabled {
+                    rgba(255, 255, 255, 77)
+                } else {
+                    ACCENT
+                },
             );
             if model.loading {
+                self.animation = Damage::rect(search);
                 fill(
                     p,
                     Rect {
@@ -925,54 +1097,82 @@ impl View {
                 &format!("{}/{}", results.listings.len(), results.returned),
                 rgba(115, 113, 94, 255),
             );
-            let prefix = "Results from ";
-            let url = "pathofexile.com/trade";
-            let prefix_width = text_width(&self.ui, prefix, 12.0 * s).round() as u32;
-            let link_width = text_width(&self.ui, url, 12.0 * s).round() as u32;
-            let start = inner.x + inner.width.saturating_sub(prefix_width + link_width) / 2;
-            let link = Rect {
-                x: start + prefix_width,
-                y: status.y,
-                width: link_width,
-                height: status.height,
-            };
-            self.hits.push(Hit {
-                target: Target::TradeLink,
-                rect: link,
-            });
-            p.draw_text_vertically_centered(
-                &self.ui,
-                TextLine::new(start, status.y, status.height),
-                12.0 * s,
-                prefix,
-                rgba(115, 113, 94, 255),
-            );
-            let color = if interaction.hover == Some(Target::TradeLink) {
-                INK
+            if model.loading || model.fetching || model.fetch_error.is_some() {
+                let message = if model.loading {
+                    "Searching...".to_owned()
+                } else if model.fetching {
+                    "Fetching...".to_owned()
+                } else if cooldown > 0 {
+                    format!("Unable to fetch data ({cooldown}s)")
+                } else {
+                    "Unable to fetch data".to_owned()
+                };
+                self.label(
+                    p,
+                    inner,
+                    &message,
+                    12.0 * s,
+                    if model.fetch_error.is_some() {
+                        rgba(232, 13, 13, 255)
+                    } else {
+                        rgba(115, 113, 94, 255)
+                    },
+                    false,
+                );
             } else {
-                ACCENT
-            };
-            p.draw_text_vertically_centered(
-                &self.ui,
-                TextLine::new(link.x, link.y, link.height),
-                12.0 * s,
-                url,
-                color,
-            );
-            let underline = (status.y + status.height / 2 + px(6, s)) as f64;
-            p.draw_line(
-                (link.x as f64, underline),
-                ((link.x + link.width) as f64, underline),
-                s as f64,
-                color,
-            );
+                let prefix = "Results from ";
+                let url = "pathofexile.com/trade";
+                let prefix_width = text_width(&self.ui, prefix, 12.0 * s).round() as u32;
+                let link_width = text_width(&self.ui, url, 12.0 * s).round() as u32;
+                let start = inner.x + inner.width.saturating_sub(prefix_width + link_width) / 2;
+                let link = Rect {
+                    x: start + prefix_width,
+                    y: status.y,
+                    width: link_width,
+                    height: status.height,
+                };
+                self.hits.push(Hit {
+                    target: Target::TradeLink,
+                    rect: link,
+                });
+                p.draw_text_vertically_centered(
+                    &self.ui,
+                    TextLine::new(start, status.y, status.height),
+                    12.0 * s,
+                    prefix,
+                    rgba(115, 113, 94, 255),
+                );
+                let color = if interaction.hover == Some(Target::TradeLink) {
+                    INK
+                } else {
+                    ACCENT
+                };
+                p.draw_text_vertically_centered(
+                    &self.ui,
+                    TextLine::new(link.x, link.y, link.height),
+                    12.0 * s,
+                    url,
+                    color,
+                );
+                let underline = (status.y + status.height / 2 + px(6, s)) as f64;
+                p.draw_line(
+                    (link.x as f64, underline),
+                    ((link.x + link.width) as f64, underline),
+                    s as f64,
+                    color,
+                );
+            }
             let refresh = Rect {
                 x: inner.x + inner.width - px(16, s),
                 y: status.y + status.height.saturating_sub(px(16, s)) / 2,
                 width: px(16, s),
                 height: px(16, s),
             };
-            self.icon_button(p, refresh, Target::Search, Icon::Refresh, interaction, s);
+            if cooldown == 0 && !model.fetching && !model.loading {
+                self.icon_button(p, refresh, Target::Search, Icon::Refresh, interaction, s);
+            } else {
+                self.artwork.icon(p, refresh, "refresh", false);
+            }
             let filters = layout.bounds(Node::ResultFilters);
             for (i, menu) in [Menu::Currency, Menu::Status, Menu::Indexed]
                 .into_iter()
@@ -1407,6 +1607,7 @@ impl View {
             .unwrap_or(0.0);
         let estimate_height = plaques::estimate_height(model);
         let extra = if results { 388.0 } else { 56.0 }
+            + if model.budget.visible() { 11.0 } else { 0.0 }
             + if estimate_height > 0.0 {
                 estimate_height + 8.0
             } else {
@@ -1420,14 +1621,14 @@ impl View {
         let max_item = (size.1 as f32 - origin.1 as f32 - (96.0 + extra + header_height) * s)
             .min(390.0 * s)
             .max(90.0 * s);
-        let viewport = (rows.iter().map(|r| r.height() * s).sum::<f32>() + 12.0 * s)
+        let viewport = (rows.iter().map(|r| r.height() * s).sum::<f32>() + 6.0 * s)
             .min(max_item)
             .max(38.0 * s);
         let mut used = 0.0;
         let mut item_nodes = Vec::new();
         for (i, row) in rows.iter().enumerate().skip(scroll) {
             let h = row.height() * s;
-            if used + h > viewport - 12.0 * s {
+            if used + h > viewport - 6.0 * s {
                 break;
             }
             item_nodes.push(t.leaf(Node::Row(i), fixed(CONTENT * s, h))?);
@@ -1438,7 +1639,7 @@ impl View {
             Style {
                 padding: taffy::Rect {
                     top: length(6.0 * s),
-                    bottom: length(6.0 * s),
+                    bottom: length(0.0_f32),
                     left: length(0.0_f32),
                     right: length(0.0_f32),
                 },
@@ -1446,7 +1647,7 @@ impl View {
             },
             &item_nodes,
         )?;
-        let profiles = t.leaf(Node::Profiles, fixed(CONTENT * s, 36.0 * s))?;
+        let profiles = t.leaf(Node::Profiles, fixed(CONTENT * s, 41.0 * s))?;
         let card = t.column(Node::Card, Style::default(), &[header, item, profiles])?;
         let mut nodes = vec![card];
         if estimate_height > 0.0 {
@@ -1469,6 +1670,9 @@ impl View {
         } else {
             vec![(Node::Search, 40.0)]
         };
+        if model.budget.visible() {
+            sections.push((Node::RateBudget, 3.0));
+        }
         if model
             .evaluation
             .as_ref()
@@ -1480,7 +1684,7 @@ impl View {
             let mut style = fixed(CONTENT * s, h * s);
             if matches!(
                 key,
-                Node::Search | Node::Status | Node::ResultFilters | Node::Table
+                Node::Search | Node::Status | Node::ResultFilters | Node::Table | Node::RateBudget
             ) {
                 style.margin.top = length(8.0 * s);
             }
@@ -1662,7 +1866,12 @@ struct Row {
 }
 impl Row {
     fn height(&self) -> f32 {
-        self.lines.len() as f32 * 20.0 + if self.separator { 8.0 } else { 0.0 }
+        self.lines.len() as f32 * 20.0
+            + if self.separator {
+                ITEM_SEPARATOR as f32
+            } else {
+                0.0
+            }
     }
 }
 enum Icon {
@@ -1703,6 +1912,13 @@ fn age(indexed: Option<u64>, now: u64) -> String {
         (seconds, "s")
     };
     format!("{value}{unit} ago")
+}
+
+pub(super) fn current_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 fn px(value: u32, s: f32) -> u32 {
     (value as f32 * s).round() as u32
@@ -1801,6 +2017,202 @@ fn wrap(font: &Font, text: &str, size: f32, width: u32) -> Vec<String> {
 mod tests {
     use super::*;
 
+    fn assert_same_pixels(actual: &[u8], expected: &[u8], width: u32, label: &str) {
+        // Native clipping can round antialiased coverage by one channel level.
+        if let Some(index) = actual
+            .iter()
+            .zip(expected)
+            .position(|(a, b)| a.abs_diff(*b) > 1)
+        {
+            panic!(
+                "{label}: mismatch at {},{}: {} != {}",
+                (index / 4) % width as usize,
+                (index / 4) / width as usize,
+                actual[index],
+                expected[index],
+            );
+        }
+    }
+
+    #[test]
+    fn partial_hover_matches_full_paint_across_three_buffers() {
+        use retinue_ui::damage::{Damage, RepaintTracker};
+        for (size, scale) in [
+            ((1920, 1080), 1.0),
+            ((2560, 1440), 1.25),
+            ((2560, 1440), 2.0),
+        ] {
+            let mut view = View::new().unwrap();
+            let mut oracle = View::new().unwrap();
+            let model = fixture();
+            let mut interaction = Interaction::default();
+            let mut tracker = RepaintTracker::default();
+            let mut buffers: Vec<_> = (0..3)
+                .map(|_| {
+                    tracker.add_buffer();
+                    vec![113; (size.0 * size.1 * 4) as usize]
+                })
+                .collect();
+            let mut full = vec![0; buffers[0].len()];
+            let frame = || Frame {
+                size,
+                scale,
+                zoom: scale,
+                phase: 0.0,
+            };
+            view.paint(&mut full, frame(), &model, &interaction)
+                .unwrap();
+            let mut targets = Vec::new();
+            for hit in &view.hits {
+                if !targets.contains(&Some(hit.target)) {
+                    targets.push(Some(hit.target));
+                }
+            }
+            targets.push(None);
+            for (step, target) in targets.iter().cycle().take(targets.len() * 2).enumerate() {
+                let old = interaction.hover;
+                interaction.hover = *target;
+                tracker.invalidate(view.target_damage(old).union(view.target_damage(*target)));
+                let index = step % buffers.len();
+                let plan = tracker.plan(index, size).unwrap();
+                view.paint_region(
+                    &mut buffers[index],
+                    frame(),
+                    &model,
+                    &interaction,
+                    plan.repair,
+                )
+                .unwrap();
+                oracle
+                    .paint(&mut full, frame(), &model, &interaction)
+                    .unwrap();
+                assert_same_pixels(
+                    &buffers[index],
+                    &full,
+                    size.0,
+                    &format!("{target:?}, scale={scale}, step={step}, {plan:?}"),
+                );
+                tracker.submitted(index);
+            }
+            // Removal of a translucent popup must also restore its old background.
+            interaction.tooltip = true;
+            interaction.hover = Some(Target::Close);
+            tracker.invalidate(Damage::Full);
+            let plan = tracker.plan(0, size).unwrap();
+            view.paint_region(&mut buffers[0], frame(), &model, &interaction, plan.repair)
+                .unwrap();
+            tracker.submitted(0);
+            interaction.tooltip = false;
+            interaction.hover = None;
+            tracker.invalidate(Damage::Full);
+            let plan = tracker.plan(0, size).unwrap();
+            view.paint_region(&mut buffers[0], frame(), &model, &interaction, plan.repair)
+                .unwrap();
+            oracle
+                .paint(&mut full, frame(), &model, &interaction)
+                .unwrap();
+            assert_same_pixels(&buffers[0], &full, size.0, "tooltip removal");
+        }
+    }
+
+    #[test]
+    fn partial_loading_pulse_and_editor_match_full_paint() {
+        for scale in [1.0, 1.25, 2.0] {
+            let size = (2560, 1440);
+            let mut view = View::new().unwrap();
+            let mut oracle = View::new().unwrap();
+            let mut model = fixture();
+            model.loading = true;
+            let mut interaction = Interaction::default();
+            let mut partial = vec![0; (size.0 * size.1 * 4) as usize];
+            let mut full = partial.clone();
+            let frame = |phase| Frame {
+                size,
+                scale,
+                zoom: scale,
+                phase,
+            };
+            view.paint(&mut partial, frame(0.0), &model, &interaction)
+                .unwrap();
+            for phase in [0.1, 0.5, 1.0, 0.6, 0.0] {
+                let repair = view.animation_damage().bounds(size).unwrap();
+                view.paint_region(&mut partial, frame(phase), &model, &interaction, repair)
+                    .unwrap();
+                oracle
+                    .paint(&mut full, frame(phase), &model, &interaction)
+                    .unwrap();
+                assert_same_pixels(&partial, &full, size.0, "loading pulse");
+            }
+            model.loading = false;
+            model.level.enabled = true;
+            interaction.focus = Some(Target::LevelMinimum);
+            view.paint(&mut partial, frame(0.0), &model, &interaction)
+                .unwrap();
+            oracle
+                .paint(&mut full, frame(0.0), &model, &interaction)
+                .unwrap();
+            for select in [true, false] {
+                view.begin_edit(Target::LevelMinimum, "83", select);
+                oracle.begin_edit(Target::LevelMinimum, "83", select);
+                let repair = view.target_damage(interaction.focus).bounds(size).unwrap();
+                view.paint_region(&mut partial, frame(0.0), &model, &interaction, repair)
+                    .unwrap();
+                oracle
+                    .paint(&mut full, frame(0.0), &model, &interaction)
+                    .unwrap();
+                assert_same_pixels(&partial, &full, size.0, "editor selection");
+            }
+        }
+    }
+
+    #[test]
+    fn listing_ages_invalidate_at_the_next_displayed_boundary() {
+        use retinue_ui::damage::Damage;
+        let data: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../tests/fixtures/evaluate-reference.json"
+        ))
+        .unwrap();
+        let mut model = fixture();
+        let mut results: super::super::model::Results =
+            serde_json::from_value(data["results"].clone()).unwrap();
+        for listing in &mut results.listings {
+            listing.indexed_at = Some(1000);
+        }
+        model.results = Some(results);
+        let mut view = View::new().unwrap();
+        let mut oracle = View::new().unwrap();
+        view.time = 1000;
+        let size = (1920, 1080);
+        let frame = || Frame {
+            size,
+            scale: 1.25,
+            zoom: 1.25,
+            phase: 0.0,
+        };
+        let interaction = Interaction::default();
+        let mut partial = vec![0; (size.0 * size.1 * 4) as usize];
+        let mut full = partial.clone();
+        view.paint(&mut partial, frame(), &model, &interaction)
+            .unwrap();
+        assert_eq!(view.age_deadline, Some(1001));
+        assert_eq!(view.time_damage(1000), Damage::None);
+        for now in [1001, 1059, 1060] {
+            let repair = view.time_damage(now).bounds(size).unwrap();
+            view.paint_region(&mut partial, frame(), &model, &interaction, repair)
+                .unwrap();
+            oracle.time = now;
+            oracle
+                .paint(&mut full, frame(), &model, &interaction)
+                .unwrap();
+            assert_same_pixels(&partial, &full, size.0, "listing age");
+        }
+        assert_eq!(view.age_deadline, Some(1120));
+        assert_eq!(view.time_damage(1061), Damage::None);
+        assert_ne!(view.time_damage(1000), Damage::None);
+        view.preview_time = Some(1000);
+        assert_eq!(view.time_damage(1200), Damage::None);
+    }
+
     #[test]
     fn item_border_is_continuous_and_value_and_error_plaques_coexist() {
         let mut view = View::new().unwrap();
@@ -1822,8 +2234,13 @@ mod tests {
             let card = layout.bounds(Node::Card);
             let estimate = layout.bounds(Node::Estimate);
             let error = layout.bounds(Node::Error);
-            assert_eq!(estimate.y, card.y + card.height + px(8, scale));
-            assert_eq!(error.y, estimate.y + estimate.height + px(8, scale));
+            assert!(estimate.y.abs_diff(card.y + card.height + px(8, scale)) <= 1);
+            assert!(
+                error
+                    .y
+                    .abs_diff(estimate.y + estimate.height + px(8, scale))
+                    <= 1
+            );
             view.paint(
                 &mut pixels,
                 Frame {
@@ -2098,6 +2515,56 @@ mod tests {
     }
 
     #[test]
+    fn quota_strip_scales_and_repairs_only_its_region() {
+        use std::time::{Duration, Instant};
+        for scale in [1.0, 1.25, 1.5] {
+            let size = (2560, 1440);
+            let mut view = View::new().unwrap();
+            let mut model = fixture();
+            let now = Instant::now();
+            model.budget.observe(
+                super::super::budget::Snapshot {
+                    observed_at_ms: 1,
+                    retry_after_ms: 10_000,
+                    windows: vec![],
+                },
+                now - Duration::from_millis(5300),
+            );
+            model.budget.tick(now - Duration::from_millis(300));
+            model.retry_at = model.budget.retry_at();
+            let mut pixels = vec![0; (size.0 * size.1 * 4) as usize];
+            view.paint(
+                &mut pixels,
+                Frame {
+                    size,
+                    scale,
+                    zoom: scale,
+                    phase: 0.0,
+                },
+                &model,
+                &Interaction::default(),
+            )
+            .unwrap();
+            let rect = view
+                .hits
+                .iter()
+                .find(|hit| hit.target == Target::RateBudget)
+                .unwrap()
+                .rect;
+            assert_eq!(rect.width, px(400, scale));
+            assert_eq!(rect.height, px(3, scale));
+            let pixel = |x| {
+                let i = (((rect.y + rect.height / 2) * size.0 + x) * 4) as usize;
+                &pixels[i..i + 4]
+            };
+            assert_eq!(pixel(rect.x + rect.width / 4), rgba(11, 11, 11, 255));
+            assert_eq!(pixel(rect.x + 3 * rect.width / 4), rgba(118, 109, 78, 255));
+            assert_eq!(view.budget_damage(view.budget_fill), Damage::None);
+            assert!(matches!(view.budget_damage((0.4, true)), Damage::Rect(_)));
+        }
+    }
+
+    #[test]
     fn ready_and_results_have_distinct_sections() {
         let view = View::new().unwrap();
         let mut model = fixture();
@@ -2246,6 +2713,211 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn repeated_frames_and_returning_to_a_scale_reuse_resources() {
+        let mut view = View::new().unwrap();
+        let model = fixture();
+        let mut interaction = Interaction::default();
+        let mut pixels = vec![0; 1920 * 1080 * 4];
+        for scale in [1.0, 1.25] {
+            view.paint(
+                &mut pixels,
+                Frame {
+                    size: (1920, 1080),
+                    scale,
+                    zoom: scale,
+                    phase: 0.0,
+                },
+                &model,
+                &interaction,
+            )
+            .unwrap();
+        }
+        let chrome_misses = view.artwork.cache_stats().misses;
+        let glyph_misses = view.glyphs.stats().misses;
+        for scale in [1.0, 1.25, 1.0] {
+            interaction.hover = Some(Target::Search);
+            view.paint(
+                &mut pixels,
+                Frame {
+                    size: (1920, 1080),
+                    scale,
+                    zoom: scale,
+                    phase: 0.0,
+                },
+                &model,
+                &interaction,
+            )
+            .unwrap();
+            assert_eq!(view.artwork.cache_stats().misses, chrome_misses);
+            assert_eq!(view.glyphs.stats().misses, glyph_misses);
+            assert!(
+                view.artwork.cache_stats().cached_bytes <= view.artwork.cache_stats().budget_bytes
+            );
+            assert!(view.glyphs.stats().cached_bytes <= view.glyphs.stats().budget_bytes);
+        }
+    }
+
+    #[test]
+    fn queued_thread_counts_match_at_fractional_scales() {
+        for scale in [1.0, 1.2, 1.25, 1.5, 2.0] {
+            let size = (1920, 1080);
+            let mut reference = None;
+            for threads in [1, 2, 3, 4, 6, 8] {
+                let mut view = View::new().unwrap();
+                view.render_budget = std::num::NonZeroU32::new(threads).unwrap();
+                let mut pixels = vec![0; (size.0 * size.1 * 4) as usize];
+                view.paint(
+                    &mut pixels,
+                    Frame {
+                        size,
+                        scale,
+                        zoom: scale,
+                        phase: 0.0,
+                    },
+                    &fixture(),
+                    &Interaction::default(),
+                )
+                .unwrap();
+                if let Some(reference) = &reference {
+                    assert!(
+                        &pixels == reference,
+                        "pixel mismatch: scale {scale}, threads {threads}"
+                    );
+                } else {
+                    reference = Some(pixels);
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "make bench-overlays"]
+    fn overlay_benchmark() {
+        let mut cases = Vec::new();
+        for size in [(1920, 1080), (2560, 1440)] {
+            for scale in [1.0, 1.25, 1.5, 2.0] {
+                for scenario in [
+                    "warm-repaint",
+                    "hover",
+                    "hover-partial",
+                    "listing-scroll",
+                    "scale-change",
+                ] {
+                    if !crate::render_bench::selected(scenario) {
+                        continue;
+                    }
+                    cases.push(crate::render_bench::measure(
+                        scenario,
+                        size,
+                        scale,
+                        || {
+                            let data: serde_json::Value = serde_json::from_slice(include_bytes!(
+                                "../../tests/fixtures/evaluate-reference.json"
+                            ))
+                            .unwrap();
+                            let mut model = Model::new("Forbidden Rites".into());
+                            model.evaluated(
+                                0,
+                                serde_json::from_value(data["evaluation"].clone()).unwrap(),
+                            );
+                            if scenario == "listing-scroll" {
+                                let mut results: super::super::model::Results =
+                                    serde_json::from_value(data["results"].clone()).unwrap();
+                                results.listings = results
+                                    .listings
+                                    .iter()
+                                    .cloned()
+                                    .cycle()
+                                    .take(results.listings.len() * 10)
+                                    .collect();
+                                model.results = Some(results);
+                            }
+                            let mut view = View::new().unwrap();
+                            view.render_budget = crate::render_bench::render_threads();
+                            (
+                                view,
+                                model,
+                                Interaction::default(),
+                                vec![0; (size.0 * size.1 * 4) as usize],
+                            )
+                        },
+                        |(view, model, interaction, pixels), index| {
+                            let previous = interaction.hover;
+                            if matches!(scenario, "hover" | "hover-partial") {
+                                interaction.hover = (index % 2 == 0).then_some(Target::Search);
+                            }
+                            if scenario == "listing-scroll" {
+                                interaction.scroll = index % 10;
+                            }
+                            let scale = if scenario == "scale-change" && index % 2 == 0 {
+                                scale * 1.05
+                            } else {
+                                scale
+                            };
+                            let repair = if scenario == "hover-partial" {
+                                view.target_damage(previous).union(view.target_damage(interaction.hover))
+                                    .bounds(size).unwrap()
+                            } else {
+                                Rect { x: 0, y: 0, width: size.0, height: size.1 }
+                            };
+                            view.paint_region(
+                                pixels,
+                                Frame {
+                                    size,
+                                    scale,
+                                    zoom: scale,
+                                    phase: 0.0,
+                                },
+                                model,
+                                interaction,
+                                repair,
+                            )
+                            .unwrap();
+                        },
+                        |(view, _, _, pixels)| {
+                            let glyphs = view.glyphs.stats();
+                            let chrome = view.artwork.cache_stats();
+                            serde_json::json!({
+                                "canvas_bytes": pixels.len(),
+                                "repair_pixels": if scenario == "hover-partial" {
+                                    view.target_damage(Some(Target::Search)).bounds(size)
+                                        .map_or(0, |rect| u64::from(rect.width) * u64::from(rect.height))
+                                } else {
+                                    u64::from(size.0) * u64::from(size.1)
+                                },
+                                "render_threads": view.render_threads,
+                                "glyph_cache": {
+                                    "entries": glyphs.entries,
+                                    "cached_bytes": glyphs.cached_bytes,
+                                    "live_bytes": glyphs.live_bytes,
+                                    "retained_bytes": glyphs.retained_bytes,
+                                    "hits": glyphs.hits,
+                                    "misses": glyphs.misses,
+                                    "evictions": glyphs.evictions,
+                                },
+                                "chrome_cache": {
+                                    "entries": chrome.entries,
+                                    "cached_bytes": chrome.cached_bytes,
+                                    "live_bytes": chrome.live_bytes,
+                                    "retained_bytes": chrome.retained_bytes,
+                                    "hits": chrome.hits,
+                                    "misses": chrome.misses,
+                                    "evictions": chrome.evictions,
+                                },
+                                "scale_kind": "UI scale at DPR 1",
+                                "assets": "embedded chrome; no network",
+                                "note": "forces paint; a clean live view would skip painting"
+                            })
+                        },
+                    ));
+                }
+            }
+        }
+        crate::render_bench::report("poe2", cases);
+    }
+
     fn fixture() -> Model {
         let data: serde_json::Value =
             serde_json::from_slice(include_bytes!("../../tests/fixtures/evaluate-preview.json"))

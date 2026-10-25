@@ -2,6 +2,10 @@ pub mod evaluate;
 pub mod runtime;
 mod transport;
 
+#[cfg(test)]
+#[path = "../../../tools/render-bench/support.rs"]
+mod render_bench;
+
 pub use transport::{Connection, Publisher};
 
 use retinue_poe2::{process::Process, reader::Snapshot};

@@ -1,4 +1,4 @@
-use super::model::{Estimate, Evaluation, Results};
+use super::model::{Estimate, Evaluation, ListingPage, Restoration, Results};
 use retinue_client::paths::Paths;
 use serde_json::Value;
 use std::{
@@ -9,39 +9,56 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{Notify, mpsc, watch};
 
 pub enum Job {
     Copy(u64, Option<u32>),
     Evaluate(u64, String),
     Search(u64, Value),
+    Restore(u64, Value, bool),
+    Fetch(u64, Value),
     Predict(u64, Value),
     Open(String),
 }
 pub enum Reply {
+    Currencies(
+        super::currency::Request,
+        std::collections::BTreeMap<String, super::currency::Icon>,
+    ),
     Copied(u64, String),
     Evaluated(u64, Evaluation),
     Searched(u64, Results),
+    Restored(u64, Restoration, bool),
+    Fetched(u64, ListingPage),
     Predicted(u64, Result<Option<Estimate>, String>),
-    Error(u64, String),
+    Error(u64, String, u64),
 }
 pub struct Worker {
     send: mpsc::Sender<Job>,
     capture: mpsc::Sender<Job>,
     prediction: watch::Sender<Option<(u64, Value)>>,
+    restoration: watch::Sender<Option<(u64, Value, bool)>>,
+    pub budget: watch::Receiver<Option<super::budget::Snapshot>>,
+    pub currencies: watch::Sender<super::currency::Request>,
     pub receive: mpsc::Receiver<Reply>,
     stop: Arc<AtomicBool>,
+    stopped: Arc<Notify>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl Worker {
-    pub fn start() -> Result<Self, String> {
+    pub fn start(wake: retinue_ui::schedule::Ping) -> Result<Self, String> {
         let (send, mut jobs) = mpsc::channel(4);
         let (capture, mut copies) = mpsc::channel(1);
         let (prediction, mut predictions) = watch::channel::<Option<(u64, Value)>>(None);
+        let (restoration, mut restorations) = watch::channel::<Option<(u64, Value, bool)>>(None);
+        let (budget_updates, budget) = watch::channel(None);
+        let (currencies, currency_requests) = watch::channel(super::currency::Request::default());
         let (replies, receive) = mpsc::channel(4);
         let stop = Arc::new(AtomicBool::new(false));
         let stopping = stop.clone();
+        let stopped = Arc::new(Notify::new());
+        let stop_notice = stopped.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -50,38 +67,52 @@ impl Worker {
             .name("poe2-evaluate-requests".into())
             .spawn(move || {
                 runtime.block_on(async move {
+                    let currency_task = tokio::spawn(super::currency::run(currency_requests, replies.clone(), wake.clone()));
                     let mut tasks = tokio::task::JoinSet::new();
                     let mut captures = tokio::task::JoinSet::new();
                     let mut estimates = tokio::task::JoinSet::new();
-                    let mut tick = tokio::time::interval(Duration::from_millis(100));
+                    let mut lookups = tokio::task::JoinSet::new();
                     loop {
                         tokio::select! {
-                            _ = tick.tick() => if stopping.load(Ordering::Acquire) { break; },
+                            _ = stop_notice.notified() => break,
                             Some(_) = tasks.join_next(), if !tasks.is_empty() => {},
                             Some(_) = captures.join_next(), if !captures.is_empty() => {},
                             Some(_) = estimates.join_next(), if !estimates.is_empty() => {},
+                            Some(_) = lookups.join_next(), if !lookups.is_empty() => {},
+                            changed = restorations.changed() => {
+                                if changed.is_err() { break; }
+                                lookups.abort_all();
+                                let latest = restorations.borrow_and_update().clone();
+                                if let Some((id, request, requested)) = latest {
+                                    lookups.spawn(respond(Job::Restore(id, request, requested), stopping.clone(), replies.clone(), budget_updates.clone(), wake.clone()));
+                                }
+                            }
                             changed = predictions.changed() => {
                                 if changed.is_err() { break; }
                                 estimates.abort_all();
                                 let latest = predictions.borrow_and_update().clone();
                                 if let Some((id, request)) = latest {
-                                    estimates.spawn(respond(Job::Predict(id, request), stopping.clone(), replies.clone()));
+                                    estimates.spawn(respond(Job::Predict(id, request), stopping.clone(), replies.clone(), budget_updates.clone(), wake.clone()));
                                 }
                             }
                             job = copies.recv(), if captures.is_empty() => {
                                 let Some(job) = job else { break; };
-                                captures.spawn(respond(job, stopping.clone(), replies.clone()));
+                                captures.spawn(respond(job, stopping.clone(), replies.clone(), budget_updates.clone(), wake.clone()));
                             }
                             job = jobs.recv(), if tasks.len() < 2 => {
                                 let Some(job) = job else { break; };
-                                tasks.spawn(respond(job, stopping.clone(), replies.clone()));
+                                tasks.spawn(respond(job, stopping.clone(), replies.clone(), budget_updates.clone(), wake.clone()));
                             }
                         }
                     }
                     tasks.abort_all();
+                    currency_task.abort();
+                    let _ = currency_task.await;
                     estimates.abort_all();
+                    lookups.abort_all();
                     while tasks.join_next().await.is_some() {}
                     while estimates.join_next().await.is_some() {}
+                    while lookups.join_next().await.is_some() {}
                     while captures.join_next().await.is_some() {}
                 });
                 runtime.shutdown_timeout(Duration::from_secs(3));
@@ -91,12 +122,22 @@ impl Worker {
             send,
             capture,
             prediction,
+            restoration,
+            budget,
+            currencies,
             receive,
             stop,
+            stopped,
             thread: Some(thread),
         })
     }
     pub fn submit(&self, job: Job) -> Result<(), String> {
+        if let Job::Restore(id, request, requested) = job {
+            return self
+                .restoration
+                .send(Some((id, request, requested)))
+                .map_err(|_| "Evaluate worker stopped".into());
+        }
         if let Job::Predict(id, request) = job {
             return self
                 .prediction
@@ -115,6 +156,7 @@ impl Worker {
 impl Drop for Worker {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+        self.stopped.notify_one();
         self.receive.close();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
@@ -122,13 +164,26 @@ impl Drop for Worker {
     }
 }
 
-async fn respond(job: Job, cancel: Arc<AtomicBool>, replies: mpsc::Sender<Reply>) {
-    if let Some(reply) = perform(job, cancel).await {
-        let _ = replies.send(reply).await;
+async fn respond(
+    job: Job,
+    cancel: Arc<AtomicBool>,
+    replies: mpsc::Sender<Reply>,
+    budget: watch::Sender<Option<super::budget::Snapshot>>,
+    wake: retinue_ui::schedule::Ping,
+) {
+    if let Some(reply) = perform(job, cancel, &budget).await {
+        if replies.send(reply).await.is_ok() {
+            wake.ping();
+        }
     }
 }
 
-async fn perform(job: Job, cancel: Arc<AtomicBool>) -> Option<Reply> {
+async fn perform(
+    job: Job,
+    cancel: Arc<AtomicBool>,
+    budget: &watch::Sender<Option<super::budget::Snapshot>>,
+) -> Option<Reply> {
+    let requested = matches!(&job, Job::Restore(_, _, true));
     if let Job::Predict(id, request) = job {
         let path = Paths::from_env().daemon_socket().to_owned();
         let result = match trade_request(&path, request).await {
@@ -141,24 +196,30 @@ async fn perform(job: Job, cancel: Arc<AtomicBool>) -> Option<Reply> {
         };
         return Some(Reply::Predicted(id, result));
     }
-    let (id, request, evaluate) = match job {
+    let (id, request, operation) = match job {
         Job::Copy(id, pid) => {
             tokio::time::sleep(Duration::from_millis(100)).await;
             return Some(
                 match tokio::task::spawn_blocking(move || {
-                    retinue_overlay::clipboard::copy_from_game("steam_app_2694490", pid, &cancel)
+                    retinue_ui::clipboard::copy_from_game("steam_app_2694490", pid, &cancel)
                         .and_then(super::model::validate_item_text)
                 })
                 .await
                 {
                     Ok(Ok(text)) => Reply::Copied(id, text),
-                    Ok(Err(error)) => Reply::Error(id, error),
-                    Err(error) => Reply::Error(id, error.to_string()),
+                    Ok(Err(error)) => Reply::Error(id, error, 0),
+                    Err(error) => Reply::Error(id, error.to_string(), 0),
                 },
             );
         }
-        Job::Evaluate(id, text) => (id, serde_json::json!({"op":"trade_item","text":text}), true),
-        Job::Search(id, request) => (id, request, false),
+        Job::Evaluate(id, text) => (
+            id,
+            serde_json::json!({"op":"trade_item","text":text}),
+            "item",
+        ),
+        Job::Search(id, request) => (id, request, "search"),
+        Job::Restore(id, request, _) => (id, request, "restore"),
+        Job::Fetch(id, request) => (id, request, "fetch"),
         Job::Predict(..) => unreachable!(),
         Job::Open(url) => {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -185,17 +246,41 @@ async fn perform(job: Job, cancel: Arc<AtomicBool>) -> Option<Reply> {
     };
     let path = Paths::from_env().daemon_socket().to_owned();
     let reply = trade_request(&path, request).await;
+    if let Ok(reply) = &reply {
+        let key = if reply["ok"] == true { "data" } else { "error" };
+        if let Ok(snapshot) =
+            serde_json::from_value::<super::budget::Snapshot>(reply[key]["rate_budget"].clone())
+        {
+            budget.send_if_modified(|current| {
+                if current
+                    .as_ref()
+                    .is_some_and(|old| old.observed_at_ms > snapshot.observed_at_ms)
+                {
+                    return false;
+                }
+                *current = Some(snapshot);
+                true
+            });
+        }
+    }
     Some(match reply {
-        Err(error) => Reply::Error(id, error.to_string()),
-        Ok(reply) if reply["ok"] != true => Reply::Error(id, error_message(&reply)),
+        Err(error) => Reply::Error(id, error.to_string(), 0),
+        Ok(reply) if reply["ok"] != true => Reply::Error(
+            id,
+            error_message(&reply),
+            reply["error"]["retry_after_seconds"].as_u64().unwrap_or(0),
+        ),
         Ok(reply) => {
             let data = reply["data"].clone();
-            if evaluate {
-                serde_json::from_value(data).map(|e| Reply::Evaluated(id, e))
-            } else {
-                serde_json::from_value(data).map(|r| Reply::Searched(id, r))
+            match operation {
+                "item" => serde_json::from_value(data).map(|e| Reply::Evaluated(id, e)),
+                "fetch" => serde_json::from_value(data).map(|r| Reply::Fetched(id, r)),
+                "restore" => {
+                    serde_json::from_value(data).map(|r| Reply::Restored(id, r, requested))
+                }
+                _ => serde_json::from_value(data).map(|r| Reply::Searched(id, r)),
             }
-            .unwrap_or_else(|e| Reply::Error(id, format!("Invalid trade response: {e}")))
+            .unwrap_or_else(|e| Reply::Error(id, format!("Invalid trade response: {e}"), 0))
         }
     })
 }
@@ -216,16 +301,12 @@ async fn trade_request(path: &std::path::Path, request: Value) -> std::io::Resul
 
 fn error_message(reply: &Value) -> String {
     let error = &reply["error"];
-    let message = error
+    error
         .as_str()
         .or_else(|| error["message"].as_str())
         .or_else(|| error["reason"].as_str())
         .unwrap_or("Trade request failed")
-        .replace('_', " ");
-    match error["retry_after_seconds"].as_u64() {
-        Some(seconds) if seconds > 0 => format!("{message}; retry in {seconds}s"),
-        _ => message,
-    }
+        .replace('_', " ")
 }
 
 #[cfg(test)]
@@ -255,7 +336,7 @@ mod tests {
                     let mut line = String::new();
                     reader.read_line(&mut line).await.unwrap();
                     let hello = json!({"id":1,"ok":true,"compatible":true,"envelope":2,
-                        "game":"poe2","interfaces":{"session":2,"trade":2}});
+                        "game":"poe2","interfaces":{"session":2,"trade":5}});
                     writer
                         .write_all(format!("{hello}\n").as_bytes())
                         .await
@@ -294,7 +375,8 @@ mod tests {
 
     #[test]
     fn shutdown_cancels_copy_and_joins_before_returning() {
-        let worker = Worker::start().unwrap();
+        let (wake, _source) = retinue_ui::schedule::make_ping().unwrap();
+        let worker = Worker::start(wake).unwrap();
         worker.submit(Job::Copy(1, None)).unwrap();
         let start = std::time::Instant::now();
         drop(worker);
@@ -303,9 +385,10 @@ mod tests {
 
     #[tokio::test]
     async fn cancelled_copy_does_not_read_the_desktop() {
-        let reply = perform(Job::Copy(7, None), Arc::new(AtomicBool::new(true))).await;
+        let (budget, _) = watch::channel(None);
+        let reply = perform(Job::Copy(7, None), Arc::new(AtomicBool::new(true)), &budget).await;
         assert!(
-            matches!(reply, Some(Reply::Error(7, message)) if message == "item copy cancelled")
+            matches!(reply, Some(Reply::Error(7, message, 0)) if message == "item copy cancelled")
         );
     }
 }

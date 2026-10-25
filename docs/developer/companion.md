@@ -34,7 +34,7 @@ Overlay state stays native. Canonical player state stays in the daemon.
 - `relic/lifecycle.rs`: context cancellation and bounded scene workers.
 - `relic/evidence.rs`: armed evidence, capture phases and terminal reports.
 - `work.rs`: caller-owned cooperative deadlines, cancellation and I/O budgets.
-- `crates/retinue-overlay/src/focus.rs`: exact game window and process gate.
+- `crates/retinue-ui/src/focus.rs`: exact game window and process gate.
 - `overlay/runtime.rs`: layer shell, SHM buffers, frame callbacks, input, focus,
   and damage.
 - `overlay/renderer.rs`: fonts, static frame cache, dispatch, and previews.
@@ -42,7 +42,7 @@ Overlay state stays native. Canonical player state stays in the daemon.
 - `overlay/scene.rs`: top-level scene and presentation state.
 - `overlay/screens/`: complete screen painting and hit regions.
 - `ui/geometry.rs`: game hit regions and render output.
-- `crates/retinue-overlay`: shared Taffy layout, geometry, painter and Blend2D
+- `crates/retinue-ui`: shared Taffy layout, geometry, painter and Blend2D
   ownership; also portal shortcuts and the PoE2 layer-shell host. Screen models,
   composition and actions belong to each companion.
 
@@ -165,7 +165,7 @@ source lifetimes through `Painter::finish` and is not useful for the current
 cached workload.
 
 Text measurement, wrapping and painting share fractional glyph advances and
-kerning in `retinue-overlay::painter`. Round only final raster positions, never
+kerning in `retinue-ui::painter`. Round only final raster positions, never
 each character's advance; per-character rounding accumulates spacing errors.
 Use `text_width` and `wrap_text` for layout rather than a separate estimate.
 
@@ -175,7 +175,7 @@ Wayland surface-local pointer positions with the rendered frame's scale before
 testing them. Layer-shell margins remain zero so a persistent pointer position
 cannot fall into an uncapturable compositor gap.
 
-Both hosts apply `retinue_overlay::layer::OverlayLayerState` before remapping.
+Both hosts apply `retinue_ui::layer::OverlayLayerState` before remapping.
 Unmapping resets every layer-shell property, including the layer itself. Restore
 the complete role state, commit without a buffer, then wait for configure before
 drawing. Do not duplicate partial compositor setup in individual games.

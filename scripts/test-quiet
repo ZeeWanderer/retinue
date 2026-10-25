@@ -17,9 +17,7 @@ esac
 log_file="$(mktemp "${TMPDIR:-/tmp}/wfcli-${command_name}.XXXXXX.log")"
 if [[ "$command_name" == "gui" ]]; then
     label="gui"
-    make gui-dev >"$log_file" 2>&1 &&
-        cmake --build --preset gui-dev --target all >>"$log_file" 2>&1 &&
-        ctest --test-dir _build/cmake/gui-dev --output-on-failure >>"$log_file" 2>&1
+    make test-gui >"$log_file" 2>&1
 elif [[ "$command_name" == "release" ]]; then
     label="release portability"
     ./scripts/test-release-portability >"$log_file" 2>&1

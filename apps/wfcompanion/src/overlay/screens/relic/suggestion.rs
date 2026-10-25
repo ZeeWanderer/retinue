@@ -1,8 +1,8 @@
-use fontdue::Font;
+use retinue_ui::painter::CachedFont;
 
 use super::{Resources, View};
 use crate::ui::{HitRegion, HitTarget, ScreenOutput};
-use retinue_overlay::painter::{
+use retinue_ui::painter::{
     Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
 };
 
@@ -330,7 +330,7 @@ fn draw_scrollbar(
 
 fn draw_suggestion_price(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     icon: &RasterImage,
     x: u32,
     y: u32,

@@ -29,19 +29,27 @@ poe2companion watch
 
 ## Evaluate
 
+![Evaluate overlay with item filters and an estimated value](images/poe2companion-evaluate.webp)
+
 On KDE Wayland, hover an item and press **Alt+E**. Companion copies its item text,
 opens the in-game **Evaluate** panel, and resolves searchable attributes using current trade
-metadata. It retains your selected league or defaults to the trade API's first
-league. Check the league in the title bar, click modifiers to include them,
+metadata. It selects your character's trade league when you switch characters;
+manual choices persist between items. If detection is unavailable, it retains a
+valid selection or uses the trade API's first league. Click modifiers to include them,
 adjust their ranges, then select **Search** or press Enter outside a numeric field.
 Crafting bases, identified uniques and categories outside equipment, jewels and
 maps search automatically when trade rate usage is below 75%. Other items wait
-for Search. Character-league detection is not yet available.
+for Search. League detection does not require an account login.
 
 Alt+E is bound to the focused game window, not registered as a global desktop
 shortcut. KDE may separately ask permission to send Ctrl+C for item copying.
 
-The panel shows up to ten asking-price listings. The scales icon opens the full
+The panel fetches asking-price listings in batches of ten; scrolling loads more.
+Search and listing fetch have separate progress states. Refresh keeps existing
+rows visible while searching; fetch failures keep the table and show an error
+beside its count. Rate-limit countdowns disable requests until they can resume.
+
+The scales icon opens the full
 search on the trade website. Search defaults to **Instant Buyout**, matching the
 reference provider. Settings and result selectors offer status, currency and
 listing-age filters. Unresolved modifiers remain readable without range controls;

@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use fontdue::Font;
+use retinue_ui::painter::CachedFont;
 
 use super::{Resources, View};
 use crate::ui::Rect;
-use retinue_overlay::painter::{
+use retinue_ui::painter::{
     Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
 };
 
@@ -338,7 +338,7 @@ fn fill_left_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, color
 
 fn draw_message_panel(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     bounds: Rect,
     preferred_width: u32,
     title: &str,
@@ -391,7 +391,7 @@ struct PrimaryPrice<'a> {
     color: [u8; 4],
 }
 
-fn draw_primary_price(painter: &mut Painter<'_>, font: &Font, view: PrimaryPrice<'_>) {
+fn draw_primary_price(painter: &mut Painter<'_>, font: &CachedFont, view: PrimaryPrice<'_>) {
     let value = view
         .price
         .map_or_else(|| "--".to_owned(), |value| value.to_string());
@@ -415,7 +415,7 @@ fn draw_primary_price(painter: &mut Painter<'_>, font: &Font, view: PrimaryPrice
 
 fn draw_reward_ownership(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     reward: &crate::relic::Reward,
     bounds: Rect,
     scale: u32,

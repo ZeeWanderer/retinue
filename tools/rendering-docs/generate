@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+source="$root/crates/retinue-ui/vendor/blend2d"
+output="$root/research/rendering/docs/blend2d-pinned"
+command -v doxygen >/dev/null || {
+    printf 'Install doxygen to generate the optional rendering reference.\n' >&2
+    exit 1
+}
+revision=$(git -C "$source" rev-parse HEAD)
+identity=$(
+    {
+        printf '%s\n' "$revision"
+        git -C "$source" diff HEAD -- blend2d
+        sha256sum "${BASH_SOURCE[0]}"
+        doxygen --version
+    } | sha256sum | cut -d ' ' -f 1
+)
+if [[ -f "$output/identity" && $(<"$output/identity") == "$identity" && -f "$output/html/index.html" ]]; then
+    printf '%s\n' "$output/html/index.html"
+    exit 0
+fi
+mkdir -p "$(dirname "$output")"
+temporary=$(mktemp -d "${output}.XXXXXX")
+trap 'rm -rf -- "$temporary"' EXIT
+cd "$source"
+if ! doxygen - > "$temporary/generation.log" 2>&1 <<EOF
+PROJECT_NAME = Blend2D
+PROJECT_NUMBER = $revision
+OUTPUT_DIRECTORY = "$temporary"
+INPUT = blend2d/core
+FILE_PATTERNS = *.h
+RECURSIVE = YES
+EXCLUDE_PATTERNS = *_p.h
+GENERATE_HTML = YES
+GENERATE_LATEX = NO
+HAVE_DOT = NO
+QUIET = YES
+WARN_IF_UNDOCUMENTED = NO
+ENABLE_PREPROCESSING = YES
+MACRO_EXPANSION = YES
+EXPAND_ONLY_PREDEF = YES
+PREDEFINED = BL_API= BL_INLINE= BL_INLINE_NODEBUG= BL_NOINLINE= BL_CDECL= BL_NOEXCEPT= BL_NOEXCEPT_C= BL_BEGIN_C_DECLS= BL_END_C_DECLS= "BL_DEFINE_ENUM(NAME)=enum NAME" "BL_CLASS_INHERITS(BASE)=: public BASE" BL_DEFINE_OBJECT_DETAIL= "BL_DEFINE_OBJECT_DCAST(TYPE)=" __cplusplus=202002L
+EOF
+then
+    tail -n 20 "$temporary/generation.log" >&2
+    exit 1
+fi
+[[ -f "$temporary/html/index.html" ]]
+printf '%s\n' "$revision" > "$temporary/source-revision"
+printf '%s\n' "$identity" > "$temporary/identity"
+rm -rf -- "$output"
+mv -- "$temporary" "$output"
+trap - EXIT
+printf '%s\n' "$output/html/index.html"

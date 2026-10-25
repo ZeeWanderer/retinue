@@ -6,6 +6,8 @@
 - [`ghidra`](ghidra/README.md): generic executable analysis and evidence export for
   `retinue-inspect`. Report identifiers remain stable for retained research data.
 - `icon-optics`: shared icon sizing utility; `foundry.json` is a Warframe preset.
+- [`rendering-docs`](rendering-docs/README.md): local API documentation generated
+  from the pinned Blend2D source.
 - [`wf-luau-decompiler`](wf-luau-decompiler/README.md): Warframe-specific Luau fork,
   kept as a pinned submodule.
 - `staging`: shared atomic build-install helper.

@@ -1,5 +1,5 @@
-use fontdue::Font;
-use retinue_overlay::painter::{Painter, RasterImage, TextLine, css_rgba, load_icon, text_width};
+use retinue_ui::painter::CachedFont;
+use retinue_ui::painter::{Painter, RasterImage, TextLine, css_rgba, load_icon, text_width};
 
 use crate::ducats::{Parent, Quote, Scene};
 use crate::ui::Rect;
@@ -63,7 +63,7 @@ fn row(scene: &Scene, dimensions: (u32, u32)) -> Option<(Rect, f32)> {
 
 pub(in crate::overlay) fn draw(
     painter: &mut Painter<'_>,
-    font: &Font,
+    font: &CachedFont,
     assets: &Assets,
     scene: &Scene,
 ) {

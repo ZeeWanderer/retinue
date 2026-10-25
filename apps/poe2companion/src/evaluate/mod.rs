@@ -1,4 +1,6 @@
 mod artwork;
+mod budget;
+mod currency;
 pub mod model;
 mod view;
 mod worker;
@@ -8,8 +10,10 @@ use retinue_client::{
     paths::{Base, Game, Paths, create_private_dir_all},
     reload::Gate,
 };
-use retinue_overlay::{
+use retinue_ui::{
+    damage::Damage,
     focus::FocusDetector,
+    schedule::{Deadlines, Ping, make_ping},
     surface::{Application, Input},
     window_input::{Binding, ModMask, WindowInput},
 };
@@ -73,6 +77,8 @@ impl Preferences {
 pub struct Service {
     thread: Option<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
+    wake: Ping,
+    notifications: tokio::task::JoinHandle<()>,
 }
 impl Service {
     pub fn start(
@@ -82,6 +88,9 @@ impl Service {
     ) -> Result<Self, String> {
         let stop = Arc::new(AtomicBool::new(false));
         let local = stop.clone();
+        let (wake, source) = make_ping().map_err(|e| e.to_string())?;
+        let worker_wake = wake.clone();
+        let mut notices = updates.clone();
         let thread = thread::Builder::new()
             .name("poe2-evaluate".into())
             .spawn(move || {
@@ -105,7 +114,7 @@ impl Service {
                         preferences,
                         view: View::new()?,
                         interaction: Interaction::default(),
-                        worker: Worker::start()?,
+                        worker: Worker::start(worker_wake)?,
                         updates,
                         focus: FocusDetector::connect("steam_app_2694490").ok(),
                         window_input,
@@ -114,6 +123,7 @@ impl Service {
                         activate_requested: false,
                         return_focus_requested: false,
                         pending_copy: None,
+                        next_copy_check: Instant::now(),
                         gate: gate.clone(),
                         stopping,
                         local: local.clone(),
@@ -124,7 +134,7 @@ impl Service {
                         started: Instant::now(),
                         dpr: 1,
                     };
-                    retinue_overlay::surface::run("poe2companion", Box::new(app), local)
+                    retinue_ui::surface::run("poe2companion", Box::new(app), local, source)
                 })();
                 gate.interaction(false);
                 if let Err(error) = result {
@@ -132,15 +142,25 @@ impl Service {
                 }
             })
             .map_err(|e| e.to_string())?;
+        let notice_wake = wake.clone();
+        let notifications = tokio::spawn(async move {
+            while notices.changed().await.is_ok() {
+                notice_wake.ping();
+            }
+        });
         Ok(Self {
             thread: Some(thread),
             stop,
+            wake,
+            notifications,
         })
     }
 }
 impl Drop for Service {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+        self.notifications.abort();
+        self.wake.ping();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -162,6 +182,7 @@ struct Overlay {
     activate_requested: bool,
     return_focus_requested: bool,
     pending_copy: Option<(u64, Option<u32>, Instant)>,
+    next_copy_check: Instant,
     gate: Gate,
     stopping: Arc<AtomicBool>,
     local: Arc<AtomicBool>,
@@ -189,7 +210,15 @@ impl Overlay {
         }
     }
     fn search(&mut self) {
-        if self.model.loading {
+        self.search_with_refresh(true);
+    }
+    fn restore(&mut self, requested: bool) {
+        if let Some(request) = self.model.restore() {
+            self.send(Job::Restore(self.model.generation, request, requested));
+        }
+    }
+    fn search_with_refresh(&mut self, refresh: bool) {
+        if self.model.loading || self.model.retry_after() > 0 {
             return;
         }
         if self.model.evaluation.is_none() && !self.model.text.is_empty() {
@@ -202,8 +231,19 @@ impl Overlay {
             return;
         }
         match self.model.search() {
-            Ok(request) => self.send(Job::Search(self.model.generation, request)),
+            Ok(mut request) => {
+                request["refresh"] = serde_json::json!(refresh);
+                self.send(Job::Search(self.model.generation, request));
+            }
             Err(error) => self.model.error = Some(error),
+        }
+    }
+    fn fetch(&mut self) {
+        if let Some(request) = self
+            .model
+            .fetch(self.interaction.scroll, self.view.visible_listings)
+        {
+            self.send(Job::Fetch(self.model.generation, request));
         }
     }
     fn field(&mut self) -> Option<&mut String> {
@@ -242,6 +282,7 @@ impl Overlay {
         self.open_after_search = false;
         self.model.invalidate();
         self.interaction.scroll = 0;
+        self.restore(false);
     }
     fn escape(&mut self) {
         if !self.interaction.close_popup() {
@@ -305,7 +346,7 @@ impl Overlay {
                     self.change();
                     self.save_preferences();
                     if refresh && menu != Menu::Rarity {
-                        self.search();
+                        self.restore(true);
                     }
                 }
                 self.interaction.menu = None;
@@ -313,7 +354,7 @@ impl Overlay {
             Target::Sort => {
                 self.model.descending = !self.model.descending;
                 self.change();
-                self.search();
+                self.restore(true);
             }
             Target::Level => {
                 self.model.level.enabled = !self.model.level.enabled;
@@ -421,20 +462,66 @@ impl Application for Overlay {
             .focus
             .and_then(|_| self.view.editor.selected_text())
     }
-    fn pointer_regions(&self) -> Vec<retinue_overlay::Rect> {
+    fn pointer_regions(&self) -> Vec<retinue_ui::Rect> {
         self.view.pointer_regions()
     }
-    fn tick(&mut self) -> bool {
+    fn event_fds(&self) -> std::io::Result<Vec<std::os::fd::OwnedFd>> {
+        Ok(vec![self.window_input.event_fd()?])
+    }
+    fn deadlines(&self, now: Instant) -> Deadlines {
+        let mut deadlines = Deadlines::default();
+        deadlines.control(Some(self.last_focus + Duration::from_millis(100)));
+        deadlines.control(
+            self.pending_copy
+                .map(|(_, _, started)| started + Duration::from_secs(2)),
+        );
+        if self.pending_copy.is_some() {
+            deadlines.control(Some(self.next_copy_check));
+        }
+        if self.visible() {
+            if self.model.loading {
+                deadlines.visual(Some(self.last_animation + Duration::from_millis(70)));
+            }
+            if self.interaction.hover.is_some() && !self.interaction.tooltip {
+                deadlines.visual(Some(self.hover_since + Duration::from_millis(600)));
+            }
+            if self.interaction.focus.is_some() {
+                deadlines.visual(Some(self.view.editor.next_blink(now)));
+            }
+            deadlines.visual(self.model.cooldown_deadline(now));
+            deadlines.visual(self.model.budget.deadline(now));
+            deadlines.visual(self.view.time_deadline(now));
+        }
+        deadlines
+    }
+    fn tick(&mut self, drawable: bool) -> Damage {
         if self.stopping.load(Ordering::Acquire) {
             self.local.store(true, Ordering::Release);
-            return false;
+            return Damage::None;
         }
-        let observation = self.updates.borrow().clone();
+        let (observation_changed, observation) = {
+            let current = self.updates.borrow_and_update();
+            (current.has_changed(), current.clone())
+        };
         let pid = observation
             .as_ref()
             .and_then(|o| o.process.as_ref())
             .map(|p| p.pid);
         let mut dirty = false;
+        let mut damage = Damage::None;
+        if observation_changed
+            && let Some(snapshot) = observation.as_ref().and_then(|o| o.snapshot.as_ref())
+            && self.model.observe_session(snapshot)
+        {
+            self.open_after_search = false;
+            self.interaction.scroll = 0;
+            self.save_preferences();
+            if self.model.visible {
+                self.predict();
+                self.restore(false);
+            }
+            dirty = true;
+        }
         if std::mem::take(&mut self.return_focus_requested) && self.presentation.keyboard {
             if let Some(focus) = &self.focus {
                 match focus.request_game_focus_at_pointer(pid) {
@@ -492,9 +579,14 @@ impl Application for Overlay {
             }
             self.interaction = Interaction::default();
             self.pending_copy = Some((generation, pid, Instant::now()));
+            self.next_copy_check = Instant::now();
             dirty = true;
         }
-        if let Some((generation, pid, started)) = self.pending_copy {
+        if let Some((generation, pid, started)) = self.pending_copy
+            && (Instant::now() >= self.next_copy_check
+                || started.elapsed() >= Duration::from_secs(2))
+        {
+            self.next_copy_check = Instant::now() + Duration::from_millis(16);
             if self
                 .focus
                 .as_ref()
@@ -511,6 +603,19 @@ impl Application for Overlay {
         while let Ok(reply) = self.worker.receive.try_recv() {
             dirty = true;
             match reply {
+                Reply::Currencies(request, icons) => {
+                    if request
+                        == currency::Request::for_model(
+                            &self.model,
+                            self.preferences.scale * self.dpr as f32,
+                        )
+                    {
+                        if self.view.currencies.len() + icons.len() > 64 {
+                            self.view.currencies.clear();
+                        }
+                        self.view.currencies.extend(icons);
+                    }
+                }
                 Reply::Copied(id, text) => {
                     if cfg!(debug_assertions) {
                         eprintln!(
@@ -538,7 +643,6 @@ impl Application for Overlay {
                             e.item.modifiers.len()
                         );
                     }
-                    let auto_search = id == self.model.generation && e.auto_search();
                     let current = id == self.model.generation;
                     let previous = self.model.league.clone();
                     self.model.evaluated(id, e);
@@ -547,9 +651,12 @@ impl Application for Overlay {
                     }
                     if current {
                         self.predict();
+                        self.restore(false);
                     }
-                    if auto_search {
-                        self.search();
+                }
+                Reply::Restored(id, reply, requested) => {
+                    if self.model.restored(id, reply, requested) {
+                        self.search_with_refresh(false);
                     }
                 }
                 Reply::Searched(id, r) => {
@@ -557,18 +664,22 @@ impl Application for Overlay {
                         eprintln!("poe2companion: evaluate.results: id={id} total={}", r.total);
                     }
                     self.model.searched(id, r);
+                    if id == self.model.generation {
+                        self.interaction.scroll = 0;
+                    }
                     if id == self.model.generation && self.open_after_search {
                         self.open_after_search = false;
                         self.click(Target::Trade);
                     }
                 }
+                Reply::Fetched(id, page) => self.model.fetched(id, page),
                 Reply::Predicted(id, result) => {
                     if let Err(error) = &result {
                         eprintln!("poe2companion: evaluate.prediction: {error}");
                     }
                     self.model.predicted(id, result.ok().flatten());
                 }
-                Reply::Error(id, error) => {
+                Reply::Error(id, error, retry) => {
                     if id == self.model.generation {
                         self.open_after_search = false;
                     }
@@ -583,9 +694,33 @@ impl Application for Overlay {
                         self.model.dismiss();
                     } else {
                         self.model.failed(id, error);
+                        if id == self.model.generation && retry > 0 {
+                            self.model.retry_at =
+                                Some(Instant::now() + Duration::from_secs(retry.min(86400)));
+                        }
                     }
                 }
             }
+        }
+        if self.worker.budget.has_changed().unwrap_or(false) {
+            let snapshot = self.worker.budget.borrow_and_update().clone();
+            if let Some(snapshot) = snapshot {
+                self.model.budget.observe(snapshot, Instant::now());
+                self.model.retry_at = self.model.budget.retry_at();
+                dirty = true;
+            }
+        }
+        if self.model.visible {
+            let request =
+                currency::Request::for_model(&self.model, self.preferences.scale * self.dpr as f32);
+            self.worker.currencies.send_if_modified(|previous| {
+                if *previous == request {
+                    false
+                } else {
+                    *previous = request;
+                    true
+                }
+            });
         }
         if observation
             .as_ref()
@@ -615,26 +750,43 @@ impl Application for Overlay {
             }
             self.input_error = error;
         }
-        if self.visible()
+        if drawable
+            && self.visible()
             && self.model.loading
-            && self.last_animation.elapsed() > Duration::from_millis(70)
+            && self.last_animation.elapsed() >= Duration::from_millis(70)
         {
             self.last_animation = Instant::now();
-            dirty = true;
+            damage = damage.union(self.view.animation_damage());
         }
-        if self.interaction.hover.is_some()
+        if self.visible() {
+            if drawable {
+                damage = damage.union(self.view.time_damage(view::current_time()));
+                dirty |= self.model.tick_cooldown();
+                let now = Instant::now();
+                dirty |= self.model.budget.tick(now);
+                damage = damage.union(self.view.budget_damage(self.model.budget.fill(now)));
+            }
+            let was_fetching = self.model.fetching;
+            self.fetch();
+            dirty |= was_fetching != self.model.fetching;
+        }
+        if drawable
+            && self.visible()
+            && self.interaction.hover.is_some()
             && !self.interaction.tooltip
             && self.hover_since.elapsed() >= Duration::from_millis(600)
         {
             self.interaction.tooltip = true;
             dirty = true;
         }
-        if self.visible() && self.interaction.focus.is_some() {
-            dirty |= self.view.editor.tick();
+        if drawable && self.visible() && self.interaction.focus.is_some() {
+            if self.view.editor.tick() {
+                damage = damage.union(self.view.target_damage(self.interaction.focus));
+            }
         }
-        dirty
+        if dirty { Damage::Full } else { damage }
     }
-    fn input(&mut self, event: Input) -> bool {
+    fn input(&mut self, event: Input) -> Damage {
         let physical = |x: f64, y: f64| (x * self.dpr as f64, y * self.dpr as f64);
         match event {
             Input::FocusLost => {
@@ -658,6 +810,9 @@ impl Application for Overlay {
             Input::Motion(x, y) => {
                 let (x, y) = physical(x, y);
                 let previous = self.interaction.hover;
+                let popup = self.interaction.tooltip
+                    || self.interaction.menu.is_some()
+                    || self.interaction.league_open;
                 self.interaction.hover = self.view.hit(x, y);
                 if previous != self.interaction.hover {
                     self.interaction.tooltip = false;
@@ -674,9 +829,17 @@ impl Application for Overlay {
                 {
                     self.view.edit_drag(target, x);
                 }
-                return previous != self.interaction.hover
-                    || self.interaction.drag.is_some()
-                    || self.interaction.selecting;
+                return if self.interaction.drag.is_some() || self.interaction.selecting {
+                    Damage::Full
+                } else if previous == self.interaction.hover {
+                    Damage::None
+                } else if popup {
+                    Damage::Full
+                } else {
+                    self.view
+                        .target_damage(previous)
+                        .union(self.view.target_damage(self.interaction.hover))
+                };
             }
             Input::Press { x, y, shift } => {
                 let (x, y) = physical(x, y);
@@ -748,7 +911,7 @@ impl Application for Overlay {
                         | Target::LevelMaximum),
                     ) => {
                         if !self.begin_edit(target, false) {
-                            return false;
+                            return Damage::None;
                         }
                         if let Some(field) = self.field() {
                             let value = model::parse_number(field).ok().flatten().unwrap_or(0.0);
@@ -769,7 +932,7 @@ impl Application for Overlay {
                         }
                         self.change();
                     }
-                    Some(Target::Results) => {
+                    Some(Target::Results | Target::ListingCurrency(_) | Target::Listing(_)) => {
                         let total = self
                             .model
                             .results
@@ -815,7 +978,7 @@ impl Application for Overlay {
                 }
                 0xff09 | 0xfe20 => {
                     if self.interaction.menu.is_some() || self.interaction.league_open {
-                        return false;
+                        return Damage::None;
                     }
                     if let Some(next) = self.view.next_field(
                         self.interaction.focus,
@@ -844,12 +1007,23 @@ impl Application for Overlay {
         }
         self.gate
             .interaction(self.model.visible || self.model.copying);
-        true
+        Damage::Full
     }
-    fn paint(&mut self, pixels: &mut [u8], size: (u32, u32), scale: u32) -> Result<(), String> {
+    fn paint(
+        &mut self,
+        pixels: &mut [u8],
+        size: (u32, u32),
+        scale: u32,
+        repair: retinue_ui::Rect,
+    ) -> Result<(), String> {
         self.dpr = scale;
-        let phase = (self.started.elapsed().as_secs_f32() * 0.6) % 2.0;
-        self.view.paint(
+        let phase = (self
+            .last_animation
+            .saturating_duration_since(self.started)
+            .as_secs_f32()
+            * 0.6)
+            % 2.0;
+        self.view.paint_region(
             pixels,
             Frame {
                 size,
@@ -859,6 +1033,7 @@ impl Application for Overlay {
             },
             &self.model,
             &self.interaction,
+            repair,
         )
     }
 }
@@ -870,10 +1045,13 @@ pub enum PreviewState {
     Estimate,
     EstimateError,
     Searching,
+    Fetching,
     Results,
     ListingPreview,
     Empty,
     SearchError,
+    FetchError,
+    Cooldown,
 }
 
 pub fn preview(
@@ -883,6 +1061,7 @@ pub fn preview(
     (width, height): (u32, u32),
     full_frame: bool,
     state: PreviewState,
+    currency_assets: Option<&std::path::Path>,
 ) -> Result<(), String> {
     if !(640..=7680).contains(&width)
         || !(640..=4320).contains(&height)
@@ -921,15 +1100,40 @@ pub fn preview(
             }
         }
         PreviewState::Searching => model.loading = true,
-        PreviewState::Results | PreviewState::ListingPreview => {
+        PreviewState::Results
+        | PreviewState::ListingPreview
+        | PreviewState::Fetching
+        | PreviewState::FetchError => {
             let results = data.get("results").ok_or("fixture has no results")?;
             model.results =
                 Some(serde_json::from_value(results.clone()).map_err(|e| e.to_string())?);
+            if matches!(state, PreviewState::Fetching | PreviewState::FetchError) {
+                model.results.as_mut().unwrap().listings.clear();
+                model.results.as_mut().unwrap().next_offset = Some(0);
+                model.fetching = matches!(state, PreviewState::Fetching);
+                if matches!(state, PreviewState::FetchError) {
+                    model.fetch_error = Some("Trade service unavailable".into());
+                }
+            }
         }
         PreviewState::Empty => model.results = Some(Default::default()),
         PreviewState::SearchError => model.error = Some("Trade service unavailable".into()),
+        PreviewState::Cooldown => {
+            model.budget.observe(
+                budget::Snapshot {
+                    observed_at_ms: 1,
+                    retry_after_ms: 10_000,
+                    windows: vec![],
+                },
+                Instant::now() - Duration::from_millis(300),
+            );
+            model.retry_at = model.budget.retry_at();
+        }
     }
     let mut view = View::new()?;
+    if let Some(path) = currency_assets {
+        view.currencies = currency::preview(path, (20.0 * scale).round() as u32)?;
+    }
     view.preview_time = Some(1791885600);
     let mut pixels = vec![0; width as usize * height as usize * 4];
     let mut interaction = Interaction::default();
@@ -991,7 +1195,7 @@ pub fn preview(
             &interaction,
         )?;
     }
-    let image = retinue_overlay::painter::straight_rgba(&pixels, width, height)?;
+    let image = retinue_ui::painter::straight_rgba(&pixels, width, height)?;
     let rect = view.bounds;
     if full_frame {
         image.save(output).map_err(|e| e.to_string())?;
@@ -1006,7 +1210,7 @@ pub fn preview(
         )
         .map_err(|e| e.to_string())
     } else {
-        retinue_overlay::image::imageops::crop_imm(&image, rect.x, rect.y, rect.width, rect.height)
+        retinue_ui::image::imageops::crop_imm(&image, rect.x, rect.y, rect.width, rect.height)
             .to_image()
             .save(output)
             .map_err(|e| e.to_string())

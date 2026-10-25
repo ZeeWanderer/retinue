@@ -38,24 +38,26 @@ JSON
 printf '#!/bin/sh\nexit 0\n' > "$repo/scripts/stage-gui"
 chmod +x "$repo/scripts/stage-gui"
 ln -s "$(command -v clang++)" "$repo/commands/old-clang++"
-make --no-print-directory -C "$repo" gui-dev SCCACHE= \
+plan="$(make --no-print-directory -n -C "$repo" gui-dev SCCACHE=)"
+[[ "$plan" == *'build --locked -p wfgui'* && "$plan" != *cmake* ]] || fail 'default GUI build still uses Qt'
+make --no-print-directory -C "$repo" gui-qt-dev SCCACHE= \
     CXX="$repo/commands/old-clang++" CXXFLAGS=-DTEST_VALUE=1
 binary="$repo/_build/cmake/gui-dev/apps/wfgui/wfgui"
 [[ "$("$binary")" == 1 ]] || fail 'initial compiler flags missing'
 rm "$repo/commands/old-clang++"
 ln -s "$(command -v clang++)" "$repo/commands/new-clang++"
-make --no-print-directory -C "$repo" gui-dev SCCACHE= \
+make --no-print-directory -C "$repo" gui-qt-dev SCCACHE= \
     CXX="$repo/commands/new-clang++" CXXFLAGS=-DTEST_VALUE=2
 [[ "$("$binary")" == 2 ]] || fail 'stale compiler or flags survived'
 timestamp="$(stat -c %y "$binary")"
-make --no-print-directory -C "$repo" gui-dev SCCACHE= \
+make --no-print-directory -C "$repo" gui-qt-dev SCCACHE= \
     CXX="$repo/commands/new-clang++" CXXFLAGS=-DTEST_VALUE=2
 [[ "$(stat -c %y "$binary")" == "$timestamp" ]] || fail 'fresh configure rebuilt unchanged executable'
 
 cat > "$repo/order.mk" <<'MAKE'
 dev-erlang prod-erlang dev-companion prod-companion:
 	@sleep 0.05
-gui-configure-dev gui-configure-prod:
+gui-qt-configure-dev gui-qt-configure-prod:
 	@:
 gui-dev gui-prod:
 	@sleep 0.1; touch $@.done
@@ -72,17 +74,17 @@ for name in retinue wfcli poe2cli arccli retinue-daemon retinue-inspect wfinspec
 done
 
 repo="$fixture/native"
-mkdir -p "$repo/crates/retinue-overlay/src" "$repo/crates/retinue-overlay/native" \
-    "$repo/crates/retinue-overlay/vendor/"{blend2d,asmjit} \
+mkdir -p "$repo/crates/retinue-ui/src" "$repo/crates/retinue-ui/native" \
+    "$repo/crates/retinue-ui/vendor/"{blend2d,asmjit} \
     "$repo/apps/retinue_daemon/src/runtime" "$repo/commands"
-cp "$root/crates/retinue-overlay/build.rs" "$repo/crates/retinue-overlay/"
+cp "$root/crates/retinue-ui/build.rs" "$repo/crates/retinue-ui/"
 printf '0.0.0\n' > "$repo/VERSION"
-printf 'fn main() {}\n' > "$repo/crates/retinue-overlay/src/main.rs"
-touch "$repo/crates/retinue-overlay/vendor/"{blend2d,asmjit}/CMakeLists.txt
+printf 'fn main() {}\n' > "$repo/crates/retinue-ui/src/main.rs"
+touch "$repo/crates/retinue-ui/vendor/"{blend2d,asmjit}/CMakeLists.txt
 printf '%s\n' '-define(ENVELOPE_VERSION, 1).' '-define(INTERFACE_PLAYER, 1).' \
     'interfaces() -> #{<<"player">> => ?INTERFACE_PLAYER}.' \
     > "$repo/apps/retinue_daemon/src/runtime/retinue_local_protocol.erl"
-cat > "$repo/crates/retinue-overlay/Cargo.toml" <<'TOML'
+cat > "$repo/crates/retinue-ui/Cargo.toml" <<'TOML'
 [workspace]
 [package]
 name = "native-build-fixture"
@@ -107,7 +109,7 @@ export WF_TEST_CALLS="$repo/cmake-calls"
 native_check() {
     PATH="$repo/commands:$PATH" CC="$repo/commands/cc" CXX="$repo/commands/c++" \
         CARGO_TARGET_DIR="$repo/target" RUSTC_WRAPPER='' \
-        "${CARGO:-cargo}" check --quiet --manifest-path "$repo/crates/retinue-overlay/Cargo.toml"
+        "${CARGO:-cargo}" check --quiet --manifest-path "$repo/crates/retinue-ui/Cargo.toml"
 }
 native_check
 [[ "$(wc -l < "$WF_TEST_CALLS")" == 2 ]] || fail 'native configure/build not called'
@@ -171,6 +173,24 @@ rm "$repo/target/debug/retinue-inspect"
 if CARGO="$repo/commands/custom-cargo" CARGO_TARGET_DIR="$repo/target" \
     bash "$repo/scripts/build-companion" dev; then fail 'missing inspector staging succeeded'; fi
 [[ "$("$repo/dev/bin/wfcompanion")" == old-companion ]] || fail 'failed companion stage replaced installation'
+
+cp "$root/scripts/stage-gui" "$repo/scripts/"
+mkdir -p "$repo/apps/wfgui/resources/app"
+cp "$root/apps/wfgui/resources/Lucide-LICENSE.txt" "$repo/apps/wfgui/resources/"
+cp "$root/apps/wfgui/resources/app/"wfgui* "$repo/apps/wfgui/resources/app/"
+printf '#!/bin/sh\nprintf "native-gui\\n"\n' > "$repo/target/debug/wfgui"
+printf 'existing Qt runtime\n' > "$repo/dev/qt-marker"
+printf '#!/bin/sh\nprintf "qt-reference\\n"\n' > "$repo/dev/bin/wfgui-qt"
+chmod +x "$repo/dev/bin/wfgui-qt"
+CARGO_TARGET_DIR="$repo/target" bash "$repo/scripts/stage-gui" dev
+[[ "$("$repo/dev/bin/wfgui")" == native-gui && -f "$repo/dev/qt-marker" && \
+   "$("$repo/dev/bin/wfgui-qt")" == qt-reference ]] || fail 'GUI staging replaced Qt reference'
+for size in 16 24 32 48 64 128 256 512; do
+    [[ -f "$repo/dev/share/retinue/games/warframe/icons/wfgui-$size.png" ]] || fail 'desktop icon missing'
+done
+rm "$repo/target/debug/wfgui"
+if CARGO_TARGET_DIR="$repo/target" bash "$repo/scripts/stage-gui" dev; then fail 'missing native GUI staging succeeded'; fi
+[[ "$("$repo/dev/bin/wfgui")" == native-gui ]] || fail 'failed native GUI stage replaced installation'
 
 cmake "-DTEST_DIR=$fixture/toolchain" -P "$root/cmake/tests/gui-toolchain.cmake"
 cmake "-DTEST_DIR=$fixture/vcpkg" -P "$root/cmake/tests/gui-vcpkg.cmake"

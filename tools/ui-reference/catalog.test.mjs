@@ -30,7 +30,7 @@ test("help and input errors do not launch a browser or need provider packages", 
   const script = fileURLToPath(new URL("render.mjs", import.meta.url));
   const help = spawnSync(process.execPath, [script, "--help"], { cwd: "/tmp", encoding: "utf8" });
   assert.equal(help.status, 0);
-  assert.match(help.stdout, /alecaframe: relic-rewards/);
+  assert.match(help.stdout, /alecaframe: desktop, foundry, relic-rewards/);
   assert.match(help.stdout, /poe-overlay-ii: evaluate/);
   const error = spawnSync(process.execPath, [script, "alecaframe", "evaluate"], { encoding: "utf8" });
   assert.equal(error.status, 2);
@@ -68,6 +68,10 @@ esac
 [[ "$*" != *'--state results'* ]]
 `, { mode: 0o755 });
     await writeFile(path.join(directory, "node"), `#!/usr/bin/env bash
+if [[ "$1" == */currencies.mjs ]]; then
+    printf '%s\\n' /tmp/currency-manifest.json
+    exit 0
+fi
 if [[ "$1" == */compare.mjs ]]; then
     printf 'comparison:%s\\n' "$3" >> "$PREVIEW_TEST_LOG"
     exit 0
@@ -96,7 +100,8 @@ fi
         "warframe/2560x1440/side-by-side/relic-suggestions",
         ...["1920x1080", "2560x1440"].flatMap(resolution =>
           ["evaluate", "evaluate-predicting", "evaluate-estimate", "evaluate-estimate-error",
-            "evaluate-searching", "evaluate-listing-preview", "evaluate-empty", "evaluate-search-error"].map(scene =>
+            "evaluate-searching", "evaluate-fetching", "evaluate-listing-preview", "evaluate-empty",
+            "evaluate-search-error", "evaluate-fetch-error", "evaluate-cooldown"].map(scene =>
             `poe2/${resolution}/side-by-side/${scene}`)),
       ];
       assert.deepEqual(comparisons, expectedPairs.map(pair => `comparison:${directory}/previews/${pair}`));
@@ -126,7 +131,7 @@ test("preview driver rejects invalid selections before rendering", () => {
     ["warframe", { PREVIEW_SCENES: "missing" }, /unknown Warframe preview scene/],
     ["poe2", { PREVIEW_SCENES: "relic-rewards" }, /unknown PoE2 preview scene/],
     ["poe2", { PREVIEW_SCENES: "price-check" }, /unknown PoE2 preview scene/],
-    ["poe2", { PREVIEW_SETS: "companion", PREVIEW_SCENES: "evaluate-fetching" }, /requires PREVIEW_SETS=reference/],
+    ["poe2", { PREVIEW_SETS: "companion", PREVIEW_SCENES: "evaluate-gem-auto" }, /requires PREVIEW_SETS=reference/],
     ["poe2", { PREVIEW_RESOLUTIONS: "bad" }, /invalid preview resolution/],
     ["warframe", { PREVIEW_RESOLUTIONS: "../../" }, /invalid preview resolution/],
     ["poe2", { PREVIEW_LAYOUT: "missing" }, /unknown preview layout/],

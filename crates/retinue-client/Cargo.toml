@@ -3,7 +3,7 @@ name = "retinue-client"
 version = "0.3.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "Shared Retinue native-client paths"
+description = "Shared Retinue native-client transport, paths and lifecycle"
 
 [dependencies]
 libc = "0.2"
@@ -11,7 +11,7 @@ rustix = { version = "1", features = ["fs", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tokio = { version = "1", features = ["io-util", "macros", "process", "rt", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 
 [dev-dependencies]
 tempfile = "3"
