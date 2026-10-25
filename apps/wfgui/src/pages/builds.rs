@@ -343,6 +343,7 @@ impl Pages {
                 self.ui.rect(45.0, 73.0, sidebar - 53.0, 32.0),
                 &self.builds.search,
                 "Equipment",
+                crate::search::Anchor::Leading,
             );
             self.ui.choice(
                 "build:class",
@@ -536,6 +537,7 @@ impl Pages {
             self.ui.rect(14.0, 78.0, w - 305.0, 33.0),
             &self.builds.query,
             "Find equipment or build",
+            crate::search::Anchor::Leading,
         );
         self.ui.choice(
             "build:scope",

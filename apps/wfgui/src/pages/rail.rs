@@ -348,9 +348,8 @@ impl Pages {
                 json!({"op":"notification_settings_set","fissures":{"mode":mode}}),
             );
         } else if let Some(era) = signal.key.strip_prefix("rail:era:") {
-            self.relics.category = if era == "omnia" { "all" } else { era }.into();
             self.relics.search.clear();
-            self.relics.scroll.to(0.0, false, Instant::now());
+            self.select_listing_category(Page::Relics, if era == "omnia" { "all" } else { era });
             self.navigation = Some((Page::Relics, String::new()));
         }
     }

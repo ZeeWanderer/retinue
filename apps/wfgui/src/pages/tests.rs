@@ -93,13 +93,14 @@ fn category_capture_commits_the_sampled_page_geometry() {
     ] {
         pages.set_page(page);
         pages.layout();
+        let collapsed = pages.ui.px(if page == Page::Relics { 40.0 } else { 38.0 });
         pages
             .capture_category(0, 1, Duration::from_millis(85))
             .unwrap();
         let from = pages.ui.bounds(&format!("list:category:{source}")).unwrap();
         let to = pages.ui.bounds(&format!("list:category:{target}")).unwrap();
-        assert!(from.width > pages.ui.px(38.0), "outgoing {page:?}");
-        assert!(to.width > pages.ui.px(38.0), "incoming {page:?}");
+        assert!(from.width > collapsed, "outgoing {page:?}");
+        assert!(to.width > collapsed, "incoming {page:?}");
         pages
             .capture_category(0, 1, Duration::from_millis(170))
             .unwrap();
@@ -109,7 +110,7 @@ fn category_capture_commits_the_sampled_page_geometry() {
                 .bounds(&format!("list:category:{source}"))
                 .unwrap()
                 .width,
-            pages.ui.px(38.0)
+            collapsed
         );
         assert!(
             pages
@@ -119,6 +120,95 @@ fn category_capture_commits_the_sampled_page_geometry() {
                 .width
                 > to.width
         );
+    }
+}
+
+#[test]
+fn relic_toolbar_centers_collapsed_icons_and_anchors_search_to_the_right() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut pages = pages();
+        pages.set_page(Page::Relics);
+        pages.configure((1600, 1000), (400, 1000), scale);
+        pages.search(Page::Relics, "");
+        let tab = pages.ui.bounds("list:category:lith").unwrap();
+        let icon = pages.ui.bounds("list:category:lith:icon").unwrap();
+        assert_eq!(
+            (tab.width, tab.height),
+            (pages.ui.px(40.0), pages.ui.px(32.0))
+        );
+        assert_eq!(
+            (icon.width, icon.height),
+            (pages.ui.px(24.0), pages.ui.px(24.0))
+        );
+        assert!((2 * tab.x + tab.width).abs_diff(2 * icon.x + icon.width) <= 1);
+        assert!((2 * tab.y + tab.height).abs_diff(2 * icon.y + icon.height) <= 1);
+        let collapsed = pages.ui.bounds("list:search").unwrap();
+        let last_tab = pages.ui.bounds("list:category:vanguard").unwrap();
+        assert!(collapsed.y > last_tab.y || collapsed.x > last_tab.x + last_tab.width);
+        pages.search(Page::Relics, "Ember Prime Neuroptics Blueprint");
+        let expanded = pages.ui.bounds("list:search").unwrap();
+        assert_eq!(expanded.x + expanded.width, collapsed.x + collapsed.width);
+        assert_eq!(expanded.y, collapsed.y);
+        assert!(expanded.x < collapsed.x);
+        assert!(expanded.y > last_tab.y || expanded.x > last_tab.x + last_tab.width);
+        assert!(pages.ui.bounds("clear:list:search").is_some());
+    }
+}
+
+#[test]
+fn fissure_navigation_refilters_existing_relics_and_animates_the_selected_tab() {
+    for starting_page in [Page::Inventory, Page::Relics] {
+        let mut pages = pages();
+        let lith = pages.relics.items[0].clone();
+        let mut axi = lith.clone();
+        axi["id"] = json!("axi-a1");
+        axi["name"] = json!("Axi A1");
+        axi["era"] = json!("Axi");
+        pages
+            .relics
+            .replace(json!({"items": [lith, axi]}), &pages.quotes);
+        pages.search(Page::Relics, "Lith");
+        pages.set_page(starting_page);
+        pages.layout();
+        assert_eq!(pages.relics.visible.len(), 1);
+        pages.rail.signals.push(Signal {
+            key: "rail:era:axi".into(),
+            value: None,
+        });
+        pages.tick(Instant::now());
+        let (destination, query) = pages.navigation.take().unwrap();
+        assert_eq!(destination, Page::Relics);
+        assert!(query.is_empty());
+        pages.set_page(destination);
+        pages.layout();
+        assert!(pages.relics.search.is_empty());
+        assert_eq!(pages.relics.category, "axi");
+        assert_eq!(pages.relics.visible.len(), 1);
+        assert_eq!(
+            text(&pages.relics.items[pages.relics.visible[0]], "era"),
+            "Axi"
+        );
+        assert_eq!(pages.relics.offset, 0);
+        let start = Instant::now();
+        assert!(pages.relics.deadline(start).is_some());
+        let initial = pages.ui.bounds("list:category:axi").unwrap();
+        pages.tick(start + Duration::from_millis(85));
+        let middle = pages.ui.bounds("list:category:axi").unwrap();
+        assert!(middle.width > initial.width);
+        pages.tick(start + Duration::from_millis(170));
+        let end = pages.ui.bounds("list:category:axi").unwrap();
+        assert!(end.width > middle.width);
+        assert_eq!(
+            pages.relics.deadline(start + Duration::from_millis(170)),
+            None
+        );
+        pages.rail.signals.push(Signal {
+            key: "rail:era:omnia".into(),
+            value: None,
+        });
+        pages.tick(Instant::now());
+        assert_eq!(pages.relics.category, "all");
+        assert_eq!(pages.relics.visible.len(), 2);
     }
 }
 

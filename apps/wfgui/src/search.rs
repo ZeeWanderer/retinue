@@ -1,6 +1,12 @@
 use retinue_ui::transition::{Easing, ScalarTransition};
 use std::time::{Duration, Instant};
 
+#[derive(Clone, Copy)]
+pub enum Anchor {
+    Leading,
+    Trailing,
+}
+
 pub struct Motion {
     pub width: f32,
     content_width: f32,

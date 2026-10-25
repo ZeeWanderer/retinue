@@ -493,6 +493,7 @@ impl Pages {
             self.ui.rect(14.0, 89.0, w - 335.0, 32.0),
             &self.market.search,
             "Filter orders",
+            crate::search::Anchor::Leading,
         );
         self.ui.choice(
             "market:side",
@@ -926,6 +927,7 @@ impl Pages {
             self.rail.rect(10.0, 45.0, w - 55.0, 34.0),
             &self.market.query,
             "Search Warframe.market",
+            crate::search::Anchor::Leading,
         );
         self.rail
             .icon(self.rail.rect(w - 36.0, 52.0, 20.0, 20.0), "search");

@@ -6,7 +6,13 @@ fn search_capsules_clear_without_changing_other_controls_or_losing_focus() {
         let mut ui = Ui::new().unwrap();
         ui.begin((1200, 800), scale);
         let available = ui.rect(10.0, 10.0, 400.0, 32.0);
-        let collapsed = ui.search_field("query", available, "", "Search items");
+        let collapsed = ui.search_field(
+            "query",
+            available,
+            "",
+            "Search items",
+            crate::search::Anchor::Leading,
+        );
         ui.finish();
         assert_eq!(collapsed.width, ui.px(32.0));
         ui.key(Key::Character("f"), ModifiersState::CONTROL);
@@ -15,7 +21,13 @@ fn search_capsules_clear_without_changing_other_controls_or_losing_focus() {
         ui.key(Key::Character(text), ModifiersState::empty());
         assert_eq!(ui.signals.pop().unwrap().value.as_deref(), Some(text));
         ui.begin((1200, 800), scale);
-        let expanded = ui.search_field("query", available, text, "Search items");
+        let expanded = ui.search_field(
+            "query",
+            available,
+            text,
+            "Search items",
+            crate::search::Anchor::Leading,
+        );
         ui.finish();
         assert!(expanded.width > ui.px(208.0));
         assert!(expanded.width <= available.width);
@@ -38,6 +50,48 @@ fn search_capsules_clear_without_changing_other_controls_or_losing_focus() {
         assert_eq!(ui.fields["query"].borrow().text(), "");
         assert_eq!(ui.focus.as_deref(), Some("query"));
         assert_eq!(ui.signals.pop().unwrap().value.as_deref(), Some(""));
+    }
+}
+
+#[test]
+fn trailing_search_keeps_its_edge_and_clear_hit_target_when_expanding() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut ui = Ui::new().unwrap();
+        let size = (1600, 900);
+        ui.begin(size, scale);
+        let available = ui.rect(25.0, 10.0, 400.0, 32.0);
+        let collapsed = ui.search_field(
+            "query",
+            available,
+            "",
+            "Search",
+            crate::search::Anchor::Trailing,
+        );
+        ui.finish();
+        let text = "Ash Prime Neuroptics Blueprint";
+        ui.begin(size, scale);
+        let expanded = ui.search_field(
+            "query",
+            available,
+            text,
+            "Search",
+            crate::search::Anchor::Trailing,
+        );
+        ui.finish();
+        assert_eq!(collapsed.x + collapsed.width, available.x + available.width);
+        assert_eq!(expanded.x + expanded.width, collapsed.x + collapsed.width);
+        assert!(expanded.x < collapsed.x);
+        assert!(expanded.x >= available.x);
+        let clear = ui.bounds("clear:query").unwrap();
+        assert_eq!(clear.x + clear.width, expanded.x + expanded.width);
+        ui.pointer_move((
+            (clear.x + clear.width / 2) as f64,
+            (clear.y + clear.height / 2) as f64,
+        ));
+        ui.pointer_button(true);
+        ui.pointer_button(false);
+        assert_eq!(ui.fields["query"].borrow().text(), "");
+        assert_eq!(ui.focus.as_deref(), Some("query"));
     }
 }
 

@@ -481,6 +481,18 @@ impl Pages {
             _ => &mut self.relics,
         }
     }
+    pub(super) fn select_listing_category(&mut self, page: Page, category: &str) {
+        let listing = match page {
+            Page::Inventory => &mut self.inventory,
+            Page::Mastery => &mut self.mastery,
+            Page::Relics => &mut self.relics,
+            _ => return,
+        };
+        listing.category = category.into();
+        listing.sync_category(true, Instant::now());
+        listing.reorder(&self.quotes, true);
+        self.dirty = true;
+    }
     pub(super) fn resort(&mut self, reset: bool) {
         for listing in [&mut self.inventory, &mut self.mastery, &mut self.relics] {
             listing.reorder(&self.quotes, reset && listing.page == self.page);
@@ -597,6 +609,12 @@ impl Pages {
         if self.page == Page::Mastery {
             top = self.mastery_summary(w);
         }
+        let toolbar_top = top;
+        let (collapsed_width, tab_height, icon_size) = if self.page == Page::Relics {
+            (40.0, 32.0, 24.0)
+        } else {
+            (38.0, 34.0, 20.0)
+        };
         let categories = categories(self.page);
         self.listing_mut().sync_category(false, Instant::now());
         let mut x = 12.0;
@@ -605,24 +623,37 @@ impl Pages {
             let weight = listing
                 .category_motion
                 .weight(category_key(index), listing.category_sampled_at);
-            let width = 38.0 + (self.ui.measure(label, 13.0, false) + 5.0) * weight;
-            let r = self.ui.rect(x, top, width, 34.0);
+            let width = collapsed_width + (self.ui.measure(label, 13.0, false) + 5.0) * weight;
+            let r = self.ui.rect(x, top, width, tab_height);
             self.ui.fill(
                 r,
-                17.0,
+                tab_height / 2.0,
                 std::array::from_fn(|i| {
                     (widgets::CARD[i] as f32
                         + (ACCENT[i] as f32 - widgets::CARD[i] as f32) * weight)
                         .round() as u8
                 }),
             );
+            let padding = (collapsed_width - icon_size) / 2.0;
+            let icon_bounds = self.ui.rect(
+                x + padding,
+                top + (tab_height - icon_size) / 2.0,
+                icon_size,
+                icon_size,
+            );
+            self.ui.icon(icon_bounds, icon);
             self.ui
-                .icon(self.ui.rect(x + 7.0, top + 7.0, 20.0, 20.0), icon);
+                .region(&format!("list:category:{id}:icon"), icon_bounds);
             if weight > 0.0 {
                 let mut color = TEXT;
                 color[3] = (255.0 * weight).round() as u8;
                 self.ui.clipped_text(
-                    self.ui.rect(x + 33.0, top, width - 37.0, 34.0),
+                    self.ui.rect(
+                        x + padding + icon_size + 5.0,
+                        top,
+                        (width - collapsed_width - 5.0).max(0.0),
+                        tab_height,
+                    ),
                     label,
                     13.0,
                     color,
@@ -634,11 +665,11 @@ impl Pages {
         }
         let tools = match self.page {
             Page::Inventory => 247.0,
-            Page::Relics => 260.0,
+            Page::Relics => 272.0,
             _ => 44.0,
         };
         let reserved = 12.0
-            + categories.len() as f32 * 43.0
+            + categories.len() as f32 * (collapsed_width + 5.0)
             + categories
                 .iter()
                 .map(|(_, label, _)| self.ui.measure(label, 13.0, false) + 5.0)
@@ -653,7 +684,16 @@ impl Pages {
             self.ui
                 .rect(x + 5.0, top, (w - x - tools - 17.0).max(80.0), 32.0),
             &search,
-            "Search items and components",
+            if self.page == Page::Relics {
+                "Search relics or rewards"
+            } else {
+                "Search items and components"
+            },
+            if self.page == Page::Relics {
+                crate::search::Anchor::Trailing
+            } else {
+                crate::search::Anchor::Leading
+            },
         );
         if self.page == Page::Inventory {
             let sort = self.inventory.sort.clone();
@@ -719,6 +759,11 @@ impl Pages {
                 true,
             );
         }
+        self.ui.region(
+            "page.toolbar",
+            self.ui
+                .rect(12.0, toolbar_top, w - 24.0, top - toolbar_top + 34.0),
+        );
         top += 42.0;
         if self.page == Page::Mastery {
             self.ui.fill(
@@ -1295,11 +1340,13 @@ impl Pages {
             }
             return;
         }
-        let listing = self.listing_mut();
         if let Some(category) = key.strip_prefix("list:category:") {
-            listing.category = category.into();
-            listing.sync_category(true, Instant::now());
-        } else if let Some(mode) = key.strip_prefix("list:mode:") {
+            self.select_listing_category(self.page, category);
+            self.start_prices(false);
+            return;
+        }
+        let listing = self.listing_mut();
+        if let Some(mode) = key.strip_prefix("list:mode:") {
             listing.mode = mode.into();
         } else {
             match key.as_str() {

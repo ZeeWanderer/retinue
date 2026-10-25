@@ -807,17 +807,29 @@ impl Ui {
             self.buttons.last_mut().unwrap().field = true;
         }
     }
-    pub fn search_field(&mut self, key: &str, available: Rect, value: &str, hint: &str) -> Rect {
+    pub fn search_field(
+        &mut self,
+        key: &str,
+        available: Rect,
+        value: &str,
+        hint: &str,
+        anchor: crate::search::Anchor,
+    ) -> Rect {
         self.field_value(key, value);
         let active = self.focus.as_deref() == Some(key)
             || self.focus.as_deref() == Some(&format!("clear:{key}"));
         let width = text_width(&self.regular, value, 14.0);
         let motion = self.searches.entry(key.into()).or_default();
         motion.update(active || !value.is_empty(), width, Instant::now(), true);
+        let width = (motion.width * self.scale)
+            .round()
+            .min(available.width as f32) as u32;
         let r = Rect {
-            width: (motion.width * self.scale)
-                .round()
-                .min(available.width as f32) as u32,
+            x: match anchor {
+                crate::search::Anchor::Leading => available.x,
+                crate::search::Anchor::Trailing => available.x + available.width - width,
+            },
+            width,
             ..available
         };
         self.fill(r, r.height as f32 / self.scale / 2.0, CARD);
