@@ -2,7 +2,9 @@
 
 ## Build
 
-Required toolchains:
+### Dependencies
+
+For normal source builds:
 
 | Area | Requirements |
 | --- | --- |
@@ -10,11 +12,12 @@ Required toolchains:
 | Erlang | Erlang/OTP 29 and Rebar3 |
 | Companion | Rust, Cargo, Python 3, `jq`, MinGW-w64, pkg-config, and libxkbcommon development files |
 | Desktop GUI | Rust, Cargo, pkg-config, and libxkbcommon development files |
-| Qt reference only | LLVM with libc++, Ninja, vcpkg, Autoconf, Autoconf Archive, Automake, and Libtool |
 
 Warframe's runtime integration requires KDE Plasma on Wayland, KScreen, and
 Tesseract 5 with English language data. `sccache` is optional. Animated previews
 need FFmpeg with VP9 support; release archives need `zip`.
+
+### Targets
 
 Initialize submodules with `git submodule update --init`, then use these targets:
 
@@ -66,7 +69,8 @@ Both Erlang releases contain copied files; dev keeps debug metadata and `_build/
 ### Qt Reference
 
 Qt is excluded from normal builds. Existing `wfgui-qt` executables remain usable
-alongside Rust. To rebuild that reference, use vcpkg manifest mode:
+alongside Rust. Rebuilding it additionally requires LLVM with libc++, Ninja,
+vcpkg, Autoconf, Autoconf Archive, Automake, and Libtool. Use vcpkg manifest mode:
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg

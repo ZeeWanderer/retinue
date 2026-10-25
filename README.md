@@ -94,11 +94,10 @@ Inspect either with `retinue daemon autostart status`.
 
 ## Build
 
-Install the [build dependencies](docs/developer/workflows.md#build), then:
+Install the [build dependencies](docs/developer/workflows.md#dependencies), then:
 
 ```bash
 git submodule update --init
-export VCPKG_ROOT=/path/to/vcpkg
 make build
 ```
 
