@@ -1,5 +1,6 @@
 #[cfg(feature = "overlay")]
 pub mod clipboard;
+pub mod composition;
 pub mod damage;
 #[cfg(feature = "desktop")]
 pub mod desktop;
@@ -10,7 +11,6 @@ mod geometry;
 pub mod grid;
 #[cfg(feature = "overlay")]
 pub mod layer;
-pub mod layout;
 pub mod line_edit;
 pub mod painter;
 pub mod popover;

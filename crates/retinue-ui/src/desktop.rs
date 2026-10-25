@@ -76,6 +76,10 @@ pub struct Options {
     pub exit_after_capture: bool,
 }
 
+pub fn render_threads() -> NonZeroU32 {
+    render_thread_budget(6)
+}
+
 pub fn run<A: Application>(
     create: impl FnOnce(Sender<A::Message>) -> Result<A, String>,
     options: Options,
@@ -93,7 +97,7 @@ pub fn run<A: Application>(
         options,
         failure: None,
         occluded: false,
-        threads: render_thread_budget(4),
+        threads: render_threads(),
         frames: FrameClock::default(),
     };
     events.run_app(&mut host).map_err(|e| e.to_string())?;

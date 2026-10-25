@@ -31,6 +31,58 @@ impl Shell {
         )
     }
 
+    fn dismiss_popup_press(&mut self) -> bool {
+        let rail = (
+            self.pointer.0 - self.geometry.right.x as f64,
+            self.pointer.1 - self.geometry.right.y as f64,
+        );
+        if self.pages.dismiss_popups_at(self.page_position(), rail)
+            || (self.page == Page::Foundry && self.foundry.dismiss_popup_at(self.page_position()))
+        {
+            self.pressed = None;
+            self.page_pressed = false;
+            self.rail_pressed = false;
+            if self.page == Page::Foundry {
+                self.focus = self.foundry.focus.map(Focus::Foundry);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn open_context_menu(&mut self, keyboard: bool) -> bool {
+        let opened = if keyboard {
+            if self.rail_focus {
+                return false;
+            }
+            if self.page == Page::Foundry {
+                self.foundry.keyboard_context_menu()
+            } else {
+                self.pages.keyboard_context_menu()
+            }
+        } else {
+            self.geometry
+                .center
+                .contains(self.pointer.0, self.pointer.1)
+                && if self.page == Page::Foundry {
+                    self.foundry.context_menu(self.page_position())
+                } else {
+                    self.pages.context_menu()
+                }
+        };
+        if opened {
+            self.rail_focus = false;
+            self.pages.rail.focus = None;
+            self.focus = if self.page == Page::Foundry {
+                self.foundry.focus.map(Focus::Foundry)
+            } else {
+                None
+            };
+        }
+        opened
+    }
+
     pub(super) fn set_focus(&mut self, focus: Option<Focus>) {
         self.focus = focus;
         if focus.is_some() {
@@ -234,7 +286,16 @@ impl Shell {
             self.controls()
                 .into_iter()
                 .filter(|(c, _, _)| Some(*c) == old_hover || Some(*c) == hover)
-                .fold(Damage::None, |damage, (_, rect, _)| {
+                .fold(Damage::None, |damage, (control, rect, _)| {
+                    let rect = if control.page().is_some() {
+                        Rect {
+                            x: self.geometry.left.x,
+                            width: self.geometry.left.width,
+                            ..rect
+                        }
+                    } else {
+                        rect
+                    };
                     damage.union(Damage::rect(rect.expanded(self.px(2.0))))
                 })
         } else {
@@ -250,14 +311,7 @@ impl Shell {
     pub(super) fn pointer_button(&mut self, down: bool, now: Instant) -> Damage {
         if down {
             self.focus_visible.pointer_down();
-            let rail = (
-                self.pointer.0 - self.geometry.right.x as f64,
-                self.pointer.1 - self.geometry.right.y as f64,
-            );
-            if self.pages.dismiss_popups_at(self.page_position(), rail) {
-                self.pressed = None;
-                self.page_pressed = false;
-                self.rail_pressed = false;
+            if self.dismiss_popup_press() {
                 return Damage::Full;
             }
         }
@@ -369,6 +423,7 @@ impl Shell {
             WindowEvent::Focused(active) => {
                 if self.window_focused && !active {
                     self.foundry.close_popup();
+                    self.pages.dismiss_context_menu();
                     if self.page == Page::Foundry {
                         self.focus = self.foundry.focus.map(Focus::Foundry);
                     }
@@ -474,17 +529,15 @@ impl Shell {
                 button: MouseButton::Right,
                 state: ElementState::Pressed,
                 ..
-            } if self
-                .geometry
-                .center
-                .contains(self.pointer.0, self.pointer.1)
-                && (if self.page == Page::Foundry {
-                    self.foundry.context_menu(self.page_position())
+            } => {
+                if self.dismiss_popup_press() {
+                    return Damage::Full;
+                }
+                if self.open_context_menu(false) {
+                    Damage::rect(self.geometry.center)
                 } else {
-                    self.pages.context_menu()
-                }) =>
-            {
-                Damage::rect(self.geometry.center)
+                    Damage::None
+                }
             }
             WindowEvent::CursorLeft { .. } | WindowEvent::Focused(false) => {
                 if matches!(event, WindowEvent::Focused(false)) {
@@ -577,7 +630,7 @@ impl Shell {
                     || (self.modifiers.shift_key()
                         && event.logical_key.as_ref() == Key::Named(NamedKey::F10))
                 {
-                    return if self.pages.context_menu() {
+                    return if self.open_context_menu(true) {
                         Damage::rect(self.geometry.center)
                     } else {
                         Damage::None

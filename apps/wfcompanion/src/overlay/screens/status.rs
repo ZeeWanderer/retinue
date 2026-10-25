@@ -1,6 +1,7 @@
 use retinue_ui::painter::CachedFont;
 
-use retinue_ui::painter::Painter;
+use retinue_ui::composition::Canvas;
+use std::rc::Rc;
 
 pub(in crate::overlay) const WIDTH: u32 = 420;
 pub(in crate::overlay) const HEIGHT: u32 = 90;
@@ -14,7 +15,7 @@ pub(in crate::overlay) struct View<'a> {
     pub(in crate::overlay) detail: &'a str,
 }
 
-pub(super) fn draw(painter: &mut Painter<'_>, font: &CachedFont, view: View<'_>) {
+pub(super) fn draw(painter: &mut Canvas, font: &Rc<CachedFont>, view: View<'_>) {
     let x = view.origin.0 * view.scale;
     let y = view.origin.1 * view.scale;
     painter.fill_rounded_rect(

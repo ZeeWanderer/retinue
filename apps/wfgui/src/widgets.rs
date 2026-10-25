@@ -17,12 +17,18 @@ use retinue_ui::{
 use std::{
     cell::RefCell,
     collections::HashMap,
+    hash::{Hash, Hasher},
+    rc::Rc,
     time::{Duration, Instant},
 };
 
+mod composition;
+#[cfg(test)]
+mod control_tests;
+
 pub use crate::style::{ACCENT, BAD, CARD, GOOD, MUTED, PANEL, POPOVER, TEXT};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Weight {
     Light = 300,
     Regular = 400,
@@ -30,7 +36,7 @@ pub enum Weight {
     Bold = 700,
 }
 
-pub enum Draw {
+pub enum Visual {
     Fill(Rect, f32, [u8; 4]),
     Outline(Rect, f32, [u8; 4]),
     Text(Rect, String, f32, [u8; 4], Weight),
@@ -46,6 +52,7 @@ pub enum Draw {
     Texture(Rect, Request, bool),
     Field(Rect, String, String),
     Progress(Rect),
+    Commands(Rect, Vec<retinue_ui::composition::Command>),
 }
 pub struct Button {
     pub key: String,
@@ -60,16 +67,21 @@ pub struct Signal {
     pub value: Option<String>,
 }
 pub struct Ui {
-    pub regular: CachedFont,
-    bold: CachedFont,
-    light: CachedFont,
-    medium: CachedFont,
+    pub regular: Rc<CachedFont>,
+    bold: Rc<CachedFont>,
+    light: Rc<CachedFont>,
+    medium: Rc<CachedFont>,
     pub scale: f32,
     pub size: (u32, u32),
-    draws: Vec<(Draw, Option<(Rect, (i32, i32))>)>,
+    visuals: Vec<(Visual, Option<(Rect, (i32, i32))>)>,
+    visual_keys: Vec<retinue_ui::composition::Key>,
+    visual_groups: Vec<Option<u64>>,
+    scopes: Vec<(u64, u64)>,
+    scope_instances: HashMap<u64, u64>,
     viewport: Option<(Rect, (i32, i32))>,
     pub buttons: Vec<Button>,
     fields: HashMap<String, RefCell<LineEdit>>,
+    searches: HashMap<String, crate::search::Motion>,
     pub focus: Option<String>,
     pub hover: Option<String>,
     pressed: Option<String>,
@@ -80,6 +92,9 @@ pub struct Ui {
     pub choices: HashMap<String, Vec<(String, String)>>,
     popup: Option<(String, usize)>,
     popup_press: Option<usize>,
+    context_keys: Vec<String>,
+    context_close: String,
+    context_invoker: Option<String>,
     pub clipboard: Option<(String, Instant, retinue_ui::desktop::clipboard::Operation)>,
     cut: Option<(String, Instant)>,
     embedded: HashMap<(usize, u32), Request>,
@@ -91,39 +106,45 @@ pub struct Ui {
     regions: HashMap<String, Rect>,
     numbers: HashMap<String, (u32, u32)>,
     toggles: HashMap<String, bool>,
-    component_glows: HashMap<u32, RasterImage>,
+    component_glows: HashMap<u32, Rc<RasterImage>>,
+    composition: RefCell<composition::Composition>,
 }
 
 impl Ui {
     pub fn new() -> Result<Self, String> {
         let glyphs = GlyphCache::new(4 * 1024 * 1024);
         Ok(Self {
-            regular: CachedFont::from_bytes(
+            regular: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
                 Default::default(),
                 &glyphs,
-            )?,
-            bold: CachedFont::from_bytes(
+            )?),
+            bold: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../../assets/fonts/roboto/Roboto-Bold.ttf"),
                 Default::default(),
                 &glyphs,
-            )?,
-            light: CachedFont::from_bytes(
+            )?),
+            light: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../../assets/fonts/roboto/Roboto-Light.ttf"),
                 Default::default(),
                 &glyphs,
-            )?,
-            medium: CachedFont::from_bytes(
+            )?),
+            medium: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../../assets/fonts/roboto/Roboto-Medium.ttf"),
                 Default::default(),
                 &glyphs,
-            )?,
+            )?),
             scale: 1.0,
             size: (0, 0),
-            draws: vec![],
+            visuals: vec![],
+            visual_keys: vec![],
+            visual_groups: vec![],
+            scopes: vec![(0, 0)],
+            scope_instances: HashMap::new(),
             viewport: None,
             buttons: vec![],
             fields: HashMap::new(),
+            searches: HashMap::new(),
             focus: None,
             hover: None,
             pressed: None,
@@ -134,6 +155,9 @@ impl Ui {
             choices: HashMap::new(),
             popup: None,
             popup_press: None,
+            context_keys: vec![],
+            context_close: String::new(),
+            context_invoker: None,
             clipboard: None,
             cut: None,
             embedded: HashMap::new(),
@@ -146,12 +170,18 @@ impl Ui {
             numbers: HashMap::new(),
             toggles: HashMap::new(),
             component_glows: HashMap::new(),
+            composition: RefCell::new(composition::Composition::default()),
         })
     }
     pub fn begin(&mut self, size: (u32, u32), scale: f32) {
         self.size = size;
         self.set_scale(scale);
-        self.draws.clear();
+        self.visuals.clear();
+        self.visual_keys.clear();
+        self.visual_groups.clear();
+        self.scopes.clear();
+        self.scopes.push((0, 0));
+        self.scope_instances.clear();
         self.viewport = None;
         self.buttons.clear();
         self.choices.clear();
@@ -161,12 +191,22 @@ impl Ui {
         self.regions.clear();
         self.numbers.clear();
         self.toggles.clear();
+        self.context_keys.clear();
     }
     pub fn set_scale(&mut self, scale: f32) {
         if scale != self.scale {
             self.component_glows.clear();
         }
         self.scale = scale;
+    }
+
+    pub fn clear_rasters(&mut self) {
+        self.composition.get_mut().clear_cache();
+    }
+
+    pub fn raster_memory(&self) -> (usize, usize) {
+        let stats = self.composition.borrow().cache_stats();
+        (stats.live_bytes, stats.budget_bytes)
     }
     pub fn begin_modal(&mut self) {
         self.modal_start = self.buttons.len();
@@ -183,6 +223,10 @@ impl Ui {
         self.modal_start > 0
     }
     pub fn finish(&mut self) {
+        assert_eq!(self.scopes.len(), 1, "unclosed UI composition scope");
+        if self.context_invoker.is_some() && !self.regions.contains_key("page.menu") {
+            self.close_context();
+        }
         if self
             .popup
             .as_ref()
@@ -206,6 +250,7 @@ impl Ui {
         }) {
             self.pressed = None;
         }
+        self.composition.borrow_mut().update(self);
     }
     fn active_buttons(&self) -> &[Button] {
         &self.buttons[self.modal_start..]
@@ -265,24 +310,25 @@ impl Ui {
             .iter()
             .map(|(key, r)| (key, bounds(*r)))
             .collect();
-        let elements: Vec<_> = self.draws.iter().filter_map(|(draw, viewport)| {
+        let elements: Vec<_> = self.visuals.iter().filter_map(|(draw, viewport)| {
             let (r, mut value) = match draw {
-                Draw::Text(r, text, size, color, weight) => (*r, json!({"kind":"text", "text":text,
+                Visual::Text(r, text, size, color, weight) => (*r, json!({"kind":"text", "text":text,
                     "font_family":"Roboto", "font_size":size, "font_weight":*weight as u32, "color":format!("#{:02x}{:02x}{:02x}{:02x}",color[2],color[1],color[0],color[3])})),
-                Draw::Fill(r, radius, c) => (*r, json!({"kind":"fill", "radius":radius, "color":color(c)})),
-                Draw::Outline(r, radius, c) => (*r, json!({"kind":"outline", "radius":radius, "color":color(c)})),
-                Draw::Image(r, asset) | Draw::CircleImage(r, asset) | Draw::Covered(r, asset, _) => (*r, json!({"kind":"image", "asset":asset.id})),
-                Draw::ComponentBase(r, ready) => (*r, json!({"kind":"component_background", "ready":ready,
+                Visual::Fill(r, radius, c) => (*r, json!({"kind":"fill", "radius":radius, "color":color(c)})),
+                Visual::Outline(r, radius, c) => (*r, json!({"kind":"outline", "radius":radius, "color":color(c)})),
+                Visual::Image(r, asset) | Visual::CircleImage(r, asset) | Visual::Covered(r, asset, _) => (*r, json!({"kind":"image", "asset":asset.id})),
+                Visual::ComponentBase(r, ready) => (*r, json!({"kind":"component_background", "ready":ready,
                     "color":color(&if *ready {crate::style::COMPONENT_READY} else {crate::style::COMPONENT_EMPTY})})),
-                Draw::ComponentGlow(r) => (*r, json!({"kind":"component_glow", "color":color(&crate::style::COMPONENT_GLOW)})),
-                Draw::Icon(r, _) | Draw::Texture(r, _, _) | Draw::ClippedIcon(r, _, _) => (*r, json!({"kind":"icon"})),
-                Draw::Field(r, key, _) => (*r, json!({"kind":"field", "id":key})),
+                Visual::ComponentGlow(r) => (*r, json!({"kind":"component_glow", "color":color(&crate::style::COMPONENT_GLOW)})),
+                Visual::Icon(r, _) | Visual::Texture(r, _, _) | Visual::ClippedIcon(r, _, _) => (*r, json!({"kind":"icon"})),
+                Visual::Field(r, key, _) => (*r, json!({"kind":"field", "id":key})),
+                Visual::Commands(r, _) => (*r, json!({"kind":"composition"})),
                 _ => return None,
             };
             value["bounds"] = bounds(Self::project_rect(r, *viewport)?);
             Some(value)
         }).collect();
-        json!({"units":"logical_pixels", "scale":self.scale, "regions":regions, "elements":elements,
+        json!({"units":"logical_pixels", "scale":self.scale, "regions":regions, "elements":elements,"composition":self.composition.borrow().report(),
             "popup":self.popup_bounds().map(bounds),
             "controls":self.buttons.iter().map(|b|json!({"id":b.key,"bounds":bounds(b.rect),"enabled":b.enabled})).collect::<Vec<_>>()})
     }
@@ -293,13 +339,13 @@ impl Ui {
             .or_else(|| self.buttons.iter().find(|b| b.key == key).map(|b| b.rect))
     }
     pub fn progress(&mut self, r: Rect) {
-        self.draw(Draw::Progress(r));
+        self.draw(Visual::Progress(r));
     }
     pub fn animation_damage(&self) -> retinue_ui::damage::Damage {
-        self.draws
+        self.visuals
             .iter()
             .filter_map(|(draw, _)| {
-                if let Draw::Progress(r) = draw {
+                if let Visual::Progress(r) = draw {
                     Some(*r)
                 } else {
                     None
@@ -347,10 +393,15 @@ impl Ui {
                 / travel.max(1.0))
             .clamp(0.0, 1.0)
                 * max;
-            self.signals.push(Signal {
+            let signal = Signal {
                 key: key.into(),
                 value: Some(value.to_string()),
-            });
+            };
+            if let Some(last) = self.signals.last_mut().filter(|s| s.key == key) {
+                *last = signal;
+            } else {
+                self.signals.push(signal);
+            }
         }
     }
     pub fn px(&self, n: f32) -> u32 {
@@ -379,14 +430,34 @@ impl Ui {
     pub fn end_scroll(&mut self) {
         self.viewport = None;
     }
-    fn draw(&mut self, draw: Draw) {
-        self.draws.push((draw, self.viewport));
+    fn draw(&mut self, draw: Visual) {
+        self.visual_groups
+            .push(self.viewport.and_then(|_| self.scopes.get(1).map(|s| s.0)));
+        let (scope, index) = self.scopes.last_mut().unwrap();
+        let key = identity_hash((*scope, *index));
+        *index += 1;
+        self.visual_keys
+            .push(retinue_ui::composition::Key::new("page.paint", key));
+        self.visuals.push((draw, self.viewport));
+    }
+
+    pub fn begin_scope(&mut self, identity: impl Hash) {
+        let scope = identity_hash((self.scopes.last().unwrap().0, identity));
+        let occurrence = self.scope_instances.entry(scope).or_default();
+        let key = identity_hash((scope, *occurrence));
+        *occurrence += 1;
+        self.scopes.push((key, 0));
+    }
+
+    pub fn end_scope(&mut self) {
+        assert!(self.scopes.len() > 1, "unbalanced UI composition scope");
+        self.scopes.pop();
     }
     pub fn fill(&mut self, r: Rect, radius: f32, color: [u8; 4]) {
-        self.draw(Draw::Fill(r, radius, color));
+        self.draw(Visual::Fill(r, radius, color));
     }
     pub fn outline(&mut self, r: Rect, radius: f32, color: [u8; 4]) {
-        self.draw(Draw::Outline(r, radius, color));
+        self.draw(Visual::Outline(r, radius, color));
     }
     pub fn arrow(&mut self, r: Rect, down: bool, color: [u8; 4]) {
         let x = r.x + r.width / 2;
@@ -395,17 +466,17 @@ impl Ui {
         } else {
             (r.y, r.y + r.height)
         };
-        self.draw(Draw::Line((x, tail), (x, head), color));
+        self.draw(Visual::Line((x, tail), (x, head), color));
         let wing = if down {
             head - r.height / 3
         } else {
             head + r.height / 3
         };
-        self.draw(Draw::Line((x, head), (r.x, wing), color));
-        self.draw(Draw::Line((x, head), (r.x + r.width, wing), color));
+        self.draw(Visual::Line((x, head), (r.x, wing), color));
+        self.draw(Visual::Line((x, head), (r.x + r.width, wing), color));
     }
     pub fn polygon(&mut self, points: &[[f32; 2]], fill: [u8; 4], stroke: [u8; 4]) {
-        self.draw(Draw::Polygon(
+        self.draw(Visual::Polygon(
             points
                 .iter()
                 .map(|[x, y]| [(*x * self.scale) as f64, (*y * self.scale) as f64])
@@ -415,7 +486,7 @@ impl Ui {
         for i in 0..points.len() {
             let a = points[i];
             let b = points[(i + 1) % points.len()];
-            self.draw(Draw::Line(
+            self.draw(Visual::Line(
                 (self.px(a[0]), self.px(a[1])),
                 (self.px(b[0]), self.px(b[1])),
                 stroke,
@@ -476,7 +547,17 @@ impl Ui {
             text.truncate(ends[index.saturating_sub(1)]);
             text.push_str("...");
         }
-        self.draw(Draw::Text(r, text, size, color, weight));
+        self.draw(Visual::Text(r, text, size, color, weight));
+    }
+    pub fn clipped_text(
+        &mut self,
+        r: Rect,
+        text: impl Into<String>,
+        size: f32,
+        color: [u8; 4],
+        weight: Weight,
+    ) {
+        self.draw(Visual::Text(r, text.into(), size, color, weight));
     }
     pub fn image(&mut self, r: Rect, asset: Option<&Asset>) {
         if let Some(asset) = asset {
@@ -484,11 +565,11 @@ impl Ui {
                 self.bitmap(r, include_bytes!("../../wfcompanion/assets/forma.png"));
                 return;
             }
-            self.draw(Draw::Image(r, asset.clone()));
+            self.draw(Visual::Image(r, asset.clone()));
         }
     }
     pub fn component(&mut self, r: Rect, asset: Option<&Asset>, ready: bool) {
-        self.draw(Draw::ComponentBase(r, ready));
+        self.draw(Visual::ComponentBase(r, ready));
         let inset = self.px(2.0);
         let art = Rect {
             x: r.x + inset,
@@ -500,21 +581,21 @@ impl Ui {
             if asset.source == "builtin" {
                 self.image(art, Some(asset));
             } else {
-                self.draw(Draw::CircleImage(art, asset.clone()));
+                self.draw(Visual::CircleImage(art, asset.clone()));
             }
         }
         if ready {
             if !self.component_glows.contains_key(&r.width)
                 && let Ok(image) = crate::style::component_glow(r.width, self.scale)
             {
-                self.component_glows.insert(r.width, image);
+                self.component_glows.insert(r.width, Rc::new(image));
             }
-            self.draw(Draw::ComponentGlow(r));
+            self.draw(Visual::ComponentGlow(r));
         }
     }
     pub fn covered_sampled(&mut self, r: Rect, asset: Option<&Asset>, edge: u32) {
         if let Some(asset) = asset {
-            self.draw(Draw::Covered(r, asset.clone(), edge));
+            self.draw(Visual::Covered(r, asset.clone(), edge));
         }
     }
     pub fn icon(&mut self, r: Rect, name: &str) {
@@ -530,7 +611,7 @@ impl Ui {
             .or_insert_with(|| Request::embedded(bytes, r.width.max(r.height), None))
             .clone()
             .tinted([color[2], color[1], color[0], color[3]]);
-        self.draw(Draw::Icon(r, request));
+        self.draw(Visual::Icon(r, request));
     }
     pub fn bitmap(&mut self, r: Rect, bytes: &'static [u8]) {
         let request = self
@@ -538,7 +619,7 @@ impl Ui {
             .entry((bytes.as_ptr() as usize, r.width.max(r.height)))
             .or_insert_with(|| Request::embedded(bytes, r.width.max(r.height), None))
             .clone();
-        self.draw(Draw::Icon(r, request));
+        self.draw(Visual::Icon(r, request));
     }
     pub fn clipped_bitmap(&mut self, clip: Rect, r: Rect, bytes: &'static [u8]) {
         self.clipped_bitmap_sampled(clip, r, bytes, r.width.max(r.height));
@@ -549,7 +630,7 @@ impl Ui {
             .entry((bytes.as_ptr() as usize, edge))
             .or_insert_with(|| Request::embedded(bytes, edge, None))
             .clone();
-        self.draw(Draw::ClippedIcon(clip, r, request));
+        self.draw(Visual::ClippedIcon(clip, r, request));
     }
     pub fn texture(&mut self, r: Rect, bytes: &'static [u8], edge: u32) {
         self.texture_sized(r, bytes, edge, false);
@@ -563,7 +644,7 @@ impl Ui {
             .entry((bytes.as_ptr() as usize, edge))
             .or_insert_with(|| Request::embedded(bytes, edge, None))
             .clone();
-        self.draw(Draw::Texture(r, request, cover));
+        self.draw(Visual::Texture(r, request, cover));
     }
     pub fn hit(
         &mut self,
@@ -686,8 +767,8 @@ impl Ui {
             let p = (box_.x + self.px(4.0), box_.y + self.px(9.0));
             let q = (box_.x + self.px(8.0), box_.y + self.px(13.0));
             let r = (box_.x + self.px(14.0), box_.y + self.px(5.0));
-            self.draw(Draw::Line(p, q, TEXT));
-            self.draw(Draw::Line(q, r, TEXT));
+            self.draw(Visual::Line(p, q, TEXT));
+            self.draw(Visual::Line(q, r, TEXT));
         }
         self.text(
             Rect {
@@ -702,6 +783,12 @@ impl Ui {
         self.hit(key, r, label, true);
     }
     pub fn field(&mut self, key: &str, r: Rect, value: &str, hint: &str) {
+        self.field_value(key, value);
+        self.fill(r, 6.0, rgb(0x20283e));
+        self.outline(r, 6.0, rgb(0x333e58));
+        self.field_control(key, r, hint);
+    }
+    fn field_value(&mut self, key: &str, value: &str) {
         let entry = self.fields.entry(key.into()).or_insert_with(|| {
             RefCell::new(LineEdit::new(
                 include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
@@ -711,13 +798,76 @@ impl Ui {
         if entry.borrow().text() != value {
             entry.borrow_mut().set_text(value, false);
         }
-        self.fill(r, 6.0, rgb(0x20283e));
-        self.outline(r, 6.0, rgb(0x333e58));
-        self.draw(Draw::Field(r, key.into(), hint.into()));
+    }
+    fn field_control(&mut self, key: &str, r: Rect, hint: &str) {
+        self.draw(Visual::Field(r, key.into(), hint.into()));
         let count = self.buttons.len();
         self.hit(key, r, hint, true);
         if self.buttons.len() > count {
             self.buttons.last_mut().unwrap().field = true;
+        }
+    }
+    pub fn search_field(&mut self, key: &str, available: Rect, value: &str, hint: &str) -> Rect {
+        self.field_value(key, value);
+        let active = self.focus.as_deref() == Some(key)
+            || self.focus.as_deref() == Some(&format!("clear:{key}"));
+        let width = text_width(&self.regular, value, 14.0);
+        let motion = self.searches.entry(key.into()).or_default();
+        motion.update(active || !value.is_empty(), width, Instant::now(), true);
+        let r = Rect {
+            width: (motion.width * self.scale)
+                .round()
+                .min(available.width as f32) as u32,
+            ..available
+        };
+        self.fill(r, r.height as f32 / self.scale / 2.0, CARD);
+        self.field_control(key, r, hint);
+        self.icon(
+            Rect {
+                x: r.x + self.px(7.0),
+                y: r.y + r.height.saturating_sub(self.px(18.0)) / 2,
+                width: self.px(18.0),
+                height: self.px(18.0),
+            },
+            "search",
+        );
+        if !value.is_empty() && r.width >= self.px(64.0) {
+            let clear = Rect {
+                x: r.x + r.width - self.px(32.0),
+                width: self.px(32.0),
+                ..r
+            };
+            let id = format!("clear:{key}");
+            if self.hover.as_ref() == Some(&id) {
+                self.fill(
+                    clear,
+                    clear.height as f32 / self.scale / 2.0,
+                    crate::style::CARD_HOVER,
+                );
+            }
+            self.icon(
+                Rect {
+                    x: clear.x + self.px(9.0),
+                    y: clear.y + clear.height.saturating_sub(self.px(14.0)) / 2,
+                    width: self.px(14.0),
+                    height: self.px(14.0),
+                },
+                "close",
+            );
+            self.hit(id, clear, "Clear search", true);
+        }
+        r
+    }
+    fn field_rect(&self, bounds: Rect, key: &str) -> Rect {
+        let inset = self.px(if self.searches.contains_key(key) {
+            32.0
+        } else {
+            8.0
+        });
+        Rect {
+            x: bounds.x + inset.min(bounds.width),
+            width: bounds.width.saturating_sub(inset * 2),
+            ..bounds
         }
     }
     pub fn password(&mut self, key: &str, r: Rect, value: &str) {
@@ -769,12 +919,12 @@ impl Ui {
             } else {
                 cy + self.px(2.0)
             };
-            self.draw(Draw::Line(
+            self.draw(Visual::Line(
                 (center - self.px(4.0), edge),
                 (center, tip),
                 TEXT,
             ));
-            self.draw(Draw::Line(
+            self.draw(Visual::Line(
                 (center, tip),
                 (center + self.px(4.0), edge),
                 TEXT,
@@ -808,6 +958,7 @@ impl Ui {
     }
     pub fn forget(&mut self, key: &str) {
         self.fields.remove(key);
+        self.searches.remove(key);
         if self.focus.as_deref() == Some(key) {
             self.focus = None;
         }
@@ -839,12 +990,12 @@ impl Ui {
         );
         let x = r.x + r.width.saturating_sub(self.px(17.0));
         let y = r.y + r.height / 2;
-        self.draw(Draw::Line(
+        self.draw(Visual::Line(
             (x, y.saturating_sub(self.px(2.0))),
             (x + self.px(4.0), y + self.px(2.0)),
             MUTED,
         ));
-        self.draw(Draw::Line(
+        self.draw(Visual::Line(
             (x + self.px(4.0), y + self.px(2.0)),
             (x + self.px(8.0), y.saturating_sub(self.px(2.0))),
             MUTED,
@@ -862,11 +1013,85 @@ impl Ui {
             options.iter().position(|(id, _)| *id == value).unwrap_or(0),
         );
     }
+
+    pub fn open_context(&mut self, invoker: String) {
+        self.cancel_activation();
+        self.context_invoker = Some(invoker);
+    }
+
+    pub fn close_context(&mut self) {
+        self.context_keys.clear();
+        if let Some(invoker) = self.context_invoker.take() {
+            self.focus = Some(invoker);
+        }
+        self.cancel_activation();
+    }
+
+    pub fn context_menu(
+        &mut self,
+        anchor: Rect,
+        title: &str,
+        details: &[String],
+        entries: &[(String, String, bool)],
+        close: &str,
+    ) {
+        self.begin_modal();
+        self.context_close = close.into();
+        self.context_keys = entries
+            .iter()
+            .filter(|(_, _, enabled)| *enabled)
+            .map(|(key, _, _)| key.clone())
+            .collect();
+        if !self
+            .focus
+            .as_ref()
+            .is_some_and(|key| self.context_keys.contains(key))
+        {
+            self.focus = self.context_keys.first().cloned();
+        }
+        let margin = self.px(8.0);
+        let layout = crate::menu::Layout::new(
+            anchor,
+            Rect {
+                x: margin,
+                y: margin,
+                width: self.size.0.saturating_sub(margin * 2),
+                height: self.size.1.saturating_sub(margin * 2),
+            },
+            title,
+            details,
+            entries.len(),
+            &self.regular,
+            self.scale,
+        );
+        self.region("page.menu", layout.bounds);
+        let mut canvas =
+            retinue_ui::composition::Canvas::at((layout.bounds.x, layout.bounds.y), self.scale);
+        let items: Vec<_> = entries
+            .iter()
+            .map(|(_, label, enabled)| (label.as_str(), *enabled))
+            .collect();
+        layout.paint(
+            &mut canvas,
+            &self.regular,
+            &items,
+            entries
+                .iter()
+                .position(|(key, _, _)| self.hover.as_ref() == Some(key)),
+            None,
+        );
+        self.draw(Visual::Commands(layout.bounds, canvas.commands));
+        for ((key, label, enabled), rect) in entries.iter().zip(layout.rows) {
+            self.hit(key.clone(), rect, label, *enabled);
+        }
+    }
     pub fn assets(&self) -> Vec<Asset> {
-        self.draws
+        self.visuals
             .iter()
             .filter_map(|(d, _)| {
-                if let Draw::Image(_, a) | Draw::CircleImage(_, a) | Draw::Covered(_, a, _) = d {
+                if let Visual::Image(_, a) | Visual::CircleImage(_, a) | Visual::Covered(_, a, _) =
+                    d
+                {
                     Some(a.clone())
                 } else {
                     None
@@ -875,14 +1100,14 @@ impl Ui {
             .collect()
     }
     pub fn requests(&self, media: &Media) -> Vec<Request> {
-        self.draws
+        self.visuals
             .iter()
             .filter_map(|(d, _)| match d {
-                Draw::Image(r, a) | Draw::CircleImage(r, a) => {
+                Visual::Image(r, a) | Visual::CircleImage(r, a) => {
                     media.request(a, r.width.max(r.height))
                 }
-                Draw::Covered(_, a, edge) => media.request(a, *edge),
-                Draw::Icon(_, r) | Draw::ClippedIcon(_, _, r) | Draw::Texture(_, r, _) => {
+                Visual::Covered(_, a, edge) => media.request(a, *edge),
+                Visual::Icon(_, r) | Visual::ClippedIcon(_, _, r) | Visual::Texture(_, r, _) => {
                     Some(r.clone())
                 }
                 _ => None,
@@ -895,18 +1120,18 @@ impl Ui {
         media: &Media,
     ) -> retinue_ui::damage::Damage {
         use retinue_ui::damage::Damage;
-        self.draws
+        self.visuals
             .iter()
             .fold(Damage::None, |damage, (draw, viewport)| {
                 let (bounds, key) = match draw {
-                    Draw::Image(r, a) | Draw::CircleImage(r, a) => {
+                    Visual::Image(r, a) | Visual::CircleImage(r, a) => {
                         (*r, media.request(a, r.width.max(r.height)).map(|r| r.key))
                     }
-                    Draw::Covered(r, a, edge) => (*r, media.request(a, *edge).map(|r| r.key)),
-                    Draw::Icon(r, request) | Draw::Texture(r, request, _) => {
+                    Visual::Covered(r, a, edge) => (*r, media.request(a, *edge).map(|r| r.key)),
+                    Visual::Icon(r, request) | Visual::Texture(r, request, _) => {
                         (*r, Some(request.key))
                     }
-                    Draw::ClippedIcon(clip, r, request) => {
+                    Visual::ClippedIcon(clip, r, request) => {
                         (clip.intersection(*r), Some(request.key))
                     }
                     _ => return damage,
@@ -973,146 +1198,66 @@ impl Ui {
         })
     }
     pub fn paint(&self, p: &mut Painter<'_>, media: &Media) {
-        for (draw, viewport) in &self.draws {
-            let paint = |p: &mut Painter<'_>| match draw {
-                Draw::Fill(r, radius, c) => {
-                    p.fill_rounded_rect(r.x, r.y, r.width, r.height, self.px(*radius), *c)
-                }
-                Draw::Outline(r, radius, c) => {
-                    p.outline(*r, self.px(*radius), self.px(1.0).max(1), *c)
-                }
-                Draw::Text(r, t, size, c, weight) => {
-                    let font = self.font(*weight);
-                    p.viewport(*r, (0, 0), |p| {
-                        p.draw_text_vertically_centered(
-                            font,
-                            TextLine::new(r.x, r.y, r.height),
-                            size * self.scale,
-                            t,
-                            *c,
-                        )
-                    });
-                }
-                Draw::Polygon(points, c) => p.fill_polygon(points, *c),
-                Draw::Line(a, b, c) => p.draw_line(
-                    (a.0 as f64, a.1 as f64),
-                    (b.0 as f64, b.1 as f64),
-                    2.0 * self.scale as f64,
-                    *c,
-                ),
-                Draw::Image(r, a) => {
-                    if let Some(image) = media.image(a, r.width.max(r.height)) {
-                        p.draw_image_contained(image, r.x, r.y, r.width, r.height);
-                    }
-                }
-                Draw::CircleImage(r, a) => {
-                    if let Some(image) = media.image(a, r.width.max(r.height)) {
-                        p.draw_image_contained_circle(image, r.x, r.y, r.width);
-                    }
-                }
-                Draw::ComponentBase(r, ready) => crate::style::component_background(p, *r, *ready),
-                Draw::ComponentGlow(r) => crate::style::component_highlight(
-                    p,
-                    *r,
-                    self.component_glows.get(&r.width),
-                    self.scale,
-                ),
-                Draw::Covered(r, a, edge) => {
-                    if let Some(image) = media.image(a, *edge) {
-                        p.draw_image_covered(image, *r);
-                    }
-                }
-                Draw::Icon(r, request) => {
-                    if let Some(image) = media.embedded(request) {
-                        p.draw_image_contained(image, r.x, r.y, r.width, r.height);
-                    }
-                }
-                Draw::ClippedIcon(clip, r, request) => {
-                    if let Some(image) = media.embedded(request) {
-                        p.viewport(*clip, (0, 0), |p| {
-                            p.draw_image_contained(image, r.x, r.y, r.width, r.height)
-                        });
-                    }
-                }
-                Draw::Texture(r, request, cover) => {
-                    if let Some(image) = media.embedded(request) {
-                        if *cover {
-                            p.draw_image_covered(image, *r);
-                        } else {
-                            p.draw_image(image, r.x, r.y, r.width, r.height);
-                        }
-                    }
-                }
-                Draw::Field(r, key, hint) => self.paint_field(p, *r, key, hint),
-                Draw::Progress(r) => {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis();
-                    let phase = (now % 1400) as f32 / 1400.0;
-                    let width = r.width / 4;
-                    let x = r.x
-                        + ((r.width - width) as f32
-                            * (0.5 - 0.5 * (phase * std::f32::consts::TAU).cos()))
-                            as u32;
-                    p.fill_rounded_rect(x, r.y, width, r.height, r.height / 2, ACCENT);
-                }
-            };
-            if let Some((clip, offset)) = viewport {
-                p.viewport(*clip, *offset, paint);
-            } else {
-                paint(p);
+        self.composition.borrow_mut().paint(self, p, media);
+    }
+
+    fn paint_live(&self, p: &mut Painter<'_>, draw: &Visual) {
+        match draw {
+            Visual::Field(r, key, hint) => self.paint_field(p, *r, key, hint),
+            Visual::Progress(r) => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis();
+                let phase = (now % 1400) as f32 / 1400.0;
+                let width = r.width / 4;
+                let x = r.x
+                    + ((r.width - width) as f32
+                        * (0.5 - 0.5 * (phase * std::f32::consts::TAU).cos()))
+                        as u32;
+                p.fill_rounded_rect(x, r.y, width, r.height, r.height / 2, ACCENT);
             }
+            _ => unreachable!("ordinary visuals are retained composition commands"),
         }
+    }
+
+    fn paint_overlays(&self, p: &mut retinue_ui::composition::Canvas) {
         for button in self.active_buttons() {
             if self
                 .focus_visible
                 .shows(self.focus.as_ref() == Some(&button.key), button.field)
             {
-                crate::style::focus_ring(p, button.rect, self.scale);
+                if self.searches.contains_key(&button.key) {
+                    crate::style::focus_capsule(p, button.rect, self.scale);
+                } else {
+                    crate::style::focus_ring(p, button.rect, self.scale);
+                }
             }
         }
         if let Some((key, selected)) = &self.popup {
             if let Some(r) = self.popup_bounds() {
-                p.fill_rounded_rect(r.x, r.y, r.width, r.height, self.px(8.0), POPOVER);
+                crate::menu::frame(p, r, self.scale);
             }
             for (i, r) in self.popup_rows() {
-                p.fill_rounded_rect(
-                    r.x,
-                    r.y,
-                    r.width,
-                    r.height,
-                    self.px(6.0),
-                    if i == *selected { ACCENT } else { POPOVER },
-                );
                 if let Some((_, label)) = self.choices.get(key).and_then(|v| v.get(i)) {
-                    p.viewport(r, (0, 0), |p| {
-                        p.draw_text_vertically_centered(
-                            &self.regular,
-                            TextLine::new(r.x + self.px(8.0), r.y, r.height),
-                            14.0 * self.scale,
-                            label,
-                            TEXT,
-                        )
-                    });
+                    crate::menu::row(p, r, &self.regular, label, true, i == *selected, self.scale);
                 }
             }
         }
         self.paint_tooltip(p);
     }
     fn paint_field(&self, p: &mut Painter<'_>, bounds: Rect, key: &str, hint: &str) {
-        let r = Rect {
-            x: bounds.x + self.px(8.0),
-            width: bounds.width.saturating_sub(self.px(16.0)),
-            ..bounds
-        };
+        let r = self.field_rect(bounds, key);
+        if r.is_empty() {
+            return;
+        }
         let mut edit = self.fields[key].borrow_mut();
         let focused = self.focus.as_deref() == Some(key)
             && self.active_buttons().iter().any(|b| b.key == key);
         if edit.text().is_empty() && !focused {
             p.viewport(r, (0, 0), |p| {
                 p.draw_text_vertically_centered(
-                    &self.regular,
+                    self.regular.as_ref(),
                     TextLine::new(r.x, r.y, r.height),
                     14.0 * self.scale,
                     hint,
@@ -1137,7 +1282,7 @@ impl Ui {
             };
             p.viewport(r, (0, 0), |p| {
                 p.draw_text_vertically_centered(
-                    &self.regular,
+                    self.regular.as_ref(),
                     TextLine::new(r.x, r.y, r.height),
                     14.0 * self.scale,
                     &text,
@@ -1146,7 +1291,7 @@ impl Ui {
             });
         }
     }
-    fn paint_tooltip(&self, p: &mut Painter<'_>) {
+    fn paint_tooltip(&self, p: &mut retinue_ui::composition::Canvas) {
         if !self.tooltip || self.popup.is_some() || self.pressed.is_some() {
             return;
         }
@@ -1211,7 +1356,7 @@ impl Ui {
         {
             field
                 .borrow_mut()
-                .drag(p.0 as f32 - button.rect.x as f32 - self.px(8.0) as f32);
+                .drag(p.0 as f32 - self.field_rect(button.rect, key).x as f32);
             return true;
         }
         if let Some((_, selected)) = &self.popup {
@@ -1222,12 +1367,7 @@ impl Ui {
                 }
             }
         }
-        let hover = self
-            .active_buttons()
-            .iter()
-            .rev()
-            .find(|b| b.rect.contains(p.0, p.1))
-            .map(|b| b.key.clone());
+        let hover = self.composition.borrow().hit(p);
         if hover != self.hover {
             self.hover = hover;
             self.hover_since = Instant::now();
@@ -1290,18 +1430,11 @@ impl Ui {
                 && let Some(field) = self.fields.get(key)
                 && let Some(button) = self.buttons.iter().find(|b| &b.key == key)
             {
-                field.borrow_mut().layout(
-                    Rect {
-                        x: button.rect.x + self.px(8.0),
-                        width: button.rect.width.saturating_sub(self.px(16.0)),
-                        ..button.rect
-                    },
-                    14.0 * self.scale,
-                );
-                field.borrow_mut().click(
-                    self.pointer.0 as f32 - button.rect.x as f32 - self.px(8.0) as f32,
-                    false,
-                );
+                let rect = self.field_rect(button.rect, key);
+                field.borrow_mut().layout(rect, 14.0 * self.scale);
+                field
+                    .borrow_mut()
+                    .click(self.pointer.0 as f32 - rect.x as f32, false);
             }
         } else if let Some(key) = self
             .pressed
@@ -1312,6 +1445,18 @@ impl Ui {
         }
     }
     fn activate(&mut self, key: &str) {
+        if let Some(key) = key
+            .strip_prefix("clear:")
+            .filter(|key| self.searches.contains_key(*key))
+        {
+            self.fields[key].borrow_mut().set_text("", false);
+            self.focus = Some(key.into());
+            self.signals.push(Signal {
+                key: key.into(),
+                value: Some(String::new()),
+            });
+            return;
+        }
         if let Some((key, direction)) = key.strip_prefix("number:").and_then(|k| k.rsplit_once(':'))
         {
             self.step_number(key, direction == "up");
@@ -1353,6 +1498,37 @@ impl Ui {
     pub fn key(&mut self, key: Key<&str>, mods: ModifiersState) -> bool {
         self.focus_visible.keyboard_input();
         self.tooltip = false;
+        if self.regions.contains_key("page.menu") {
+            let current = self
+                .focus
+                .as_ref()
+                .and_then(|key| self.context_keys.iter().position(|k| k == key))
+                .unwrap_or(0);
+            let count = self.context_keys.len();
+            match key {
+                Key::Named(NamedKey::Escape | NamedKey::Tab) => {
+                    self.signals.push(Signal {
+                        key: self.context_close.clone(),
+                        value: None,
+                    });
+                    self.close_context();
+                }
+                Key::Named(NamedKey::ArrowDown) if count > 0 => {
+                    self.focus = Some(self.context_keys[(current + 1) % count].clone())
+                }
+                Key::Named(NamedKey::ArrowUp) if count > 0 => {
+                    self.focus = Some(self.context_keys[(current + count - 1) % count].clone())
+                }
+                Key::Named(NamedKey::Home) => self.focus = self.context_keys.first().cloned(),
+                Key::Named(NamedKey::End) => self.focus = self.context_keys.last().cloned(),
+                Key::Named(NamedKey::Enter | NamedKey::Space) if count > 0 => {
+                    let id = self.context_keys[current].clone();
+                    self.activate(&id);
+                }
+                _ => (),
+            }
+            return true;
+        }
         if self.has_modal()
             && self
                 .focus
@@ -1394,7 +1570,7 @@ impl Ui {
             self.focus = self
                 .active_buttons()
                 .iter()
-                .find(|b| b.field && (b.key.ends_with("search") || b.key == "market:query"))
+                .find(|b| b.field && self.searches.contains_key(&b.key))
                 .map(|b| b.key.clone());
             if let Some(field) = self.focus.as_ref().and_then(|id| self.fields.get(id)) {
                 field.borrow_mut().key(0x61, true, false);
@@ -1506,11 +1682,31 @@ impl Ui {
         self.popup = None;
     }
     pub fn tick(&mut self) -> bool {
+        let now = Instant::now();
+        let mut search_changed = false;
+        for (key, motion) in &mut self.searches {
+            if !self.buttons[self.modal_start..]
+                .iter()
+                .any(|b| &b.key == key)
+            {
+                continue;
+            }
+            let value = self.fields[key].borrow().text();
+            let active = self.focus.as_ref() == Some(key)
+                || self.focus.as_deref() == Some(&format!("clear:{key}"));
+            search_changed |= motion.update(
+                active || !value.is_empty(),
+                text_width(&self.regular, &value, 14.0),
+                now,
+                true,
+            );
+        }
         let tooltip = !self.tooltip
             && self.hover.is_some()
             && self.hover_since.elapsed() >= Duration::from_millis(600);
         self.tooltip |= tooltip;
         tooltip
+            | search_changed
             | self
                 .focus
                 .as_ref()
@@ -1525,17 +1721,25 @@ impl Ui {
             .map(|f| f.borrow().next_blink(Instant::now()));
         let hover = (!self.tooltip && self.hover.is_some())
             .then_some(self.hover_since + Duration::from_millis(600));
-        caret.into_iter().chain(hover).min()
+        let searches = self.active_buttons().iter().filter_map(|button| {
+            self.searches
+                .get(&button.key)
+                .and_then(|motion| motion.deadline(Instant::now()))
+        });
+        caret.into_iter().chain(hover).chain(searches).min()
     }
 
     pub fn accessibility(&self, root: u64) -> retinue_ui::desktop::accesskit::TreeUpdate {
         use retinue_ui::desktop::accesskit::{Action, Node, NodeId, Role, TreeUpdate};
+        let menu = self.regions.contains_key("page.menu");
         let mut nodes = Vec::new();
         let mut children = Vec::new();
         let mut focus = NodeId(root);
         for button in self.active_buttons() {
             let id = access_id(root, &button.key);
-            let mut node = Node::new(if self.toggles.contains_key(&button.key) {
+            let mut node = Node::new(if menu {
+                Role::MenuItem
+            } else if self.toggles.contains_key(&button.key) {
                 Role::CheckBox
             } else if self.choices.contains_key(&button.key) {
                 Role::ComboBox
@@ -1581,7 +1785,11 @@ impl Ui {
             children.push(id);
             nodes.push((id, node));
         }
-        let mut node = Node::new(Role::GenericContainer);
+        let mut node = Node::new(if menu {
+            Role::Menu
+        } else {
+            Role::GenericContainer
+        });
         node.set_children(children);
         nodes.push((NodeId(root), node));
         TreeUpdate {
@@ -1628,17 +1836,149 @@ impl Ui {
     }
 }
 
-fn access_id(root: u64, key: &str) -> retinue_ui::desktop::accesskit::NodeId {
-    use std::hash::{Hash, Hasher};
+fn identity_hash(value: impl Hash) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    root.hash(&mut hasher);
-    key.hash(&mut hasher);
-    retinue_ui::desktop::accesskit::NodeId(hasher.finish() | 1 << 63)
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn access_id(root: u64, key: &str) -> retinue_ui::desktop::accesskit::NodeId {
+    retinue_ui::desktop::accesskit::NodeId(identity_hash((root, key)) | 1 << 63)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keyed_custom_compositions_retain_paint_when_items_reorder() {
+        let mut ui = Ui::new().unwrap();
+        let layout = |ui: &mut Ui, items: [&str; 2]| {
+            ui.begin((600, 400), 1.25);
+            for (i, item) in items.into_iter().enumerate() {
+                ui.begin_scope(item);
+                let r = ui.rect(10.0, 10.0 + i as f32 * 60.0, 170.0, 50.0);
+                ui.fill(r, 8.0, CARD);
+                ui.text(r, item, 14.0, TEXT);
+                ui.end_scope();
+            }
+            ui.finish();
+        };
+        layout(&mut ui, ["Ash", "Mesa"]);
+        let before = ui.visual_keys.clone();
+        layout(&mut ui, ["Mesa", "Ash"]);
+        assert_eq!(ui.visual_keys, [before[2], before[3], before[0], before[1]]);
+        assert_eq!(ui.composition.borrow().report()["recordings"], 0);
+        layout(&mut ui, ["Mesa", "Mesa"]);
+        assert_ne!(ui.visual_keys[0], ui.visual_keys[2]);
+    }
+
+    #[test]
+    fn retained_primitives_match_custom_paint_at_clipped_scroll_edges() {
+        for scale in [1.0, 1.25, 2.0] {
+            let mut ui = Ui::new().unwrap();
+            let size = (700, 500);
+            ui.begin(size, scale);
+            ui.fill(ui.rect(0.0, 0.0, 350.0, 250.0), 0.0, PANEL);
+            ui.begin_scroll(ui.rect(23.0, 37.0, 230.0, 150.0), ui.px(29.0));
+            let card = ui.rect(4.0, 7.0, 180.0, 73.0);
+            ui.fill(card, 14.0, CARD);
+            ui.outline(card, 14.0, ACCENT);
+            ui.text(ui.rect(10.0, 9.0, 170.0, 60.0), "Clipped card", 18.0, TEXT);
+            ui.draw(Visual::ComponentBase(
+                ui.rect(90.0, 140.0, 40.0, 40.0),
+                true,
+            ));
+            ui.end_scroll();
+            ui.finish();
+            let media = Media::default();
+            let mut composed = vec![0; size.0 as usize * size.1 as usize * 4];
+            let mut expected = composed.clone();
+            let mut p = Painter::new(&mut composed, size.0, size.1).unwrap();
+            ui.paint(&mut p, &media);
+            p.finish().unwrap();
+            let mut p = Painter::new(&mut expected, size.0, size.1).unwrap();
+            let paint = |p: &mut Painter<'_>, draw: &Visual| match draw {
+                Visual::Fill(r, radius, color) => {
+                    p.fill_rounded_rect(r.x, r.y, r.width, r.height, ui.px(*radius), *color)
+                }
+                Visual::Outline(r, radius, color) => {
+                    p.outline(*r, ui.px(*radius), ui.px(1.0).max(1), *color)
+                }
+                Visual::Text(r, text, size, color, weight) => p.viewport(*r, (0, 0), |p| {
+                    p.draw_text_vertically_centered(
+                        ui.font(*weight),
+                        TextLine::new(r.x, r.y, r.height),
+                        *size * scale,
+                        text,
+                        *color,
+                    )
+                }),
+                Visual::ComponentBase(r, ready) => p.fill_rounded_rect(
+                    r.x,
+                    r.y,
+                    r.width,
+                    r.height,
+                    r.width / 2,
+                    if *ready {
+                        crate::style::COMPONENT_READY
+                    } else {
+                        crate::style::COMPONENT_EMPTY
+                    },
+                ),
+                _ => unreachable!(),
+            };
+            for (draw, viewport) in &ui.visuals {
+                if let Some((clip, offset)) = viewport {
+                    p.viewport(*clip, *offset, |p| paint(p, draw));
+                } else {
+                    paint(&mut p, draw);
+                }
+            }
+            p.finish().unwrap();
+            assert_eq!(
+                composed.iter().zip(expected).position(|(a, b)| *a != b),
+                None,
+                "scale={scale}"
+            );
+        }
+    }
+
+    #[test]
+    fn artwork_arrives_and_clears_without_relaying_out_the_page() {
+        use retinue_ui::{image, resources::ResourceCache};
+        let mut ui = Ui::new().unwrap();
+        ui.begin((200, 160), 1.25);
+        ui.begin_scroll(ui.rect(20.0, 20.0, 90.0, 70.0), ui.px(4.0));
+        ui.icon(ui.rect(0.0, 0.0, 40.0, 40.0), "owned");
+        ui.end_scroll();
+        ui.finish();
+        let mut media = Media::default();
+        let paint = |media: &Media| {
+            let mut pixels = vec![0; 200 * 160 * 4];
+            let mut painter = Painter::new(&mut pixels, 200, 160).unwrap();
+            ui.paint(&mut painter, media);
+            painter.finish().unwrap();
+            pixels
+        };
+        let empty = paint(&media);
+        let requests = ui.requests(&media);
+        let mut cache = ResourceCache::new(4096);
+        let image = cache.insert(
+            requests[0].key,
+            RasterImage::from_rgba(image::RgbaImage::from_pixel(
+                8,
+                8,
+                image::Rgba([240, 60, 80, 255]),
+            ))
+            .unwrap(),
+        );
+        media.accept(&[(requests[0].key, image)], &requests);
+        assert_ne!(paint(&media), empty);
+        assert_eq!(ui.composition.borrow().report()["layout_computations"], 0);
+        media.clear();
+        assert_eq!(paint(&media), empty);
+    }
 
     #[test]
     fn image_damage_uses_the_same_scroll_clip_as_paint_and_input() {
@@ -1835,6 +2175,7 @@ mod tests {
             600.0,
             0.0,
         );
+        ui.finish();
         ui.pointer_move((396.0, 10.0));
         ui.pointer_button(true);
         ui.pointer_move((396.0, 110.0));

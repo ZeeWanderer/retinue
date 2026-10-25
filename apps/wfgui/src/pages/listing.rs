@@ -1,9 +1,42 @@
 mod cards;
 
 use super::*;
+use retinue_ui::composition::{Key as ElementKey, SelectionMotion};
 use retinue_ui::grid::Grid;
 use std::cmp::Ordering;
 use widgets::{ACCENT, BAD, MUTED, TEXT};
+
+fn categories(page: Page) -> &'static [(&'static str, &'static str, &'static str)] {
+    match page {
+        Page::Inventory => &[
+            ("parts", "Parts", "parts"),
+            ("relics", "Relics", "relics"),
+            ("mods", "Mods", "mods"),
+            ("arcanes", "Arcanes", "arcanes"),
+            ("misc", "Misc", "misc"),
+            ("sets", "Sets", "sets"),
+        ],
+        Page::Mastery => &[
+            ("all", "All", "parts"),
+            ("warframes", "Warframes", "warframe"),
+            ("weapons", "Weapons", "primary"),
+            ("companions", "Companions", "companion"),
+        ],
+        _ => &[
+            ("all", "All", "parts"),
+            ("lith", "Lith", "lith"),
+            ("meso", "Meso", "meso"),
+            ("neo", "Neo", "neo"),
+            ("axi", "Axi", "axi"),
+            ("requiem", "Requiem", "requiem"),
+            ("vanguard", "Vanguard", "relics"),
+        ],
+    }
+}
+
+fn category_key(index: usize) -> ElementKey {
+    ElementKey::new("listing.category", index as u64)
+}
 
 fn summary_positions(available: f32, widths: &[f32]) -> Vec<(f32, f32)> {
     let mut result = Vec::with_capacity(widths.len());
@@ -59,7 +92,9 @@ pub struct Listing {
     pub viewport: Rect,
     pub grid: Grid,
     pub menu: Option<(usize, Option<usize>)>,
-    menu_anchor: (f64, f64),
+    pub(super) menu_anchor: (f64, f64),
+    category_motion: SelectionMotion,
+    category_sampled_at: Instant,
 }
 
 impl Listing {
@@ -94,6 +129,8 @@ impl Listing {
             grid: Grid::new(600, 300, 130, 8),
             menu: None,
             menu_anchor: (0.0, 0.0),
+            category_motion: SelectionMotion::new(category_key(0)),
+            category_sampled_at: Instant::now(),
         }
     }
     pub fn replace(&mut self, data: Value, quotes: &HashMap<String, Quote>) {
@@ -110,9 +147,34 @@ impl Listing {
     }
     pub fn tick(&mut self, now: Instant) -> bool {
         let offset = self.scroll.offset(now).round() as u32;
-        let changed = offset != self.offset;
+        let changed = offset != self.offset
+            || self
+                .category_motion
+                .deadline(self.category_sampled_at)
+                .is_some();
         self.offset = offset;
+        self.category_sampled_at = now;
         changed
+    }
+    pub fn deadline(&self, now: Instant) -> Option<Instant> {
+        [
+            self.scroll.deadline(now),
+            self.category_motion.deadline(now),
+        ]
+        .into_iter()
+        .flatten()
+        .min()
+    }
+    fn sync_category(&mut self, animate: bool, now: Instant) {
+        let index = categories(self.page)
+            .iter()
+            .position(|(id, _, _)| *id == self.category)
+            .unwrap_or(0);
+        if self.category_motion.selected() != category_key(index) {
+            self.category_motion
+                .select(category_key(index), now, !animate);
+            self.category_sampled_at = now;
+        }
     }
     pub fn report(&self) -> Value {
         json!({"ready":self.ready,"error":self.error,"total":self.items.len(),"visible":self.visible.len(),"search":self.search,"category":self.category,"mode":self.mode,"offset":self.offset})
@@ -379,6 +441,32 @@ pub(super) fn price(value: Option<f64>, known: bool) -> String {
 }
 
 impl Pages {
+    pub fn capture_category(
+        &mut self,
+        from: usize,
+        to: usize,
+        elapsed: Duration,
+    ) -> Result<(), String> {
+        if !matches!(self.page, Page::Inventory | Page::Mastery | Page::Relics) {
+            return Err("category animation is unavailable on this page".into());
+        }
+        let kinds = categories(self.page);
+        let (Some(from), Some(to)) = (kinds.get(from), kinds.get(to)) else {
+            return Err("category index out of range".into());
+        };
+        let now = Instant::now();
+        let listing = self.listing_mut();
+        listing.category = from.0.into();
+        listing.sync_category(false, now);
+        listing.category = to.0.into();
+        listing.sync_category(true, now);
+        listing.tick(now + elapsed);
+        self.resort(true);
+        self.dirty = true;
+        self.layout();
+        Ok(())
+    }
+
     pub(super) fn listing(&self) -> &Listing {
         match self.page {
             Page::Inventory => &self.inventory,
@@ -386,7 +474,7 @@ impl Pages {
             _ => &self.relics,
         }
     }
-    fn listing_mut(&mut self) -> &mut Listing {
+    pub(super) fn listing_mut(&mut self) -> &mut Listing {
         match self.page {
             Page::Inventory => &mut self.inventory,
             Page::Mastery => &mut self.mastery,
@@ -509,51 +597,36 @@ impl Pages {
         if self.page == Page::Mastery {
             top = self.mastery_summary(w);
         }
-        let categories: &[(&str, &str, &str)] = match self.page {
-            Page::Inventory => &[
-                ("parts", "Parts", "parts"),
-                ("relics", "Relics", "relics"),
-                ("mods", "Mods", "mods"),
-                ("arcanes", "Arcanes", "arcanes"),
-                ("misc", "Misc", "misc"),
-                ("sets", "Sets", "sets"),
-            ],
-            Page::Mastery => &[
-                ("all", "All", "parts"),
-                ("warframes", "Warframes", "warframe"),
-                ("weapons", "Weapons", "primary"),
-                ("companions", "Companions", "companion"),
-            ],
-            _ => &[
-                ("all", "All", "parts"),
-                ("lith", "Lith", "lith"),
-                ("meso", "Meso", "meso"),
-                ("neo", "Neo", "neo"),
-                ("axi", "Axi", "axi"),
-                ("requiem", "Requiem", "requiem"),
-                ("vanguard", "Vanguard", "relics"),
-            ],
-        };
-        let category = self.listing().category.clone();
+        let categories = categories(self.page);
+        self.listing_mut().sync_category(false, Instant::now());
         let mut x = 12.0;
-        for &(id, label, icon) in categories {
-            let selected = category == id;
-            let width = if selected {
-                self.ui.measure(label, 13.0, false) + 43.0
-            } else {
-                38.0
-            };
+        for (index, &(id, label, icon)) in categories.iter().enumerate() {
+            let listing = self.listing();
+            let weight = listing
+                .category_motion
+                .weight(category_key(index), listing.category_sampled_at);
+            let width = 38.0 + (self.ui.measure(label, 13.0, false) + 5.0) * weight;
             let r = self.ui.rect(x, top, width, 34.0);
-            self.ui
-                .fill(r, 17.0, if selected { ACCENT } else { widgets::CARD });
+            self.ui.fill(
+                r,
+                17.0,
+                std::array::from_fn(|i| {
+                    (widgets::CARD[i] as f32
+                        + (ACCENT[i] as f32 - widgets::CARD[i] as f32) * weight)
+                        .round() as u8
+                }),
+            );
             self.ui
                 .icon(self.ui.rect(x + 7.0, top + 7.0, 20.0, 20.0), icon);
-            if selected {
-                self.ui.text(
+            if weight > 0.0 {
+                let mut color = TEXT;
+                color[3] = (255.0 * weight).round() as u8;
+                self.ui.clipped_text(
                     self.ui.rect(x + 33.0, top, width - 37.0, 34.0),
                     label,
                     13.0,
-                    TEXT,
+                    color,
+                    widgets::Weight::Regular,
                 );
             }
             self.ui.hit(format!("list:category:{id}"), r, label, true);
@@ -564,12 +637,18 @@ impl Pages {
             Page::Relics => 260.0,
             _ => 44.0,
         };
-        if w - x - tools < 132.0 {
+        let reserved = 12.0
+            + categories.len() as f32 * 43.0
+            + categories
+                .iter()
+                .map(|(_, label, _)| self.ui.measure(label, 13.0, false) + 5.0)
+                .fold(0.0, f32::max);
+        if w - reserved - tools < 132.0 {
             top += 44.0;
             x = 12.0;
         }
         let search = self.listing().search.clone();
-        self.ui.field(
+        self.ui.search_field(
             "list:search",
             self.ui
                 .rect(x + 5.0, top, (w - x - tools - 17.0).max(80.0), 32.0),
@@ -745,7 +824,11 @@ impl Pages {
                 top += 36.0;
             }
         }
-        let viewport = self.ui.rect(10.0, top, w - 20.0, (h - top).max(0.0));
+        let scroll_area = self.ui.rect(10.0, top, w - 20.0, (h - top).max(0.0));
+        let viewport = Rect {
+            width: scroll_area.width.saturating_sub(self.ui.px(12.0)),
+            ..scroll_area
+        };
         self.ui.region("page.grid", viewport);
         self.ui.region(
             "page.toolbar",
@@ -792,6 +875,12 @@ impl Pages {
         let error = listing.error.clone();
         self.ui.begin_scroll(viewport, offset);
         for (i, (position, index, row)) in rows.into_iter().enumerate() {
+            self.ui.begin_scope((
+                page as u8,
+                text(&row, "id"),
+                text(&row, "name"),
+                row["rank"].as_u64(),
+            ));
             let (x, y) = grid.origin(position);
             let rect = Rect {
                 x,
@@ -809,6 +898,7 @@ impl Pages {
                 Page::Mastery => self.mastery_card(index, &row, rect),
                 _ => self.inventory_card(index, &row, rect),
             }
+            self.ui.end_scope();
         }
         self.ui.end_scroll();
         if empty {
@@ -835,7 +925,7 @@ impl Pages {
         }
         let max = self.listing().scroll.maximum();
         self.ui
-            .scrollbar("list:scroll", viewport, max, offset as f32);
+            .scrollbar("list:scroll", scroll_area, max, offset as f32);
         self.listing_menu();
     }
     fn mastery_summary(&mut self, w: f32) -> f32 {
@@ -1099,12 +1189,14 @@ impl Pages {
         }
         if key == "list:menu:close" {
             self.listing_mut().menu = None;
+            self.ui.close_context();
             return;
         }
         if let Some(action) = key.strip_prefix("list:menu:") {
             if let Some((index, component)) = self.listing().menu {
                 let Some(row) = self.listing().items.get(index) else {
                     self.listing_mut().menu = None;
+                    self.ui.close_context();
                     return;
                 };
                 let target = component
@@ -1145,6 +1237,7 @@ impl Pages {
                 }
             }
             self.listing_mut().menu = None;
+            self.ui.close_context();
             return;
         }
         if let Some(rest) = key.strip_prefix("list:item:") {
@@ -1205,6 +1298,7 @@ impl Pages {
         let listing = self.listing_mut();
         if let Some(category) = key.strip_prefix("list:category:") {
             listing.category = category.into();
+            listing.sync_category(true, Instant::now());
         } else if let Some(mode) = key.strip_prefix("list:mode:") {
             listing.mode = mode.into();
         } else {
@@ -1245,7 +1339,7 @@ impl Pages {
             return false;
         }
         let anchor = self.ui.pointer();
-        self.ui.cancel_activation();
+        self.ui.open_context(key.into());
         let listing = self.listing_mut();
         listing.menu = Some((index, component));
         listing.menu_anchor = anchor;
@@ -1267,7 +1361,7 @@ impl Pages {
             return false;
         }
         self.listing_mut().menu = None;
-        self.ui.cancel_activation();
+        self.ui.close_context();
         self.dirty = true;
         self.layout();
         true
@@ -1307,58 +1401,53 @@ impl Pages {
         )
         .is_empty();
         let anchor = self.listing().menu_anchor;
-        self.ui.begin_modal();
-        let w = self.ui.size.0 as f32 / self.ui.scale;
-        let h = self.ui.size.1 as f32 / self.ui.scale;
-        let x = (anchor.0 as f32 / self.ui.scale).clamp(0.0, (w - 300.0).max(0.0));
-        let y = (anchor.1 as f32 / self.ui.scale).clamp(0.0, (h - 196.0).max(0.0));
-        self.ui
-            .region("page.menu", self.ui.rect(x, y, 300.0, 196.0));
-        self.ui
-            .fill(self.ui.rect(x, y, 300.0, 196.0), 8.0, widgets::POPOVER);
-        self.ui.text(
-            self.ui.rect(x + 12.0, y + 10.0, 276.0, 25.0),
-            name,
-            17.0,
-            TEXT,
-        );
-        for (i, (id, label, enabled)) in [
-            ("relics", "Show in Relic Planner", true),
+        let entries: Vec<_> = [
             ("foundry", "Show in Foundry", true),
-            ("market", "Show market listings", market),
-            ("close", "Close", true),
+            ("relics", "Show in Relic Planner", true),
+            ("market", "View market listings", market),
         ]
         .into_iter()
-        .enumerate()
-        {
-            let key = format!("list:menu:{id}");
-            let rect = self
-                .ui
-                .rect(x + 12.0, y + 40.0 + i as f32 * 35.0, 276.0, 30.0);
-            self.ui.fill(
-                rect,
-                6.0,
-                if self.ui.hover.as_ref() == Some(&key) {
-                    crate::style::MENU_HOVER
-                } else {
-                    widgets::CARD
-                },
-            );
-            self.ui.text(
-                self.ui
-                    .rect(x + 22.0, y + 40.0 + i as f32 * 35.0, 256.0, 30.0),
-                label,
-                14.0,
-                if enabled { TEXT } else { MUTED },
-            );
-            self.ui.hit(key, rect, label, enabled);
-        }
+        .map(|(id, label, enabled)| (format!("list:menu:{id}"), label.into(), enabled))
+        .collect();
+        self.ui.context_menu(
+            Rect {
+                x: anchor.0.max(0.0) as u32,
+                y: anchor.1.max(0.0) as u32,
+                ..Rect::default()
+            },
+            &name,
+            &[],
+            &entries,
+            "list:menu:close",
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn category_motion_retargets_and_stops_requesting_frames() {
+        let mut listing = Listing::new(Page::Relics);
+        let now = Instant::now();
+        listing.category = "axi".into();
+        listing.sync_category(true, now);
+        let mid = now + Duration::from_millis(85);
+        assert!(listing.tick(mid));
+        assert_eq!(listing.category_motion.weight(category_key(0), mid), 0.5);
+        assert_eq!(listing.category_motion.weight(category_key(4), mid), 0.5);
+        listing.sync_category(false, mid);
+        assert_eq!(listing.category_motion.weight(category_key(4), mid), 0.5);
+        listing.category = "requiem".into();
+        listing.sync_category(true, mid);
+        assert_eq!(listing.category_motion.weight(category_key(4), mid), 0.5);
+        let end = mid + Duration::from_millis(170);
+        assert!(listing.tick(end));
+        assert_eq!(listing.category_motion.weight(category_key(5), end), 1.0);
+        assert_eq!(listing.deadline(end), None);
+        assert!(!listing.tick(end + Duration::from_millis(1)));
+    }
+
     #[test]
     fn snapshots_preserve_visible_identity_and_drop_stale_row_indices() {
         let mut listing = Listing::new(Page::Inventory);

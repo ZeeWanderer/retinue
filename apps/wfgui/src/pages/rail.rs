@@ -24,6 +24,10 @@ fn remaining(end: Option<i64>, now: i64) -> String {
 
 impl Pages {
     pub(super) fn layout_rail(&mut self) {
+        self.layout_rail_content();
+        self.rail.finish();
+    }
+    fn layout_rail_content(&mut self) {
         let size = self.rail.size;
         let scale = self.rail.scale;
         self.rail.begin(size, scale);
@@ -226,6 +230,7 @@ impl Pages {
             if rows.is_empty() {
                 continue;
             }
+            self.rail.begin_scope(("fissures", era));
             let height = (rows.len() as f32 * 25.0 + 12.0).max(65.0);
             self.rail.fill(
                 self.rail.rect(0.0, y, w - 14.0, height),
@@ -243,6 +248,7 @@ impl Pages {
                 true,
             );
             for (i, fissure) in rows.into_iter().enumerate() {
+                self.rail.begin_scope(text(fissure, "id"));
                 let top = y + 6.0 + i as f32 * 25.0;
                 self.rail.tinted_icon(
                     self.rail.rect(62.0, top + 5.0, 15.0, 15.0),
@@ -283,7 +289,9 @@ impl Pages {
                     format!("{mission} ({}) - {}", text(fissure, "node"), era),
                     false,
                 );
+                self.rail.end_scope();
             }
+            self.rail.end_scope();
             y += height + 6.0;
         }
         self.rail.end_scroll();

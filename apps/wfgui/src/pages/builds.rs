@@ -338,7 +338,7 @@ impl Pages {
             true,
         );
         if sidebar > 100.0 {
-            self.ui.field(
+            self.ui.search_field(
                 "build:search",
                 self.ui.rect(45.0, 73.0, sidebar - 53.0, 32.0),
                 &self.builds.search,
@@ -531,7 +531,7 @@ impl Pages {
         self.finish_build_scroll(viewport, end);
     }
     fn build_discover(&mut self, w: f32, h: f32) {
-        self.ui.field(
+        self.ui.search_field(
             "build:query",
             self.ui.rect(14.0, 78.0, w - 305.0, 33.0),
             &self.builds.query,
@@ -657,6 +657,7 @@ impl Pages {
             } else {
                 text(row, "canonical_id").into()
             };
+            self.ui.begin_scope(("build-search", &id));
             self.ui
                 .fill(self.ui.rect(0.0, y, w - 24.0, 67.0), 6.0, widgets::CARD);
             self.ui.bold(
@@ -689,6 +690,7 @@ impl Pages {
                 label,
                 true,
             );
+            self.ui.end_scope();
         }
         self.finish_build_scroll(viewport, rows.len() as f32 * 74.0);
         if rows.is_empty() {

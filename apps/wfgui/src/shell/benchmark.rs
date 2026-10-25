@@ -1,14 +1,19 @@
 use super::*;
-use retinue_ui::{damage::AgeRepaintTracker, painter::render_thread_budget};
+use retinue_ui::damage::AgeRepaintTracker;
 use serde_json::json;
 
 #[test]
 #[ignore = "opt-in animation benchmark"]
 fn rail_animation_benchmark() {
     let output = std::env::var("GUI_BENCH_OUTPUT").expect("set GUI_BENCH_OUTPUT");
-    let threads = render_thread_budget(4);
+    let threads = crate::benchmark::threads();
     let mut reports = Vec::new();
-    for (width, height, scale) in [(1920, 1080, 1.0), (2560, 1440, 1.0), (2560, 1440, 1.25)] {
+    for (width, height, scale) in [
+        (1920, 1080, 1.0),
+        (2560, 1440, 1.0),
+        (2560, 1440, 1.25),
+        (2560, 1440, 2.0),
+    ] {
         let mut shell = Shell::new(Some(Snapshot::fixture()), scale).unwrap();
         shell.resize((width, height), 1.0).unwrap();
         let mut buffer = vec![0_u32; width as usize * height as usize];
@@ -34,7 +39,8 @@ fn rail_animation_benchmark() {
                 )
                 .unwrap();
                 painter.clip_to_rect(plan.repair);
-                fill(&mut painter, plan.repair, 0, BACKGROUND);
+                let r = plan.repair;
+                painter.fill_rounded_rect(r.x, r.y, r.width, r.height, 0, BACKGROUND);
                 shell.paint(&mut painter);
                 painter.finish().unwrap();
                 let finished = Instant::now();
@@ -44,6 +50,7 @@ fn rail_animation_benchmark() {
                         "layout_ms": (laid_out - start).as_secs_f64() * 1000.0,
                         "paint_ms": (finished - laid_out).as_secs_f64() * 1000.0,
                         "total_ms": (finished - start).as_secs_f64() * 1000.0,
+                        "repair_pixels": plan.repair.width as u64 * plan.repair.height as u64,
                     }));
                 }
             }

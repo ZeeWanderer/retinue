@@ -96,8 +96,8 @@ fn columns(rarity: &str, rect: Rect, scale: f32) -> Vec<(Column, Rect)> {
 impl View {
     pub(super) fn paint_results(
         &mut self,
-        p: &mut Painter<'_>,
-        layout: &UiLayout<Node>,
+        p: &mut Canvas,
+        layout: &Layout,
         model: &Model,
         interaction: &Interaction,
         s: f32,
@@ -311,7 +311,7 @@ impl View {
 
     fn table_text(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         value: &str,
         emphasized: bool,
@@ -347,13 +347,7 @@ impl View {
         x
     }
 
-    pub(super) fn paint_item_header(
-        &mut self,
-        p: &mut Painter<'_>,
-        rect: Rect,
-        item: &Item,
-        s: f32,
-    ) {
+    pub(super) fn paint_item_header(&mut self, p: &mut Canvas, rect: Rect, item: &Item, s: f32) {
         let double = !item.name.is_empty() && item.name != item.base;
         self.artwork.header(p, rect, &item.rarity, double);
         let title = if item.name.is_empty() {
@@ -386,7 +380,7 @@ impl View {
 
     pub(super) fn prepare_artwork(
         &mut self,
-        layout: &UiLayout<Node>,
+        layout: &Layout,
         model: &Model,
         interaction: &Interaction,
         s: f32,
@@ -418,7 +412,7 @@ impl View {
 
     pub(super) fn paint_item_row(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         row: &Row,
         rarity: &str,
@@ -502,8 +496,8 @@ impl View {
 
     pub(super) fn paint_listing_preview(
         &mut self,
-        p: &mut Painter<'_>,
-        layout: &UiLayout<Node>,
+        p: &mut Canvas,
+        layout: &Layout,
         model: &Model,
         interaction: &Interaction,
         size: (u32, u32),
@@ -609,7 +603,7 @@ impl View {
         };
     }
 
-    pub(super) fn paint_error(&self, p: &mut Painter<'_>, rect: Rect, message: &str, s: f32) {
+    pub(super) fn paint_error(&self, p: &mut Canvas, rect: Rect, message: &str, s: f32) {
         plaques::plaque(p, rect, plaques::Plaque::Error, s);
         let diameter = px(16, s);
         let icon = Rect {
@@ -691,8 +685,12 @@ mod tests {
             };
             let draw = |selected| {
                 let mut pixels = vec![0; (rect.width * rect.height * 4) as usize];
+                let mut recording = Recording::new((rect.width, rect.height));
+                view.paint_item_row(&mut recording, rect, &row, "Rare", selected, scale);
                 let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
-                view.paint_item_row(&mut painter, rect, &row, "Rare", selected, scale);
+                Surface::default()
+                    .draw(recording, &mut painter, rect, |_, _| {})
+                    .unwrap();
                 painter.finish().unwrap();
                 pixels
             };

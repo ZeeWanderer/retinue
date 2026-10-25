@@ -23,7 +23,7 @@ The ducat kiosk adds platinum prices and collection badges to item tooltips:
 - Tesseract 5 with English language data
 - built `wfcli`, `retinue-daemon`, and `wfcompanion` executables
 
-Source-build requirements are listed in [development workflows](developer/workflows.md#build).
+Source-build requirements are listed in [development workflows](developer/workflows.md#dependencies).
 
 ## Steam Launch Mode
 

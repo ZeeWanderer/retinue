@@ -112,7 +112,10 @@ impl DiskCache {
             reject_link(&path)?;
             match read_limited(&path, 32 * 1024 * 1024) {
                 Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    self.stored.remove(&(request.origin.unwrap(), request.key));
+                    return Ok(None);
+                }
                 Err(error) => return Err(error),
             }
         };
@@ -136,6 +139,7 @@ impl DiskCache {
                 Ok(Some(image))
             }
             Err(error) => {
+                self.stored.remove(&(request.origin.unwrap(), request.key));
                 let _lock = lock(&self.root)?;
                 if self.current(request)? {
                     let _ = fs::remove_file(path);

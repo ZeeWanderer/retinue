@@ -103,11 +103,20 @@ VS Code CMake Tools uses the Qt reference presets and existing `_build/cmake/` t
 - `make test-poe2`: staged observer, daemon and CLI integration in isolated storage and networking; requires Python 3.
   Reports remain under `research/retinue/tests/poe2/`; temporary runtime files are removed.
 - `make test-gui`: native desktop model tests.
+- `make test-composition`: shared layout, paint retention and damage-repair tests.
 - `make test-release`: production startup under the x86-64-v2 baseline using QEMU user emulation.
 - `make test`: Erlang, Rust, native desktop, staging and PoE2 integration suites.
 - `make check`: Rust formatting, xref, tests, and both staged builds.
 
 Normal GUI builds compile the app only; `make test-gui` also builds its test executables.
+
+`make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=foundry_scroll_benchmark
+GUI_BENCH_OUTPUT=research/gui-scroll.json` measures scrolling at 100/125/200%.
+Use `rail_animation_benchmark` for rail motion and `GUI_BENCH_THREADS=1..8` to compare
+thread budgets. Scroll reports separate tree update, submission, native completion,
+caller/process CPU and actual thread counts. Run benchmarks separately from builds;
+alternate baseline/candidate runs and retain raw samples. They exclude presentation
+and game performance.
 
 `make bench-overlays` runs opt-in release-mode render/resource measurements for
 both companions. Reports and comparison commands: [overlay benchmarks](../../tools/render-bench/README.md).

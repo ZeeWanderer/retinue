@@ -19,7 +19,7 @@ the content. Mouse routing and wheel handling prioritize that drawer.
 
 ## Boundaries
 
-- `retinue-ui`: painter, Taffy layout, resource caches, scrolling and transitions.
+- `retinue-ui`: retained composition, painter, Taffy layout, caches, scrolling and transitions.
 - `desktop` feature: Winit windows/events/accessibility and Softbuffer presentation.
 - `overlay` feature: existing layer-shell, game focus, portals and clipboard.
 - App: screens, styles and asynchronous daemon/filesystem work. Daemon retains
@@ -37,6 +37,9 @@ window-size query: the window can change size before its resize event is handled
 Scoped viewports preserve parent clips and use device-pixel origins;
 the pinned Blend2D mask implementation does not support fractional transforms.
 UI scaling is baked into layout and glyph size, not applied as a paint transform.
+The desktop host prefers six total Blend2D threads, bounded by available CPUs;
+headless desktop captures use the same policy. Small companion surfaces keep their
+own lower budgets. Cached glow preparation is separate from steady frame rendering.
 See [Blend2D mask issues](blend2d-issues.md) for reproductions and local workarounds.
 
 App colors live in `style.rs`; reuse semantic names for ownership, search,
@@ -75,8 +78,8 @@ All native controls use `style::focus_ring` or `style::focus_capsule`; do not ad
 This follows the [focus-visible heuristics](https://www.w3.org/TR/selectors/#the-focus-visible-pseudo)
 with no automatic mouse-triggered button ring when opening a dialog.
 Taffy supplies geometry, not widgets, focus, accessibility or virtualization.
-Time-based easing lives in the shared transition module; shell composition is
-app-owned. Do not add a framebuffer conversion or copy without a demonstrated
+Time-based easing lives in the shared transition module. App compositions use the
+shared keyed scene; custom layout/paint remains supported. Do not add a framebuffer conversion or copy without a demonstrated
 consumer requirement and a measured cost.
 
 ### Layout Evidence
@@ -87,6 +90,25 @@ to Aleca DOM measurements and named Qt source constants. Missing observations
 remain absent; source-derived dimensions are not runtime measurements. Use live
 captures for artwork, since deterministic fixtures intentionally omit remote assets.
 Capture a listing context menu with `--view context-menu --capture-target page.menu`.
+
+### Shared Controls
+
+Use `Ui::search_field` for page and rail searches: collapsed search capsule,
+animated focus expansion, immediate growth under text pressure and an inline clear
+button that retains focus. Its editor, caret, hit test and capture bounds share
+the same inset. Forms, passwords and numeric values remain ordinary fields.
+
+`menu::Layout` supplies one clamped context-menu surface, wrapped heading/metadata
+and flat action rows. Foundry and listing menus use the same geometry and paint;
+dropdowns reuse its surface and row style. Outside presses dismiss and are consumed.
+Arrows/Home/End select actions; Enter/Space activates; Escape and Tab dismiss and
+restore invoking focus. Keyboard invocation anchors to the focused control, not
+the last pointer location. These follow the
+[menu interaction pattern](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/).
+Filter popovers retain their separate form-style Tab traversal.
+
+Navigation, including Settings, has no idle filled background. Hover changes the
+text/icon and trailing indicator; selection uses the same geometry in white.
 
 ### Foundry Controls
 
@@ -105,7 +127,7 @@ the daemon's `full_name` for component details/search, not abbreviated recipe la
 or market names: a built part and its tradeable blueprint are different items.
 Market and relic navigation use the canonical market/reward identity instead.
 
-The shared `Popover` owns anchoring, viewport clamping and dismissing presses.
+For filters, the shared `Popover` owns anchoring, viewport clamping and dismissing presses.
 Foundry owns its paired toggle choices, scrollable content and runtime state.
 Keep Tab traversal inside while open, reveal focused rows, close on Escape or
 actual focus loss, and restore the trigger. A dismissing press must not activate
@@ -154,14 +176,14 @@ and the right rail. `widgets.rs` shares field editing, dropdowns, scrollbars,
 modal focus, tooltips and accessibility. Paint and input consume the same clipped
 geometry; an open modal excludes underlying controls, including the other rail.
 
-Reuse small visual compositions through the existing `Ui` draw-command list;
-accept geometry and presentation state and emit drawing plus hit regions.
-Keep data fetching, cache ownership and invalidation outside those compositions.
-Do not force Foundry, Taffy forms and virtualized grids into one widget lifecycle.
-An extraction must preserve visible-only preparation, stable control IDs and
-damage bounds. Verify pixels and scrolling cost before replacing a rendering path.
-The proposed [declarative composition layer](ui-composition.md) extends this with
-retained layout, animation and paint metadata; prototype it before migrating pages.
+Use the shared [composition layer](ui-composition.md) for layout, retained paint,
+clipping and presentation changes. App `Ui` remains a custom-layout facade, not a
+second renderer. Pair `begin_scope`/`end_scope` around keyed collection rows and
+finish the layout transaction before input or paint. Specialized artwork and editors
+use direct custom paint; never wrap a page in an offscreen bitmap just to compose it.
+Keep data fetching and resource preparation outside painting. Preserve visible-only
+preparation, stable control IDs and damage bounds. Verify geometry, pixels and
+scrolling cost before replacing a rendering path.
 
 The page session multiplexes bounded requests with player push updates. Activity
 uses the existing 60-second query refresh; the local protocol does not offer a
@@ -197,8 +219,11 @@ unsmoothed.
 
 `retinue-ui::thumbnails` validates source hashes, decodes bounded images and uses
 Blend2D Lanczos resampling at the final physical size. One preparation worker owns
-24 MiB of decoded sources and 32 MiB of derivatives. Immutable image handles are
-shared with the painter. Cache accounting includes handles still held by a frame;
+24 MiB of decoded-source retention and 32 MiB of derivative retention. These are
+idle-cache budgets, not limits on the visible working set. Immutable image handles
+are shared with the painter; weak lookup preserves reuse of active images after
+LRU eviction. Expired lookup metadata is reclaimed without retaining image bytes.
+Cache accounting includes handles still held by a frame;
 an old image remains visible until its refreshed replacement is ready. Source
 files persist in the daemon cache. Preparation publishes RAM hits first, then each
 completed image; one coalesced mailbox bounds notifications. Only affected cards
@@ -210,15 +235,16 @@ writes follow visible preparation; embedded UI icons stay RAM-only. The Qt cache
 has a separate namespace because its pixel recipe differs. There is no disk size
 cap: obsolete source revisions are removed after a replacement is stored. Atomic
 writes and a cache-generation lock prevent old work from restoring cleared files.
-Corrupt or unavailable disk entries fall back to normal preparation. Settings
+Corrupt or missing disk entries fall back to preparation and can be rewritten in
+the same session; a previous successful write must not suppress repair. Settings
 counts and clears both derivative namespaces; memory controls include glyphs.
 
 Keep file access, decoding and resampling outside paint/input handlers. Scroll
 repaints the viewport, not the entire window; model changes damage affected visible
 cards. Offscreen changes do not repaint. Buffer-age repair also accumulates damage
-missed by recycled buffers. There is no scroll-pixel cache yet: adding one requires
-tracking content changes in reused regions, clipping, resize and buffer age, with
-pixel-for-pixel tests against a full repaint. Measure before adding that complexity.
+missed by recycled buffers. Foundry reuses isolated card rasters with local damage
+repair, not copies of the presentation buffer. See [incremental rendering](ui-invalidation.md)
+for invalidation, active residency and full-replay equivalence requirements.
 Painting looks up derivative keys directly. Do not construct preparation requests
 or recompute disk identities there. Source-file integrity still uses the daemon's
 SHA-256 digest on the preparation worker; a faster table hasher is a separate choice.
@@ -242,6 +268,7 @@ dev/bin/wfgui --fixture --screenshot title.png --capture-target titlebar
 dev/bin/wfgui --fixture --screenshot collapsed.png --left-collapsed --right-collapsed
 dev/bin/wfgui --fixture --screenshot transition.png --capture-animation both --capture-time-ms 85
 dev/bin/wfgui --fixture --screenshot categories.png --capture-target foundry.toolbar --capture-animation category --category 3 --capture-time-ms 85
+dev/bin/wfgui --fixture --page relics --screenshot relic-tabs.png --capture-animation category --capture-category-from 0 --category 4 --capture-time-ms 85
 dev/bin/wfgui --fixture --screenshot search.png --capture-target foundry.toolbar --capture-animation search --capture-time-ms 100
 ```
 

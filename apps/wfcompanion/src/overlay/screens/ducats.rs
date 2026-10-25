@@ -1,29 +1,37 @@
+use retinue_ui::composition::{
+    Bounds, CachePolicy, Canvas, Command, Element, Key, Paint, PaintKey, RasterMode, RecordingMode,
+    Renderer, Scene as CompositionScene,
+};
 use retinue_ui::painter::CachedFont;
 use retinue_ui::painter::{Painter, RasterImage, TextLine, css_rgba, load_icon, text_width};
+use retinue_ui::taffy::{Dimension, LengthPercentageAuto, Size};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::ducats::{Parent, Quote, Scene};
 use crate::ui::Rect;
 
 pub(in crate::overlay) struct Assets {
-    platinum: RasterImage,
-    owned: RasterImage,
-    mastered: RasterImage,
-    subsumed: RasterImage,
+    platinum: Rc<RasterImage>,
+    owned: Rc<RasterImage>,
+    mastered: Rc<RasterImage>,
+    subsumed: Rc<RasterImage>,
+    composition: RefCell<Composition>,
 }
 
 impl Assets {
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            platinum: load_icon(include_bytes!("../../../assets/platinum.png"))?,
-            owned: load_icon(include_bytes!(
+            platinum: Rc::new(load_icon(include_bytes!("../../../assets/platinum.png"))?),
+            owned: Rc::new(load_icon(include_bytes!(
                 "../../../../../assets/warframe/ui/owned.png"
-            ))?,
-            mastered: load_icon(include_bytes!(
+            ))?),
+            mastered: Rc::new(load_icon(include_bytes!(
                 "../../../../../assets/warframe/ui/mastered.png"
-            ))?,
-            subsumed: load_icon(include_bytes!(
+            ))?),
+            subsumed: Rc::new(load_icon(include_bytes!(
                 "../../../../../assets/warframe/ui/helminth.png"
-            ))?,
+            ))?),
+            composition: RefCell::new(Composition::default()),
         })
     }
 }
@@ -63,50 +71,162 @@ fn row(scene: &Scene, dimensions: (u32, u32)) -> Option<(Rect, f32)> {
 
 pub(in crate::overlay) fn draw(
     painter: &mut Painter<'_>,
-    font: &CachedFont,
+    font: &Rc<CachedFont>,
     assets: &Assets,
     scene: &Scene,
 ) {
     let Some((row, s)) = row(scene, (painter.width(), painter.height())) else {
         return;
     };
-    let size = 19.0 * s;
-    let icon = (18.0 * s).round() as u32;
-    let gap = (6.0 * s).round() as u32;
-    let mut x = row.x;
-    if let Some(price) = price_text(scene) {
-        let width = text_width(font, &price, size).ceil() as u32;
-        if icon + gap + width <= row.width {
-            let y = row.y + row.height.saturating_sub(icon) / 2;
-            painter.draw_image_contained(&assets.platinum, x, y, icon, icon);
-            painter.draw_text_vertically_centered(
-                font,
-                TextLine {
-                    x: x + icon + gap,
-                    y: row.y,
-                    height: row.height,
-                },
-                size,
-                &price,
-                css_rgba(190, 169, 102, 255),
-            );
-            x += icon + gap + width + gap * 2;
+    let state = State {
+        row,
+        scale: s,
+        size: (painter.width(), painter.height()),
+        price: price_text(scene),
+        badges: scene
+            .parent
+            .as_ref()
+            .map_or([false; 3], |p| [p.owned, p.mastered, p.subsumed]),
+    };
+    let mut composition = assets.composition.borrow_mut();
+    composition.update(state, assets, font);
+    let Composition {
+        scene, renderer, ..
+    } = &mut *composition;
+    renderer.draw_with(scene, painter, row, |_, _| unreachable!());
+}
+
+const fn key_for(id: u64) -> Key {
+    Key::new("warframe.ducat-tooltip", id)
+}
+
+#[derive(PartialEq)]
+struct State {
+    row: Rect,
+    scale: f32,
+    size: (u32, u32),
+    price: Option<String>,
+    badges: [bool; 3],
+}
+
+struct Composition {
+    scene: CompositionScene,
+    renderer: Renderer,
+    state: Option<State>,
+}
+
+impl Default for Composition {
+    fn default() -> Self {
+        Self {
+            scene: CompositionScene::default(),
+            renderer: Renderer::new(0),
+            state: None,
         }
     }
-    if let Some(parent) = &scene.parent {
-        for (active, image, optical_size) in [
-            (parent.owned, &assets.owned, 14.0),
-            (parent.mastered, &assets.mastered, 18.0),
-            (parent.subsumed, &assets.subsumed, 18.0),
-        ] {
-            if active && x + icon <= row.x + row.width {
-                let drawn = (optical_size * s).round() as u32;
-                let y = row.y + row.height.saturating_sub(drawn) / 2;
-                painter.draw_image_contained(image, x + (icon - drawn) / 2, y, drawn, drawn);
-                x += icon + gap;
+}
+
+impl Composition {
+    fn update(&mut self, state: State, assets: &Assets, font: &Rc<CachedFont>) {
+        if self.state.as_ref() == Some(&state) {
+            return;
+        }
+        let row = state.row;
+        let s = state.scale;
+        let icon = (18.0 * s).round() as u32;
+        let gap = (6.0 * s).round() as u32;
+        let mut children = Vec::new();
+        let mut used = 0;
+        let mut price_commands = None;
+        if let Some(price) = &state.price {
+            let width = text_width(font, price, 19.0 * s).ceil() as u32;
+            if icon + gap + width <= row.width {
+                children.push(image_slot(
+                    1,
+                    assets.platinum.clone(),
+                    icon,
+                    icon,
+                    row.height,
+                ));
+                let mut text = Element::new(key_for(2), fixed(width, row.height));
+                text.style.margin.right = LengthPercentageAuto::length(gap as f32);
+                text.paint = self.scene.paint(key_for(2)).cloned();
+                let mut canvas = Canvas::new(1.0);
+                canvas.draw_text_vertically_centered(
+                    font,
+                    TextLine::new(0, 0, row.height),
+                    19.0 * s,
+                    price,
+                    css_rgba(190, 169, 102, 255),
+                );
+                price_commands = Some(canvas.commands);
+                children.push(text);
+                used = icon + gap + width + 2 * gap;
             }
         }
+        for (index, (image, optical)) in [
+            (&assets.owned, 14.0),
+            (&assets.mastered, 18.0),
+            (&assets.subsumed, 18.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if state.badges[index] && used + icon <= row.width {
+                children.push(image_slot(
+                    3 + index as u64,
+                    image.clone(),
+                    icon,
+                    (optical * s).round() as u32,
+                    row.height,
+                ));
+                used += icon + gap;
+            }
+        }
+        let mut root = Element::row(key_for(0), gap as f32, children);
+        root.style.size = fixed(row.width, row.height).size;
+        root.style.flex_shrink = 0.0;
+        root.offset = (row.x as f32, row.y as f32);
+        // Native Scaleform coordinates already include the game's physical scale.
+        self.scene
+            .update(root, state.size, 1.0, RecordingMode::Retained)
+            .expect("unique tooltip keys");
+        if let Some(commands) = price_commands {
+            self.scene
+                .record(key_for(2), commands, CachePolicy::Never)
+                .expect("price element");
+        }
+        self.renderer.prepare(&self.scene, RasterMode::Replay);
+        self.state = Some(state);
     }
+}
+
+fn fixed(width: u32, height: u32) -> retinue_ui::taffy::Style {
+    retinue_ui::taffy::Style {
+        size: Size {
+            width: Dimension::length(width as f32),
+            height: Dimension::length(height as f32),
+        },
+        flex_shrink: 0.0,
+        ..Default::default()
+    }
+}
+
+fn image_slot(id: u64, image: Rc<RasterImage>, slot: u32, drawn: u32, height: u32) -> Element {
+    let key = key_for(id);
+    let mut element = Element::new(key, fixed(slot, height));
+    element.paint = Some(Paint::new(PaintKey::new(key, drawn as u64), move |_| {
+        vec![Command::Image {
+            bounds: Bounds::new(
+                ((slot - drawn) / 2) as f32,
+                (height.saturating_sub(drawn) / 2) as f32,
+                drawn as f32,
+                drawn as f32,
+            ),
+            image: image.clone().into(),
+            fit: retinue_ui::composition::ImageFit::Contain,
+        }]
+    }));
+    element
 }
 
 fn price_text(scene: &Scene) -> Option<String> {
@@ -151,6 +271,64 @@ pub(in crate::overlay) fn fixture(dimensions: (u32, u32)) -> Scene {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn composed_row_keeps_native_anchors_and_removes_unlisted_price() {
+        use retinue_ui::painter::{GlyphCache, load_overlay_font};
+        let font = Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap());
+        let assets = Assets::load().unwrap();
+        for size in [(1920, 1080), (2560, 1440), (2560, 1600), (3840, 2160)] {
+            let sample = fixture(size);
+            let (row, s) = row(&sample, size).unwrap();
+            let mut composition = Composition::default();
+            composition.update(
+                State {
+                    row,
+                    scale: s,
+                    size,
+                    price: Some("8".into()),
+                    badges: [true; 3],
+                },
+                &assets,
+                &font,
+            );
+            let icon = (18.0 * s).round() as u32;
+            let gap = (6.0 * s).round() as u32;
+            let text_width = text_width(&font, "8", 19.0 * s).ceil() as u32;
+            assert_eq!(
+                composition.scene.bounds(key_for(1)).unwrap().layout.x,
+                row.x as f32
+            );
+            assert_eq!(
+                composition.scene.bounds(key_for(2)).unwrap().layout.x,
+                (row.x + icon + gap) as f32
+            );
+            assert_eq!(
+                composition.scene.bounds(key_for(3)).unwrap().layout.x,
+                (row.x + icon + 3 * gap + text_width) as f32
+            );
+            assert_eq!(
+                composition.scene.hit_test((row.x as f64, row.y as f64)),
+                None
+            );
+            composition.update(
+                State {
+                    row,
+                    scale: s,
+                    size,
+                    price: None,
+                    badges: [true; 3],
+                },
+                &assets,
+                &font,
+            );
+            assert!(composition.scene.bounds(key_for(2)).is_none());
+            assert_eq!(
+                composition.scene.bounds(key_for(3)).unwrap().layout.x,
+                row.x as f32
+            );
+        }
+    }
 
     #[test]
     fn row_fits_beside_ducats_without_covering_native_control() {

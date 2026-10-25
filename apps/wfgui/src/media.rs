@@ -36,7 +36,7 @@ impl Media {
                 .persistent(&asset.source, &asset.image_name),
         )
     }
-    pub fn image(&self, asset: &Asset, size: u32) -> Option<&RasterImage> {
+    pub fn image_resource(&self, asset: &Asset, size: u32) -> Option<&Resource<RasterImage>> {
         self.descriptors
             .get(&asset.id)
             .and_then(|d| d.key(size))
@@ -47,10 +47,9 @@ impl Media {
                     .and_then(|d| d.key(size))
                     .and_then(|k| self.images.get(&k))
             })
-            .map(|v| &**v)
     }
-    pub fn embedded(&self, request: &Request) -> Option<&RasterImage> {
-        self.images.get(&request.key).map(|v| &**v)
+    pub fn embedded_resource(&self, request: &Request) -> Option<&Resource<RasterImage>> {
+        self.images.get(&request.key)
     }
     pub fn accept(&mut self, images: &[(Key, Resource<RasterImage>)], wanted: &[Request]) {
         let mut keys: HashSet<_> = wanted.iter().map(|r| r.key).collect();

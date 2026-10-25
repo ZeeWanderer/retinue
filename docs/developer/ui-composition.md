@@ -1,16 +1,78 @@
 # Declarative UI Composition
 
-Design for the next `retinue-ui` iteration. Not implemented yet. Validate a small
-prototype before migrating the GUI; keep Blend2D, existing hosts and resource
-workers. Application code owns visuals and actions, not the composition engine.
+`retinue-ui/composition` provides retained layout and paint for wfgui, Warframe
+overlays and PoE2 Evaluate. It uses the existing Blend2D queue, hosts and resource
+workers. Applications own visuals, actions and domain state. The
+[standalone example](ui-composition-prototype.md) exercises optional raster policies.
+
+## Current Contract
+
+- `Scene::update` reconciles a bounded visible description. Unchanged layout caches
+  and paint recordings survive; description construction is still caller work.
+- `update_subtree` replaces one owned scope; outside keys cannot be stolen. Clean
+  descriptions need not be reconstructed. Placement patches resolve affected
+  preorder ranges and ancestors, not the entire Taffy tree.
+- `Scene::patch` changes offsets or paint without rebuilding descriptions or layout.
+  Both operations return old/new damage. The host still repairs buffer history.
+- `Scene::resize` updates window constraints without reconstructing descriptions;
+  use relative container sizing and keep fixed content recordings intact.
+- `Scene::record_many` compares immutable commands and revisions only changed
+  chunks. `Canvas` records custom pixel-layout drawing into those same commands.
+- `Recording` collects named pixel-layout sections; `Surface` retains and replays
+  them into the host's Painter without another output buffer. Static and cached
+  images share `ImageSource`; commands hold their resources through queued paint.
+  `layout_rect` and `content_rect` expose unclipped physical geometry for controls
+  and custom anchoring. Hit testing still uses clipped geometry.
+- Keys are namespaced, stable instance identities. `PaintKey` also includes content
+  revision; dimensions and physical scale are added by the engine. Reordering must
+  not turn an item into another item's identity.
+- Standard rows, columns, grids and stacks can nest custom measurement/placement.
+  Paint, hit regions and capture geometry share resolved coordinates.
+- `Renderer::prepare` precedes painting each changed generation. `draw_with`
+  preserves the destination; `paint_with` clears and fills the requested repair.
+- External paint runs in the existing Painter, in node-local physical pixels. It
+  declares bounds, reports changes with `Scene::invalidate`, and cannot use optional
+  raster caching. No page-sized intermediate image or second event system.
+- `Canvas::local` and `Painter::local` expose a zero-origin rectangle to custom
+  drawing. Retained commands stay local; the painter adds accumulated integer
+  origins at native submission, so custom callbacks also avoid per-leaf backend
+  transforms. Clips remain host-space intersections. Never bake moving host
+  positions into retained content or shrink an image's destination to its clip.
+  Scope exit restores clipping only when changed; primitives specify their own
+  remaining native draw state. The native transform path is a pixel-test oracle.
+- Fills, outlines, text, images, paths and clips lower directly to Blend2D. Explicit
+  item rasters are byte-bounded and support local dirty-region repair. External
+  commands, including those nested inside clips, are never cached.
+
+wfgui's shell, Foundry and Settings use keyed compositions directly. Other pages
+and the right rail use the custom-layout `Ui` builder. Its semantic `Visual` leaves
+resolve into retained commands, including late artwork; there is no parallel
+generic paint replay. Resource arrivals patch paint without re-running layout.
+Only editors, progress animation and nested page-host dispatch use live painting.
+Collection rows scope paint keys by domain identity. `Ui::finish` is the transaction
+boundary before paint or input. Existing modal, editing and accessibility policies
+remain app-owned. Foundry and listing category strips share `SelectionMotion`.
+Independent regions commit their own transactions, including empty and hidden
+states. A rail-only timer tick must not leave stale retained commands; resizing
+the center must not rebuild an unchanged rail. Layout-only descriptions preserve
+their `Scene::paint` bindings instead of reinstating placeholder callbacks; doing
+otherwise creates false content damage on every animation frame.
+
+Isolated group opacity, exit lifetimes and automatic background raster promotion
+remain extensions, not implemented APIs. Explicit Foundry item rasters reuse pixels
+while scrolling, with independent repairs for changed content. They do not copy or
+slice the presentation buffer; window-buffer age repair remains separate.
+The sections below define their constraints when a feature needs them.
+The [incremental-rendering follow-up](ui-invalidation.md) distinguishes input diffing,
+layout dependencies, scroll-cache repair and safe background optimization.
 
 ## Model
 
 Declarative Rust descriptions reconcile into retained, keyed elements. Elements
 hold layout and presentation state, paint chunks and resource dependencies.
 Layout produces geometry; painting records ordered primitives; execution lowers
-those primitives to the existing Blend2D queue. Reconciliation and animation do
-not rebuild unchanged descendants or construct every item in a large collection.
+those primitives to the existing Blend2D queue. Construct only the visible portion
+of large collections; use presentation patches for translation-only updates.
 
 HStack, VStack, ZStack, Grid, Anchor and custom layouts are first-class. They share
 a contract for measuring children, choosing size and placing keyed children.
@@ -114,7 +176,12 @@ its bounding box alone. Custom opaque callbacks form optimization barriers.
 
 ### Raster Promotion
 
-Use the existing bounded RAM cache and immutable resource handles. Provide a
+Use the existing RAM cache and immutable resource handles. Its byte budget bounds
+idle retention, not the active scene's working set. Hold visible rasters through
+frame preparation, including when their combined size exceeds that budget; release
+them when no longer needed. Weak lookup avoids duplicate work after LRU eviction
+without retaining inactive pixels. A zero raster budget explicitly disables this
+optional optimization. Provide a
 policy such as Never, Auto or Prefer; Prefer is a hint, not permission to violate
 compositing or memory constraints. Required intermediate effect surfaces are
 semantically distinct from optional persistent caches.
@@ -148,6 +215,13 @@ Always support command replay with unchanged local layout. Optional tiles or a
 viewport cache may reuse pixels when beneficial. The container chooses a supported
 strategy; callers should not implement copy regions or buffer-history repair.
 
+The custom-layout `Ui` records scoped scroll items as reusable command groups.
+The container caches eligible groups, repairs changed child bounds and moves their
+rasters under its clip. Popups and scrollbar chrome remain separate siblings;
+overlap is not a reason to rebuild the scrolled content. Unknown live painting
+replays instead. Pointer motion is coalesced before layout, never one rebuild per
+raw input event. Reserve scrollbar space where obscuring cells would impair use.
+
 Pixel reuse requires unchanged scale/clip/effect semantics and a valid source
 generation. Integer translation permits copying overlap and redrawing exposed
 strips. Also invalidate changed content already inside that overlap: timers,
@@ -160,12 +234,11 @@ Do not require scroll caches to be full-sized copies of all content. A bounded
 tile cache can avoid that cost; large pixel copies can still lose to rerasterizing.
 Decide from measurements, not container type alone.
 
-## Prototype
+## Prototype Scope
 
-Keep the first prototype small and outside production routing. Use ordinary Rust
-APIs, with one retained layout tree and the existing painter/resource mechanisms.
-Evaluate `xilem_core` only for reconciliation if it removes code without bringing
-in another renderer; no dependency decision is implied by this design.
+The standalone example exercises policies independently of production routing.
+It uses ordinary Rust APIs, one retained layout tree and the existing painter and
+resource mechanisms. No additional reconciliation framework is required.
 
 Exercise a shared animated category strip and a virtualized grid of component
 artwork with anchored amount and void badges. Nest standard stacks in one custom
@@ -188,8 +261,12 @@ missed deadlines, CPU by thread and process, allocations, live/cache memory,
 nodes revisited, commands submitted and copied/damaged area. Measure timing hooks'
 overhead separately. Reuse existing desktop and overlay benchmark hosts.
 
-On success, migrate the GUI page by page, preserving workflows and approved
-visual differences. Validate one overlay composition before spreading the API.
+On success, migrate root-to-leaf, beginning with the shell and direct custom
+boundaries for unchanged pages. Descend through one representative page before
+spreading its patterns. Preserve workflows and approved visual differences;
+refine the design when real integration exposes a missing contract. Optional
+scroll-pixel reuse must not block migration. Validate one overlay composition
+before treating the shared API as settled.
 Remove superseded per-page mechanisms as their replacements are accepted; no
 permanent parallel engines. UI snapshots should expose hierarchy, anchors,
 resolved geometry, dirty reasons, resource generations and cache decisions.

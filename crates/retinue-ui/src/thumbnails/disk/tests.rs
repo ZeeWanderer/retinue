@@ -97,6 +97,23 @@ fn corrupt_cache_falls_back_to_source_and_repairs() {
 }
 
 #[test]
+fn same_session_missing_or_corrupt_derivatives_can_be_repaired() {
+    let dir = tempfile::tempdir().unwrap();
+    let request = request(40);
+    let mut disk = DiskCache::new(dir.path().into());
+    let pixels = RasterImage::from_rgba(image::RgbaImage::new(40, 40)).unwrap();
+    disk.begin_batch(&[request.clone()]).unwrap();
+    assert!(disk.store(&request, &pixels).unwrap());
+    fs::write(disk.path(&request).unwrap(), b"corrupt").unwrap();
+    assert!(disk.load(&request).is_err());
+    assert!(disk.store(&request, &pixels).unwrap());
+    fs::remove_file(disk.path(&request).unwrap()).unwrap();
+    assert!(disk.load(&request).unwrap().is_none());
+    assert!(disk.store(&request, &pixels).unwrap());
+    assert!(disk.load(&request).unwrap().is_some());
+}
+
+#[test]
 fn physical_size_crop_and_origin_are_separate_keys() {
     let disk = DiskCache::new("unused".into());
     let a = request(40);

@@ -1,12 +1,12 @@
+use retinue_ui::composition::{Canvas, Key, Recording};
+use std::rc::Rc;
 use std::time::Duration;
 
 use retinue_ui::painter::CachedFont;
 
 use super::{Resources, View};
 use crate::ui::Rect;
-use retinue_ui::painter::{
-    Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
-};
+use retinue_ui::painter::{RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width};
 
 mod layout;
 
@@ -17,7 +17,7 @@ const LOADING_RADIUS: u32 = 24;
 const LOADING_STROKE: u32 = 6;
 
 pub(super) fn draw(
-    painter: &mut Painter<'_>,
+    painter: &mut Recording,
     resources: &Resources<'_>,
     scene: &crate::relic::Scene,
     view: View,
@@ -88,8 +88,15 @@ pub(super) fn draw(
                 .iter()
                 .filter_map(|reward| reward.lowest_sell)
                 .max();
-            for (reward, card_layout) in rewards.items.iter().take(4).zip(&layout.reward_cards) {
+            for (index, (reward, card_layout)) in rewards
+                .items
+                .iter()
+                .take(4)
+                .zip(&layout.reward_cards)
+                .enumerate()
+            {
                 let card = card_layout.card;
+                painter.section(Key::new("relic.reward", index as u64), card);
                 let selected = reward.lowest_sell.is_some() && reward.lowest_sell == best;
                 if selected {
                     painter.fill_rounded_rect(
@@ -193,6 +200,7 @@ pub(super) fn draw(
                 draw_reward_ownership(painter, font, reward, card_layout.ownership, scale);
                 draw_reward_parts(painter, resources, reward, card_layout.components, scale);
             }
+            painter.section(Key::new("relic.footer", 0), layout.footer);
             draw_account_currency(
                 painter,
                 resources,
@@ -207,7 +215,7 @@ pub(super) fn draw(
     None
 }
 
-fn draw_loading_background(painter: &mut Painter<'_>, bounds: Rect, scale: u32) {
+fn draw_loading_background(painter: &mut Canvas, bounds: Rect, scale: u32) {
     painter.fill_rounded_rect(
         bounds.x,
         bounds.y,
@@ -231,7 +239,7 @@ fn loading_pulse_bounds(bounds: Rect, scale: u32) -> Rect {
 }
 
 pub(super) fn draw_loading_pulse(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     bounds: Rect,
     scale: u32,
     elapsed: Duration,
@@ -253,7 +261,7 @@ pub(super) fn draw_loading_pulse(
     }
 }
 
-fn draw_relic_shell(painter: &mut Painter<'_>, layout: &Layout, scale: u32) {
+fn draw_relic_shell(painter: &mut Canvas, layout: &Layout, scale: u32) {
     let bounds = layout.shell;
     painter.fill_rounded_rect(
         bounds.x,
@@ -280,7 +288,7 @@ fn draw_relic_shell(painter: &mut Painter<'_>, layout: &Layout, scale: u32) {
     );
 }
 
-fn fill_bottom_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, color: [u8; 4]) {
+fn fill_bottom_rounded(painter: &mut Canvas, bounds: Rect, radius: u32, color: [u8; 4]) {
     debug_assert_eq!(color[3], 255, "overlapping fills require an opaque color");
     let radius = radius.min(bounds.width / 2).min(bounds.height / 2);
     painter.fill_rounded_rect(
@@ -301,7 +309,7 @@ fn fill_bottom_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, col
     );
 }
 
-fn fill_right_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, color: [u8; 4]) {
+fn fill_right_rounded(painter: &mut Canvas, bounds: Rect, radius: u32, color: [u8; 4]) {
     debug_assert_eq!(color[3], 255, "overlapping fills require an opaque color");
     let radius = radius.min(bounds.width / 2).min(bounds.height / 2);
     painter.fill_rounded_rect(
@@ -315,7 +323,7 @@ fn fill_right_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, colo
     painter.fill_rounded_rect(bounds.x, bounds.y, radius, bounds.height, 0, color);
 }
 
-fn fill_left_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, color: [u8; 4]) {
+fn fill_left_rounded(painter: &mut Canvas, bounds: Rect, radius: u32, color: [u8; 4]) {
     debug_assert_eq!(color[3], 255, "overlapping fills require an opaque color");
     let radius = radius.min(bounds.width / 2).min(bounds.height / 2);
     painter.fill_rounded_rect(
@@ -337,8 +345,8 @@ fn fill_left_rounded(painter: &mut Painter<'_>, bounds: Rect, radius: u32, color
 }
 
 fn draw_message_panel(
-    painter: &mut Painter<'_>,
-    font: &CachedFont,
+    painter: &mut Canvas,
+    font: &Rc<CachedFont>,
     bounds: Rect,
     preferred_width: u32,
     title: &str,
@@ -383,7 +391,7 @@ fn draw_message_panel(
 }
 
 struct PrimaryPrice<'a> {
-    icon: &'a RasterImage,
+    icon: &'a Rc<RasterImage>,
     bounds: Rect,
     scale: u32,
     icon_size: u32,
@@ -391,7 +399,7 @@ struct PrimaryPrice<'a> {
     color: [u8; 4],
 }
 
-fn draw_primary_price(painter: &mut Painter<'_>, font: &CachedFont, view: PrimaryPrice<'_>) {
+fn draw_primary_price(painter: &mut Canvas, font: &Rc<CachedFont>, view: PrimaryPrice<'_>) {
     let value = view
         .price
         .map_or_else(|| "--".to_owned(), |value| value.to_string());
@@ -414,8 +422,8 @@ fn draw_primary_price(painter: &mut Painter<'_>, font: &CachedFont, view: Primar
 }
 
 fn draw_reward_ownership(
-    painter: &mut Painter<'_>,
-    font: &CachedFont,
+    painter: &mut Canvas,
+    font: &Rc<CachedFont>,
     reward: &crate::relic::Reward,
     bounds: Rect,
     scale: u32,
@@ -473,7 +481,7 @@ fn draw_reward_ownership(
 }
 
 fn draw_reward_parts(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     resources: &Resources<'_>,
     reward: &crate::relic::Reward,
     bounds: Rect,
@@ -604,7 +612,7 @@ fn draw_reward_parts(
             [255, 255, 255, 255],
         );
         painter.draw_image_contained(
-            platinum_icon,
+            *platinum_icon,
             price_x + value_width + 3 * scale,
             price_y + price_height.saturating_sub(icon_size) / 2,
             icon_size,
@@ -614,7 +622,7 @@ fn draw_reward_parts(
 }
 
 fn draw_account_currency(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     resources: &Resources<'_>,
     bounds: Rect,
     scale: u32,
@@ -716,6 +724,16 @@ fn truncate(text: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use retinue_ui::{composition::Surface, painter::Painter};
+
+    fn render(recording: Recording, pixels: &mut [u8]) {
+        let mut painter = Painter::new(pixels, 120, 80).unwrap();
+        let repair = painter.visible_bounds();
+        Surface::default()
+            .draw(recording, &mut painter, repair, |_, _| {})
+            .unwrap();
+        painter.finish().unwrap();
+    }
 
     #[test]
     fn loading_layers_stay_inside_relic_holder() {
@@ -726,7 +744,7 @@ mod tests {
             width: 80,
             height: 60,
         };
-        let mut painter = Painter::new(&mut canvas, 120, 80).unwrap();
+        let mut painter = Recording::new((120, 80));
         draw_loading_background(&mut painter, bounds, 1);
         draw_loading_pulse(
             &mut painter,
@@ -734,7 +752,7 @@ mod tests {
             1,
             Duration::from_millis(750),
         );
-        painter.finish().unwrap();
+        render(painter, &mut canvas);
 
         assert_eq!(pixel(&canvas, 120, 19, 40), [0, 0, 0, 0]);
         assert!(pixel(&canvas, 120, 20, 40)[3] > 0);
@@ -774,9 +792,9 @@ mod tests {
         };
         for elapsed in [0, 250, 750, 1_250, 1_900] {
             let mut canvas = vec![0; 120 * 80 * 4];
-            let mut painter = Painter::new(&mut canvas, 120, 80).unwrap();
+            let mut painter = Recording::new((120, 80));
             draw_loading_pulse(&mut painter, damage, 1, Duration::from_millis(elapsed));
-            painter.finish().unwrap();
+            render(painter, &mut canvas);
 
             for y in 0..80 {
                 for x in 0..120 {
@@ -796,7 +814,7 @@ mod tests {
     fn relic_footer_keeps_both_bottom_corners_inside_shell() {
         let mut canvas = vec![0; 120 * 80 * 4];
         let color = css_rgba(23, 30, 48, 255);
-        let mut painter = Painter::new(&mut canvas, 120, 80).unwrap();
+        let mut painter = Recording::new((120, 80));
         fill_bottom_rounded(
             &mut painter,
             Rect {
@@ -808,7 +826,7 @@ mod tests {
             10,
             color,
         );
-        painter.finish().unwrap();
+        render(painter, &mut canvas);
 
         assert_eq!(pixel(&canvas, 120, 20, 20), color);
         assert_eq!(pixel(&canvas, 120, 99, 20), color);

@@ -112,20 +112,16 @@ sampling without frametime measurements. DBWIN events remain the immediate path.
 
 ## Layout
 
-`UiTree<K>` is the semideclarative layout layer. Screens declare named leaves,
-rows, columns, grids, stacks, dimensions, spacing, alignment, and clipping.
-Taffy resolves absolute and content bounds; screen code never walks parent
-origins or computes draw rectangles.
-
-Taffy does not paint. Each screen consumes named bounds and issues exact
-Blend2D operations. This preserves predictable draw order and keeps visual
-logic beside its screen. Add shared components only after two screens need the
-same composition.
+The shared [composition layer](ui-composition.md) owns keyed layout and paint.
+Screens describe `Element` trees or use custom pixel layouts, then record normal
+primitives through `Canvas`. Taffy resolves layout; Blend2D executes the retained
+commands. `Recording` groups custom painting into locally anchored sections.
+There is no separate one-shot layout engine or direct screen-rendering API.
 
 Each screen owns:
 
 - typed display model and presentation state;
-- top-level `UiTree`;
+- keyed composition and layout;
 - painting and animation;
 - hit targets;
 - preview fixture and pixel tests.

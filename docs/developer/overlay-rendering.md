@@ -30,6 +30,10 @@ or add compatibility adapters between applications shipped together.
 - Both hosts wait for events or explicit deadlines. The existing 100 ms focus
   probes remain control work; neither host uses a fixed render-loop timer.
   Partial Wayland damage alone does not eliminate layout or command submission.
+- Both companions record ordinary graphics into the shared composition layer.
+  Warframe retains its static frame and records transient loading/status commands;
+  PoE2 retains layout and named paint sections. Only its active text editor needs
+  live custom painting. Native thread budgets and surface repair remain host-owned.
 
 These are architectural gaps, not measured claims about game frame-time impact.
 
@@ -56,13 +60,20 @@ Use the shared native pool, not isolated per-frame pools or a second application
 render queue.
 
 Clients choose a preferred budget through `render_thread_budget`, which caps it
-at four and at the process's available CPU count. This runs when creating the
+at six and at the process's available CPU count. This runs when creating the
 renderer, not on every paint. Warframe prefers two for static scene rendering;
 PoE2 prefers four for its full-panel paint. Offscreen checks and Warframe's
 transient surface pass use one. A complete cached Warframe frame needs no extra
 context when there are no transient additions. These are measured starting
 points, not CPU-model heuristics or automatic load tuning. Explicit benchmark
 counts can exceed the normal budget.
+
+The desktop host prefers six threads and owns its Winit frame policy. Composition
+must not import that desktop preference into an overlay. In-game policy prioritizes
+bounded work bursts and protecting game frame times; foreground desktop policy
+prioritizes input, animation and scroll latency. Optional preparation/analysis needs
+host-owned budgets and cancellation. Hidden/idle hosts still sleep. Sharing the
+draw tree does not imply sharing thread counts, pacing or background-work quotas.
 
 `finish()` waits for native completion and checks accumulated worker errors before
 releasing the target. Drop also completes outstanding work. Only submit a Wayland

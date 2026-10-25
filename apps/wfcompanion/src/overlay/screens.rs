@@ -2,6 +2,7 @@ pub(super) mod ducats;
 mod relic;
 mod status;
 
+use std::rc::Rc;
 use std::time::Duration;
 
 use super::assets::SceneAssets;
@@ -9,7 +10,7 @@ use retinue_ui::painter::CachedFont;
 
 use super::scene::Scene;
 use crate::ui::ScreenOutput;
-use retinue_ui::painter::Painter;
+use retinue_ui::composition::{Canvas, Recording};
 
 pub(super) use status::{
     HEIGHT as STATUS_HEIGHT, INSET as STATUS_INSET, View as StatusView, WIDTH as STATUS_WIDTH,
@@ -38,8 +39,8 @@ pub(super) fn mock_relic_scene() -> crate::relic::Scene {
 }
 
 pub(super) fn draw_static(
-    painter: &mut Painter<'_>,
-    font: &CachedFont,
+    painter: &mut Recording,
+    font: &Rc<CachedFont>,
     assets: &Assets,
     scene: &Scene,
     scale: u32,
@@ -61,7 +62,7 @@ pub(super) fn draw_static(
 }
 
 pub(super) fn draw_animation(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     scene: &Scene,
     output: &ScreenOutput,
     scale: u32,
@@ -76,6 +77,6 @@ pub(super) fn draw_animation(
     }
 }
 
-pub(super) fn draw_status(painter: &mut Painter<'_>, font: &CachedFont, view: StatusView<'_>) {
+pub(super) fn draw_status(painter: &mut Canvas, font: &Rc<CachedFont>, view: StatusView<'_>) {
     status::draw(painter, font, view);
 }

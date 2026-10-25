@@ -2,17 +2,11 @@ use super::*;
 
 impl Shell {
     pub(super) fn identity_bounds(&self) -> Rect {
-        let openness =
-            ((self.geometry.left.width as f32 / self.scale() - 52.0) / 90.0).clamp(0.0, 1.0);
-        Rect {
-            x: self.geometry.left.x + self.px(3.0),
-            y: self.geometry.left.y + self.px(8.0),
-            width: self.geometry.left.width.saturating_sub(self.px(6.0)),
-            height: self.px(49.0 + 31.0 * openness),
-        }
+        self.composition
+            .rect(composition::control_key(Control::Player))
     }
 
-    pub(super) fn paint_identity(&self, p: &mut Painter<'_>) {
+    pub(super) fn paint_identity(&self, p: &mut Canvas) {
         let bounds = self.identity_bounds();
         let bounds = Rect {
             x: bounds.x - self.geometry.left.x,
@@ -43,7 +37,7 @@ impl Shell {
             },
         );
         if let Some(image) = self.foundry.rank_image() {
-            p.draw_image_contained(image, emblem.x, emblem.y, emblem.width, emblem.height);
+            p.image(emblem, image.clone(), ImageFit::Contain);
         } else {
             self.icon(p, Icon::Mastery, emblem);
         }

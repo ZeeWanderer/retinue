@@ -1,13 +1,9 @@
 use super::*;
-use retinue_ui::transition::{Easing, ScalarTransition};
-
-const MOTION: Duration = Duration::from_millis(170);
+use retinue_ui::composition::{Key as ElementKey, SelectionMotion};
 
 pub(super) struct CategoryMotion {
     pub weights: [f32; 8],
-    from: [f32; 8],
-    target: usize,
-    progress: ScalarTransition,
+    motion: SelectionMotion,
 }
 
 impl CategoryMotion {
@@ -15,38 +11,28 @@ impl CategoryMotion {
         let weights = std::array::from_fn(|i| if i == selected { 1.0 } else { 0.0 });
         Self {
             weights,
-            from: weights,
-            target: selected,
-            progress: ScalarTransition::default(),
+            motion: SelectionMotion::new(Self::key(selected)),
         }
     }
 
     pub fn select(&mut self, selected: usize, now: Instant, animate: bool) {
-        self.sample(now);
-        self.from = self.weights;
-        self.target = selected;
-        self.progress.set(0.0, now, Duration::ZERO);
-        self.progress.set_eased(
-            1.0,
-            now,
-            if animate { MOTION } else { Duration::ZERO },
-            Easing::InOutCubic,
-        );
+        self.motion.select(Self::key(selected), now, !animate);
         self.sample(now);
     }
 
     pub fn sample(&mut self, now: Instant) -> bool {
-        let progress = self.progress.value(now);
-        let weights = std::array::from_fn(|i| {
-            self.from[i] + ((if i == self.target { 1.0 } else { 0.0 }) - self.from[i]) * progress
-        });
+        let weights = std::array::from_fn(|i| self.motion.weight(Self::key(i), now));
         let changed = weights != self.weights;
         self.weights = weights;
         changed
     }
 
     pub fn deadline(&self, now: Instant) -> Option<Instant> {
-        self.progress.deadline(now, Duration::from_micros(8_333))
+        self.motion.deadline(now)
+    }
+
+    fn key(index: usize) -> ElementKey {
+        ElementKey::new("foundry.category", index as u64)
     }
 }
 
@@ -61,7 +47,7 @@ impl Foundry {
         self.filter(true);
     }
 
-    pub fn controls(&self) -> Vec<(Action, Rect)> {
+    pub(super) fn layout_controls(&self) -> Vec<(Action, Rect)> {
         let mut controls = Vec::new();
         let left = self.px(10.0);
         let right = self.size.0.saturating_sub(left);

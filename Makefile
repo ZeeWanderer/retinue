@@ -76,7 +76,17 @@ gui-prod: sccache-setup
 
 test-gui: sccache-setup
 	+$(CARGO) test --locked -p retinue-ui --no-default-features --features desktop
-	+$(CARGO) test --locked -p wfgui
+	+$(CARGO) test --locked -p wfgui --all-targets
+
+.PHONY: test-composition composition-demo bench-composition
+test-composition: sccache-setup
+	+$(CARGO) test --locked -p retinue-ui --no-default-features
+
+composition-demo: sccache-setup
+	+$(CARGO) run --locked --release -p wfgui --example composition -- $(COMPOSITION_ARGS)
+
+bench-composition: sccache-setup
+	+RETINUE_BENCH_THREADS=4 RETINUE_BENCH_OUTPUT="$(or $(COMPOSITION_OUTPUT),research/retinue/ui-composition)" $(CARGO) run --locked --release -p wfgui --example composition -- --benchmark --output "$(or $(COMPOSITION_OUTPUT),research/retinue/ui-composition)" $(COMPOSITION_ARGS)
 
 .PHONY: test-gui-live
 test-gui-live: sccache-setup
@@ -85,7 +95,7 @@ test-gui-live: sccache-setup
 .PHONY: bench-gui
 bench-gui: sccache-setup
 	@test -n "$(GUI_BENCH_OUTPUT)" || { printf '%s\n' 'Set GUI_BENCH_OUTPUT to a JSON report path'; exit 2; }
-	+GUI_BENCH_OUTPUT="$(GUI_BENCH_OUTPUT)" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --profile $(or $(GUI_BENCH_PROFILE),test) -p wfgui --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
+	+GUI_BENCH_OUTPUT="$(abspath $(GUI_BENCH_OUTPUT))" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --profile $(or $(GUI_BENCH_PROFILE),test) -p wfgui --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
 
 all: dev
 build: dev prod

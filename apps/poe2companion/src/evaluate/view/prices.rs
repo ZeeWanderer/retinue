@@ -1,7 +1,7 @@
 use super::*;
 
 impl View {
-    pub(super) fn currency_icon(&self, p: &mut Painter<'_>, id: &str, rect: Rect, s: f32) {
+    pub(super) fn currency_icon(&self, p: &mut Canvas, id: &str, rect: Rect, s: f32) {
         let Some(icon) = self.currencies.get(id).filter(|i| i.size == rect.width) else {
             return;
         };
@@ -50,7 +50,7 @@ impl View {
 
     pub(super) fn listing_price(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         amount: f64,
         id: &str,

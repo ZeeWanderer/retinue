@@ -1,5 +1,69 @@
 use super::*;
+
+#[test]
+fn rail_animation_does_not_dirty_unchanged_title_paint() {
+    let mut shell = Shell::new(Some(Snapshot::fixture()), 1.0).unwrap();
+    let (width, height) = shell.size;
+    let mut pixels = vec![0; width as usize * height as usize * 4];
+    let mut painter = Painter::new(&mut pixels, width, height).unwrap();
+    shell.paint(&mut painter);
+    painter.finish().unwrap();
+    let now = Instant::now();
+    shell.activate(Control::Left, now);
+    let damage = shell
+        .tick(now + Duration::from_millis(85))
+        .bounds(shell.size)
+        .unwrap();
+    assert!(
+        damage.y >= shell.geometry.title.height,
+        "unexpected damage: {damage:?}"
+    );
+}
 use retinue_ui::damage::AgeRepaintTracker;
+
+#[test]
+fn composition_geometry_drives_chrome_and_local_damage() {
+    for scale in [1.0, 1.25, 2.0] {
+        let shell = view(scale, (2560, 1440));
+        for (control, rect, _) in shell.controls() {
+            let key = composition::control_key(control);
+            assert_eq!(
+                shell.composition.scene.borrow().bounds(key).unwrap().hit,
+                rect
+            );
+            if !rect.is_empty() {
+                assert_eq!(
+                    shell.composition.scene.borrow().hit_test((
+                        (rect.x + rect.width / 2) as f64,
+                        (rect.y + rect.height / 2) as f64
+                    )),
+                    Some(key)
+                );
+            }
+            if control == Control::Smaller || control == Control::Larger {
+                assert_eq!(rect.y, shell.px(7.5));
+            }
+        }
+        assert_eq!(
+            shell.page_damage(Damage::Full),
+            Damage::rect(shell.geometry.center)
+        );
+        assert_eq!(
+            shell.page_damage(Damage::rect(Rect {
+                x: 3,
+                y: 4,
+                width: 10,
+                height: 12
+            })),
+            Damage::rect(Rect {
+                x: shell.geometry.center.x + 3,
+                y: shell.geometry.center.y + 4,
+                width: 10,
+                height: 12
+            })
+        );
+    }
+}
 
 #[test]
 fn scaled_minimum_keeps_the_mastery_grid_visible() {
@@ -89,30 +153,132 @@ fn filter_dismissal_consumes_chrome_press_and_release() {
 
 #[test]
 fn listing_menu_dismisses_across_rails_without_activating_the_background() {
-    for control in [Control::Left, Control::Settings, Control::Larger] {
-        let mut shell = view(1.25, (1920, 1080));
-        shell.pages.fixture();
-        shell.set_page(Page::Inventory);
-        let card = shell.pages.ui.bounds("page.card").unwrap();
-        let center = shell.geometry.center;
-        shell.pointer_move((
-            (center.x + card.x + 5) as f64,
-            (center.y + card.y + 5) as f64,
-        ));
-        assert!(shell.pages.context_menu());
-        assert!(shell.pages.ui.bounds("page.menu").is_some());
-        let (_, r, _) = shell
-            .controls()
-            .into_iter()
-            .find(|(c, _, _)| *c == control)
-            .unwrap();
-        shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
-        shell.pointer_button(true, Instant::now());
-        shell.pointer_button(false, Instant::now());
-        assert!(shell.pages.ui.bounds("page.menu").is_none());
-        assert_eq!(shell.page, Page::Inventory);
-        assert!(!shell.left_collapsed);
-        assert_eq!(shell.scale(), 1.25);
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        for control in [Control::Left, Control::Settings, Control::Larger] {
+            let mut shell = view(1.25, (1920, 1080));
+            shell.pages.fixture();
+            shell.set_page(page);
+            let card = shell.pages.ui.bounds("page.card").unwrap();
+            let center = shell.geometry.center;
+            shell.pointer_move((
+                (center.x + card.x + 5) as f64,
+                (center.y + card.y + 5) as f64,
+            ));
+            assert!(shell.open_context_menu(false));
+            assert!(shell.pages.ui.bounds("page.menu").is_some());
+            let (_, r, _) = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap();
+            shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
+            shell.pointer_button(true, Instant::now());
+            shell.pointer_button(false, Instant::now());
+            assert!(shell.pages.ui.bounds("page.menu").is_none());
+            assert_eq!(shell.page, page);
+            assert!(!shell.left_collapsed);
+            assert_eq!(shell.scale(), 1.25);
+        }
+    }
+}
+
+#[test]
+fn context_menu_takes_keyboard_focus_from_the_chrome_or_other_rail() {
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        for rail_focus in [false, true] {
+            let mut shell = view(1.25, (1920, 1080));
+            shell.pages.fixture();
+            shell.set_page(page);
+            shell.set_focus(Some(Focus::Chrome(Control::Settings)));
+            shell.rail_focus = rail_focus;
+            shell.pages.rail.focus = Some("rail:tab:market".into());
+            let card = shell.pages.ui.bounds("page.card").unwrap();
+            shell.pointer_move((
+                (shell.geometry.center.x + card.x + 5) as f64,
+                (shell.geometry.center.y + card.y + 5) as f64,
+            ));
+            assert!(shell.open_context_menu(false));
+            assert_eq!(shell.focus, None);
+            assert!(!shell.rail_focus);
+            assert_eq!(shell.pages.rail.focus, None);
+            assert!(shell.pages.ui.modal_open());
+        }
+    }
+}
+
+#[test]
+fn settings_navigation_is_transparent_and_all_pages_share_hover_edges() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        for control in [Control::Settings, Control::Inventory] {
+            let rect = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap()
+                .1;
+            shell.pointer_move((-1.0, -1.0));
+            let pixels = render(&shell);
+            let width = shell.size.0;
+            let pixel = |pixels: &[u8], x: u32, y: u32| -> [u8; 4] {
+                pixels[((y * width + x) * 4) as usize..((y * width + x) * 4 + 4) as usize]
+                    .try_into()
+                    .unwrap()
+            };
+            let x = shell.geometry.left.x + shell.geometry.left.width - shell.px(1.0);
+            let y = rect.y + rect.height / 2;
+            assert_eq!(pixel(&pixels, x, y), BACKGROUND);
+            shell.pointer_move(((rect.x + rect.width / 2) as f64, y as f64));
+            let pixels = render(&shell);
+            assert_eq!(pixel(&pixels, x, y), crate::style::NAV_HOVER);
+        }
+    }
+}
+
+#[test]
+fn navigation_hover_damage_includes_the_trailing_indicator_immediately() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        for control in [Control::Relics, Control::Settings] {
+            let r = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap()
+                .1;
+            shell.pointer_move((-1.0, -1.0));
+            let mut pixels = render(&shell);
+            let damage =
+                shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
+            let repair = damage.bounds(shell.size).unwrap();
+            let edge = (
+                shell.geometry.left.x + shell.geometry.left.width - shell.px(1.0),
+                r.y + r.height / 2,
+            );
+            assert!(repair.contains(edge.0 as f64, edge.1 as f64));
+            let mut painter = Painter::new(&mut pixels, shell.size.0, shell.size.1).unwrap();
+            painter.clip_to_rect(repair);
+            painter.fill_rounded_rect(
+                repair.x,
+                repair.y,
+                repair.width,
+                repair.height,
+                0,
+                BACKGROUND,
+            );
+            shell.paint(&mut painter);
+            painter.finish().unwrap();
+            assert_eq!(pixels, render(&shell), "hover {control:?} at {scale}");
+            let damage = shell.pointer_move((-1.0, -1.0));
+            assert!(
+                damage
+                    .bounds(shell.size)
+                    .unwrap()
+                    .contains(edge.0 as f64, edge.1 as f64)
+            );
+        }
     }
 }
 
@@ -310,7 +476,14 @@ fn rail_damage_repairs_alternating_buffers_like_a_full_repaint() {
                     let mut painter =
                         Painter::new(bytemuck::cast_slice_mut(pixels), size.0, size.1).unwrap();
                     painter.clip_to_rect(clip);
-                    fill(&mut painter, clip, 0, BACKGROUND);
+                    painter.fill_rounded_rect(
+                        clip.x,
+                        clip.y,
+                        clip.width,
+                        clip.height,
+                        0,
+                        BACKGROUND,
+                    );
                     shell.paint(&mut painter);
                     painter.finish().unwrap();
                 };
@@ -470,17 +643,7 @@ fn shell_renders_all_rail_states_at_fractional_scales() {
             shell.tick(now + elapsed);
             let mut pixels = vec![0_u8; 1920 * 1080 * 4];
             let mut painter = Painter::new(&mut pixels, 1920, 1080).unwrap();
-            fill(
-                &mut painter,
-                Rect {
-                    x: 0,
-                    y: 0,
-                    width: 1920,
-                    height: 1080,
-                },
-                0,
-                BACKGROUND,
-            );
+            painter.fill_rounded_rect(0, 0, 1920, 1080, 0, BACKGROUND);
             shell.paint(&mut painter);
             painter.finish().unwrap();
             assert!(pixels.chunks_exact(4).all(|p| p[3] == 255));

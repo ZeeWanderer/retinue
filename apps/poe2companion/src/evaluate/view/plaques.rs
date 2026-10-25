@@ -5,7 +5,7 @@ pub(super) enum Plaque {
     Error,
 }
 
-pub(super) fn plaque(p: &mut Painter<'_>, rect: Rect, kind: Plaque, s: f32) {
+pub(super) fn plaque(p: &mut Canvas, rect: Rect, kind: Plaque, s: f32) {
     let (border, background) = match kind {
         Plaque::Value => (rgba(49, 48, 42, 255), rgba(22, 21, 18, 255)),
         // The 80% source fill composites over the window, not over its border.
@@ -55,13 +55,7 @@ fn reliability(confidence: f64) -> (&'static str, [u8; 4]) {
 }
 
 impl View {
-    pub(super) fn paint_estimate(
-        &mut self,
-        p: &mut Painter<'_>,
-        rect: Rect,
-        model: &Model,
-        s: f32,
-    ) {
+    pub(super) fn paint_estimate(&mut self, p: &mut Canvas, rect: Rect, model: &Model, s: f32) {
         plaque(p, rect, Plaque::Value, s);
         let title_width = text_width(&self.ui, "Estimated Value", 12.0 * s).ceil() as u32;
         let title = Rect {
@@ -213,7 +207,7 @@ impl View {
 
     fn plaque_line(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         spans: &[(&str, f32, [u8; 4], bool)],
         gap: f32,

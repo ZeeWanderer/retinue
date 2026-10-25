@@ -2,13 +2,14 @@ use super::artwork::Artwork;
 use super::model::{Item, Model, Profile, number};
 use retinue_ui::{
     Rect,
+    composition::{Canvas, Element, Key, Recording, RecordingMode, Scene, Surface},
     damage::Damage,
     fontdue::{Font, FontSettings},
-    layout::{UiLayout, UiTree},
     line_edit::{Colors, LineEdit},
     painter::{CachedFont, GlyphCache, Painter, TextLine, css_rgba as rgba, text_width, wrap_text},
     taffy::{self, prelude::*},
 };
+use std::{cell::RefCell, rc::Rc};
 
 mod plaques;
 mod prices;
@@ -139,6 +140,50 @@ enum Node {
     RateBudget,
 }
 
+impl From<Node> for Key {
+    fn from(node: Node) -> Self {
+        if let Node::Row(index) = node {
+            return Self::new("evaluate.layout.row", index as u64);
+        }
+        let id = match node {
+            Node::Root => 0,
+            Node::Main => 1,
+            Node::Bar => 2,
+            Node::Content => 3,
+            Node::Card => 4,
+            Node::Header => 5,
+            Node::Item => 6,
+            Node::Profiles => 7,
+            Node::Estimate => 8,
+            Node::Error => 9,
+            Node::Search => 10,
+            Node::Status => 11,
+            Node::ResultFilters => 12,
+            Node::Table => 13,
+            Node::Listings => 14,
+            Node::Footer => 15,
+            Node::RateBudget => 16,
+            Node::Row(_) => unreachable!(),
+        };
+        Self::new("evaluate.layout", id)
+    }
+}
+
+struct Layout(Vec<(Key, Rect)>);
+
+impl Layout {
+    fn find_bounds(&self, node: Node) -> Option<Rect> {
+        let key = Key::from(node);
+        self.0
+            .iter()
+            .find_map(|(id, rect)| (*id == key).then_some(*rect))
+    }
+
+    fn bounds(&self, node: Node) -> Rect {
+        self.find_bounds(node).expect("Evaluate layout node")
+    }
+}
+
 impl Interaction {
     pub fn close_popup(&mut self) -> bool {
         let open = self.menu.is_some() || self.league_open;
@@ -182,10 +227,13 @@ impl Interaction {
 
 pub struct View {
     pub currencies: std::collections::BTreeMap<String, super::currency::Icon>,
-    ui: CachedFont,
-    ui_bold: CachedFont,
-    ui_semibold: CachedFont,
-    item: CachedFont,
+    ui: Rc<CachedFont>,
+    ui_bold: Rc<CachedFont>,
+    ui_semibold: Rc<CachedFont>,
+    item: Rc<CachedFont>,
+    composition: Surface,
+    layout_scene: RefCell<Scene>,
+    editor_bounds: Option<Rect>,
     #[cfg(test)]
     glyphs: GlyphCache,
     artwork: Artwork,
@@ -224,26 +272,29 @@ impl View {
         let glyphs = GlyphCache::new(2 * 1024 * 1024);
         Ok(Self {
             currencies: Default::default(),
-            ui: CachedFont::from_bytes(
+            ui: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Regular.ttf").as_slice(),
                 FontSettings::default(),
                 &glyphs,
-            )?,
-            ui_bold: CachedFont::from_bytes(
+            )?),
+            ui_bold: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Bold.ttf").as_slice(),
                 FontSettings::default(),
                 &glyphs,
-            )?,
-            ui_semibold: CachedFont::from_bytes(
+            )?),
+            ui_semibold: Rc::new(CachedFont::from_bytes(
                 include_bytes!("../../assets/Lato-Semibold.ttf").as_slice(),
                 FontSettings::default(),
                 &glyphs,
-            )?,
-            item: CachedFont::from_bytes(
+            )?),
+            item: Rc::new(CachedFont::from_bytes(
                 include_bytes!(concat!(env!("OUT_DIR"), "/Fontin-SmallCaps.ttf")).as_slice(),
                 FontSettings::default(),
                 &glyphs,
-            )?,
+            )?),
+            composition: Surface::default(),
+            layout_scene: RefCell::default(),
+            editor_bounds: None,
             #[cfg(test)]
             glyphs,
             artwork: Artwork::new()?,
@@ -426,6 +477,7 @@ impl View {
         self.hits.clear();
         self.animation = Damage::None;
         self.age_deadline = None;
+        self.editor_bounds = None;
         let s = scale
             .min(size.0 as f32 / (MAIN + RAIL + 24.0))
             .min(size.1 as f32 / 640.0);
@@ -454,19 +506,21 @@ impl View {
             model,
         )?;
         self.prepare_artwork(&layout, model, interaction, s)?;
-        let mut p = Painter::with_threads(pixels, size.0, size.1, self.render_budget)
+        let mut painter = Painter::with_threads(pixels, size.0, size.1, self.render_budget)
             .map_err(|e| e.to_string())?;
         #[cfg(test)]
         {
-            self.render_threads = p.thread_count();
+            self.render_threads = painter.thread_count();
         }
-        p.clip_to_rect(repair);
-        p.clear();
+        painter.clip_to_rect(repair);
+        painter.clear();
+        let mut p = Recording::new(size);
         let main = layout.bounds(Node::Main);
         self.panel = main;
         self.bounds = layout.bounds(Node::Root);
         fill(&mut p, main, rgba(0, 0, 0, 217));
         let bar = layout.bounds(Node::Bar);
+        p.section(Key::new("evaluate.title", 0), bar);
         fill(&mut p, bar, rgba(22, 21, 18, 255));
         self.hits.push(Hit {
             target: Target::Drag,
@@ -591,6 +645,7 @@ impl View {
         self.paint_item_header(&mut p, header, item_data, s);
 
         let item = layout.bounds(Node::Item);
+        p.section(Key::new("evaluate.item", 0), item);
         if rows
             .iter()
             .any(|r| r.modifier.is_some() || r.query.is_some())
@@ -766,6 +821,7 @@ impl View {
             );
         }
         let profiles = layout.bounds(Node::Profiles);
+        p.section(Key::new("evaluate.profiles", 0), profiles);
         self.artwork.divider(
             &mut p,
             Rect {
@@ -834,9 +890,12 @@ impl View {
             );
         }
         if let Some(rect) = layout.find_bounds(Node::Estimate) {
+            p.section(Key::new("evaluate.estimate", 0), rect);
             self.paint_estimate(&mut p, rect, model, s);
         }
+        p.section(Key::new("evaluate.search", 0), layout.bounds(Node::Content));
         self.paint_search(&mut p, &layout, model, interaction, s, phase);
+        p.section(Key::new("evaluate.popups", 0), self.bounds);
         if interaction.tooltip && interaction.menu.is_none() && !interaction.league_open {
             self.paint_listing_preview(&mut p, &layout, model, interaction, size, s);
         }
@@ -934,13 +993,34 @@ impl View {
                 }
             }
         }
-        p.finish().map_err(|e| e.to_string())
+        let editor_bounds = self.editor_bounds;
+        let editor = &mut self.editor;
+        self.composition.draw(p, &mut painter, repair, |key, p| {
+            if key == Key::new("evaluate.editor", 0) {
+                if let Some(bounds) = editor_bounds {
+                    editor.paint(
+                        p,
+                        Rect {
+                            x: 0,
+                            y: 0,
+                            ..bounds
+                        },
+                        12.0 * s,
+                        Colors {
+                            text: INK,
+                            selection: rgba(70, 63, 43, 255),
+                        },
+                    );
+                }
+            }
+        })?;
+        painter.finish().map_err(|e| e.to_string())
     }
 
     fn paint_search(
         &mut self,
-        p: &mut Painter<'_>,
-        layout: &UiLayout<Node>,
+        p: &mut Canvas,
+        layout: &Layout,
         model: &Model,
         interaction: &Interaction,
         s: f32,
@@ -1216,7 +1296,7 @@ impl View {
 
     fn choice_button(
         &mut self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         menu: Menu,
         model: &Model,
@@ -1272,7 +1352,7 @@ impl View {
 
     fn paint_menu(
         &mut self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         model: &Model,
         interaction: &Interaction,
         bar: Rect,
@@ -1456,7 +1536,7 @@ impl View {
 
     fn numeric_field(
         &mut self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         field: Rect,
         target: Target,
         value: &str,
@@ -1486,15 +1566,9 @@ impl View {
             u(s),
         );
         if interaction.focus == Some(target) {
-            self.editor.paint(
-                p,
-                field.inset(px(3, s)),
-                12.0 * s,
-                Colors {
-                    text: INK,
-                    selection: rgba(70, 63, 43, 255),
-                },
-            );
+            let bounds = field.inset(px(3, s));
+            self.editor_bounds = Some(bounds);
+            p.external(Key::new("evaluate.editor", 0), bounds);
         } else {
             self.label(
                 p,
@@ -1589,11 +1663,10 @@ impl View {
         scroll: usize,
         two_titles: bool,
         model: &Model,
-    ) -> Result<UiLayout<Node>, String> {
-        let mut t = UiTree::new();
-        let bar = t.leaf(Node::Bar, fixed(MAIN * s, 28.0 * s))?;
+    ) -> Result<Layout, String> {
+        let bar = Element::new(Node::Bar, fixed(MAIN * s, 28.0 * s));
         let header_height = if two_titles { 54.0 } else { 34.0 };
-        let header = t.leaf(Node::Header, fixed(CONTENT * s, header_height * s))?;
+        let header = Element::new(Node::Header, fixed(CONTENT * s, header_height * s));
         let results = model.results.is_some();
         let error_height = model
             .error
@@ -1631,12 +1704,14 @@ impl View {
             if used + h > viewport - 6.0 * s {
                 break;
             }
-            item_nodes.push(t.leaf(Node::Row(i), fixed(CONTENT * s, h))?);
+            item_nodes.push(Element::new(Node::Row(i), fixed(CONTENT * s, h)));
             used += h;
         }
-        let item = t.column(
+        let item = Element::new(
             Node::Item,
             Style {
+                flex_direction: FlexDirection::Column,
+
                 padding: taffy::Rect {
                     top: length(6.0 * s),
                     bottom: length(0.0_f32),
@@ -1645,20 +1720,27 @@ impl View {
                 },
                 ..fixed(CONTENT * s, viewport)
             },
-            &item_nodes,
-        )?;
-        let profiles = t.leaf(Node::Profiles, fixed(CONTENT * s, 41.0 * s))?;
-        let card = t.column(Node::Card, Style::default(), &[header, item, profiles])?;
+        )
+        .with_children(item_nodes);
+        let profiles = Element::new(Node::Profiles, fixed(CONTENT * s, 41.0 * s));
+        let card = Element::new(
+            Node::Card,
+            Style {
+                flex_direction: FlexDirection::Column,
+                ..Style::default()
+            },
+        )
+        .with_children(vec![header, item, profiles]);
         let mut nodes = vec![card];
         if estimate_height > 0.0 {
             let mut style = fixed(CONTENT * s, estimate_height * s);
             style.margin.top = length(8.0 * s);
-            nodes.push(t.leaf(Node::Estimate, style)?);
+            nodes.push(Element::new(Node::Estimate, style));
         }
         if error_height > 0.0 {
             let mut style = fixed(CONTENT * s, error_height * s);
             style.margin.top = length(8.0 * s);
-            nodes.push(t.leaf(Node::Error, style)?);
+            nodes.push(Element::new(Node::Error, style));
         }
         let mut sections = if results {
             vec![
@@ -1688,11 +1770,13 @@ impl View {
             ) {
                 style.margin.top = length(8.0 * s);
             }
-            nodes.push(t.leaf(key, style)?);
+            nodes.push(Element::new(key, style));
         }
-        let content = t.column(
+        let content = Element::new(
             Node::Content,
             Style {
+                flex_direction: FlexDirection::Column,
+
                 size: Size {
                     width: length(MAIN * s),
                     height: auto(),
@@ -1705,20 +1789,22 @@ impl View {
                 },
                 ..Default::default()
             },
-            &nodes,
-        )?;
-        let main = t.column(
+        )
+        .with_children(nodes);
+        let main = Element::new(
             Node::Main,
             Style {
+                flex_direction: FlexDirection::Column,
+
                 size: Size {
                     width: length(MAIN * s),
                     height: auto(),
                 },
                 ..Default::default()
             },
-            &[bar, content],
-        )?;
-        let root = t.row(
+        )
+        .with_children(vec![bar, content]);
+        let mut root = Element::new(
             Node::Root,
             Style {
                 size: Size {
@@ -1727,13 +1813,22 @@ impl View {
                 },
                 ..Default::default()
             },
-            &[main],
-        )?;
-        t.compute(root, origin, size)
+        )
+        .with_children(vec![main]);
+        root.offset = (origin.0 as f32, origin.1 as f32);
+        let mut scene = self.layout_scene.borrow_mut();
+        scene.update(root, size, 1.0, RecordingMode::Retained)?;
+        Ok(Layout(
+            scene
+                .geometry()
+                .iter()
+                .map(|node| (node.key, scene.layout_rect(node.key).unwrap()))
+                .collect(),
+        ))
     }
     fn button(
         &mut self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         target: Target,
         text: &str,
@@ -1760,7 +1855,7 @@ impl View {
     }
     fn icon_button(
         &mut self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         target: Target,
         icon: Icon,
@@ -1815,7 +1910,7 @@ impl View {
     }
     fn label(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         rect: Rect,
         text: &str,
         size: f32,
@@ -1841,7 +1936,7 @@ impl View {
             color,
         );
     }
-    fn item_label(&self, p: &mut Painter<'_>, rect: Rect, text: &str, size: f32, color: [u8; 4]) {
+    fn item_label(&self, p: &mut Canvas, rect: Rect, text: &str, size: f32, color: [u8; 4]) {
         let text = elide(&self.item, text, size, rect.width);
         let width = text_width(&self.item, &text, size).ceil() as u32;
         p.draw_text_vertically_centered(
@@ -1940,11 +2035,11 @@ fn cell(r: Rect, from: f32, to: f32) -> Rect {
         ..r
     }
 }
-fn fill(p: &mut Painter<'_>, r: Rect, c: [u8; 4]) {
+fn fill(p: &mut Canvas, r: Rect, c: [u8; 4]) {
     p.fill_rounded_rect(r.x, r.y, r.width, r.height, 0, c);
 }
 fn surface(
-    p: &mut Painter<'_>,
+    p: &mut Canvas,
     r: Rect,
     radius: u32,
     border: [u8; 4],
@@ -1962,7 +2057,7 @@ fn surface(
         background,
     );
 }
-fn frame(p: &mut Painter<'_>, r: Rect, c: [u8; 4], w: u32) {
+fn frame(p: &mut Canvas, r: Rect, c: [u8; 4], w: u32) {
     for edge in [
         Rect { height: w, ..r },
         Rect {

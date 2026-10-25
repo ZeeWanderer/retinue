@@ -1,15 +1,15 @@
+use retinue_ui::composition::{Canvas, Key, Recording};
 use retinue_ui::painter::CachedFont;
+use std::rc::Rc;
 
 use super::{Resources, View};
 use crate::ui::{HitRegion, HitTarget, ScreenOutput};
-use retinue_ui::painter::{
-    Painter, RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
-};
+use retinue_ui::painter::{RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width};
 
 mod layout;
 
 pub(super) fn draw(
-    painter: &mut Painter<'_>,
+    painter: &mut Recording,
     resources: &Resources<'_>,
     suggestions: &crate::relic::Suggestions,
     view: View,
@@ -124,13 +124,18 @@ pub(super) fn draw(
         css_rgba(16, 22, 35, 255),
     );
 
-    for (suggestion, card) in suggestions
+    for (index, (suggestion, card)) in suggestions
         .items
         .iter()
         .skip(suggestion_offset)
         .take(4)
         .zip(layout.cards)
+        .enumerate()
     {
+        painter.section(
+            Key::new("relic.suggestion", (index + suggestion_offset) as u64),
+            card,
+        );
         if suggestion.favorite {
             painter.fill_rounded_rect(
                 card.x,
@@ -234,6 +239,7 @@ pub(super) fn draw(
             &ducats,
         );
     }
+    painter.section(Key::new("relic.chrome", 0), shell);
     draw_scrollbar(
         painter,
         grid,
@@ -285,7 +291,7 @@ pub(super) fn draw(
 }
 
 fn draw_scrollbar(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     grid: crate::ui::Rect,
     scale: u32,
     item_count: usize,
@@ -329,9 +335,9 @@ fn draw_scrollbar(
 }
 
 fn draw_suggestion_price(
-    painter: &mut Painter<'_>,
-    font: &CachedFont,
-    icon: &RasterImage,
+    painter: &mut Canvas,
+    font: &Rc<CachedFont>,
+    icon: &Rc<RasterImage>,
     x: u32,
     y: u32,
     scale: u32,

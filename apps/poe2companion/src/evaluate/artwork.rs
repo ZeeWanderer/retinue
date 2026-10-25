@@ -1,10 +1,11 @@
 use retinue_ui::{
     Rect,
+    composition::Canvas,
     image::{self, RgbaImage, imageops},
-    painter::{Painter, RasterImage},
+    painter::RasterImage,
     resources::{Resource, ResourceCache},
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, rc::Rc};
 
 include!(concat!(env!("OUT_DIR"), "/chrome-digests.rs"));
 
@@ -24,13 +25,27 @@ struct ImageKey {
 
 struct Frame {
     caps: [RgbaImage; 3],
-    divider: Option<RasterImage>,
+    divider: Option<Rc<RasterImage>>,
     digest: [u8; 32],
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use retinue_ui::{
+        composition::{Recording, Surface},
+        painter::Painter,
+    };
+
+    fn render(recording: Recording, pixels: &mut [u8]) {
+        let mut painter = Painter::new(pixels, recording.width(), recording.height()).unwrap();
+        painter.clear();
+        let repair = painter.visible_bounds();
+        Surface::default()
+            .draw(recording, &mut painter, repair, |_, _| {})
+            .unwrap();
+        painter.finish().unwrap();
+    }
 
     #[test]
     fn estimate_symbols_keep_reference_footprints_when_scaled() {
@@ -48,9 +63,9 @@ mod tests {
                     height: (height * scale).round() as u32,
                 };
                 let mut pixels = vec![0; (rect.width * rect.height * 4) as usize];
-                let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                let mut painter = Recording::new((rect.width, rect.height));
                 artwork.icon(&mut painter, rect, name, false);
-                painter.finish().unwrap();
+                render(painter, &mut pixels);
                 let points: Vec<_> = pixels
                     .chunks_exact(4)
                     .enumerate()
@@ -88,11 +103,11 @@ mod tests {
             let extent = size + 4;
             let mut pixels = vec![0; (extent * extent * 4) as usize];
             for selected in [false, true] {
-                let mut painter = Painter::new(&mut pixels, extent, extent).unwrap();
-                painter.clear();
+                let mut painter = Recording::new((extent, extent));
+
                 artwork.prepare_controls((24, 20), (size, size)).unwrap();
                 artwork.profile_radio(&mut painter, rect, selected);
-                painter.finish().unwrap();
+                render(painter, &mut pixels);
                 let center = ((rect.y + size / 2) * extent + rect.x + size / 2) as usize * 4;
                 if selected {
                     assert!(pixels[center + 3] >= 240);
@@ -114,10 +129,10 @@ mod tests {
             }
             let misses = artwork.cache_stats().misses;
             artwork.prepare_controls((24, 20), (size, size)).unwrap();
-            let mut painter = Painter::new(&mut pixels, extent, extent).unwrap();
+            let mut painter = Recording::new((extent, extent));
             artwork.profile_radio(&mut painter, rect, true);
             assert_eq!(artwork.cache_stats().misses, misses);
-            painter.finish().unwrap();
+            render(painter, &mut pixels);
         }
     }
 
@@ -132,7 +147,7 @@ mod tests {
                 height: size.1,
             });
             let mut pixels = vec![0; 120 * 40 * 4];
-            let mut painter = Painter::new(&mut pixels, 120, 40).unwrap();
+            let mut painter = Recording::new((120, 40));
             artwork.prepare_controls(size, (16, 16)).unwrap();
             artwork.search_ornaments(&mut painter, rects, false);
             let images = artwork.search_scaled.as_ref().unwrap();
@@ -144,7 +159,7 @@ mod tests {
             let misses = artwork.cache_stats().misses;
             artwork.search_ornaments(&mut painter, rects, true);
             assert_eq!(artwork.cache_stats().misses, misses);
-            painter.finish().unwrap();
+            render(painter, &mut pixels);
             assert!(pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
         }
     }
@@ -170,20 +185,20 @@ mod tests {
                     height: ((if double { 54.0 } else { 34.0 }) * scale) as u32,
                 };
                 let mut pixels = vec![0; rect.width as usize * rect.height as usize * 4];
-                let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                let mut painter = Recording::new((rect.width, rect.height));
                 artwork.begin_frame();
                 artwork.prepare_header(rect, rarity, double).unwrap();
                 artwork.header(&mut painter, rect, rarity, double);
                 let bytes = artwork.headers[0].1.byte_len();
                 assert_eq!(bytes, rect.width as usize * rect.height as usize * 4);
-                painter.finish().unwrap();
+                render(painter, &mut pixels);
                 assert!(pixels.chunks_exact(4).any(|p| p[3] > 0));
                 let misses = artwork.cache_stats().misses;
                 artwork.begin_frame();
                 artwork.prepare_header(rect, rarity, double).unwrap();
-                let mut painter = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                let mut painter = Recording::new((rect.width, rect.height));
                 artwork.header(&mut painter, rect, rarity, double);
-                painter.finish().unwrap();
+                render(painter, &mut pixels);
                 assert_eq!(artwork.cache_stats().misses, misses);
             }
         }
@@ -193,7 +208,7 @@ mod tests {
     fn item_and_listing_headers_reuse_both_compositions() {
         let mut artwork = Artwork::new().unwrap();
         let mut pixels = vec![0; 400 * 54 * 4];
-        let mut painter = Painter::new(&mut pixels, 400, 54).unwrap();
+        let mut painter = Recording::new((400, 54));
         let rect = Rect {
             x: 0,
             y: 0,
@@ -225,7 +240,7 @@ mod tests {
             );
             assert_eq!(artwork.cache_stats().misses, misses);
         }
-        painter.finish().unwrap();
+        render(painter, &mut pixels);
     }
 
     #[test]
@@ -269,7 +284,7 @@ mod tests {
 
 pub struct Artwork {
     frames: BTreeMap<&'static str, Frame>,
-    icons: BTreeMap<&'static str, [RasterImage; 2]>,
+    icons: BTreeMap<&'static str, [Rc<RasterImage>; 2]>,
     cache: ResourceCache<ImageKey, RasterImage>,
     headers: Vec<(ImageKey, Resource<RasterImage>)>,
     search_caps: [RgbaImage; 4],
@@ -314,7 +329,8 @@ impl Artwork {
                             .transpose()?
                             .map(RasterImage::from_rgba)
                             .transpose()
-                            .map_err(|e| e.to_string())?,
+                            .map_err(|e| e.to_string())?
+                            .map(Rc::new),
                     },
                 );
             }};
@@ -393,8 +409,8 @@ impl Artwork {
             icons.insert(
                 name,
                 [
-                    idle_image.map_err(|e| e.to_string())?,
-                    active_image.map_err(|e| e.to_string())?,
+                    Rc::new(idle_image.map_err(|e| e.to_string())?),
+                    Rc::new(active_image.map_err(|e| e.to_string())?),
                 ],
             );
         }
@@ -493,7 +509,7 @@ impl Artwork {
         Ok(())
     }
 
-    pub fn header(&self, painter: &mut Painter<'_>, rect: Rect, rarity: &str, double: bool) {
+    pub fn header(&self, painter: &mut Canvas, rect: Rect, rarity: &str, double: bool) {
         let frame = self
             .frames
             .get(Self::frame_name(rarity, double).as_str())
@@ -513,7 +529,7 @@ impl Artwork {
         painter.draw_image(image, rect.x, rect.y, rect.width, rect.height);
     }
 
-    pub fn divider(&self, painter: &mut Painter<'_>, rect: Rect, rarity: &str, scale: f32) {
+    pub fn divider(&self, painter: &mut Canvas, rect: Rect, rarity: &str, scale: f32) {
         if let Some(image) = self
             .frames
             .get(rarity.to_ascii_lowercase().as_str())
@@ -531,7 +547,7 @@ impl Artwork {
         }
     }
 
-    pub fn icon(&self, painter: &mut Painter<'_>, rect: Rect, name: &str, hovered: bool) {
+    pub fn icon(&self, painter: &mut Canvas, rect: Rect, name: &str, hovered: bool) {
         if let Some(images) = self.icons.get(name) {
             painter.draw_image_contained(
                 &images[usize::from(hovered)],
@@ -543,7 +559,7 @@ impl Artwork {
         }
     }
 
-    pub fn search_ornaments(&self, painter: &mut Painter<'_>, rects: [Rect; 2], highlighted: bool) {
+    pub fn search_ornaments(&self, painter: &mut Canvas, rects: [Rect; 2], highlighted: bool) {
         let images = self
             .search_scaled
             .as_ref()
@@ -559,7 +575,7 @@ impl Artwork {
         }
     }
 
-    pub fn profile_radio(&self, painter: &mut Painter<'_>, rect: Rect, selected: bool) {
+    pub fn profile_radio(&self, painter: &mut Canvas, rect: Rect, selected: bool) {
         painter.draw_image(
             &self
                 .profile_scaled

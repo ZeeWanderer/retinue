@@ -1,11 +1,11 @@
-use taffy::geometry::Rect as TaffyRect;
-use taffy::prelude::*;
-
 use crate::ui::Rect;
-use crate::ui::layout::UiTree;
+use retinue_ui::{
+    composition::{Element, Key, RecordingMode, Scene},
+    taffy::{geometry::Rect as TaffyRect, prelude::*},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Element {
+enum Slot {
     Root,
     Shell,
     Header,
@@ -13,6 +13,21 @@ enum Element {
     Grid,
     Card(usize),
     Footer,
+}
+
+impl From<Slot> for Key {
+    fn from(slot: Slot) -> Self {
+        let value = match slot {
+            Slot::Root => 0,
+            Slot::Shell => 1,
+            Slot::Header => 2,
+            Slot::Close => 3,
+            Slot::Grid => 4,
+            Slot::Footer => 5,
+            Slot::Card(i) => 6 + i as u64,
+        };
+        Self::new("suggestion.layout", value)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -66,9 +81,8 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
         .checked_div(2)
         .unwrap_or(0);
 
-    let mut tree = UiTree::new();
-    let close = tree.leaf(
-        Element::Close,
+    let close = Element::new(
+        Slot::Close,
         Style {
             size: Size {
                 width: length(28.0_f32),
@@ -84,9 +98,9 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             justify_self: Some(JustifySelf::END),
             ..Default::default()
         },
-    )?;
-    let header = tree.stack(
-        Element::Header,
+    );
+    let header = Element::stack(
+        Slot::Header,
         Style {
             size: Size {
                 width: percent(1.0_f32),
@@ -95,14 +109,14 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             flex_shrink: 0.0,
             ..Default::default()
         },
-        &[close],
-    )?;
+        vec![close],
+    );
 
     let card_count = item_count.min(4);
     let mut cards = Vec::with_capacity(card_count);
     for index in 0..card_count {
-        cards.push(tree.leaf(
-            Element::Card(index),
+        cards.push(Element::new(
+            Slot::Card(index),
             Style {
                 size: Size {
                     width: length(card_width as f32),
@@ -110,10 +124,10 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
                 },
                 ..Default::default()
             },
-        )?);
+        ));
     }
-    let grid = tree.grid(
-        Element::Grid,
+    let mut grid = Element::grid(
+        Slot::Grid,
         Style {
             size: Size {
                 width: percent(1.0_f32),
@@ -138,10 +152,11 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             grid_template_rows: vec![length(card_height as f32), length(card_height as f32)],
             ..Default::default()
         },
-        &cards,
-    )?;
-    let footer = tree.leaf(
-        Element::Footer,
+        cards,
+    );
+    grid.clip = true;
+    let footer = Element::new(
+        Slot::Footer,
         Style {
             size: Size {
                 width: percent(1.0_f32),
@@ -150,10 +165,12 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             flex_shrink: 0.0,
             ..Default::default()
         },
-    )?;
-    let shell = tree.column(
-        Element::Shell,
+    );
+    let shell = Element::new(
+        Slot::Shell,
         Style {
+            flex_direction: FlexDirection::Column,
+
             size: Size {
                 width: length(width as f32),
                 height: length(height as f32),
@@ -166,10 +183,10 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             },
             ..Default::default()
         },
-        &[header, grid, footer],
-    )?;
-    let root = tree.row(
-        Element::Root,
+    )
+    .with_children(vec![header, grid, footer]);
+    let root = Element::new(
+        Slot::Root,
         Style {
             size: Size {
                 width: length(screen_width as f32),
@@ -185,23 +202,30 @@ fn build(screen_width: u32, screen_height: u32, item_count: usize) -> Result<Lay
             justify_content: Some(JustifyContent::END),
             ..Default::default()
         },
-        &[shell],
+    )
+    .with_children(vec![shell]);
+    let mut scene = Scene::default();
+    scene.update(
+        root,
+        (screen_width, screen_height),
+        1.0,
+        RecordingMode::Retained,
     )?;
-    let layout = tree.compute(root, (0, 0), (screen_width, screen_height))?;
-    debug_assert!(
-        (0..card_count)
-            .all(|index| layout.clip(Element::Card(index)) == Some(layout.bounds(Element::Grid)))
-    );
+    let bounds = |slot: Slot| {
+        scene
+            .layout_rect(slot.into())
+            .expect("suggestion layout node")
+    };
 
     Ok(Layout {
-        shell: layout.bounds(Element::Shell),
-        header: layout.bounds(Element::Header),
-        close: layout.bounds(Element::Close),
-        grid: layout.bounds(Element::Grid),
+        shell: bounds(Slot::Shell),
+        header: bounds(Slot::Header),
+        close: bounds(Slot::Close),
+        grid: bounds(Slot::Grid),
         cards: (0..card_count)
-            .map(|index| layout.bounds(Element::Card(index)))
+            .map(|index| bounds(Slot::Card(index)))
             .collect(),
-        footer: layout.bounds(Element::Footer),
+        footer: bounds(Slot::Footer),
     })
 }
 

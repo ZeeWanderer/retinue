@@ -1,15 +1,22 @@
 use crate::data::{Job, Snapshot, Update, Usage};
 use retinue_ui::{
     Rect,
+    composition::{
+        Bounds, CachePolicy, Canvas, Change, Element as Composed, Key as ElementKey, RasterMode,
+        RecordingMode, Renderer, Scene,
+    },
     damage::Damage,
     desktop::accesskit::{self, ActionRequest, Node, NodeId, Role, TreeInfo, TreeUpdate},
     focus_visible::FocusVisible,
-    layout::UiTree,
     painter::{CachedFont, GlyphCache, Painter, TextLine, text_width, wrap_text},
     scroll::Scroll,
     taffy::prelude::*,
 };
-use std::time::Instant;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    time::Instant,
+};
 
 pub const BACKGROUND: [u8; 4] = rgb(0x181e2f);
 const GROUP: [u8; 4] = rgb(0x20283e);
@@ -17,6 +24,9 @@ const TEXT: [u8; 4] = rgb(0xeff1f7);
 const MUTED: [u8; 4] = rgb(0x979db0);
 const RED: [u8; 4] = rgb(0xff8796);
 const GREEN: [u8; 4] = rgb(0x7edb91);
+const CONTENT: ElementKey = ElementKey::new("settings", u64::MAX);
+const CHROME: ElementKey = ElementKey::new("settings.chrome", 1);
+const VIEWPORT: ElementKey = ElementKey::new("settings.chrome", 2);
 
 pub const fn rgb(color: u32) -> [u8; 4] {
     [color as u8, (color >> 8) as u8, (color >> 16) as u8, 255]
@@ -74,6 +84,15 @@ struct Element {
     kind: Kind,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+struct ContentPaintInputs {
+    layout: u64,
+    focus: Option<Action>,
+    focus_visible: FocusVisible,
+    hover: Option<Action>,
+    pressed: Option<Action>,
+}
+
 pub struct Settings {
     pub snapshot: Snapshot,
     pub busy: bool,
@@ -93,11 +112,15 @@ pub struct Settings {
     content_left: u32,
     content_height: u32,
     elements: Vec<Element>,
+    composition: RefCell<Scene>,
+    renderer: RefCell<Renderer>,
+    layout_revision: u64,
+    painted_content: Cell<Option<ContentPaintInputs>>,
     scroll: Scroll,
     offset: f32,
     dragging_scroll: Option<f64>,
-    pub regular: CachedFont,
-    pub medium: CachedFont,
+    pub regular: Rc<CachedFont>,
+    pub medium: Rc<CachedFont>,
     glyphs: GlyphCache,
     memory_text: String,
     image_memory: (usize, usize),
@@ -141,11 +164,15 @@ impl Settings {
             content_left: 0,
             content_height: 0,
             elements: Vec::new(),
+            composition: RefCell::new(Scene::default()),
+            renderer: RefCell::new(Renderer::new(0)),
+            layout_revision: 0,
+            painted_content: Cell::new(None),
             scroll: Default::default(),
             offset: 0.0,
             dragging_scroll: None,
-            regular,
-            medium,
+            regular: Rc::new(regular),
+            medium: Rc::new(medium),
             glyphs,
             memory_text: String::new(),
             image_memory: (0, 0),
@@ -225,7 +252,7 @@ impl Settings {
     fn update_memory(&mut self) {
         let stats = self.glyphs.stats();
         self.memory_text = format!(
-            "{} used of {}",
+            "{} used; {} retention budget",
             bytes((stats.live_bytes + self.image_memory.0) as u64),
             bytes((stats.budget_bytes + self.image_memory.1) as u64)
         );
@@ -245,6 +272,24 @@ impl Settings {
     }
 
     fn place_content(&mut self) {
+        self.place_viewport();
+        self.scroll.resize(
+            self.content_height as f32,
+            self.viewport.height as f32,
+            Instant::now(),
+        );
+        self.offset = self.scroll.offset(Instant::now()).round();
+        let scene = self.composition.get_mut();
+        scene.resize(self.size, 1.0).expect("settings root");
+        scene
+            .patch([
+                Change::Offset(VIEWPORT, (self.content_left as f32, 0.0)),
+                Change::Offset(CONTENT, (0.0, -(self.offset as i32) as f32)),
+            ])
+            .expect("settings viewport");
+    }
+
+    fn place_viewport(&mut self) {
         self.content_left = (self.size.0 - self.content_width()) / 2;
         self.viewport = Rect {
             x: 0,
@@ -252,19 +297,13 @@ impl Settings {
             width: self.size.0,
             height: self.size.1.saturating_sub(self.px(76.0)),
         };
-        self.scroll.resize(
-            self.content_height as f32,
-            self.viewport.height as f32,
-            Instant::now(),
-        );
-        self.offset = self.scroll.offset(Instant::now()).round();
     }
 
     fn layout(&mut self) -> Result<(), String> {
+        self.place_viewport();
         let scale = self.scale();
         let width = self.content_width();
         let mut builder = Builder {
-            tree: UiTree::new(),
             kinds: Vec::new(),
             scale,
             font: &self.regular,
@@ -303,7 +342,7 @@ impl Settings {
             Some((Action::Refresh, !self.busy)),
             daemon_color,
         )?;
-        rows.push(builder.group(width, &[daemon_row])?);
+        rows.push(builder.group(width, vec![daemon_row]));
         rows.push(builder.text("Storage", 13.0, MUTED, true, width as f32)?);
         let memory_row = builder.row(
             width,
@@ -340,12 +379,12 @@ impl Settings {
             )),
             color,
         )?;
-        rows.push(builder.group(width, &[memory_row, rendered_row, source_row])?);
+        rows.push(builder.group(width, vec![memory_row, rendered_row, source_row]));
         if let Some(error) = &self.error {
             rows.push(builder.text(error, 14.0, RED, false, width as f32)?);
         }
-        let root = builder.tree.column(
-            usize::MAX,
+        let mut content = column(
+            u64::MAX,
             Style {
                 size: Size {
                     width: length(width as f32),
@@ -363,20 +402,62 @@ impl Settings {
                 },
                 ..Default::default()
             },
-            &rows,
-        )?;
-        let resolved = builder.tree.compute(root, (0, 0), (width, self.size.1))?;
-        self.content_height = resolved.bounds(usize::MAX).height;
+            rows,
+        );
+        content.offset = (0.0, -(self.offset as i32) as f32);
+        content.style.position = Position::Absolute;
+        content.style.flex_shrink = 0.0;
+        let mut viewport = Composed::at(
+            VIEWPORT,
+            Bounds::new(
+                0.0,
+                self.viewport.y as f32,
+                width as f32,
+                self.viewport.height as f32,
+            ),
+        );
+        viewport.offset = (self.content_left as f32, 0.0);
+        viewport.style.size.height = auto();
+        viewport.style.inset.bottom = length(0.0_f32);
+        viewport.clip = true;
+        viewport.children.push(content);
+        let frame = Bounds::new(0.0, 0.0, self.size.0 as f32, self.size.1 as f32);
+        let mut root = Composed::at(ElementKey::new("settings.chrome", 0), frame);
+        root.style.size = percent(1.0_f32);
+        let mut chrome = Composed::at(CHROME, frame);
+        chrome.style.size = percent(1.0_f32);
+        root.children = vec![viewport, chrome];
+        self.composition
+            .get_mut()
+            .update(root, self.size, 1.0, RecordingMode::Retained)?;
+        let bounds = |id| {
+            let r = self
+                .composition
+                .borrow()
+                .bounds(ElementKey::new("settings", id))
+                .unwrap()
+                .layout;
+            Rect {
+                x: (r.x - self.content_left as f32).round().max(0.0) as u32,
+                y: (r.y - self.viewport.y as f32 + (self.offset as i32) as f32)
+                    .round()
+                    .max(0.0) as u32,
+                width: r.width.round().max(0.0) as u32,
+                height: r.height.round().max(0.0) as u32,
+            }
+        };
+        self.content_height = bounds(u64::MAX).height;
         self.elements = builder
             .kinds
             .into_iter()
             .enumerate()
             .map(|(id, kind)| Element {
-                bounds: resolved.bounds(id),
+                bounds: bounds(id as u64),
                 kind,
             })
             .collect();
         self.place_content();
+        self.layout_revision += 1;
         Ok(())
     }
 
@@ -651,7 +732,21 @@ impl Settings {
         })
     }
 
-    pub fn paint(&self, painter: &mut Painter<'_>, focus: FocusVisible) {
+    pub fn paint(&self, target: &mut Painter<'_>, focus: FocusVisible) {
+        self.prepare_paint(focus);
+        self.draw_prepared(target);
+    }
+
+    fn prepare_paint(&self, focus: FocusVisible) {
+        let content = ContentPaintInputs {
+            layout: self.layout_revision,
+            focus: self.focus,
+            focus_visible: focus,
+            hover: self.hover,
+            pressed: self.pressed,
+        };
+        let mut chrome = Canvas::new(1.0);
+        let painter = &mut chrome;
         painter.draw_text(
             &self.medium,
             self.content_left,
@@ -660,47 +755,43 @@ impl Settings {
             "Settings",
             TEXT,
         );
-        painter.viewport(
-            self.viewport,
-            (
-                self.content_left as i32,
-                self.viewport.y as i32 - self.offset as i32,
-            ),
-            |painter| {
-                for element in &self.elements {
-                    if matches!(element.kind, Kind::Group) {
-                        fill(painter, element.bounds, self.px(8.0), GROUP);
+        let mut paints = Vec::new();
+        if self.painted_content.get() != Some(content) {
+            for (index, element) in self.elements.iter().enumerate() {
+                let rect = element.bounds;
+                let mut canvas = Canvas::at((rect.x, rect.y), 1.0);
+                match &element.kind {
+                    Kind::Group => fill(&mut canvas, rect, self.px(8.0), GROUP),
+                    Kind::Text {
+                        value,
+                        size,
+                        color,
+                        heading,
+                    } => canvas.draw_text(
+                        if *heading {
+                            &self.medium
+                        } else {
+                            &self.regular
+                        },
+                        rect.x,
+                        rect.y,
+                        *size,
+                        value,
+                        *color,
+                    ),
+                    Kind::Button { action, enabled } => {
+                        self.button(&mut canvas, *action, rect, *enabled, focus)
                     }
+                    Kind::Separator => fill(&mut canvas, rect, 0, rgb(0x313a58)),
+                    Kind::Container => (),
                 }
-                for element in &self.elements {
-                    let rect = element.bounds;
-                    match &element.kind {
-                        Kind::Text {
-                            value,
-                            size,
-                            color,
-                            heading,
-                        } => painter.draw_text(
-                            if *heading {
-                                &self.medium
-                            } else {
-                                &self.regular
-                            },
-                            rect.x,
-                            rect.y,
-                            *size,
-                            value,
-                            *color,
-                        ),
-                        Kind::Button { action, enabled } => {
-                            self.button(painter, *action, rect, *enabled, focus)
-                        }
-                        Kind::Separator => fill(painter, rect, 0, rgb(0x313a58)),
-                        Kind::Group | Kind::Container => (),
-                    }
-                }
-            },
-        );
+                paints.push((
+                    ElementKey::new("settings", index as u64),
+                    canvas.commands,
+                    CachePolicy::Never,
+                ));
+            }
+        }
         if let Some(thumb) = self.thumb() {
             fill(painter, thumb, self.px(3.0), rgb(0x6a738a));
         }
@@ -750,11 +841,35 @@ impl Settings {
                 self.button(painter, action, rect, true, focus);
             }
         }
+        paints.push((CHROME, chrome.commands, CachePolicy::Never));
+        let mut scene = self.composition.borrow_mut();
+        scene
+            .patch([Change::Offset(CONTENT, (0.0, -(self.offset as i32) as f32))])
+            .expect("settings content");
+        scene.record_many(paints).expect("settings paint nodes");
+        self.painted_content.set(Some(content));
+        let mut renderer = self.renderer.borrow_mut();
+        renderer.prepare(&scene, RasterMode::Replay);
+    }
+
+    fn draw_prepared(&self, target: &mut Painter<'_>) {
+        let scene = self.composition.borrow();
+        let mut renderer = self.renderer.borrow_mut();
+        renderer.draw_with(
+            &scene,
+            target,
+            Rect {
+                width: self.size.0,
+                height: self.size.1,
+                ..Rect::default()
+            },
+            |_, _| unreachable!("settings has no live paint"),
+        );
     }
 
     fn button(
         &self,
-        painter: &mut Painter<'_>,
+        painter: &mut Canvas,
         action: Action,
         rect: Rect,
         enabled: bool,
@@ -880,21 +995,20 @@ impl Settings {
 }
 
 struct Builder<'a> {
-    tree: UiTree<usize>,
     kinds: Vec<Kind>,
     scale: f32,
     font: &'a CachedFont,
 }
 
 impl Builder<'_> {
-    fn group(&mut self, width: u32, rows: &[NodeIdTaffy]) -> Result<NodeIdTaffy, String> {
+    fn group(&mut self, width: u32, rows: Vec<Composed>) -> Composed {
         let mut children = Vec::new();
-        for (index, row) in rows.iter().enumerate() {
+        for (index, row) in rows.into_iter().enumerate() {
             if index != 0 {
                 let id = self.kinds.len();
                 self.kinds.push(Kind::Separator);
-                children.push(self.tree.leaf(
-                    id,
+                children.push(Composed::new(
+                    ElementKey::new("settings", id as u64),
                     Style {
                         size: Size {
                             width: length(width as f32 - 32.0 * self.scale),
@@ -908,14 +1022,14 @@ impl Builder<'_> {
                         },
                         ..Default::default()
                     },
-                )?);
+                ));
             }
-            children.push(*row);
+            children.push(row);
         }
         let id = self.kinds.len();
         self.kinds.push(Kind::Group);
-        self.tree.column(
-            id,
+        column(
+            id as u64,
             Style {
                 size: Size {
                     width: length(width as f32),
@@ -924,7 +1038,7 @@ impl Builder<'_> {
                 flex_shrink: 0.0,
                 ..Default::default()
             },
-            &children,
+            children,
         )
     }
     fn text(
@@ -934,7 +1048,7 @@ impl Builder<'_> {
         color: [u8; 4],
         heading: bool,
         width: f32,
-    ) -> Result<NodeIdTaffy, String> {
+    ) -> Result<Composed, String> {
         let size = size * self.scale;
         let value = wrap_text(self.font, value, size, width).join("\n");
         let metrics = self
@@ -949,8 +1063,8 @@ impl Builder<'_> {
             color,
             heading,
         });
-        self.tree.leaf(
-            id,
+        Ok(Composed::new(
+            ElementKey::new("settings", id as u64),
             Style {
                 size: Size {
                     width: length(width),
@@ -959,7 +1073,7 @@ impl Builder<'_> {
                 flex_shrink: 0.0,
                 ..Default::default()
             },
-        )
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -972,7 +1086,7 @@ impl Builder<'_> {
         path: Option<&str>,
         button: Option<(Action, bool)>,
         color: [u8; 4],
-    ) -> Result<NodeIdTaffy, String> {
+    ) -> Result<Composed, String> {
         let text_width = width as f32 - 136.0 * self.scale;
         let mut labels = vec![
             self.text(title, 16.0, TEXT, true, text_width)?,
@@ -982,8 +1096,8 @@ impl Builder<'_> {
         if let Some(path) = path {
             labels.push(self.text(path, 12.0, MUTED, false, text_width)?);
         }
-        let text = self.tree.column(
-            usize::MAX - self.kinds.len(),
+        let text = column(
+            u64::MAX - self.kinds.len() as u64,
             Style {
                 gap: Size {
                     width: length(0.0_f32),
@@ -991,14 +1105,14 @@ impl Builder<'_> {
                 },
                 ..Default::default()
             },
-            &labels,
-        )?;
+            labels,
+        );
         let mut children = vec![text];
         if let Some((action, enabled)) = button {
             let id = self.kinds.len();
             self.kinds.push(Kind::Button { action, enabled });
-            children.push(self.tree.leaf(
-                id,
+            children.push(Composed::new(
+                ElementKey::new("settings", id as u64),
                 Style {
                     size: Size {
                         width: length(80.0 * self.scale),
@@ -1007,36 +1121,39 @@ impl Builder<'_> {
                     flex_shrink: 0.0,
                     ..Default::default()
                 },
-            )?);
+            ));
         }
         let id = self.kinds.len();
         self.kinds.push(Kind::Container);
-        self.tree.row(
-            id,
-            Style {
-                size: Size {
-                    width: length(width as f32),
-                    height: auto(),
-                },
-                align_items: Some(AlignItems::CENTER),
-                justify_content: Some(JustifyContent::SPACE_BETWEEN),
-                padding: retinue_ui::taffy::Rect {
-                    left: length(16.0 * self.scale),
-                    right: length(16.0 * self.scale),
-                    top: length(16.0 * self.scale),
-                    bottom: length(16.0 * self.scale),
-                },
-                flex_shrink: 0.0,
-                ..Default::default()
+        let mut row = Composed::row(ElementKey::new("settings", id as u64), 0.0, children);
+        row.style = Style {
+            size: Size {
+                width: length(width as f32),
+                height: auto(),
             },
-            &children,
-        )
+            align_items: Some(AlignItems::CENTER),
+            justify_content: Some(JustifyContent::SPACE_BETWEEN),
+            padding: retinue_ui::taffy::Rect {
+                left: length(16.0 * self.scale),
+                right: length(16.0 * self.scale),
+                top: length(16.0 * self.scale),
+                bottom: length(16.0 * self.scale),
+            },
+            flex_shrink: 0.0,
+            ..Default::default()
+        };
+        Ok(row)
     }
 }
 
-type NodeIdTaffy = retinue_ui::taffy::NodeId;
+fn column(id: u64, mut style: Style, children: Vec<Composed>) -> Composed {
+    style.flex_direction = FlexDirection::Column;
+    let mut element = Composed::column(ElementKey::new("settings", id), 0.0, children);
+    element.style = style;
+    element
+}
 
-fn fill(painter: &mut Painter<'_>, rect: Rect, radius: u32, color: [u8; 4]) {
+fn fill(painter: &mut Canvas, rect: Rect, radius: u32, color: [u8; 4]) {
     painter.fill_rounded_rect(rect.x, rect.y, rect.width, rect.height, radius, color);
 }
 
@@ -1077,6 +1194,70 @@ mod tests {
     use super::*;
 
     #[test]
+    fn retained_content_matches_fresh_commands_after_input_and_resize() {
+        for scale in [1.0, 1.25, 2.0] {
+            let mut view = Settings::new(Some(Snapshot::fixture()), scale).unwrap();
+            view.resize((1500, 900), 1.0);
+            let mut focus = FocusVisible::default();
+            for step in 0..8 {
+                match step {
+                    1 => view.hover = Some(Action::ClearSource),
+                    2 => view.focus = Some(Action::Refresh),
+                    3 => focus.pointer_down(),
+                    4 => view.resize((1551, 920), 1.0),
+                    5 => view.activate(Action::ClearRendered),
+                    6 => view.activate(Action::Cancel),
+                    7 => view.set_preference_error(Some("Example error".into())),
+                    _ => (),
+                }
+                let render = |view: &Settings| {
+                    let mut pixels = vec![0; view.size.0 as usize * view.size.1 as usize * 4];
+                    let mut p = Painter::new(&mut pixels, view.size.0, view.size.1).unwrap();
+                    view.paint(&mut p, focus);
+                    p.finish().unwrap();
+                    pixels
+                };
+                let retained = render(&view);
+                view.painted_content.set(None);
+                assert!(retained == render(&view), "step={step}, scale={scale}");
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "opt-in retained Settings phase benchmark"]
+    fn settings_phase_benchmark() {
+        let output = std::env::var("GUI_BENCH_OUTPUT").expect("set GUI_BENCH_OUTPUT");
+        let mut reports = Vec::new();
+        for scale in [1.0, 1.25, 2.0] {
+            let mut view = Settings::new(Some(Snapshot::fixture()), scale).unwrap();
+            view.resize((1600, 1350), 1.0);
+            let mut pixels = vec![0u8; 1600 * 1350 * 4];
+            let mut prepare = Vec::new();
+            let mut draw = Vec::new();
+            for frame in 0..150 {
+                let started = Instant::now();
+                view.prepare_paint(FocusVisible::default());
+                let prepared = Instant::now();
+                let mut painter =
+                    Painter::with_threads(&mut pixels, 1600, 1350, crate::benchmark::threads())
+                        .unwrap();
+                painter.clear();
+                view.draw_prepared(&mut painter);
+                painter.finish().unwrap();
+                if frame > 20 {
+                    prepare.push((prepared - started).as_secs_f64() * 1000.0);
+                    draw.push(prepared.elapsed().as_secs_f64() * 1000.0);
+                }
+            }
+            prepare.sort_by(f64::total_cmp);
+            draw.sort_by(f64::total_cmp);
+            reports.push(serde_json::json!({"scale":scale,"prepare_ms":prepare[prepare.len()/2],"draw_ms":draw[draw.len()/2]}));
+        }
+        std::fs::write(output, serde_json::to_vec_pretty(&reports).unwrap()).unwrap();
+    }
+
+    #[test]
     fn centered_content_moves_without_relayout_and_hits_follow_it() {
         let mut view = Settings::new(Some(Snapshot::fixture()), 1.25).unwrap();
         view.resize((1600, 1400), 1.0);
@@ -1096,6 +1277,10 @@ mod tests {
             view.hit((after.x as f64 + 1.0, after.y as f64 + 1.0)),
             Some(Action::Refresh)
         );
+        let content = view.composition.borrow().bounds(CONTENT).unwrap().layout;
+        let viewport = view.composition.borrow().bounds(VIEWPORT).unwrap().hit;
+        assert_eq!(content.x as u32, view.content_left);
+        assert_eq!(viewport.height, view.viewport.height);
         let tree = view.accessibility();
         let node = tree
             .nodes
@@ -1136,6 +1321,12 @@ mod tests {
         for scale in [1.0, 1.25, 1.5, 2.0] {
             let mut view = Settings::new(Some(Snapshot::fixture()), scale).unwrap();
             view.resize((900, 620), 1.0);
+            let content = view.composition.borrow().bounds(CONTENT).unwrap().layout;
+            assert_eq!(content.x.round() as u32, view.content_left);
+            assert_eq!(
+                content.y.round() as i32,
+                view.viewport.y as i32 - view.offset as i32
+            );
             for element in &view.elements {
                 assert!(
                     element.bounds.x + element.bounds.width <= 900,

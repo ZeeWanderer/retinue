@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::time::Duration;
+use std::{cell::RefCell, rc::Rc};
 
 use image::ImageFormat;
 
 use crate::ui::{Rect, ScreenOutput};
+use retinue_ui::composition::{Key, Recording, Surface as PaintSurface};
 use retinue_ui::painter::{
     CachedFont, GlyphCache, Painter, load_overlay_font, render_thread_budget, straight_rgba,
 };
@@ -15,10 +17,12 @@ use super::screens::{self, Assets, mock_relic_scene};
 pub(super) const LOADING_FRAME_INTERVAL: Duration = Duration::from_nanos(1_000_000_000 / 30);
 
 pub(super) struct Renderer {
-    font: CachedFont,
+    font: Rc<CachedFont>,
     assets: Assets,
     frame: Option<Frame>,
     render_budget: NonZeroU32,
+    static_paint: PaintSurface,
+    transient_paint: RefCell<PaintSurface>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,10 +77,12 @@ impl Frame {
 impl Renderer {
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            font: load_overlay_font(&GlyphCache::new(2 * 1024 * 1024))?,
+            font: Rc::new(load_overlay_font(&GlyphCache::new(2 * 1024 * 1024))?),
             assets: Assets::load()?,
             frame: None,
             render_budget: render_thread_budget(2),
+            static_paint: PaintSurface::default(),
+            transient_paint: RefCell::default(),
         })
     }
 
@@ -102,6 +108,7 @@ impl Renderer {
             &self.font,
             &self.assets,
             self.render_budget,
+            &mut self.static_paint,
         )
     }
 
@@ -161,29 +168,43 @@ impl Renderer {
         if let SurfaceScene::Ducats(scene) = scene {
             self.draw_ducats(&mut painter, scene);
         }
-        if let Some(elapsed) = animation {
-            self.draw_animation(&mut painter, elapsed);
-        }
-        if let Some(view) = status {
-            self.draw_status(&mut painter, view);
+        if animation.is_some() || status.is_some() {
+            self.draw_transients(&mut painter, animation, status);
         }
         painter.finish().map_err(|error| error.to_string())
     }
 
-    pub(super) fn draw_animation(&self, painter: &mut Painter<'_>, elapsed: Duration) {
-        if let Some(frame) = self.frame.as_ref() {
+    fn draw_transients(
+        &self,
+        painter: &mut Painter<'_>,
+        animation: Option<Duration>,
+        status: Option<screens::StatusView<'_>>,
+    ) {
+        let mut recording = Recording::new((painter.width(), painter.height()));
+        if let (Some(frame), Some(elapsed)) = (self.frame.as_ref(), animation) {
             screens::draw_animation(
-                painter,
+                &mut recording,
                 &frame.key.scene,
                 &frame.output,
                 frame.key.scale,
                 elapsed,
             );
         }
-    }
-
-    pub(super) fn draw_status(&self, painter: &mut Painter<'_>, view: screens::StatusView<'_>) {
-        screens::draw_status(painter, &self.font, view);
+        if let Some(view) = status {
+            recording.section(
+                Key::new("warframe.status", 0),
+                Rect {
+                    width: painter.width(),
+                    height: painter.height(),
+                    ..Rect::default()
+                },
+            );
+            screens::draw_status(&mut recording, &self.font, view);
+        }
+        self.transient_paint
+            .borrow_mut()
+            .draw(recording, painter, painter.visible_bounds(), |_, _| {})
+            .expect("transient composition");
     }
 
     pub(super) fn draw_ducats(&self, painter: &mut Painter<'_>, scene: &crate::ducats::Scene) {
@@ -442,9 +463,10 @@ fn blit_surface(target: SurfaceMut<'_>, source: Surface<'_>, origin: (u32, u32))
 fn ensure_frame(
     cache: &mut Option<Frame>,
     key: FrameKey,
-    font: &CachedFont,
+    font: &Rc<CachedFont>,
     assets: &Assets,
     threads: NonZeroU32,
+    composition: &mut PaintSurface,
 ) -> Result<bool, String> {
     if cache.as_ref().is_some_and(|cached| cached.key == key) {
         return Ok(false);
@@ -460,7 +482,18 @@ fn ensure_frame(
     let mut painter = Painter::with_threads(&mut pixels, key.width, key.height, threads)
         .map_err(|error| format!("could not create relic frame painter: {error}"))?;
     painter.clear();
-    let output = screens::draw_static(&mut painter, font, assets, &key.scene, key.scale);
+    let mut recording = Recording::new((key.width, key.height));
+    let output = screens::draw_static(&mut recording, font, assets, &key.scene, key.scale);
+    composition.draw(
+        recording,
+        &mut painter,
+        Rect {
+            width: key.width,
+            height: key.height,
+            ..Rect::default()
+        },
+        |_, _| {},
+    )?;
     #[cfg(test)]
     let render_threads = painter.thread_count();
     painter
@@ -580,10 +613,11 @@ mod tests {
 
                 let mut expected = renderer.frame().unwrap().pixels.clone();
                 let mut painter = Painter::new(&mut expected, size.0, size.1).unwrap();
-                renderer.draw_animation(&mut painter, elapsed);
-                if show_hud {
-                    renderer.draw_status(&mut painter, overlapping_status(scale, pulse));
-                }
+                renderer.draw_transients(
+                    &mut painter,
+                    Some(elapsed),
+                    show_hud.then(|| overlapping_status(scale, pulse)),
+                );
                 painter.finish().unwrap();
                 assert!(
                     buffers[index]
@@ -764,7 +798,7 @@ mod tests {
             assert!(frame.output.animation_bounds.is_none());
             let mut surface = frame.pixels.clone();
             let mut painter = Painter::new(&mut surface, 1920, 1080).unwrap();
-            renderer.draw_animation(&mut painter, Duration::from_millis(750));
+            renderer.draw_transients(&mut painter, Some(Duration::from_millis(750)), None);
             painter.finish().unwrap();
             assert!(
                 surface == frame.pixels,
@@ -843,15 +877,16 @@ mod tests {
         let renderer = Renderer::load().unwrap();
         let mut painter = Painter::new(&mut canvas, 600, 180).unwrap();
         painter.clear();
-        renderer.draw_status(
+        renderer.draw_transients(
             &mut painter,
-            screens::StatusView {
+            None,
+            Some(screens::StatusView {
                 scale: 1,
                 origin: (24, 24),
                 daemon: "DEV | retinue-daemon connected",
                 player: "Warframe running (pid 12345)",
                 detail: "DBWIN on | dbg 8 | relic rewards",
-            },
+            }),
         );
         painter.finish().unwrap();
 

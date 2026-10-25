@@ -488,7 +488,7 @@ impl Pages {
             17.0,
             TEXT,
         );
-        self.ui.field(
+        self.ui.search_field(
             "market:search",
             self.ui.rect(14.0, 89.0, w - 335.0, 32.0),
             &self.market.search,
@@ -635,6 +635,7 @@ impl Pages {
                 self.ui.region("page.card", card);
             }
             let id = text(order, "id");
+            self.ui.begin_scope(("order", id));
             let name = order_name(order, &self.market).to_owned();
             let item = self
                 .market
@@ -890,6 +891,7 @@ impl Pages {
                     !busy,
                 );
             }
+            self.ui.end_scope();
         }
         self.ui.end_scroll();
         self.ui.scrollbar(
@@ -919,7 +921,7 @@ impl Pages {
     pub(super) fn layout_market_rail(&mut self) {
         let w = self.rail.size.0 as f32 / self.rail.scale;
         let h = self.rail.size.1 as f32 / self.rail.scale;
-        self.rail.field(
+        self.rail.search_field(
             "market:query",
             self.rail.rect(10.0, 45.0, w - 55.0, 34.0),
             &self.market.query,
@@ -1095,6 +1097,11 @@ impl Pages {
                     continue;
                 }
                 let user = &order["user"];
+                self.rail.begin_scope((
+                    "market-listing",
+                    text(order, "id"),
+                    text(user, "ingame_name"),
+                ));
                 let name = text(user, "ingame_name");
                 let name = if name.is_empty() {
                     text(user, "ingameName")
@@ -1135,6 +1142,7 @@ impl Pages {
                     "Copy trade whisper",
                     true,
                 );
+                self.rail.end_scope();
             }
             self.rail.end_scroll();
             self.rail.scrollbar(

@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod benchmark;
+mod composition;
 mod icons;
 mod identity;
 mod input;
@@ -15,6 +16,7 @@ use crate::{
 use icons::{Icon, Icons};
 use retinue_ui::{
     Rect,
+    composition::{CachePolicy, Canvas, ImageFit},
     damage::Damage,
     desktop::{
         accesskit::{self, ActionRequest, Node, NodeId, Role, TreeInfo, TreeUpdate},
@@ -148,6 +150,7 @@ pub struct Shell {
     last_title_press: Option<(Instant, (f64, f64))>,
     window_action: Option<Control>,
     icons: Icons,
+    composition: composition::Composition,
 }
 
 impl Shell {
@@ -195,6 +198,7 @@ impl Shell {
             last_title_press: None,
             window_action: None,
             icons: Icons::default(),
+            composition: composition::Composition::default(),
         };
         let now = Instant::now();
         shell.left.set(1.0, now, Duration::ZERO);
@@ -218,7 +222,7 @@ impl Shell {
         Ok(())
     }
 
-    fn reflow(&mut self, now: Instant) {
+    fn reflow(&mut self, now: Instant) -> Damage {
         if self.right_collapsed && self.right.value(now) == 0.0 {
             self.force_right = false;
         }
@@ -228,7 +232,6 @@ impl Shell {
         } else {
             self.left.value(now)
         };
-        let left_width = self.px(52.0 + 90.0 * left);
         let right_fits = self.size.0 >= self.px(142.0 + 400.0 + 520.0 + 26.0);
         self.right_available = right_fits || self.force_right;
         let right = if self.right_available {
@@ -236,46 +239,15 @@ impl Shell {
         } else {
             0.0
         };
-        let right_width = self.px(400.0 * right);
-        let gap = self.px(7.0);
-        let margin = self.px(6.0);
-        let top = self.px(46.0);
-        let right_gap = self.px(7.0 * right);
-        let center_x = margin + left_width + gap;
-        let center_end = self.size.0.saturating_sub(
-            margin
-                + if right_fits {
-                    right_width + right_gap
-                } else {
-                    0
-                },
-        );
-        self.geometry = Geometry {
-            title: Rect {
-                x: 0,
-                y: 0,
-                width: self.size.0,
-                height: self.px(40.0),
-            },
-            left: Rect {
-                x: margin,
-                y: top,
-                width: left_width,
-                height: self.size.1.saturating_sub(top),
-            },
-            center: Rect {
-                x: center_x,
-                y: top,
-                width: center_end.saturating_sub(center_x),
-                height: self.size.1.saturating_sub(top),
-            },
-            right: Rect {
-                x: self.size.0.saturating_sub(margin + right_width),
-                y: top,
-                width: right_width,
-                height: self.size.1.saturating_sub(top),
-            },
-        };
+        let damage = self.composition.update(composition::Layout {
+            size: self.size,
+            scale: self.scale(),
+            left,
+            right,
+            right_fits,
+            tooltip: self.tooltip,
+        });
+        self.geometry = self.composition.geometry();
         self.settings.resize(
             (self.geometry.center.width, self.geometry.center.height),
             self.display_scale as f64,
@@ -289,6 +261,7 @@ impl Shell {
             (self.geometry.right.width, self.geometry.right.height),
             self.scale(),
         );
+        damage
     }
 
     pub fn set_page(&mut self, page: Page) {
@@ -339,80 +312,26 @@ impl Shell {
     }
 
     fn controls(&self) -> Vec<(Control, Rect, bool)> {
-        let row = |x: u32, width: f32, height: f32| Rect {
-            x,
-            y: self.px((40.0 - height) / 2.0),
-            width: self.px(width),
-            height: self.px(height),
-        };
-        let mut right = self.size.0.saturating_sub(self.px(10.0));
-        let mut buttons = vec![(
-            Control::Left,
-            row(self.px(36.0), 30.0, 30.0),
-            !self.compact_left,
-        )];
-        for (control, width, gap) in [
-            (Control::Close, 30.0, 0.0),
-            (Control::Maximize, 30.0, 0.0),
-            (Control::Minimize, 30.0, 7.0),
-            (Control::Right, 30.0, 14.0),
-            (Control::Larger, 25.0, 38.0),
-            (Control::Smaller, 25.0, 0.0),
-        ] {
-            right = right.saturating_sub(self.px(width));
-            let enabled = match control {
-                Control::Smaller => self.settings.ui_scale > 0.75,
-                Control::Larger => self.settings.ui_scale < 2.0,
-                Control::Right => self.right_available,
-                _ => true,
-            };
-            buttons.push((control, row(right, width, width), enabled));
-            right = right.saturating_sub(self.px(gap));
+        composition::CONTROLS
+            .into_iter()
+            .map(|control| {
+                (
+                    control,
+                    self.composition.rect(composition::control_key(control)),
+                    self.control_enabled(control),
+                )
+            })
+            .collect()
+    }
+
+    fn control_enabled(&self, control: Control) -> bool {
+        match control {
+            Control::Left => !self.compact_left,
+            Control::Smaller => self.settings.ui_scale > 0.75,
+            Control::Larger => self.settings.ui_scale < 2.0,
+            Control::Right => self.right_available,
+            _ => true,
         }
-        buttons.push((
-            Control::Settings,
-            Rect {
-                x: self.geometry.left.x + self.px(8.0),
-                y: self.size.1.saturating_sub(self.px(52.0)),
-                width: self.geometry.left.width.saturating_sub(self.px(16.0)),
-                height: self.px(40.0),
-            },
-            true,
-        ));
-        buttons.push((Control::Player, self.identity_bounds(), true));
-        let identity = self.identity_bounds();
-        let start = identity.y
-            + identity.height
-            + self.px(if self.geometry.left.width > self.px(100.0) {
-                22.0
-            } else {
-                8.0
-            });
-        let end = self.size.1.saturating_sub(self.px(60.0));
-        let step = (end.saturating_sub(start) / 6).min(self.px(49.0));
-        for (index, control) in [
-            Control::Foundry,
-            Control::Mastery,
-            Control::Inventory,
-            Control::Relics,
-            Control::Market,
-            Control::Builds,
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            buttons.push((
-                control,
-                Rect {
-                    x: self.geometry.left.x + self.px(8.0),
-                    y: start + index as u32 * step,
-                    width: self.geometry.left.width.saturating_sub(self.px(16.0)),
-                    height: step.min(self.px(40.0)),
-                },
-                true,
-            ));
-        }
-        buttons
     }
 
     fn label(&self, control: Control) -> String {
@@ -452,12 +371,7 @@ impl Shell {
     }
 
     fn activate(&mut self, control: Control, now: Instant) {
-        if self.settings.modal.is_some()
-            || !self
-                .controls()
-                .iter()
-                .any(|(c, _, enabled)| *c == control && *enabled)
-        {
+        if self.settings.modal.is_some() || !self.control_enabled(control) {
             return;
         }
         self.tooltip = false;
@@ -515,14 +429,26 @@ impl Shell {
         }
     }
 
+    pub fn image_memory(&self) -> (usize, usize) {
+        [
+            self.foundry.memory(),
+            self.pages.ui.raster_memory(),
+            self.pages.rail.raster_memory(),
+        ]
+        .into_iter()
+        .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
+    }
+
     pub fn tick(&mut self, now: Instant) -> Damage {
-        let before = self.geometry;
-        self.reflow(now);
+        if self.page == Page::Settings {
+            self.settings.set_image_memory(self.image_memory());
+        }
         let tooltip = self.hover.is_some()
             && self.settings.modal.is_none()
             && now.saturating_duration_since(self.hover_since) >= Duration::from_millis(600);
         let changed = tooltip != self.tooltip;
         self.tooltip = tooltip;
+        let layout = self.reflow(now);
         let page = match self.page {
             Page::Settings => self.settings.tick(now),
             Page::Foundry => self.foundry.tick(now),
@@ -532,21 +458,12 @@ impl Shell {
         if changed {
             return Damage::Full;
         }
-        let mut damage = self.page_damage(page);
+        let mut damage = layout.union(self.page_damage(page));
         if rail != Damage::None {
             damage = damage.union(Damage::rect(self.geometry.right));
         }
         if !matches!(self.page, Page::Foundry | Page::Settings) {
             damage = damage.union(self.page_damage(pages));
-        }
-        for (old, new) in [
-            (before.left, self.geometry.left),
-            (before.center, self.geometry.center),
-            (before.right, self.geometry.right),
-        ] {
-            if old != new {
-                damage = damage.union(Damage::rect(old.union(new)));
-            }
         }
         damage
     }
@@ -571,16 +488,10 @@ impl Shell {
     }
 
     pub fn page_damage(&self, damage: Damage) -> Damage {
-        damage
-            .bounds((self.geometry.center.width, self.geometry.center.height))
-            .map(|r| {
-                Damage::rect(Rect {
-                    x: r.x + self.geometry.center.x,
-                    y: r.y + self.geometry.center.y,
-                    ..r
-                })
-            })
-            .unwrap_or_default()
+        self.composition
+            .scene
+            .borrow()
+            .invalidate(composition::CENTER, damage)
     }
 
     pub fn image_damage(
@@ -678,7 +589,91 @@ impl Shell {
         }
     }
 
+    pub fn layout_report(&self) -> serde_json::Value {
+        serde_json::json!({"scale":self.scale(),"nodes":self.composition.scene.borrow().geometry().iter().map(|node| {
+            serde_json::json!({"scope":node.key.namespace,"id":node.key.value,
+                "parent":node.parent.map(|key|(key.namespace,key.value)),
+                "layout":[node.layout.x,node.layout.y,node.layout.width,node.layout.height],
+                "hit":[node.hit.x,node.hit.y,node.hit.width,node.hit.height],
+                "paint":[node.paint.x,node.paint.y,node.paint.width,node.paint.height]})
+        }).collect::<Vec<_>>()})
+    }
+
     pub fn paint(&self, painter: &mut Painter<'_>) {
+        use composition::*;
+        let mut paints = Vec::new();
+        for key in [TITLE, LEFT, CENTER, RIGHT, TOOLTIP] {
+            if key == TOOLTIP && !self.tooltip {
+                continue;
+            }
+            let mut canvas = Canvas::new(self.scale());
+            match key {
+                TITLE => self.paint_title(&mut canvas),
+                LEFT => self.paint_navigation(&mut canvas),
+                CENTER | RIGHT => {
+                    let rect = self.composition.rect(key);
+                    let rect = Rect { x: 0, y: 0, ..rect };
+                    self.panel(&mut canvas, rect);
+                    canvas.external(key, rect);
+                }
+                TOOLTIP => self.paint_tooltip(&mut canvas),
+                _ => unreachable!(),
+            }
+            paints.push((key, canvas.commands));
+        }
+        for control in [
+            Control::Left,
+            Control::Smaller,
+            Control::Larger,
+            Control::Right,
+            Control::Minimize,
+            Control::Maximize,
+            Control::Close,
+        ] {
+            let key = control_key(control);
+            let rect = self.composition.rect(key);
+            let mut canvas = Canvas::new(self.scale());
+            self.paint_control(
+                &mut canvas,
+                control,
+                Rect { x: 0, y: 0, ..rect },
+                self.control_enabled(control),
+            );
+            paints.push((key, canvas.commands));
+        }
+        let mut scene = self.composition.scene.borrow_mut();
+        scene
+            .record_many(
+                paints
+                    .into_iter()
+                    .map(|(key, commands)| (key, commands, CachePolicy::Never)),
+            )
+            .expect("shell chrome nodes");
+        let mut renderer = self.composition.renderer.borrow_mut();
+        renderer.prepare(&scene, retinue_ui::composition::RasterMode::Replay);
+        renderer.draw_with(
+            &scene,
+            painter,
+            Rect {
+                width: self.size.0,
+                height: self.size.1,
+                ..Rect::default()
+            },
+            |key, painter| match key {
+                CENTER => match self.page {
+                    Page::Settings => self.settings.paint(painter, self.focus_visible),
+                    Page::Foundry => self.foundry.paint(painter, self.focus_visible),
+                    _ => self.pages.paint(painter),
+                },
+                RIGHT => {
+                    self.pages.paint_rail(painter);
+                }
+                _ => unreachable!("only page hosts use live shell paint"),
+            },
+        );
+    }
+
+    fn paint_title(&self, painter: &mut Canvas) {
         let scale = self.scale();
         let title = self.geometry.title;
         if let Some(gradient) = &self.icons.gradient {
@@ -703,17 +698,12 @@ impl Shell {
             14.0,
             TEXT,
         );
-        let buttons = self.controls();
-        let smaller = buttons
-            .iter()
-            .find(|(c, _, _)| *c == Control::Smaller)
-            .unwrap()
-            .1;
-        let larger = buttons
-            .iter()
-            .find(|(c, _, _)| *c == Control::Larger)
-            .unwrap()
-            .1;
+        let smaller = self
+            .composition
+            .rect(composition::control_key(Control::Smaller));
+        let larger = self
+            .composition
+            .rect(composition::control_key(Control::Larger));
         let label = format!("{}%", (self.settings.ui_scale * 100.0).round() as u32);
         let width = text_width(&self.settings.regular, &label, 13.0 * scale).round() as u32;
         self.text(
@@ -725,51 +715,34 @@ impl Shell {
             13.0,
             TEXT,
         );
+    }
 
-        self.panel(painter, self.geometry.center);
-        painter.viewport(
-            self.geometry.center,
-            (self.geometry.center.x as i32, self.geometry.center.y as i32),
-            |p| match self.page {
-                Page::Settings => self.settings.paint(p, self.focus_visible),
-                Page::Foundry => self.foundry.paint(p, self.focus_visible),
-                _ => self.pages.paint(p),
-            },
-        );
-        painter.viewport(self.geometry.left, (0, 0), |p| self.paint_navigation(p));
-        if !self.geometry.right.is_empty() {
-            self.panel(painter, self.geometry.right);
-            painter.viewport(
-                self.geometry.right,
-                (self.geometry.right.x as i32, self.geometry.right.y as i32),
-                |p| self.pages.paint_rail(p),
+    fn paint_control(&self, painter: &mut Canvas, control: Control, rect: Rect, enabled: bool) {
+        if self.hover == Some(control) && enabled || self.pressed == Some(control) {
+            fill(
+                painter,
+                rect,
+                self.px(6.0),
+                if control == Control::Close {
+                    rgb(0xa73746)
+                } else {
+                    rgb(0x313a58)
+                },
             );
         }
-        for (control, rect, enabled) in buttons {
-            if control.page().is_some() {
-                continue;
-            }
-            if self.hover == Some(control) && enabled || self.pressed == Some(control) {
-                fill(
-                    painter,
-                    rect,
-                    self.px(6.0),
-                    if control == Control::Close {
-                        rgb(0xa73746)
-                    } else {
-                        rgb(0x313a58)
-                    },
-                );
-            }
-            self.icon_state(painter, control.icon(self.maximized), rect, enabled);
-            if enabled
-                && self
-                    .focus_visible
-                    .shows(self.focus == Some(Focus::Chrome(control)), false)
-            {
-                focus_ring(painter, rect, self.scale());
-            }
+        self.icon_state(painter, control.icon(self.maximized), rect, enabled);
+        if enabled
+            && self
+                .focus_visible
+                .shows(self.focus == Some(Focus::Chrome(control)), false)
+        {
+            focus_ring(painter, rect, self.scale());
         }
+    }
+
+    fn paint_tooltip(&self, painter: &mut Canvas) {
+        let scale = self.scale();
+        let title = self.geometry.title;
         if self.tooltip {
             if let Some(control) = self.hover {
                 let text = self.label(control);
@@ -807,9 +780,9 @@ impl Shell {
         }
     }
 
-    fn paint_navigation(&self, painter: &mut Painter<'_>) {
+    fn paint_navigation(&self, painter: &mut Canvas) {
         let left = self.geometry.left;
-        painter.viewport(left, (left.x as i32, left.y as i32), |p| {
+        painter.viewport(Rect { x: 0, y: 0, ..left }, (0, 0), |p| {
             self.paint_identity(p);
             let controls = self.controls();
             for (control, label) in [
@@ -819,6 +792,7 @@ impl Shell {
                 (Control::Relics, "Relic\nPlanner"),
                 (Control::Market, "Market"),
                 (Control::Builds, "Build\nPlanner"),
+                (Control::Settings, "Settings"),
             ]
             .into_iter()
             {
@@ -831,13 +805,16 @@ impl Shell {
                     height: bounds.height,
                 };
                 let active = control.page() == Some(self.page);
-                self.icon_state(
-                    p,
-                    control.icon(false),
-                    rect,
-                    active || self.hover == Some(control),
-                );
-                if active {
+                let hovered = self.hover == Some(control);
+                let color = if active {
+                    TEXT
+                } else if hovered {
+                    crate::style::NAV_HOVER
+                } else {
+                    crate::style::NAV_TEXT
+                };
+                self.icon_state(p, control.icon(false), rect, active || hovered);
+                if active || hovered {
                     fill(
                         p,
                         Rect {
@@ -847,7 +824,7 @@ impl Shell {
                             height: bounds.height,
                         },
                         0,
-                        TEXT,
+                        color,
                     );
                 }
                 if left.width > self.px(100.0) {
@@ -866,103 +843,73 @@ impl Shell {
                         },
                         14.0 * self.scale(),
                         label,
-                        if active { TEXT } else { rgb(0x9da8bd) },
+                        color,
+                    );
+                }
+                if control == Control::Settings && self.settings.preference_error.is_some() {
+                    fill(
+                        p,
+                        Rect {
+                            x: rect.x + self.px(26.0),
+                            y: y + self.px(5.0),
+                            width: self.px(6.0),
+                            height: self.px(6.0),
+                        },
+                        self.px(3.0),
+                        crate::style::BAD,
                     );
                 }
             }
         });
-        let rect = self
-            .controls()
-            .into_iter()
-            .find(|(c, _, _)| *c == Control::Settings)
-            .unwrap()
-            .1;
-        fill(
-            painter,
-            rect,
-            self.px(5.0),
-            if self.hover == Some(Control::Settings) {
-                rgb(0x313a58)
-            } else {
-                rgb(0x20283e)
-            },
-        );
-        self.icon(
-            painter,
-            Icon::Settings,
-            Rect {
-                width: self.px(36.0),
-                ..rect
-            },
-        );
-        if self.settings.preference_error.is_some() {
-            fill(
-                painter,
-                Rect {
-                    x: rect.x + self.px(26.0),
-                    y: rect.y + self.px(5.0),
-                    width: self.px(6.0),
-                    height: self.px(6.0),
-                },
-                self.px(3.0),
-                rgb(0xff8796),
-            );
-        }
-        if left.width > self.px(100.0) {
-            self.text(
-                painter,
-                "Settings",
-                rect.x + self.px(38.0),
-                rect.y,
-                rect.height,
-                14.0,
-                TEXT,
-            );
-        }
-        if self.page == Page::Settings {
-            fill(
-                painter,
-                Rect {
-                    x: left.x + left.width - self.px(3.0),
-                    y: rect.y,
-                    width: self.px(3.0),
-                    height: rect.height,
-                },
-                0,
-                TEXT,
-            );
-        }
         for (control, bounds, _) in self.controls() {
             if control.page().is_some()
                 && self
                     .focus_visible
                     .shows(self.focus == Some(Focus::Chrome(control)), false)
             {
-                focus_ring(painter, bounds, self.scale());
+                focus_ring(
+                    painter,
+                    Rect {
+                        x: bounds.x - left.x,
+                        y: bounds.y - left.y,
+                        ..bounds
+                    },
+                    self.scale(),
+                );
             }
         }
     }
 
-    fn panel(&self, painter: &mut Painter<'_>, rect: Rect) {
+    fn panel(&self, painter: &mut Canvas, rect: Rect) {
         let radius = self.px(10.0);
-        fill(painter, rect, radius, settings::BACKGROUND);
-        fill(
-            painter,
-            Rect {
-                y: rect.y + radius,
-                height: rect.height.saturating_sub(radius),
-                ..rect
-            },
+        painter.fill_rounded_rect(
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            radius,
+            settings::BACKGROUND,
+        );
+        let lower = Rect {
+            y: rect.y + radius,
+            height: rect.height.saturating_sub(radius),
+            ..rect
+        };
+        painter.fill_rounded_rect(
+            lower.x,
+            lower.y,
+            lower.width,
+            lower.height,
             0,
             settings::BACKGROUND,
         );
     }
 
-    fn icon(&self, painter: &mut Painter<'_>, icon: Icon, rect: Rect) {
+    fn icon(&self, painter: &mut Canvas, icon: Icon, rect: Rect) {
         self.icon_state(painter, icon, rect, true);
     }
 
-    fn icon_state(&self, painter: &mut Painter<'_>, icon: Icon, rect: Rect, enabled: bool) {
+    fn icon_state(&self, painter: &mut Canvas, icon: Icon, rect: Rect, enabled: bool) {
         let image = self.icons.get(icon, enabled);
         painter.draw_image(
             &image.image,
@@ -975,7 +922,7 @@ impl Shell {
 
     fn text(
         &self,
-        painter: &mut Painter<'_>,
+        painter: &mut Canvas,
         text: &str,
         x: u32,
         y: u32,
@@ -1093,9 +1040,10 @@ impl Shell {
     }
 }
 
-fn fill(p: &mut Painter<'_>, r: Rect, radius: u32, color: [u8; 4]) {
+fn fill(p: &mut Canvas, r: Rect, radius: u32, color: [u8; 4]) {
     p.fill_rounded_rect(r.x, r.y, r.width, r.height, radius, color);
 }
+
 fn access_rect(r: Rect) -> accesskit::Rect {
     accesskit::Rect {
         x0: r.x as f64,

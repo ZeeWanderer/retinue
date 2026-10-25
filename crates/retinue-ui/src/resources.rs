@@ -1,9 +1,10 @@
 use lru::LruCache;
 use std::{
+    collections::HashMap,
     hash::Hash,
     ops::Deref,
     sync::{
-        Arc,
+        Arc, Weak,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -56,6 +57,8 @@ impl<V> Deref for Resource<V> {
 /// Session-owned RAM cache. Handles remain valid, and accounted for, after eviction.
 pub struct ResourceCache<K, V> {
     entries: LruCache<K, Resource<V>>,
+    live: HashMap<K, Weak<Allocation<V>>>,
+    prune_at: usize,
     budget: usize,
     cached_bytes: usize,
     live_bytes: Arc<AtomicUsize>,
@@ -68,6 +71,8 @@ impl<K: Copy + Hash + Eq, V: ResourceSize> ResourceCache<K, V> {
     pub fn new(budget: usize) -> Self {
         Self {
             entries: LruCache::unbounded(),
+            live: HashMap::new(),
+            prune_at: 64,
             budget,
             cached_bytes: 0,
             live_bytes: Arc::default(),
@@ -81,10 +86,18 @@ impl<K: Copy + Hash + Eq, V: ResourceSize> ResourceCache<K, V> {
         if let Some(value) = self.entries.get(key) {
             self.hits += 1;
             Some(value.clone())
+        } else if let Some(value) = self.live.get(key).and_then(Weak::upgrade) {
+            self.hits += 1;
+            Some(Resource(value))
         } else {
+            self.live.remove(key);
             self.misses += 1;
             None
         }
+    }
+
+    pub fn budget_bytes(&self) -> usize {
+        self.budget
     }
 
     pub fn get_or_insert_with(&mut self, key: K, prepare: impl FnOnce() -> V) -> Resource<V> {
@@ -114,6 +127,12 @@ impl<K: Copy + Hash + Eq, V: ResourceSize> ResourceCache<K, V> {
             live_bytes: Arc::clone(&self.live_bytes),
         }));
         self.live_bytes.fetch_add(bytes, Ordering::Relaxed);
+        if self.live.len() >= self.prune_at {
+            self.live.retain(|_, value| value.strong_count() > 0);
+            self.prune_at = self.live.len().saturating_mul(2).max(64);
+        }
+        // Active owners keep lookup identity even when the idle LRU cannot retain it.
+        self.live.insert(key, Arc::downgrade(&resource.0));
         if let Some(previous) = self.entries.pop(&key) {
             self.cached_bytes -= previous.0.bytes;
         }
@@ -132,12 +151,15 @@ impl<K: Copy + Hash + Eq, V: ResourceSize> ResourceCache<K, V> {
 
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.live.clear();
         self.cached_bytes = 0;
     }
 
     pub fn retain(&mut self, mut keep: impl FnMut(&K) -> bool) {
+        self.live
+            .retain(|key, value| value.strong_count() > 0 && keep(key));
         self.entries.retain(|key, value| {
-            if keep(key) {
+            if self.live.contains_key(key) {
                 true
             } else {
                 self.cached_bytes -= value.0.bytes;
@@ -221,7 +243,7 @@ mod tests {
             drop(cache.insert(1_u8, vec![1; 8]));
             let large = cache.insert(2, vec![2; 512]);
             assert_eq!(cache.stats().cached_bytes, budget);
-            assert!(cache.get(&2).is_none());
+            assert!(cache.get(&2).is_some());
             drop(large);
             assert_eq!(cache.stats().live_bytes, budget);
         }
@@ -282,5 +304,52 @@ mod tests {
         assert_eq!(cache.stats().live_bytes, weight(32));
         assert!(cache.get(&1).is_none());
         assert!(cache.get(&2).is_some());
+    }
+
+    #[test]
+    fn visible_working_set_larger_than_budget_does_not_prepare_twice() {
+        for budget in [0, weight(16) * 2] {
+            let mut cache = ResourceCache::new(budget);
+            let held: Vec<_> = (0..12_u8)
+                .map(|key| cache.insert(key, vec![key; 16]))
+                .collect();
+            for _ in 0..4 {
+                for (key, original) in held.iter().enumerate() {
+                    let reused = cache
+                        .get_or_insert_with(key as u8, || panic!("active resource prepared twice"));
+                    assert!(Arc::ptr_eq(&original.0, &reused.0));
+                }
+            }
+            assert!(cache.stats().cached_bytes <= budget);
+            drop(held);
+            assert!(cache.stats().live_bytes <= budget);
+            cache.clear();
+            assert_eq!(cache.stats().live_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn clear_and_replacement_do_not_resurrect_stale_live_handles() {
+        let mut cache = ResourceCache::new(0);
+        let old = cache.insert(1_u8, vec![1; 16]);
+        let current = cache.insert(1, vec![2; 16]);
+        assert_eq!(cache.get(&1).unwrap()[0], 2);
+        drop(current);
+        assert!(cache.get(&1).is_none());
+        assert_eq!(old[0], 1);
+        let held = cache.insert(2, vec![3; 16]);
+        cache.clear();
+        assert!(cache.get(&2).is_none());
+        assert_eq!(held[0], 3);
+    }
+
+    #[test]
+    fn expired_lookup_metadata_is_reclaimed() {
+        let mut cache = ResourceCache::new(0);
+        for key in 0..10000_u32 {
+            drop(cache.insert(key, vec![0; 16]));
+        }
+        assert!(cache.live.len() <= 64);
+        assert_eq!(cache.stats().live_bytes, 0);
     }
 }

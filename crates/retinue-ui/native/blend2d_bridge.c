@@ -145,6 +145,12 @@ BLResult retinue_bl_clip_rect(RetinueBlendPainter* painter, double x, double y, 
   return bl_context_clip_to_rect_d(&painter->context, &rect);
 }
 
+BLResult retinue_bl_set_clip_rect(RetinueBlendPainter* painter, double x, double y, double width, double height) {
+  BLResult result = bl_context_restore_clipping(&painter->context);
+  if (result != BL_SUCCESS) return result;
+  return retinue_bl_clip_rect(painter, x, y, width, height);
+}
+
 BLResult retinue_bl_save(RetinueBlendPainter* painter) {
   return bl_context_save(&painter->context, NULL);
 }

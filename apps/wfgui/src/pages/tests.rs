@@ -8,6 +8,173 @@ fn pages() -> Pages {
 }
 
 #[test]
+fn listing_scrollbar_has_reserved_space_and_drag_events_coalesce() {
+    let mut pages = pages();
+    let source = pages.relics.items[0].clone();
+    let items: Vec<_> = (0..100)
+        .map(|i| {
+            let mut row = source.clone();
+            row["id"] = json!(format!("relic-{i}"));
+            row["name"] = json!(format!("Lith {i:03}"));
+            row
+        })
+        .collect();
+    pages.relics.replace(json!({"items": items}), &pages.quotes);
+    pages.set_page(Page::Relics);
+    for scale in [1.0, 1.25, 2.0] {
+        pages.configure((1600, 1000), (400, 1000), scale);
+        pages.relics.scroll.to(0.0, false, Instant::now());
+        pages.relics.tick(Instant::now());
+        pages.dirty = true;
+        pages.layout();
+        let viewport = pages.ui.bounds("page.grid").unwrap();
+        let track = pages.ui.bounds("list:scroll").unwrap();
+        assert!(track.x >= viewport.x + viewport.width + pages.ui.px(4.0));
+        let card = pages.ui.bounds("page.card").unwrap();
+        assert!(card.x + card.width <= viewport.x + viewport.width);
+        pages.pointer(false, (track.x as f64 + 2.0, track.y as f64 + 2.0));
+        pages.button(false, true);
+        pages.tick(Instant::now());
+        let center = pages.ui.layout_report()["composition"].clone();
+        let rail = pages.rail.layout_report()["composition"].clone();
+        for event in 0..20 {
+            pages.pointer(
+                false,
+                (track.x as f64 + 2.0, track.y as f64 + 30.0 + event as f64),
+            );
+        }
+        assert_eq!(pages.ui.layout_report()["composition"], center);
+        assert_eq!(
+            pages.ui.signals.len(),
+            1,
+            "keep only the latest drag position"
+        );
+        pages.last_clock = unix_ms() / 1000;
+        let (damage, rail_damage) = pages.tick(Instant::now());
+        assert_ne!(damage, Damage::None);
+        assert!(pages.relics.offset > 0);
+        assert_eq!(rail_damage, Damage::None);
+        assert_eq!(pages.rail.layout_report()["composition"], rail);
+        pages.button(false, false);
+    }
+}
+
+#[test]
+fn context_menus_restore_focus_after_keyboard_dismissal_and_refresh() {
+    use retinue_ui::desktop::winit::keyboard::{Key, ModifiersState, NamedKey};
+    let mut pages = pages();
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        pages.set_page(page);
+        let index = pages.listing().visible[0];
+        let invoker = format!("list:item:{index}:menu");
+        pages.ui.focus = Some(invoker.clone());
+        for key in [NamedKey::Escape, NamedKey::Tab] {
+            assert!(pages.keyboard_context_menu());
+            assert!(pages.key(false, Key::Named(key), ModifiersState::empty()));
+            assert!(pages.listing().menu.is_none());
+            assert_eq!(pages.ui.focus.as_ref(), Some(&invoker), "{page:?}");
+            assert!(pages.ui.bounds("page.menu").is_none());
+        }
+        assert!(pages.keyboard_context_menu());
+        pages.listing_mut().menu = None;
+        pages.dirty = true;
+        pages.layout();
+        assert_eq!(pages.ui.focus.as_ref(), Some(&invoker), "{page:?}");
+    }
+}
+
+#[test]
+fn category_capture_commits_the_sampled_page_geometry() {
+    let mut pages = pages();
+    for (page, source, target) in [
+        (Page::Inventory, "parts", "relics"),
+        (Page::Mastery, "all", "warframes"),
+        (Page::Relics, "all", "lith"),
+    ] {
+        pages.set_page(page);
+        pages.layout();
+        pages
+            .capture_category(0, 1, Duration::from_millis(85))
+            .unwrap();
+        let from = pages.ui.bounds(&format!("list:category:{source}")).unwrap();
+        let to = pages.ui.bounds(&format!("list:category:{target}")).unwrap();
+        assert!(from.width > pages.ui.px(38.0), "outgoing {page:?}");
+        assert!(to.width > pages.ui.px(38.0), "incoming {page:?}");
+        pages
+            .capture_category(0, 1, Duration::from_millis(170))
+            .unwrap();
+        assert_eq!(
+            pages
+                .ui
+                .bounds(&format!("list:category:{source}"))
+                .unwrap()
+                .width,
+            pages.ui.px(38.0)
+        );
+        assert!(
+            pages
+                .ui
+                .bounds(&format!("list:category:{target}"))
+                .unwrap()
+                .width
+                > to.width
+        );
+    }
+}
+
+#[test]
+fn resizing_one_region_preserves_the_other_scene() {
+    let mut pages = pages();
+    pages.activity["fissures"][0]["mission"] = json!("Defense");
+    pages.set_page(Page::Relics);
+    pages.layout();
+    let rail = pages.rail.layout_report()["composition"].clone();
+    assert!(rail["recordings"].as_u64().unwrap() > 0);
+    pages.configure((1200, 900), (400, 900), 1.0);
+    assert_eq!(pages.rail.layout_report()["composition"], rail);
+    let center = pages.ui.layout_report()["composition"].clone();
+    pages.configure((1200, 900), (500, 900), 1.0);
+    assert_eq!(pages.ui.layout_report()["composition"], center);
+}
+
+#[test]
+fn rail_only_ticks_remove_expired_fissures_from_the_retained_scene() {
+    let mut pages = pages();
+    let era = pages.rail.bounds("rail:era:lith").unwrap();
+    let point = (era.x as f64 + 10.0, era.y as f64 + 10.0);
+    pages.rail.pointer_move(point);
+    assert_eq!(pages.rail.hover.as_deref(), Some("rail:era:lith"));
+    pages.activity["fissures"][0]["expiry"] = json!(unix_ms() - 1000);
+    pages.last_clock = 0;
+    let (center, rail) = pages.tick(Instant::now());
+    assert_eq!(center, Damage::None);
+    assert_eq!(rail, Damage::Full);
+    pages.rail.pointer_move(point);
+    assert_eq!(pages.rail.hover, None);
+    assert!(pages.rail.bounds("rail:era:lith").is_none());
+}
+
+#[test]
+fn rail_scene_is_committed_for_market_and_hidden_states() {
+    let mut pages = pages();
+    pages.rail_tab = true;
+    pages.layout_rail();
+    let report = pages.rail.layout_report();
+    assert!(report["composition"]["nodes"].as_u64().unwrap() > 1);
+    let button = pages.rail.bounds("rail:tab:market").unwrap();
+    pages
+        .rail
+        .pointer_move((button.x as f64 + 10.0, button.y as f64 + 10.0));
+    assert_eq!(pages.rail.hover.as_deref(), Some("rail:tab:market"));
+    pages.configure((1000, 900), (0, 900), 1.0);
+    let report = pages.rail.layout_report();
+    assert_eq!(report["composition"]["chunks"], 0);
+    assert!(report["controls"].as_array().unwrap().is_empty());
+    pages.rail.pointer_move((10.0, 10.0));
+    assert_eq!(pages.rail.hover, None);
+}
+
+#[test]
 fn page_layout_contracts_hold_at_fractional_scales() {
     let mut pages = pages();
     for scale in [1.0, 1.2, 1.25, 2.0] {

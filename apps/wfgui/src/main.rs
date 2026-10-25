@@ -2,13 +2,18 @@ mod data;
 mod foundry;
 mod login;
 mod media;
+mod menu;
 mod pages;
 mod preferences;
+mod search;
 mod session;
 mod settings;
 mod shell;
 mod style;
 mod widgets;
+
+#[cfg(test)]
+mod benchmark;
 
 use clap::Parser;
 use retinue_client::paths::Paths;
@@ -22,7 +27,7 @@ use retinue_ui::{
             window::{Window, WindowAttributes},
         },
     },
-    painter::{Painter, render_thread_budget},
+    painter::Painter,
 };
 use retinue_ui::{preparation::Preparation, thumbnails::Key as ImageKey};
 use shell::{Page, Shell};
@@ -196,11 +201,19 @@ fn start(args: Args) -> Result<(), String> {
         if let Some(animation) = args.capture_animation.as_deref() {
             let elapsed = std::time::Duration::from_millis(args.capture_time_ms as u64);
             if animation == "category" {
-                view.foundry
-                    .set_category(args.capture_category_from as usize);
-                let now = Instant::now();
-                view.foundry.select_category(args.category as usize, now);
-                view.foundry.tick(now + elapsed);
+                if page == Page::Foundry {
+                    view.foundry
+                        .set_category(args.capture_category_from as usize);
+                    let now = Instant::now();
+                    view.foundry.select_category(args.category as usize, now);
+                    view.foundry.tick(now + elapsed);
+                } else {
+                    view.pages.capture_category(
+                        args.capture_category_from as usize,
+                        args.category as usize,
+                        elapsed,
+                    )?;
+                }
             } else if animation == "search" {
                 view.foundry.focus_action(Some(foundry::Action::Search));
                 view.foundry.tick(Instant::now() + elapsed);
@@ -213,7 +226,7 @@ fn start(args: Args) -> Result<(), String> {
             &mut pixels,
             args.size.0,
             args.size.1,
-            render_thread_budget(4),
+            desktop::render_threads(),
         )
         .map_err(|e| e.to_string())?;
         painter.fill_rounded_rect(0, 0, args.size.0, args.size.1, 0, shell::BACKGROUND);
@@ -338,11 +351,22 @@ fn write_report(path: Option<&PathBuf>, snapshot: &data::Snapshot) -> Result<(),
 
 fn report_view(path: Option<&PathBuf>, view: &Shell) -> Result<(), String> {
     if view.page == Page::Settings {
-        return write_report(path, &view.settings.snapshot);
+        if let Some(path) = path {
+            let mut report =
+                serde_json::to_value(&view.settings.snapshot).map_err(|e| e.to_string())?;
+            report["shell"] = view.layout_report();
+            std::fs::write(
+                path,
+                serde_json::to_vec_pretty(&report).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        return Ok(());
     }
     if view.page != Page::Foundry {
         if let Some(path) = path {
             let mut report = view.pages.report();
+            report["shell"] = view.layout_report();
             report["center_size"] =
                 serde_json::json!([view.geometry.center.width, view.geometry.center.height]);
             report["image_errors"] = serde_json::json!(view.foundry.image_errors);
@@ -361,6 +385,7 @@ fn report_view(path: Option<&PathBuf>, view: &Shell) -> Result<(), String> {
         let work = view.foundry.image_work;
         let data = serde_json::json!({"revision":view.foundry.snapshot.revision,"total":view.foundry.snapshot.items.len(),"filtered":view.foundry.count(),"columns":view.foundry.grid.columns,"offset":view.foundry.offset,"maximum_scroll":view.foundry.maximum(),"viewport":[view.foundry.viewport.width,view.foundry.viewport.height],"prepared_images":view.foundry.prepared_count(),"source_bytes":stats.0.live_bytes,"thumbnail_bytes":stats.1.live_bytes,"image_errors":view.foundry.image_errors,"asset_errors":view.foundry.asset_errors,"error":view.foundry.error,"cache_warnings":view.foundry.cache_warnings,"image_work":{"ram_hits":work.ram_hits,"disk_hits":work.disk_hits,"resamples":work.resamples,"persistent_resamples":work.persistent_resamples,"disk_writes":work.disk_writes}});
         let mut data = data;
+        data["shell"] = view.layout_report();
         data["center_size"] =
             serde_json::json!([view.geometry.center.width, view.geometry.center.height]);
         data["search"] = serde_json::json!(view.foundry.query());
@@ -680,6 +705,8 @@ impl Gui {
             self.memory_generation = self.view.settings.memory_generation;
             self.view.foundry.clear_images();
             self.view.pages.media.clear();
+            self.view.pages.ui.clear_rasters();
+            self.view.pages.rail.clear_rasters();
             self.image_keys.clear();
             self.images_ready = false;
             if let Err(error) = self.images.request(foundry::images::Input {
@@ -900,7 +927,7 @@ impl Application for Gui {
                     );
                     self.view
                         .settings
-                        .set_image_memory(self.view.foundry.memory());
+                        .set_image_memory(self.view.image_memory());
                     if self.view.page == Page::Foundry {
                         page_damage.union(self.view.page_damage(damage))
                     } else {

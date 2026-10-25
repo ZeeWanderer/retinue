@@ -233,6 +233,31 @@ impl Thumbnails {
 mod tests {
     use super::*;
     #[test]
+    fn active_icons_over_budget_are_reused_without_resampling() {
+        let mut encoded = Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(40, 40, image::Rgba([30, 60, 90, 255]))
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .unwrap();
+        let bytes = Box::leak(encoded.into_inner().into_boxed_slice());
+        let requests: Vec<_> = (20..30)
+            .map(|size| Request::embedded(bytes, size, None))
+            .collect();
+        let mut cache = Thumbnails::new(1, 1);
+        let held: Vec<_> = requests
+            .iter()
+            .map(|request| cache.prepare(request).unwrap())
+            .collect();
+        let resamples = cache.work.resamples;
+        for _ in 0..4 {
+            for (request, image) in requests.iter().zip(&held) {
+                assert!(std::ptr::eq(&**image, &*cache.prepare(request).unwrap()));
+            }
+        }
+        assert_eq!(cache.work.resamples, resamples);
+        drop(held);
+        assert_eq!(cache.stats().1.live_bytes, 0);
+    }
+    #[test]
     fn tints_are_distinct_cached_derivatives_preserving_source_alpha() {
         let mut encoded = Cursor::new(Vec::new());
         image::RgbaImage::from_pixel(8, 8, image::Rgba([20, 40, 60, 128]))

@@ -8,6 +8,10 @@ license = "Apache-2.0"
 name = "wfgui"
 path = "src/main.rs"
 
+[[example]]
+name = "composition"
+path = "examples/composition/main.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
@@ -23,4 +27,5 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 
 [dev-dependencies]
 bytemuck = "1"
+rustix = { version = "1", features = ["time"] }
 x11rb = { version = "0.13", features = ["xtest"] }

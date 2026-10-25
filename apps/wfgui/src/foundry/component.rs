@@ -1,10 +1,11 @@
 use super::*;
-use retinue_ui::{painter::wrap_text, popover::Popover};
+use retinue_ui::popover::Popover;
 
 #[derive(Default)]
 pub(super) struct ComponentPanel {
     pub popup: Popover,
     target: Option<(String, String, usize)>,
+    layout: Option<crate::menu::Layout>,
 }
 
 impl Foundry {
@@ -12,6 +13,27 @@ impl Foundry {
         if let Some(Action::Component(row, part) | Action::ComponentRelic(row, part)) = self.hit(p)
         {
             self.open_component(row, part);
+            return true;
+        }
+        false
+    }
+    pub fn keyboard_context_menu(&mut self) -> bool {
+        if let Some(Action::Component(row, part) | Action::ComponentRelic(row, part)) = self.focus {
+            self.open_component(row, part);
+            true
+        } else {
+            false
+        }
+    }
+    pub fn dismiss_popup_at(&mut self, point: (f64, f64)) -> bool {
+        if self.component_open() && !self.component_panel.popup.bounds.contains(point.0, point.1) {
+            self.close_component();
+            return true;
+        }
+        if self.filters_open() && !self.filter_panel.popup.bounds.contains(point.0, point.1) {
+            self.close_filters();
+            self.cancel_pointer();
+            self.focus_action(Some(Action::Filters));
             return true;
         }
         false
@@ -39,11 +61,11 @@ impl Foundry {
         let mut actions = vec![Action::ComponentFavorite, Action::ComponentSearch];
         if let Some((row, part)) = self.component_target() {
             let c = &self.snapshot.items[row].components[part];
-            if c.market_name.as_ref().is_some_and(|s| !s.is_empty()) {
-                actions.push(Action::ComponentMarket);
-            }
             if c.relic_drop || c.owned_relic {
                 actions.push(Action::ComponentRelics);
+            }
+            if c.market_name.as_ref().is_some_and(|s| !s.is_empty()) {
+                actions.push(Action::ComponentMarket);
             }
         }
         actions
@@ -64,41 +86,7 @@ impl Foundry {
         }
     }
     pub fn item_controls(&self) -> Vec<(Action, Rect)> {
-        self.visible(0)
-            .flat_map(|i| {
-                let row = self.filtered[i];
-                let c = &self.snapshot.items[row];
-                let card = self.card_rect(i);
-                std::iter::once((Action::Favorite(row), self.title_rects(c).0))
-                    .chain(
-                        self.parts(c.components.len())
-                            .into_iter()
-                            .enumerate()
-                            .flat_map(move |(part, rect)| {
-                                std::iter::once((Action::Component(row, part), rect)).chain(
-                                    c.components[part].owned_relic.then_some((
-                                        Action::ComponentRelic(row, part),
-                                        self.relic_badge(rect),
-                                    )),
-                                )
-                            }),
-                    )
-                    .filter_map(move |(action, r)| {
-                        let y = card.y as i64 + r.y as i64 - self.offset as i64;
-                        (y >= self.viewport.y as i64
-                            && y + r.height as i64
-                                <= (self.viewport.y + self.viewport.height) as i64)
-                            .then_some((
-                                action,
-                                Rect {
-                                    x: card.x + r.x,
-                                    y: y.max(0) as u32,
-                                    ..r
-                                },
-                            ))
-                    })
-            })
-            .collect()
+        self.resolved_composition().controls(true)
     }
 
     pub fn popup_open(&self) -> bool {
@@ -213,21 +201,18 @@ impl Foundry {
         let card = self.card_rect(index);
         anchor.x += card.x;
         anchor.y = (anchor.y + card.y).saturating_sub(self.offset);
-        let width = self
-            .px(336.0)
-            .min(self.size.0.saturating_sub(self.px(16.0)));
         let component = &self.snapshot.items[row].components[part];
-        let name = &component.name;
-        let metadata_rows =
-            1 + u32::from(component.blueprint_owned > 0) + u32::from(component.owned_relic);
-        let lines = wrap_text(
-            &self.regular,
-            name,
-            17.0 * self.scale,
-            width.saturating_sub(self.px(56.0)) as f32,
-        )
-        .len() as u32;
-        self.component_panel.popup.layout(
+        let mut details = vec![format!(
+            "{} owned / {} required",
+            component.owned, component.required
+        )];
+        if component.blueprint_owned > 0 {
+            details.push(format!("{} blueprints owned", component.blueprint_owned));
+        }
+        if component.owned_relic {
+            details.push("In owned relics".into());
+        }
+        let layout = crate::menu::Layout::new(
             anchor,
             Rect {
                 x: self.px(8.0),
@@ -235,46 +220,28 @@ impl Foundry {
                 width: self.size.0.saturating_sub(self.px(16.0)),
                 height: self.size.1.saturating_sub(self.px(16.0)),
             },
-            (
-                width,
-                self.px(29.0 + self.component_actions().len() as f32 * 38.0)
-                    + (lines + metadata_rows) * self.px(23.0),
-            ),
-            self.px(8.0),
+            &component.name,
+            &details,
+            self.component_actions().len(),
+            &self.regular,
+            self.scale,
         );
+        self.component_panel.popup.bounds = layout.bounds;
+        self.component_panel.layout = Some(layout);
     }
 
     pub(super) fn component_controls(&self) -> Vec<(Action, Rect)> {
-        let r = self.component_panel.popup.bounds;
-        let mut controls = vec![(
-            Action::CloseComponent,
-            Rect {
-                x: r.x + r.width.saturating_sub(self.px(36.0)),
-                y: r.y + self.px(4.0),
-                width: self.px(32.0),
-                height: self.px(32.0),
-            },
-        )];
-        let actions = self.component_actions();
-        controls.extend(actions.iter().enumerate().map(|(i, action)| {
-            (
-                *action,
-                Rect {
-                    x: r.x + self.px(12.0),
-                    y: r.y
-                        + r.height
-                            .saturating_sub(self.px(6.0 + (actions.len() - i) as f32 * 38.0)),
-                    width: r.width.saturating_sub(self.px(24.0)),
-                    height: self.px(32.0),
-                },
-            )
-        }));
-        controls
+        let Some(layout) = &self.component_panel.layout else {
+            return vec![];
+        };
+        self.component_actions()
+            .into_iter()
+            .zip(layout.rows.iter().copied())
+            .collect()
     }
 
     pub(super) fn component_label(&self, action: Action) -> String {
         match action {
-            Action::CloseComponent => "Close component details".into(),
             Action::ComponentFavorite => {
                 if self.component_target().is_some_and(|(r, p)| {
                     self.preferences
@@ -285,7 +252,7 @@ impl Foundry {
                     "Add to favorites".into()
                 }
             }
-            Action::ComponentSearch => "Search Foundry for this part".into(),
+            Action::ComponentSearch => "Show in Foundry".into(),
             Action::ComponentMarket => "View market listings".into(),
             Action::ComponentRelics => "Show in Relic Planner".into(),
             _ => String::new(),
@@ -320,7 +287,6 @@ impl Foundry {
                 self.component_market(r, p);
             }
             Action::ComponentRelics => self.component_relics(r, p),
-            Action::CloseComponent => self.close_component(),
             Action::ComponentFavorite => {
                 self.preferences
                     .toggle_favorite(&self.snapshot.items[r].components[p].id);
@@ -344,21 +310,29 @@ impl Foundry {
 
     pub(super) fn component_key(&mut self, key: InputKey<&str>, modifiers: ModifiersState) {
         match key {
-            InputKey::Named(NamedKey::Escape) => self.close_component(),
+            InputKey::Named(NamedKey::Escape | NamedKey::Tab) => self.close_component(),
             InputKey::Character("f") if modifiers.control_key() => {
                 self.close_component();
                 self.focus_action(Some(Action::Search));
                 self.search.borrow_mut().key(0x61, true, false);
             }
-            InputKey::Named(NamedKey::Tab | NamedKey::ArrowUp | NamedKey::ArrowDown) => {
+            InputKey::Named(
+                NamedKey::ArrowUp | NamedKey::ArrowDown | NamedKey::Home | NamedKey::End,
+            ) => {
                 let controls = self.component_controls();
-                let previous = key == InputKey::Named(NamedKey::ArrowUp)
-                    || (key == InputKey::Named(NamedKey::Tab) && modifiers.shift_key());
+                if controls.is_empty() {
+                    return;
+                }
+                let previous = key == InputKey::Named(NamedKey::ArrowUp);
                 let i = controls
                     .iter()
                     .position(|(a, _)| Some(*a) == self.focus)
                     .unwrap_or(0);
-                let next = if previous {
+                let next = if key == InputKey::Named(NamedKey::Home) {
+                    0
+                } else if key == InputKey::Named(NamedKey::End) {
+                    controls.len() - 1
+                } else if previous {
                     (i + controls.len() - 1) % controls.len()
                 } else {
                     (i + 1) % controls.len()
@@ -376,95 +350,28 @@ impl Foundry {
 
     pub(super) fn paint_component(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         focus: retinue_ui::focus_visible::FocusVisible,
     ) {
-        let Some((row, part)) = self.component_target() else {
+        let Some(layout) = &self.component_panel.layout else {
             return;
         };
-        let c = &self.snapshot.items[row].components[part];
-        let r = self.component_panel.popup.bounds;
-        p.fill_rounded_rect(
-            r.x,
-            r.y,
-            r.width,
-            r.height,
-            self.px(8.0),
-            crate::style::POPOVER,
+        let controls = self.component_controls();
+        let labels: Vec<_> = controls
+            .iter()
+            .map(|(a, _)| self.component_label(*a))
+            .collect();
+        let items: Vec<_> = labels.iter().map(|s| (s.as_str(), true)).collect();
+        layout.paint(
+            p,
+            &self.regular,
+            &items,
+            controls
+                .iter()
+                .position(|(_, r)| r.contains(self.pointer.0, self.pointer.1)),
+            controls
+                .iter()
+                .position(|(a, _)| focus.shows(self.focus == Some(*a), false)),
         );
-        let text_width = r.width.saturating_sub(self.px(56.0));
-        let lines = wrap_text(&self.regular, &c.name, 17.0 * self.scale, text_width as f32);
-        for (i, line) in lines.iter().enumerate() {
-            self.text(
-                p,
-                line,
-                Rect {
-                    x: r.x + self.px(14.0),
-                    y: r.y + self.px(10.0) + i as u32 * self.px(23.0),
-                    width: text_width,
-                    height: self.px(23.0),
-                },
-                17.0,
-                TEXT,
-            );
-        }
-        let rows = [
-            format!("{} owned / {} required", c.owned, c.required),
-            if c.blueprint_owned > 0 {
-                format!("{} blueprints owned", c.blueprint_owned)
-            } else {
-                String::new()
-            },
-            if c.owned_relic {
-                "In owned relics".into()
-            } else {
-                String::new()
-            },
-        ];
-        for (i, text) in rows.iter().filter(|s| !s.is_empty()).enumerate() {
-            self.text(
-                p,
-                text,
-                Rect {
-                    x: r.x + self.px(14.0),
-                    y: r.y + self.px(16.0) + (lines.len() as u32 + i as u32) * self.px(23.0),
-                    width: r.width.saturating_sub(self.px(28.0)),
-                    height: self.px(23.0),
-                },
-                14.0,
-                MUTED,
-            );
-        }
-        for (action, r) in self.component_controls() {
-            if action == Action::CloseComponent {
-                self.icon(p, Badge::Close, r);
-            } else {
-                p.fill_rounded_rect(
-                    r.x,
-                    r.y,
-                    r.width,
-                    r.height,
-                    self.px(6.0),
-                    if r.contains(self.pointer.0, self.pointer.1) {
-                        crate::style::MENU_HOVER
-                    } else {
-                        CARD
-                    },
-                );
-                self.text(
-                    p,
-                    &self.component_label(action),
-                    Rect {
-                        x: r.x + self.px(10.0),
-                        ..r
-                    },
-                    14.0,
-                    TEXT,
-                );
-            }
-            if focus.shows(self.focus == Some(action), false) {
-                crate::style::focus_ring(p, r, self.scale);
-            }
-        }
     }
 }

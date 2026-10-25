@@ -38,36 +38,7 @@ impl Foundry {
         {
             return Some(Action::Scroll);
         }
-        if !self.viewport.contains(p.0, p.1) {
-            return None;
-        }
-        self.visible(0).find_map(|i| {
-            let rect = self.card_rect(i);
-            let c = &self.snapshot.items[self.filtered[i]];
-            let star = self.title_rects(c).0;
-            let local = (
-                p.0 - rect.x as f64,
-                p.1 + self.offset as f64 - rect.y as f64,
-            );
-            if star.contains(local.0, local.1) {
-                return Some(Action::Favorite(self.filtered[i]));
-            }
-            let parts = self.parts(c.components.len());
-            if let Some((j, _)) = parts.iter().enumerate().find(|(j, r)| {
-                c.components[*j].owned_relic && self.relic_badge(**r).contains(local.0, local.1)
-            }) {
-                return Some(Action::ComponentRelic(self.filtered[i], j));
-            }
-            parts
-                .iter()
-                .enumerate()
-                .find(|(j, r)| {
-                    r.contains(local.0, local.1)
-                        || (c.components[*j].owned_relic
-                            && self.relic_badge(**r).contains(local.0, local.1))
-                })
-                .map(|(j, _)| Action::Component(self.filtered[i], j))
-        })
+        self.resolved_composition().hit(p)
     }
     pub fn pointer_move(&mut self, p: (f64, f64)) -> Damage {
         if self.component_open() {
@@ -277,8 +248,7 @@ impl Foundry {
                 }
             }
             Action::ComponentRelic(r, p) => self.component_relics(r, p),
-            Action::CloseComponent
-            | Action::ComponentFavorite
+            Action::ComponentFavorite
             | Action::ComponentSearch
             | Action::ComponentMarket
             | Action::ComponentRelics => self.component_activate(action),
@@ -483,8 +453,7 @@ impl Foundry {
                     format!("{}: {}", filter.title(), filter.label(*value))
                 }
                 Action::Refresh => "Refresh".into(),
-                Action::CloseComponent
-                | Action::ComponentFavorite
+                Action::ComponentFavorite
                 | Action::ComponentSearch
                 | Action::ComponentMarket
                 | Action::ComponentRelics => self.component_label(*action),

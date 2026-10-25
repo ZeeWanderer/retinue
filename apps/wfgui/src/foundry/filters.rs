@@ -334,13 +334,13 @@ impl Foundry {
 
     pub(super) fn paint_filters(
         &self,
-        p: &mut Painter<'_>,
+        p: &mut Canvas,
         focus: retinue_ui::focus_visible::FocusVisible,
     ) {
         let r = self.filter_panel.popup.bounds;
         p.fill_rounded_rect(r.x, r.y, r.width, r.height, self.px(10.0), PANEL);
         p.outline(r, self.px(10.0), self.px(1.0).max(1), rgb(0x9097a8));
-        self.text(
+        self.record_text(
             p,
             "Filters",
             Rect {
@@ -370,7 +370,7 @@ impl Foundry {
                     );
                 }
                 if action == Action::CloseFilters {
-                    self.icon(p, Badge::Close, bounds);
+                    self.record_icon(p, Badge::Close, bounds);
                 } else {
                     self.filter_label(
                         p,
@@ -397,7 +397,7 @@ impl Foundry {
                         "Enough mastery (unknown)"
                     };
                     let width = text_width(&self.regular, title, 15.0 * self.scale).ceil() as u32;
-                    self.text(
+                    self.record_text(
                         p,
                         title,
                         Rect {
@@ -457,9 +457,9 @@ impl Foundry {
         }
     }
 
-    fn filter_label(&self, p: &mut Painter<'_>, text: &str, r: Rect, color: [u8; 4]) {
+    fn filter_label(&self, p: &mut Canvas, text: &str, r: Rect, color: [u8; 4]) {
         let width = text_width(&self.regular, text, 14.0 * self.scale).ceil() as u32;
-        self.text(
+        self.record_text(
             p,
             text,
             Rect {

@@ -169,8 +169,8 @@ impl Drop for Image {
 }
 
 pub(super) struct Rect {
-    pub(super) x: u32,
-    pub(super) y: u32,
+    pub(super) x: i64,
+    pub(super) y: i64,
     pub(super) width: u32,
     pub(super) height: u32,
 }
@@ -204,9 +204,19 @@ unsafe extern "C" {
     ) -> *mut NativeImage;
     fn retinue_bl_image_destroy(image: *mut NativeImage);
     fn retinue_bl_clear(painter: *mut RetinueBlendPainter) -> u32;
+    #[cfg(test)]
     fn retinue_bl_save(painter: *mut RetinueBlendPainter) -> u32;
+    #[cfg(test)]
     fn retinue_bl_restore(painter: *mut RetinueBlendPainter) -> u32;
+    #[cfg(test)]
     fn retinue_bl_translate(painter: *mut RetinueBlendPainter, x: f64, y: f64) -> u32;
+    fn retinue_bl_set_clip_rect(
+        painter: *mut RetinueBlendPainter,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> u32;
     fn retinue_bl_clip_rect(
         painter: *mut RetinueBlendPainter,
         x: f64,
@@ -414,16 +424,35 @@ impl<'a> Context<'a> {
         self.record("clip", result);
     }
 
+    pub(super) fn set_clip_rect(&mut self, rect: crate::Rect) {
+        if self.failed() {
+            return;
+        }
+        let result = unsafe {
+            retinue_bl_set_clip_rect(
+                self.raw(),
+                rect.x as f64,
+                rect.y as f64,
+                rect.width as f64,
+                rect.height as f64,
+            )
+        };
+        self.record("restore clip", result);
+    }
+
+    #[cfg(test)]
     pub(super) fn save(&mut self) {
         let result = unsafe { retinue_bl_save(self.raw()) };
         self.record("save", result);
     }
 
+    #[cfg(test)]
     pub(super) fn restore(&mut self) {
         let result = unsafe { retinue_bl_restore(self.raw()) };
         self.record("restore", result);
     }
 
+    #[cfg(test)]
     pub(super) fn translate(&mut self, x: f64, y: f64) {
         let result = unsafe { retinue_bl_translate(self.raw(), x, y) };
         self.record("translate", result);
@@ -455,14 +484,8 @@ impl<'a> Context<'a> {
         self.record("line stroke", result);
     }
 
-    pub(super) fn stroke_round_rect(
-        &mut self,
-        rect: crate::Rect,
-        radius: u32,
-        stroke: u32,
-        color: u32,
-    ) {
-        if self.failed() || stroke == 0 || rect.is_empty() {
+    pub(super) fn stroke_round_rect(&mut self, rect: Rect, radius: u32, stroke: u32, color: u32) {
+        if self.failed() || stroke == 0 || rect.width == 0 || rect.height == 0 {
             return;
         }
         let inset = (stroke as f64 / 2.0).min(rect.width.min(rect.height) as f64 / 2.0);
@@ -581,13 +604,18 @@ impl<'a> Context<'a> {
     pub(super) fn fill_a8_mask_rgba32(
         &mut self,
         mask: &Image,
-        target_x: i32,
-        target_y: i32,
+        target_x: i64,
+        target_y: i64,
         rgba32: u32,
     ) {
         if self.failed() {
             return;
         }
+        let (Ok(target_x), Ok(target_y)) = (c_int::try_from(target_x), c_int::try_from(target_y))
+        else {
+            self.record_invalid("mask origin");
+            return;
+        };
         let result = unsafe {
             retinue_bl_fill_a8_mask(self.raw(), mask.handle.as_ptr(), target_x, target_y, rgba32)
         };
@@ -724,7 +752,7 @@ mod tests {
         context.blit_scaled_prgb32(
             &source,
             Rect {
-                x: u32::MAX,
+                x: i64::from(u32::MAX),
                 y: 0,
                 width: 1,
                 height: 1,

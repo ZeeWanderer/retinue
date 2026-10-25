@@ -1,34 +1,10 @@
 use super::*;
-use retinue_ui::transition::{Easing, ScalarTransition};
+pub(super) use crate::search::Motion as SearchMotion;
 
 #[derive(Clone, Copy)]
 pub struct Transfer {
     stamp: Instant,
     cut: bool,
-}
-
-pub(super) struct SearchMotion {
-    pub width: f32,
-    content_width: f32,
-    transition: ScalarTransition,
-}
-
-impl Default for SearchMotion {
-    fn default() -> Self {
-        let mut transition = ScalarTransition::default();
-        transition.set(32.0, Instant::now(), Duration::ZERO);
-        Self {
-            width: 32.0,
-            content_width: 0.0,
-            transition,
-        }
-    }
-}
-
-impl SearchMotion {
-    pub fn deadline(&self, now: Instant) -> Option<Instant> {
-        self.transition.deadline(now, Duration::from_micros(8_333))
-    }
 }
 
 impl Foundry {
@@ -90,28 +66,9 @@ impl Foundry {
         let text = self.search.borrow().text();
         let active = matches!(self.focus, Some(Action::Search | Action::ClearSearch));
         let content_width = text_width(&self.regular, &text, 14.0);
-        let required = content_width + 76.0;
-        let target = if active || !text.is_empty() {
-            required.max(208.0)
-        } else {
-            32.0
-        };
-        let text_pressure =
-            content_width > self.search_motion.content_width && required > self.search_motion.width;
-        self.search_motion.content_width = content_width;
-        self.search_motion.transition.set_eased(
-            target,
-            now,
-            if animate && !text_pressure {
-                Duration::from_millis(200)
-            } else {
-                Duration::ZERO
-            },
-            Easing::InOutCubic,
-        );
-        let width = self.search_motion.transition.value(now);
-        let changed = self.search_motion.width != width;
-        self.search_motion.width = width;
+        let changed =
+            self.search_motion
+                .update(active || !text.is_empty(), content_width, now, animate);
         if self.scale > 0.0 {
             let rect = self.search_rect();
             self.search.borrow_mut().layout(rect, 14.0 * self.scale);
@@ -120,7 +77,7 @@ impl Foundry {
     }
 
     pub(super) fn search_bounds(&self) -> Rect {
-        self.controls()
+        self.layout_controls()
             .into_iter()
             .find(|(a, _)| *a == Action::Search)
             .unwrap()

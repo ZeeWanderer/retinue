@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use crate::overlay::assets::SceneAssets;
 use crate::ui::ScreenOutput;
+use retinue_ui::composition::{Canvas, ImageSource, Recording};
 use retinue_ui::painter::CachedFont;
-use retinue_ui::painter::{Painter, RasterImage, load_icon};
+use retinue_ui::painter::{RasterImage, load_icon};
 use retinue_ui::resources::Resource;
 
 mod fixture;
@@ -12,34 +14,34 @@ mod reward;
 mod suggestion;
 
 struct SuggestionIcons {
-    trace: RasterImage,
-    vaulted: RasterImage,
-    close: RasterImage,
+    trace: Rc<RasterImage>,
+    vaulted: Rc<RasterImage>,
+    close: Rc<RasterImage>,
 }
 
 impl SuggestionIcons {
     fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            trace: load_icon(include_bytes!("../../../assets/trace.png"))?,
-            vaulted: load_icon(include_bytes!("../../../assets/vaulted.png"))?,
-            close: load_icon(include_bytes!("../../../assets/close.png"))?,
+            trace: Rc::new(load_icon(include_bytes!("../../../assets/trace.png"))?),
+            vaulted: Rc::new(load_icon(include_bytes!("../../../assets/vaulted.png"))?),
+            close: Rc::new(load_icon(include_bytes!("../../../assets/close.png"))?),
         })
     }
 }
 
 pub(super) struct Assets {
-    platinum_icon: RasterImage,
-    ducat_icon: RasterImage,
+    platinum_icon: Rc<RasterImage>,
+    ducat_icon: Rc<RasterImage>,
     icons: SuggestionIcons,
-    permanent_images: BTreeMap<String, RasterImage>,
+    permanent_images: BTreeMap<String, Rc<RasterImage>>,
     pub(super) scene_assets: SceneAssets,
 }
 
 impl Assets {
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            platinum_icon: load_icon(include_bytes!("../../../assets/platinum.png"))?,
-            ducat_icon: load_icon(include_bytes!("../../../assets/ducats.png"))?,
+            platinum_icon: Rc::new(load_icon(include_bytes!("../../../assets/platinum.png"))?),
+            ducat_icon: Rc::new(load_icon(include_bytes!("../../../assets/ducats.png"))?),
             icons: SuggestionIcons::load()?,
             permanent_images: permanent_images()?,
             scene_assets: SceneAssets::default(),
@@ -51,7 +53,7 @@ impl Assets {
         self.scene_assets = crate::overlay::assets::Preparer::default().prepare(scene, || true);
         self.scene_assets.issues.clone()
     }
-    fn resources<'a>(&'a self, font: &'a CachedFont) -> Resources<'a> {
+    fn resources<'a>(&'a self, font: &'a Rc<CachedFont>) -> Resources<'a> {
         Resources {
             font,
             platinum_icon: &self.platinum_icon,
@@ -64,19 +66,20 @@ impl Assets {
 }
 
 struct Resources<'a> {
-    font: &'a CachedFont,
-    platinum_icon: &'a RasterImage,
-    ducat_icon: &'a RasterImage,
+    font: &'a Rc<CachedFont>,
+    platinum_icon: &'a Rc<RasterImage>,
+    ducat_icon: &'a Rc<RasterImage>,
     icons: &'a SuggestionIcons,
-    permanent_images: &'a BTreeMap<String, RasterImage>,
+    permanent_images: &'a BTreeMap<String, Rc<RasterImage>>,
     scene_images: &'a BTreeMap<String, Resource<RasterImage>>,
 }
 
 impl Resources<'_> {
-    fn asset_image(&self, digest: &str) -> Option<&RasterImage> {
+    fn asset_image(&self, digest: &str) -> Option<ImageSource> {
         self.permanent_images
             .get(digest)
-            .or_else(|| self.scene_images.get(digest).map(|image| &**image))
+            .map(ImageSource::from)
+            .or_else(|| self.scene_images.get(digest).map(ImageSource::from))
     }
 }
 
@@ -89,8 +92,8 @@ pub(super) struct View {
 }
 
 pub(super) fn draw_static_relic_scene(
-    painter: &mut Painter<'_>,
-    font: &CachedFont,
+    painter: &mut Recording,
+    font: &Rc<CachedFont>,
     assets: &Assets,
     scene: &crate::relic::Scene,
     view: View,
@@ -107,17 +110,17 @@ pub(super) fn draw_static_relic_scene(
     }
 }
 
-fn permanent_images() -> Result<BTreeMap<String, RasterImage>, Box<dyn std::error::Error>> {
+fn permanent_images() -> Result<BTreeMap<String, Rc<RasterImage>>, Box<dyn std::error::Error>> {
     let mut images = BTreeMap::new();
     images.insert(
         crate::assets::FORMA_ASSET.image.key.to_owned(),
-        load_icon(crate::assets::FORMA_ASSET.image.bytes)?,
+        Rc::new(load_icon(crate::assets::FORMA_ASSET.image.bytes)?),
     );
     Ok(images)
 }
 
 pub(super) fn draw_loading_pulse(
-    painter: &mut Painter<'_>,
+    painter: &mut Canvas,
     bounds: crate::ui::Rect,
     scale: u32,
     elapsed: Duration,
@@ -126,8 +129,8 @@ pub(super) fn draw_loading_pulse(
 }
 
 fn draw_vaulted_icon(
-    painter: &mut Painter<'_>,
-    icon: &RasterImage,
+    painter: &mut Canvas,
+    icon: &Rc<RasterImage>,
     x: u32,
     y: u32,
     width: u32,

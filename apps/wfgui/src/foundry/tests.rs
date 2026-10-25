@@ -8,6 +8,83 @@ pub(super) fn view() -> Foundry {
 }
 
 #[test]
+fn composition_keeps_only_visible_cards_and_stable_item_identities() {
+    let mut view = view();
+    for scale in [1.0, 1.25, 2.0] {
+        view.resize((1300, 900), scale);
+        for offset in [0, 53, 800] {
+            view.offset = offset;
+            let scene = view.resolved_composition();
+            assert_eq!(
+                scene
+                    .scene
+                    .geometry()
+                    .iter()
+                    .filter(|node| node.key.namespace == "foundry.card")
+                    .count(),
+                view.visible(0).len()
+            );
+            for (action, r) in scene.controls(true) {
+                if matches!(action, Action::Favorite(_)) {
+                    assert_eq!(
+                        scene.hit(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64)),
+                        Some(action)
+                    );
+                }
+                assert_eq!(r.intersection(view.viewport), r);
+            }
+        }
+    }
+    view.offset = 0;
+    let before = view
+        .resolved_composition()
+        .scene
+        .geometry()
+        .iter()
+        .filter(|node| node.key.namespace == "foundry.card")
+        .map(|node| node.key)
+        .collect::<Vec<_>>();
+    let count = view.visible(0).len();
+    view.filtered[..count].reverse();
+    view.layout_revision += 1;
+    let after = view
+        .resolved_composition()
+        .scene
+        .geometry()
+        .iter()
+        .filter(|node| node.key.namespace == "foundry.card")
+        .map(|node| node.key)
+        .collect::<Vec<_>>();
+    assert_eq!(before.into_iter().rev().collect::<Vec<_>>(), after);
+}
+
+#[test]
+fn scrolling_within_visible_rows_reuses_layout_and_recording() {
+    let mut view = view();
+    view.offset = 51;
+    let keys = view
+        .resolved_composition()
+        .scene
+        .geometry()
+        .iter()
+        .map(|node| node.key)
+        .collect::<Vec<_>>();
+    view.offset = 52;
+    let composition = view.resolved_composition();
+    assert_eq!(composition.scene.stats.layout_computations, 0);
+    assert_eq!(composition.scene.stats.recordings, 0);
+    assert_eq!(
+        composition
+            .scene
+            .geometry()
+            .iter()
+            .map(|node| node.key)
+            .collect::<Vec<_>>(),
+        keys
+    );
+}
+
+#[test]
 fn favorites_use_shared_canonical_ids_across_refreshes() {
     let mut view = view();
     let id = view.snapshot.items[0].id.clone();
@@ -300,6 +377,18 @@ fn image_progress_only_damages_cards_using_new_pixels() {
 }
 
 #[test]
+fn clearing_images_releases_composed_rasters_and_rebuilds_the_view() {
+    let mut view = view();
+    let before = view.resolved_composition().scene.geometry().len();
+    assert!(view.composition.borrow().cache_stats().live_bytes > 0);
+    view.clear_images();
+    assert_eq!(view.composition.borrow().cache_stats().live_bytes, 0);
+    assert_eq!(view.composition.borrow().cache_stats().cached_bytes, 0);
+    assert_eq!(view.resolved_composition().scene.geometry().len(), before);
+    assert!(view.composition.borrow().cache_stats().live_bytes > 0);
+}
+
+#[test]
 fn paint_keys_match_worker_requests_without_disk_identity() {
     let mut descriptor = Descriptor {
         id: "asset".into(),
@@ -562,11 +651,21 @@ fn search_caret_movement_preserves_scroll_but_edit_resets_it() {
 #[ignore = "opt-in scrolling benchmark; set GUI_BENCH_LIVE=1 for cached player data and images"]
 fn foundry_scroll_benchmark() {
     use clap::Parser;
-    use retinue_ui::painter::render_thread_budget;
+    use rustix::time::{ClockId, clock_gettime};
+    let cpu_ns = |clock| {
+        let time = clock_gettime(clock);
+        time.tv_sec as u64 * 1_000_000_000 + time.tv_nsec as u64
+    };
+    let threads = crate::benchmark::threads();
     let live = std::env::var("GUI_BENCH_LIVE").is_ok_and(|v| v == "1");
     let output = std::env::var("GUI_BENCH_OUTPUT").expect("set GUI_BENCH_OUTPUT");
     let mut reports = Vec::new();
-    for (w, h, scale) in [(1920, 1080, 100), (2560, 1440, 100), (2560, 1440, 125)] {
+    for (w, h, scale) in [
+        (1920, 1080, 100),
+        (2560, 1440, 100),
+        (2560, 1440, 125),
+        (2560, 1440, 200),
+    ] {
         let mut args = vec![
             "wfgui".to_string(),
             "--size".into(),
@@ -591,11 +690,20 @@ fn foundry_scroll_benchmark() {
                 shell.foundry.component_glow = glow.take();
             }
             let mut samples = Vec::new();
+            let mut phases = Vec::new();
+            let mut actual_threads = (u32::MAX, 0);
             let mut last = None;
             for frame in 0..180 {
+                let process = cpu_ns(ClockId::ProcessCPUTime);
+                let caller = cpu_ns(ClockId::ThreadCPUTime);
                 let start = Instant::now();
                 let offset = ((frame % 120).min(120 - frame % 120)) as f32 * 2.0;
                 shell.foundry.jump(offset);
+                let (update_stats, prepared) = {
+                    let composition = shell.foundry.resolved_composition();
+                    (composition.scene.stats, composition.paint_stats())
+                };
+                let updated = Instant::now();
                 let repair = if full || last.is_none() {
                     Rect {
                         x: 0,
@@ -614,13 +722,11 @@ fn foundry_scroll_benchmark() {
                         .bounds((w, h))
                         .unwrap()
                 };
-                let mut painter = Painter::with_threads(
-                    bytemuck::cast_slice_mut(&mut buffer),
-                    w,
-                    h,
-                    render_thread_budget(4),
-                )
-                .unwrap();
+                let mut painter =
+                    Painter::with_threads(bytemuck::cast_slice_mut(&mut buffer), w, h, threads)
+                        .unwrap();
+                let actual = painter.thread_count();
+                actual_threads = (actual_threads.0.min(actual), actual_threads.1.max(actual));
                 painter.clip_to_rect(repair);
                 painter.fill_rounded_rect(
                     repair.x,
@@ -631,16 +737,46 @@ fn foundry_scroll_benchmark() {
                     crate::shell::BACKGROUND,
                 );
                 shell.paint(&mut painter);
+                let submitted = Instant::now();
                 painter.finish().unwrap();
+                let finished = Instant::now();
+                let caller = cpu_ns(ClockId::ThreadCPUTime) - caller;
+                let process = cpu_ns(ClockId::ProcessCPUTime) - process;
                 if frame >= 20 {
-                    samples.push(start.elapsed().as_secs_f64() * 1000.0);
+                    samples.push((finished - start).as_secs_f64() * 1000.0);
+                    let composition = shell.foundry.resolved_composition();
+                    phases.push((
+                        [
+                            (updated - start).as_secs_f64() * 1000.0,
+                            (submitted - updated).as_secs_f64() * 1000.0,
+                            (finished - submitted).as_secs_f64() * 1000.0,
+                            caller as f64 / 1e6,
+                            process as f64 / 1e6,
+                        ],
+                        [
+                            update_stats.layout_computations,
+                            update_stats.recordings,
+                            update_stats.nodes,
+                            prepared.prepared_rasters,
+                            prepared.repaired_pixels,
+                            prepared.copied_pixels,
+                            composition.paint_stats().blits,
+                            composition.cache_stats().live_bytes,
+                        ],
+                    ));
                 }
                 last = Some(offset);
             }
             let mut sorted = samples.clone();
             sorted.sort_by(f64::total_cmp);
+            let phases: Vec<_> = phases.into_iter().map(|(time, counters)| serde_json::json!({
+                "update_ms":time[0],"submit_ms":time[1],"finish_ms":time[2],
+                "caller_cpu_ms":time[3],"process_cpu_ms":time[4],
+                "layout_computations":counters[0],"recordings":counters[1],"nodes":counters[2],
+                "prepared_rasters":counters[3],"repaired_pixels":counters[4],"copied_pixels":counters[5],"blits":counters[6],"raster_bytes":counters[7],
+            })).collect();
             let stats = shell.foundry.cache_stats;
-            reports.push(serde_json::json!({"size":[w,h],"scale":scale,"live":live,"mode":if full{"full_window"}else{"viewport_repaint"},"cached_glow":cached,"columns":shell.foundry.grid.columns,"visible_cards":shell.foundry.visible(0).len(),"total_cards":shell.foundry.snapshot.items.len(),"prepared_images":shell.foundry.prepared_count(),"decoded_source_bytes":stats.0.live_bytes,"thumbnail_bytes":stats.1.live_bytes,"image_errors":shell.foundry.image_errors,"p50_ms":sorted[sorted.len()/2],"p95_ms":sorted[(sorted.len()-1)*95/100],"max_ms":sorted.last(),"samples_ms":samples}));
+            reports.push(serde_json::json!({"size":[w,h],"scale":scale,"threads":threads.get(),"actual_threads":actual_threads,"live":live,"mode":if full{"full_window"}else{"viewport_repaint"},"cached_glow":cached,"columns":shell.foundry.grid.columns,"visible_cards":shell.foundry.visible(0).len(),"total_cards":shell.foundry.snapshot.items.len(),"prepared_images":shell.foundry.prepared_count(),"decoded_source_bytes":stats.0.live_bytes,"thumbnail_bytes":stats.1.live_bytes,"image_errors":shell.foundry.image_errors,"p50_ms":sorted[sorted.len()/2],"p95_ms":sorted[(sorted.len()-1)*95/100],"max_ms":sorted.last(),"samples_ms":samples,"phases":phases}));
         }
     }
     std::fs::write(output, serde_json::to_vec_pretty(&reports).unwrap()).unwrap();

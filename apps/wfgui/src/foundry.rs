@@ -1,6 +1,9 @@
 mod component;
+mod composition;
 pub mod filters;
 pub mod images;
+use retinue_ui::composition::Canvas;
+use std::rc::Rc;
 mod input;
 pub mod model;
 mod search;
@@ -78,7 +81,6 @@ pub enum Action {
     ComponentSearch,
     ComponentMarket,
     ComponentRelics,
-    CloseComponent,
     Scroll,
 }
 
@@ -143,13 +145,16 @@ pub struct Foundry {
     tooltip: bool,
     search: RefCell<LineEdit>,
     search_motion: search::SearchMotion,
-    regular: CachedFont,
+    regular: std::rc::Rc<CachedFont>,
     icons: HashMap<Badge, Request>,
     descriptors: HashMap<String, Descriptor>,
     previous_descriptors: HashMap<String, Descriptor>,
     glyphs: GlyphCache,
     images: HashMap<Key, Resource<RasterImage>>,
-    component_glow: Option<RasterImage>,
+    component_glow: Option<Rc<RasterImage>>,
+    composition: RefCell<composition::Composition>,
+    layout_revision: u64,
+    image_revision: u64,
 }
 
 impl Foundry {
@@ -191,13 +196,16 @@ impl Foundry {
             tooltip: false,
             search: RefCell::new(LineEdit::new(bytes, "Roboto")),
             search_motion: search::SearchMotion::default(),
-            regular: CachedFont::from_bytes(bytes, Default::default(), &glyphs)?,
+            regular: std::rc::Rc::new(CachedFont::from_bytes(bytes, Default::default(), &glyphs)?),
             glyphs,
             icons: HashMap::new(),
             descriptors: HashMap::new(),
             previous_descriptors: HashMap::new(),
             images: HashMap::new(),
             component_glow: None,
+            composition: RefCell::new(composition::Composition::default()),
+            layout_revision: 0,
+            image_revision: 0,
         })
     }
     fn px(&self, v: f32) -> u32 {
@@ -220,7 +228,7 @@ impl Foundry {
             self.prepare_icons();
             let diameter = self.px(39.0);
             self.component_glow = match crate::style::component_glow(diameter, scale) {
-                Ok(image) => Some(image),
+                Ok(image) => Some(Rc::new(image)),
                 Err(error) => {
                     self.image_errors.push(format!("component glow: {error}"));
                     None
@@ -230,7 +238,7 @@ impl Foundry {
         self.size = size;
         self.layout_search(Instant::now(), false);
         let top = self
-            .controls()
+            .layout_controls()
             .iter()
             .map(|(_, r)| r.y + r.height)
             .max()
@@ -364,6 +372,7 @@ impl Foundry {
             .all(|a| self.descriptors.contains_key(&a.id) || self.asset_errors.contains_key(&a.id))
     }
     fn filter(&mut self, reset: bool) {
+        self.layout_revision += 1;
         let query = self.search.borrow().text().to_lowercase();
         self.filtered = self
             .snapshot
@@ -506,6 +515,9 @@ impl Foundry {
         images: Vec<(Key, Resource<RasterImage>)>,
         errors: Vec<String>,
     ) -> Damage {
+        if !images.is_empty() {
+            self.image_revision += 1;
+        }
         let mut wanted = self
             .image_requests()
             .iter()
@@ -565,8 +577,10 @@ impl Foundry {
             })
     }
     pub fn clear_images(&mut self) {
+        self.image_revision += 1;
         self.images.clear();
         self.glyphs.clear();
+        self.composition.get_mut().clear_resources();
     }
     pub fn prepared_count(&self) -> usize {
         self.images.len()
@@ -574,13 +588,18 @@ impl Foundry {
     pub fn memory(&self) -> (usize, usize) {
         let (a, b) = self.cache_stats;
         let glyphs = self.glyphs.stats();
+        let rasters = self.composition.borrow().cache_stats();
         let decorations = self
             .component_glow
             .as_ref()
-            .map_or(0, RasterImage::byte_len);
+            .map_or(0, |image| image.byte_len());
         (
-            a.live_bytes + b.live_bytes + glyphs.live_bytes + decorations,
-            a.budget_bytes + b.budget_bytes + glyphs.budget_bytes + decorations,
+            a.live_bytes + b.live_bytes + glyphs.live_bytes + decorations + rasters.live_bytes,
+            a.budget_bytes
+                + b.budget_bytes
+                + glyphs.budget_bytes
+                + decorations
+                + rasters.budget_bytes,
         )
     }
 
@@ -800,6 +819,21 @@ impl Foundry {
                 );
             }
         }
-        json!({"units":"logical_pixels","scale":self.scale,"regions":regions})
+        let composition = self.resolved_composition();
+        let nodes = composition
+            .scene
+            .geometry()
+            .iter()
+            .map(|node| {
+                json!({
+                    "scope":node.key.namespace,"id":node.key.value,
+                    "parent":node.parent.map(|key|(key.namespace,key.value)),
+                    "layout":[node.layout.x,node.layout.y,node.layout.width,node.layout.height],
+                    "hit":[node.hit.x,node.hit.y,node.hit.width,node.hit.height],
+                    "paint":[node.paint.x,node.paint.y,node.paint.width,node.paint.height],
+                })
+            })
+            .collect::<Vec<_>>();
+        json!({"units":"logical_pixels","scale":self.scale,"regions":regions,"nodes":nodes})
     }
 }

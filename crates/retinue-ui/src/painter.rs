@@ -12,11 +12,13 @@ pub use text::{text_width, wrap_text};
 /// Blend2D painter borrowing a premultiplied BGRA buffer.
 pub struct Painter<'a> {
     context: blend2d::Context<'a>,
+    clip: crate::Rect,
+    origin: (i64, i64),
 }
 
 pub use blend2d::{Error as PainterError, ImageMemory, image_memory};
 
-/// Total concurrency, including the caller; bounded to four and available CPUs.
+/// Total concurrency, including the caller; bounded to six and available CPUs.
 pub fn render_thread_budget(preferred: u32) -> NonZeroU32 {
     let available = std::thread::available_parallelism()
         .map(|count| count.get())
@@ -25,7 +27,7 @@ pub fn render_thread_budget(preferred: u32) -> NonZeroU32 {
 }
 
 fn bounded_threads(preferred: u32, available: usize) -> NonZeroU32 {
-    NonZeroU32::new(preferred.clamp(1, 4).min(available.clamp(1, 4) as u32)).unwrap()
+    NonZeroU32::new(preferred.clamp(1, 6).min(available.clamp(1, 6) as u32)).unwrap()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -67,6 +69,13 @@ impl<'a> Painter<'a> {
     ) -> Result<Self, PainterError> {
         Ok(Self {
             context: blend2d::Context::new(pixels, width, height, threads)?,
+            clip: crate::Rect {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            },
+            origin: (0, 0),
         })
     }
 
@@ -90,9 +99,38 @@ impl<'a> Painter<'a> {
         self.context.clear_all();
     }
 
-    /// Intersects the current clip in buffer pixels, including subsequent clears.
+    /// Nonnegative visible bounds in the current local coordinate system.
+    pub fn visible_bounds(&self) -> crate::Rect {
+        let left = (self.clip.x as i64 - self.origin.0).max(0);
+        let top = (self.clip.y as i64 - self.origin.1).max(0);
+        let right = (self.clip.x as i64 + self.clip.width as i64 - self.origin.0).max(0);
+        let bottom = (self.clip.y as i64 + self.clip.height as i64 - self.origin.1).max(0);
+        crate::Rect {
+            x: left as u32,
+            y: top as u32,
+            width: (right - left).max(0) as u32,
+            height: (bottom - top).max(0) as u32,
+        }
+    }
+
+    /// Intersects the current clip in local pixels, including subsequent clears.
     pub fn clip_to_rect(&mut self, rect: crate::Rect) {
-        self.context.clip_to_rect(rect);
+        let left = rect.x as i64 + self.origin.0;
+        let top = rect.y as i64 + self.origin.1;
+        let x = left.max(self.clip.x as i64);
+        let y = top.max(self.clip.y as i64);
+        let right = (left + rect.width as i64).min(self.clip.x as i64 + self.clip.width as i64);
+        let bottom = (top + rect.height as i64).min(self.clip.y as i64 + self.clip.height as i64);
+        let clip = crate::Rect {
+            x: x as u32,
+            y: y as u32,
+            width: (right - x).max(0) as u32,
+            height: (bottom - y).max(0) as u32,
+        };
+        if clip != self.clip {
+            self.context.clip_to_rect(clip);
+            self.clip = clip;
+        }
     }
 
     /// Pixel-aligned scrolling preserves cached glyph sharpness; Blend2D masks
@@ -103,13 +141,61 @@ impl<'a> Painter<'a> {
         translation: (i32, i32),
         paint: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        self.context.save();
-        self.context.clip_to_rect(clip);
-        self.context
-            .translate(translation.0 as f64, translation.1 as f64);
+        let old = (self.origin, self.clip);
+        self.clip_to_rect(clip);
+        self.origin.0 += translation.0 as i64;
+        self.origin.1 += translation.1 as i64;
         let result = paint(self);
-        self.context.restore();
+        self.restore_scope(old);
         result
+    }
+
+    pub fn translated<T>(
+        &mut self,
+        translation: (i32, i32),
+        paint: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let old = (self.origin, self.clip);
+        self.origin.0 += translation.0 as i64;
+        self.origin.1 += translation.1 as i64;
+        let result = paint(self);
+        self.restore_scope(old);
+        result
+    }
+
+    fn restore_scope(&mut self, state: ((i64, i64), crate::Rect)) {
+        // All other draw state is explicit in each backend operation.
+        if self.clip != state.1 {
+            self.context.set_clip_rect(state.1);
+        }
+        (self.origin, self.clip) = state;
+    }
+
+    /// Draw in a clipped local rectangle; the backend receives host-space coordinates.
+    pub fn local<T>(
+        &mut self,
+        bounds: crate::Rect,
+        paint: impl FnOnce(&mut Self, crate::Rect) -> T,
+    ) -> T {
+        self.viewport(bounds, (bounds.x as i32, bounds.y as i32), |p| {
+            paint(
+                p,
+                crate::Rect {
+                    x: 0,
+                    y: 0,
+                    ..bounds
+                },
+            )
+        })
+    }
+
+    fn host_rect(&self, rect: crate::Rect) -> blend2d::Rect {
+        blend2d::Rect {
+            x: rect.x as i64 + self.origin.0,
+            y: rect.y as i64 + self.origin.1,
+            width: rect.width,
+            height: rect.height,
+        }
     }
 
     pub fn fill_rounded_rect(
@@ -126,8 +212,8 @@ impl<'a> Painter<'a> {
         }
         let radius = radius.min(width / 2).min(height / 2);
         self.context.fill_round_rect_rgba32(
-            f64::from(x),
-            f64::from(y),
+            f64::from(x) + self.origin.0 as f64,
+            f64::from(y) + self.origin.1 as f64,
             f64::from(width),
             f64::from(height),
             f64::from(radius),
@@ -141,14 +227,24 @@ impl<'a> Painter<'a> {
     }
 
     pub fn draw_line(&mut self, from: (f64, f64), to: (f64, f64), width: f64, color: [u8; 4]) {
+        let offset = |(x, y)| (x + self.origin.0 as f64, y + self.origin.1 as f64);
         self.context
-            .stroke_line(from, to, width, blend2d_rgba32(color));
+            .stroke_line(offset(from), offset(to), width, blend2d_rgba32(color));
     }
     pub fn fill_polygon(&mut self, points: &[[f64; 2]], color: [u8; 4]) {
-        self.context.fill_polygon(points, blend2d_rgba32(color));
+        if self.origin == (0, 0) {
+            self.context.fill_polygon(points, blend2d_rgba32(color));
+        } else {
+            let points: Vec<_> = points
+                .iter()
+                .map(|p| [p[0] + self.origin.0 as f64, p[1] + self.origin.1 as f64])
+                .collect();
+            self.context.fill_polygon(&points, blend2d_rgba32(color));
+        }
     }
 
     pub fn outline(&mut self, rect: crate::Rect, radius: u32, stroke: u32, color: [u8; 4]) {
+        let rect = self.host_rect(rect);
         self.context
             .stroke_round_rect(rect, radius, stroke, blend2d_rgba32(color));
     }
@@ -208,8 +304,8 @@ impl<'a> Painter<'a> {
             return;
         }
         self.context.stroke_circle_rgba32(
-            f64::from(center_x),
-            f64::from(center_y),
+            f64::from(center_x) + self.origin.0 as f64,
+            f64::from(center_y) + self.origin.1 as f64,
             f64::from(radius),
             f64::from(stroke),
             blend2d_rgba32(color),
@@ -222,12 +318,12 @@ impl<'a> Painter<'a> {
         }
         self.context.blit_scaled_prgb32(
             &image.native,
-            blend2d::Rect {
+            self.host_rect(crate::Rect {
                 x,
                 y,
                 width,
                 height,
-            },
+            }),
         );
     }
 
@@ -282,15 +378,15 @@ impl<'a> Painter<'a> {
             contained_size(image.native.width, image.native.height, diameter, diameter);
         self.context.fill_circle_prgb32(
             &image.native,
-            blend2d::Rect {
+            self.host_rect(crate::Rect {
                 x: x + diameter.saturating_sub(draw_width) / 2,
                 y: y + diameter.saturating_sub(draw_height) / 2,
                 width: draw_width,
                 height: draw_height,
-            },
+            }),
             blend2d::Circle {
-                x: f64::from(x) + f64::from(diameter) / 2.0,
-                y: f64::from(y) + f64::from(diameter) / 2.0,
+                x: f64::from(x) + f64::from(diameter) / 2.0 + self.origin.0 as f64,
+                y: f64::from(y) + f64::from(diameter) / 2.0 + self.origin.1 as f64,
                 radius: f64::from(diameter) / 2.0,
             },
         );
@@ -403,8 +499,9 @@ impl<'a> Painter<'a> {
                 if let Some(mask) = mask {
                     self.context.fill_a8_mask_rgba32(
                         &mask.0,
-                        (x + metrics.xmin as f32).round() as i32,
-                        (baseline - metrics.ymin as f32 - metrics.height as f32).round() as i32,
+                        (x + metrics.xmin as f32).round() as i64 + self.origin.0,
+                        (baseline - metrics.ymin as f32 - metrics.height as f32).round() as i64
+                            + self.origin.1,
                         blend2d_rgba32(color),
                     );
                 }
@@ -433,8 +530,12 @@ impl<'a> Painter<'a> {
         }
         let mask =
             blend2d::Image::new(coverage.to_vec(), width as u32, height as u32, true).unwrap();
-        self.context
-            .fill_a8_mask_rgba32(&mask, x, y, blend2d_rgba32(color));
+        self.context.fill_a8_mask_rgba32(
+            &mask,
+            x as i64 + self.origin.0,
+            y as i64 + self.origin.1,
+            blend2d_rgba32(color),
+        );
     }
 }
 
@@ -601,6 +702,215 @@ mod tests {
     use super::*;
 
     #[test]
+    fn local_lowering_matches_native_transforms_for_every_primitive() {
+        let image = RasterImage::from_rgba(image::RgbaImage::from_fn(17, 13, |x, y| {
+            image::Rgba([(x * 13) as u8, (y * 19) as u8, 120, 195])
+        }))
+        .unwrap();
+        let font = load_overlay_font(&GlyphCache::new(8192)).unwrap();
+        let draw = |p: &mut Painter<'_>, native: bool| {
+            p.fill_rounded_rect(0, 0, 190, 140, 9, [25, 40, 80, 210]);
+            p.outline(
+                crate::Rect {
+                    x: 3,
+                    y: 4,
+                    width: 160,
+                    height: 130,
+                },
+                7,
+                2,
+                [220, 40, 50, 255],
+            );
+            p.draw_line((0.25, 8.5), (175.5, 11.75), 1.5, [255, 230, 100, 255]);
+            p.fill_polygon(
+                &[[9.5, 12.25], [30.0, 14.0], [18.25, 43.5]],
+                [80, 220, 90, 160],
+            );
+            p.draw_ring(49, 42, 13, 3, [20, 180, 240, 255]);
+            p.draw_image(&image, 2, 58, 30, 19);
+            p.draw_image_contained(&image, 38, 58, 30, 30);
+            p.draw_image_contained_circle(&image, 75, 58, 30);
+            let cover = crate::Rect {
+                x: 114,
+                y: 58,
+                width: 24,
+                height: 30,
+            };
+            if native {
+                p.context.save();
+                p.context.clip_to_rect(cover);
+                p.context.translate(106.0, 58.0);
+                p.draw_image(&image, 0, 0, 40, 30);
+                p.context.restore();
+            } else {
+                p.draw_image_covered(&image, cover);
+            }
+            p.inset_shadow(
+                crate::Rect {
+                    x: 20,
+                    y: 92,
+                    width: 110,
+                    height: 36,
+                },
+                8,
+                4.0,
+                1.0,
+                [90, 230, 40, 255],
+            );
+            p.draw_text(&font, 17, 93, 13.25, "Blueprint", [240, 240, 240, 255]);
+            p.draw_text_vertically_centered(
+                &font,
+                TextLine::new(135, 92, 30),
+                12.5,
+                "Owned",
+                [190, 255, 180, 255],
+            );
+        };
+        for threads in [1, 4] {
+            for origin in [(-9, -7), (0, 0), (17, 23)] {
+                let mut actual = vec![0; 220 * 180 * 4];
+                let mut expected = actual.clone();
+                let clip = crate::Rect {
+                    x: 5,
+                    y: 6,
+                    width: 190,
+                    height: 160,
+                };
+                let mut p =
+                    Painter::with_threads(&mut actual, 220, 180, NonZeroU32::new(threads).unwrap())
+                        .unwrap();
+                p.viewport(clip, origin, |p| draw(p, false));
+                p.finish().unwrap();
+                let mut p = Painter::with_threads(
+                    &mut expected,
+                    220,
+                    180,
+                    NonZeroU32::new(threads).unwrap(),
+                )
+                .unwrap();
+                p.context.clip_to_rect(clip);
+                p.context.translate(origin.0 as f64, origin.1 as f64);
+                draw(&mut p, true);
+                p.finish().unwrap();
+                let max = actual
+                    .iter()
+                    .zip(&expected)
+                    .map(|(a, b)| a.abs_diff(*b))
+                    .max()
+                    .unwrap();
+                assert_eq!(max, 0, "origin={origin:?}, threads={threads}");
+            }
+        }
+    }
+
+    #[test]
+    fn local_scope_exposes_only_its_own_rectangle() {
+        let mut pixels = vec![0; 100 * 100 * 4];
+        let mut p = Painter::new(&mut pixels, 100, 100).unwrap();
+        let rect = crate::Rect {
+            x: 20,
+            y: 30,
+            width: 40,
+            height: 50,
+        };
+        p.local(rect, |p, local| {
+            assert_eq!(
+                local,
+                crate::Rect {
+                    x: 0,
+                    y: 0,
+                    width: 40,
+                    height: 50
+                }
+            );
+            assert_eq!(p.visible_bounds(), local);
+            p.fill_rounded_rect(0, 0, local.width, local.height, 0, [10, 20, 30, 255]);
+        });
+        assert_eq!(p.origin, (0, 0));
+        p.finish().unwrap();
+        assert_eq!(
+            &pixels[(30 * 100 + 20) * 4..(30 * 100 + 20) * 4 + 4],
+            &[10, 20, 30, 255]
+        );
+        assert_eq!(
+            &pixels[(29 * 100 + 20) * 4..(29 * 100 + 20) * 4 + 4],
+            &[0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn visible_bounds_follow_nested_transforms_and_damage_clips() {
+        use crate::Rect;
+        let mut pixels = vec![0; 100 * 100 * 4];
+        let mut p = Painter::new(&mut pixels, 100, 100).unwrap();
+        let repair = Rect {
+            x: 20,
+            y: 30,
+            width: 40,
+            height: 20,
+        };
+        p.clip_to_rect(repair);
+        assert_eq!(p.visible_bounds(), repair);
+        p.viewport(
+            Rect {
+                x: 10,
+                y: 10,
+                width: 90,
+                height: 90,
+            },
+            (10, 10),
+            |p| {
+                assert_eq!(
+                    p.visible_bounds(),
+                    Rect {
+                        x: 10,
+                        y: 20,
+                        width: 40,
+                        height: 20
+                    }
+                );
+                p.translated((0, -100), |p| {
+                    assert_eq!(
+                        p.visible_bounds(),
+                        Rect {
+                            x: 10,
+                            y: 120,
+                            width: 40,
+                            height: 20
+                        }
+                    );
+                    p.clip_to_rect(Rect {
+                        x: 0,
+                        y: 130,
+                        width: 100,
+                        height: 5,
+                    });
+                    assert_eq!(
+                        p.visible_bounds(),
+                        Rect {
+                            x: 10,
+                            y: 130,
+                            width: 40,
+                            height: 5
+                        }
+                    );
+                });
+                assert_eq!(
+                    p.visible_bounds(),
+                    Rect {
+                        x: 10,
+                        y: 20,
+                        width: 40,
+                        height: 20
+                    }
+                );
+            },
+        );
+        assert_eq!(p.visible_bounds(), repair);
+        p.finish().unwrap();
+    }
+
+    #[test]
     fn reusable_render_keeps_transparency_and_premultiplied_pixels() {
         for (width, height) in [(0, 4), (4, 0), (8193, 1), (1, u32::MAX)] {
             assert!(RasterImage::render(width, height, |_| panic!("invalid size")).is_err());
@@ -657,6 +967,54 @@ mod tests {
                 let inside = clip.contains((index % size.0) as f64, (index / size.0) as f64);
                 assert_eq!(actual, if inside { expected } else { &[137; 4] });
             }
+        }
+    }
+
+    #[test]
+    fn redundant_viewports_still_isolate_inner_clip_changes() {
+        for threads in [1, 4] {
+            let mut actual = vec![0; 40 * 30 * 4];
+            let mut expected = actual.clone();
+            let outer = crate::Rect {
+                x: 3,
+                y: 4,
+                width: 30,
+                height: 20,
+            };
+            let inner = crate::Rect {
+                x: 7,
+                y: 8,
+                width: 10,
+                height: 9,
+            };
+            for (pixels, nested) in [(&mut actual, true), (&mut expected, false)] {
+                let mut p =
+                    Painter::with_threads(pixels, 40, 30, NonZeroU32::new(threads).unwrap())
+                        .unwrap();
+                p.clip_to_rect(outer);
+                if nested {
+                    p.viewport(outer, (0, 0), |p| {
+                        p.translated((0, 0), |p| {
+                            p.clip_to_rect(outer);
+                            p.clip_to_rect(inner);
+                            p.fill_panel(0, [10, 30, 50, 255]);
+                        })
+                    });
+                } else {
+                    p.fill_rounded_rect(
+                        inner.x,
+                        inner.y,
+                        inner.width,
+                        inner.height,
+                        0,
+                        [10, 30, 50, 255],
+                    );
+                }
+                assert_eq!(p.visible_bounds(), outer);
+                p.fill_panel(0, [70, 60, 30, 100]);
+                p.finish().unwrap();
+            }
+            assert_eq!(actual, expected);
         }
     }
 
@@ -790,7 +1148,10 @@ mod tests {
             (4, 1, 1),
             (4, 2, 2),
             (2, 16, 2),
-            (8, 16, 4),
+            (4, 16, 4),
+            (6, 4, 4),
+            (6, 16, 6),
+            (8, 16, 6),
             (0, 16, 1),
             (4, 0, 1),
         ] {

@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod benchmark;
 mod builds;
 mod fixtures;
 mod listing;
@@ -64,6 +66,7 @@ pub struct Pages {
     builds: builds::Builds,
     fixture: bool,
     dirty: bool,
+    input_dirty: (bool, bool),
     preferences: crate::preferences::Preferences,
     stale: HashSet<&'static str>,
 }
@@ -105,6 +108,7 @@ impl Pages {
             builds: Default::default(),
             fixture: false,
             dirty: true,
+            input_dirty: (false, false),
             preferences,
             stale: HashSet::new(),
         })
@@ -122,14 +126,22 @@ impl Pages {
         self.update(Update::Reply { request, result });
     }
     pub fn configure(&mut self, center: (u32, u32), right: (u32, u32), scale: f32) {
-        if self.ui.size != center || self.rail.size != right || self.ui.scale != scale {
-            self.ui.size = center;
-            self.rail.size = right;
-            self.ui.set_scale(scale);
-            self.rail.set_scale(scale);
-            self.dirty = true;
+        let center_changed = self.ui.size != center || self.ui.scale != scale;
+        let rail_changed = self.rail.size != right || self.rail.scale != scale;
+        self.ui.size = center;
+        self.rail.size = right;
+        self.ui.set_scale(scale);
+        self.rail.set_scale(scale);
+        if self.dirty {
+            self.layout();
+        } else {
+            if center_changed {
+                self.layout_center();
+            }
+            if rail_changed {
+                self.layout_rail();
+            }
         }
-        self.layout();
     }
     fn queue(&mut self, key: &str, body: Value) {
         if self.fixture {
@@ -373,6 +385,10 @@ impl Pages {
             return;
         }
         self.dirty = false;
+        self.layout_center();
+        self.layout_rail();
+    }
+    fn layout_center(&mut self) {
         let size = self.ui.size;
         let scale = self.ui.scale;
         self.ui.begin(size, scale);
@@ -402,9 +418,7 @@ impl Pages {
             Page::Builds => self.layout_builds(),
             _ => (),
         }
-        self.layout_rail();
         self.ui.finish();
-        self.rail.finish();
     }
     pub fn pointer(&mut self, rail: bool, point: (f64, f64)) -> bool {
         let changed = if rail {
@@ -413,9 +427,11 @@ impl Pages {
             self.ui.pointer_move(point)
         };
         if changed {
-            self.signals();
-            self.dirty = true;
-            self.layout();
+            if rail {
+                self.input_dirty.1 = true;
+            } else {
+                self.input_dirty.0 = true;
+            }
         }
         changed
     }
@@ -431,7 +447,9 @@ impl Pages {
         } else {
             self.ui.pointer_button(down);
         }
+        self.dirty = true;
         self.signals();
+        self.layout();
     }
     pub fn dismiss_popups_at(&mut self, center: (f64, f64), rail: (f64, f64)) -> bool {
         let dismissed = self.ui.dismiss_popup_at(center) | self.rail.dismiss_popup_at(rail);
@@ -450,6 +468,32 @@ impl Pages {
             return self.open_listing_menu(&key);
         }
         false
+    }
+    pub fn keyboard_context_menu(&mut self) -> bool {
+        if !matches!(self.page, Page::Inventory | Page::Mastery | Page::Relics) {
+            return false;
+        }
+        let Some(key) = self.ui.focus.clone() else {
+            return false;
+        };
+        let anchor = self
+            .ui
+            .buttons
+            .iter()
+            .find(|b| b.key == key)
+            .map(|b| b.rect);
+        if !self.open_listing_menu(&key) {
+            return false;
+        }
+        if let Some(rect) = anchor {
+            self.listing_mut().menu_anchor = (rect.x as f64, (rect.y + rect.height) as f64);
+            self.dirty = true;
+            self.layout();
+        }
+        true
+    }
+    pub fn dismiss_context_menu(&mut self) {
+        self.dismiss_listing_menu((-1.0, -1.0));
     }
     pub fn key(
         &mut self,
@@ -478,7 +522,9 @@ impl Pages {
         } else {
             self.ui.key(key.clone(), mods)
         };
+        self.dirty |= changed;
         self.signals();
+        self.layout();
         if changed {
             return true;
         }
@@ -524,7 +570,7 @@ impl Pages {
         let mut changed = self.ui.tick();
         let mut rail_changed = self.rail.tick();
         for listing in [&mut self.inventory, &mut self.mastery, &mut self.relics] {
-            changed |= listing.tick(now);
+            changed |= listing.tick(now) && listing.page == self.page;
         }
         let offset = self.rail_scroll.offset(now).round() as u32;
         rail_changed |= offset != self.rail_offset;
@@ -544,12 +590,21 @@ impl Pages {
         }
         changed |= self.market.tick(now) | self.builds.tick(now);
         self.market_tick(now);
-        changed |= self.signals();
-        self.dirty |= changed;
-        if changed {
+        self.signals();
+        let input = std::mem::take(&mut self.input_dirty);
+        changed |= input.0;
+        rail_changed |= input.1;
+        if self.dirty {
+            changed = true;
+            rail_changed = true;
             self.layout();
-        } else if rail_changed {
-            self.layout_rail();
+        } else {
+            if changed {
+                self.layout_center();
+            }
+            if rail_changed {
+                self.layout_rail();
+            }
         }
         (
             if changed {
@@ -557,7 +612,7 @@ impl Pages {
             } else {
                 self.ui.animation_damage()
             },
-            if rail_changed || changed {
+            if rail_changed {
                 Damage::Full
             } else {
                 Damage::None
@@ -569,9 +624,10 @@ impl Pages {
         [
             self.ui.deadline(),
             self.rail.deadline(),
-            self.inventory.scroll.deadline(now),
-            self.mastery.scroll.deadline(now),
-            self.relics.scroll.deadline(now),
+            match self.page {
+                Page::Inventory | Page::Mastery | Page::Relics => self.listing().deadline(now),
+                _ => None,
+            },
             self.rail_scroll.deadline(now),
             self.market.scroll.deadline(now),
             self.builds.scroll.deadline(now),
@@ -595,10 +651,12 @@ impl Pages {
             .drain(..)
             .chain(self.rail.signals.drain(..))
             .collect::<Vec<_>>();
-        if !signals.is_empty() {
-            self.dirty = true;
-        }
         for signal in signals {
+            match signal.key.as_str() {
+                "list:scroll" => self.input_dirty.0 = true,
+                "rail:scroll" => self.input_dirty.1 = true,
+                _ => self.dirty = true,
+            }
             if signal.key.starts_with("rail:") {
                 self.rail_signal(signal);
             } else if signal.key.starts_with("market:") {
@@ -609,9 +667,7 @@ impl Pages {
                 self.listing_signal(signal);
             }
         }
-        let changed = self.dirty;
-        self.layout();
-        changed
+        self.dirty
     }
     pub fn search(&mut self, page: Page, text: &str) {
         match page {

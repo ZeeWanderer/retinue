@@ -1,8 +1,8 @@
-use taffy::geometry::Rect as TaffyRect;
-use taffy::prelude::*;
-
 use crate::ui::Rect;
-use crate::ui::layout::UiTree;
+use retinue_ui::{
+    composition::{Element, Key, RecordingMode, Scene},
+    taffy::{geometry::Rect as TaffyRect, prelude::*},
+};
 
 const REFERENCE_HEIGHT: f64 = 1080.0;
 const REFERENCE_WIDTH: f64 = 1000.0;
@@ -74,7 +74,7 @@ impl Layout {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Element {
+enum Slot {
     Root,
     Shell,
     Relic,
@@ -91,18 +91,39 @@ enum Element {
     Components(usize),
 }
 
+impl From<Slot> for Key {
+    fn from(slot: Slot) -> Self {
+        let (kind, index) = match slot {
+            Slot::Root => (0, 0),
+            Slot::Shell => (1, 0),
+            Slot::Relic => (2, 0),
+            Slot::Holder => (3, 0),
+            Slot::Footer => (4, 0),
+            Slot::Card(i) => (5, i),
+            Slot::Name(i) => (6, i),
+            Slot::Prices(i) => (7, i),
+            Slot::Platinum(i) => (8, i),
+            Slot::Vaulted(i) => (9, i),
+            Slot::Favorite(i) => (10, i),
+            Slot::Ducats(i) => (11, i),
+            Slot::Ownership(i) => (12, i),
+            Slot::Components(i) => (13, i),
+        };
+        Self::new("reward.layout", kind + (index as u64) * 16)
+    }
+}
+
 pub(super) fn compute(
     screen_width: u32,
     screen_height: u32,
     card_specs: &[CardSpec],
 ) -> Result<Layout, String> {
     let window = relic_overlay_bounds(screen_width, screen_height);
-    let mut tree = UiTree::new();
     let mut cards = Vec::with_capacity(card_specs.len().min(4));
 
     for (index, spec) in card_specs.iter().take(4).enumerate() {
-        let name = tree.leaf(
-            Element::Name(index),
+        let name = Element::new(
+            Slot::Name(index),
             Style {
                 size: Size {
                     width: percent(1.0_f32),
@@ -113,9 +134,9 @@ pub(super) fn compute(
                 grid_column: span(2),
                 ..Default::default()
             },
-        )?;
-        let platinum = tree.leaf(
-            Element::Platinum(index),
+        );
+        let platinum = Element::new(
+            Slot::Platinum(index),
             Style {
                 size: Size {
                     width: length(spec.platinum_width),
@@ -129,11 +150,11 @@ pub(super) fn compute(
                 },
                 ..Default::default()
             },
-        )?;
+        );
         let mut price_children = vec![platinum];
         if spec.vaulted {
-            price_children.push(tree.leaf(
-                Element::Vaulted(index),
+            price_children.push(Element::new(
+                Slot::Vaulted(index),
                 Style {
                     size: Size {
                         width: length(36.0_f32),
@@ -141,11 +162,11 @@ pub(super) fn compute(
                     },
                     ..Default::default()
                 },
-            )?);
+            ));
         }
         if spec.favorite {
-            price_children.push(tree.leaf(
-                Element::Favorite(index),
+            price_children.push(Element::new(
+                Slot::Favorite(index),
                 Style {
                     size: Size {
                         width: length(27.0_f32),
@@ -153,10 +174,10 @@ pub(super) fn compute(
                     },
                     ..Default::default()
                 },
-            )?);
+            ));
         }
-        let ducats = tree.leaf(
-            Element::Ducats(index),
+        let ducats = Element::new(
+            Slot::Ducats(index),
             Style {
                 size: Size {
                     width: length(spec.ducats_width),
@@ -170,10 +191,10 @@ pub(super) fn compute(
                 },
                 ..Default::default()
             },
-        )?;
+        );
         price_children.push(ducats);
-        let prices = tree.row(
-            Element::Prices(index),
+        let prices = Element::new(
+            Slot::Prices(index),
             Style {
                 size: Size {
                     width: percent(1.0_f32),
@@ -186,10 +207,10 @@ pub(super) fn compute(
                 grid_column: span(2),
                 ..Default::default()
             },
-            &price_children,
-        )?;
-        let ownership = tree.leaf(
-            Element::Ownership(index),
+        )
+        .with_children(price_children);
+        let ownership = Element::new(
+            Slot::Ownership(index),
             Style {
                 size: Size {
                     width: percent(0.8_f32),
@@ -201,9 +222,9 @@ pub(super) fn compute(
                 grid_column: span(2),
                 ..Default::default()
             },
-        )?;
-        let components = tree.leaf(
-            Element::Components(index),
+        );
+        let components = Element::new(
+            Slot::Components(index),
             Style {
                 size: Size {
                     width: percent(1.0_f32),
@@ -214,9 +235,9 @@ pub(super) fn compute(
                 grid_column: span(2),
                 ..Default::default()
             },
-        )?;
-        cards.push(tree.grid(
-            Element::Card(index),
+        );
+        cards.push(Element::grid(
+            Slot::Card(index),
             Style {
                 size: Size {
                     width: length(100.0_f32),
@@ -238,12 +259,12 @@ pub(super) fn compute(
                 grid_template_rows: vec![fr(1.05_f32), fr(0.77_f32), fr(0.8_f32), fr(1.5_f32)],
                 ..Default::default()
             },
-            &[name, prices, ownership, components],
-        )?);
+            vec![name, prices, ownership, components],
+        ));
     }
 
-    let holder = tree.row(
-        Element::Holder,
+    let holder = Element::new(
+        Slot::Holder,
         Style {
             flex_grow: 1.0,
             min_size: Size {
@@ -263,10 +284,10 @@ pub(super) fn compute(
             justify_content: Some(JustifyContent::CENTER),
             ..Default::default()
         },
-        &cards,
-    )?;
-    let footer = tree.leaf(
-        Element::Footer,
+    )
+    .with_children(cards);
+    let footer = Element::new(
+        Slot::Footer,
         Style {
             size: Size {
                 width: percent(1.0_f32),
@@ -275,10 +296,12 @@ pub(super) fn compute(
             flex_shrink: 0.0,
             ..Default::default()
         },
-    )?;
-    let relic = tree.column(
-        Element::Relic,
+    );
+    let relic = Element::new(
+        Slot::Relic,
         Style {
+            flex_direction: FlexDirection::Column,
+
             flex_grow: 1.0,
             min_size: Size {
                 width: length(0.0_f32),
@@ -286,10 +309,10 @@ pub(super) fn compute(
             },
             ..Default::default()
         },
-        &[holder, footer],
-    )?;
-    let shell = tree.row(
-        Element::Shell,
+    )
+    .with_children(vec![holder, footer]);
+    let shell = Element::new(
+        Slot::Shell,
         Style {
             size: Size {
                 width: percent(1.0_f32),
@@ -303,10 +326,10 @@ pub(super) fn compute(
             },
             ..Default::default()
         },
-        &[relic],
-    )?;
-    let root = tree.row(
-        Element::Root,
+    )
+    .with_children(vec![relic]);
+    let mut root = Element::new(
+        Slot::Root,
         Style {
             size: Size {
                 width: length(window.width as f32),
@@ -320,29 +343,37 @@ pub(super) fn compute(
             },
             ..Default::default()
         },
-        &[shell],
+    )
+    .with_children(vec![shell]);
+    root.offset = (window.x as f32, window.y as f32);
+    let mut scene = Scene::default();
+    scene.update(
+        root,
+        (screen_width, screen_height),
+        1.0,
+        RecordingMode::Retained,
     )?;
-    let layout = tree.compute(root, (window.x, window.y), (window.width, window.height))?;
+    let bounds = |slot: Slot| scene.layout_rect(slot.into()).expect("reward layout node");
 
     Ok(Layout {
         window,
-        shell: layout.bounds(Element::Shell),
-        holder: layout.bounds(Element::Holder),
-        cards: layout.content_bounds(Element::Holder),
-        footer: layout.bounds(Element::Footer),
+        shell: bounds(Slot::Shell),
+        holder: bounds(Slot::Holder),
+        cards: scene.content_rect(Slot::Holder.into()).unwrap(),
+        footer: bounds(Slot::Footer),
         reward_cards: card_specs
             .iter()
             .take(4)
             .enumerate()
             .map(|(index, spec)| CardLayout {
-                card: layout.bounds(Element::Card(index)),
-                name: layout.bounds(Element::Name(index)),
-                prices: layout.bounds(Element::Prices(index)),
-                platinum: layout.bounds(Element::Platinum(index)),
-                vaulted: spec.vaulted.then(|| layout.bounds(Element::Vaulted(index))),
-                ducats: layout.bounds(Element::Ducats(index)),
-                ownership: layout.bounds(Element::Ownership(index)),
-                components: layout.bounds(Element::Components(index)),
+                card: bounds(Slot::Card(index)),
+                name: bounds(Slot::Name(index)),
+                prices: bounds(Slot::Prices(index)),
+                platinum: bounds(Slot::Platinum(index)),
+                vaulted: spec.vaulted.then(|| bounds(Slot::Vaulted(index))),
+                ducats: bounds(Slot::Ducats(index)),
+                ownership: bounds(Slot::Ownership(index)),
+                components: bounds(Slot::Components(index)),
             })
             .collect(),
     })

@@ -1,6 +1,7 @@
 use crate::settings::rgb;
 use retinue_ui::{
     Rect,
+    composition::Canvas,
     painter::{Painter, RasterImage},
 };
 
@@ -15,6 +16,9 @@ pub const GOOD: [u8; 4] = rgb(0x83dbab);
 pub const BAD: [u8; 4] = rgb(0xff8796);
 pub const POPOVER: [u8; 4] = rgb(0x30394e);
 pub const MENU_HOVER: [u8; 4] = rgb(0x46516b);
+pub const MENU_EDGE: [u8; 4] = rgb(0x596176);
+pub const NAV_TEXT: [u8; 4] = rgb(0x8a8c95);
+pub const NAV_HOVER: [u8; 4] = rgb(0xccccce);
 pub const COMPONENT_READY: [u8; 4] = alpha(0x6e9b68, 120);
 pub const COMPONENT_EMPTY: [u8; 4] = alpha(0xffffff, 0x12);
 pub const COMPONENT_GLOW: [u8; 4] = rgb(0x46d234);
@@ -35,21 +39,6 @@ pub const fn alpha(color: u32, alpha: u8) -> [u8; 4] {
     let mut color = rgb(color);
     color[3] = alpha;
     color
-}
-
-pub fn component_background(p: &mut Painter<'_>, r: Rect, ready: bool) {
-    p.fill_rounded_rect(
-        r.x,
-        r.y,
-        r.width,
-        r.height,
-        r.width / 2,
-        if ready {
-            COMPONENT_READY
-        } else {
-            COMPONENT_EMPTY
-        },
-    );
 }
 
 pub fn component_glow(diameter: u32, scale: f32) -> Result<RasterImage, String> {
@@ -77,14 +66,14 @@ pub fn component_highlight(p: &mut Painter<'_>, r: Rect, cached: Option<&RasterI
     }
 }
 
-pub fn focus_ring(painter: &mut Painter<'_>, bounds: Rect, scale: f32) {
+pub fn focus_ring(painter: &mut Canvas, bounds: Rect, scale: f32) {
     focus_outline(painter, bounds, scale, (6.0 * scale).round() as u32);
 }
 
-pub fn focus_capsule(painter: &mut Painter<'_>, bounds: Rect, scale: f32) {
+pub fn focus_capsule(painter: &mut Canvas, bounds: Rect, scale: f32) {
     focus_outline(painter, bounds, scale, bounds.height / 2);
 }
 
-fn focus_outline(painter: &mut Painter<'_>, bounds: Rect, scale: f32, radius: u32) {
+fn focus_outline(painter: &mut Canvas, bounds: Rect, scale: f32, radius: u32) {
     painter.outline(bounds, radius, (2.0 * scale).round().max(1.0) as u32, FOCUS);
 }

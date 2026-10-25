@@ -246,9 +246,16 @@ fn component_dismissal_keyboard_and_refresh_removal_are_safe() {
         "outside press must not activate refresh"
     );
     v.open_component(0, 0);
-    v.key(InputKey::Named(NamedKey::Tab), ModifiersState::empty());
+    v.key(
+        InputKey::Named(NamedKey::ArrowDown),
+        ModifiersState::empty(),
+    );
     assert_eq!(v.focus, Some(Action::ComponentSearch));
     v.key(InputKey::Named(NamedKey::Escape), ModifiersState::empty());
+    assert_eq!(v.focus, Some(Action::Component(0, 0)));
+    assert!(v.keyboard_context_menu());
+    v.key(InputKey::Named(NamedKey::Tab), ModifiersState::empty());
+    assert!(!v.component_open());
     assert_eq!(v.focus, Some(Action::Component(0, 0)));
     v.activate(Action::Component(0, 0));
     let mut snapshot = v.snapshot.clone();

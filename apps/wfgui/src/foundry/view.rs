@@ -1,9 +1,10 @@
 use super::*;
+use retinue_ui::composition::{Canvas, Color, Command, ImageFit};
 
 impl Foundry {
     pub(super) fn text(&self, p: &mut Painter<'_>, text: &str, r: Rect, size: f32, color: [u8; 4]) {
         p.draw_text_vertically_centered(
-            &self.regular,
+            self.regular.as_ref(),
             TextLine::new(r.x, r.y, r.height),
             size * self.scale,
             text,
@@ -22,19 +23,23 @@ impl Foundry {
             );
         }
     }
-    fn picture(&self, p: &mut Painter<'_>, asset: Option<&Asset>, r: Rect, bottom: bool) {
+    fn picture(&self, p: &mut Canvas, asset: Option<&Asset>, r: Rect, bottom: bool) {
         if let Some(image) = self.displayed_image(asset, r.width) {
             let (w, h) = image.dimensions();
-            p.draw_image(
-                image,
-                r.x + r.width.saturating_sub(w) / 2,
-                r.y + if bottom {
-                    r.height.saturating_sub(h)
-                } else {
-                    r.height.saturating_sub(h) / 2
+            p.image(
+                Rect {
+                    x: r.x + r.width.saturating_sub(w) / 2,
+                    y: r.y
+                        + if bottom {
+                            r.height.saturating_sub(h)
+                        } else {
+                            r.height.saturating_sub(h) / 2
+                        },
+                    width: w,
+                    height: h,
                 },
-                w,
-                h,
+                image.clone(),
+                ImageFit::Stretch,
             );
         }
     }
@@ -48,7 +53,22 @@ impl Foundry {
             0,
             PANEL,
         );
-        for (action, r) in self.controls() {
+        drop(self.resolved_composition());
+        let mut toolbar = Canvas::new(self.scale);
+        let mut overlays = Canvas::new(self.scale);
+        self.paint_toolbar(&mut toolbar, focus);
+        self.paint_overlays(&mut overlays, focus);
+        let mut composition = self.composition.borrow_mut();
+        composition.record_chrome(toolbar.commands, overlays.commands);
+        composition.paint(self, p);
+    }
+
+    pub(super) fn paint_toolbar(
+        &self,
+        p: &mut Canvas,
+        focus: retinue_ui::focus_visible::FocusVisible,
+    ) {
+        for (action, r) in self.layout_controls() {
             match action {
                 Action::Category(i) => {
                     let progress = self.category_motion.weights[i];
@@ -58,7 +78,7 @@ impl Foundry {
                             .round() as u8
                     });
                     p.fill_rounded_rect(r.x, r.y, r.width, r.height, r.height / 2, color);
-                    self.icon(
+                    self.record_icon(
                         p,
                         Badge::Category(i),
                         Rect {
@@ -75,7 +95,7 @@ impl Foundry {
                             ..r
                         };
                         p.viewport(label, (0, 0), |p| {
-                            self.text(
+                            self.record_text(
                                 p,
                                 CATEGORIES[i],
                                 Rect {
@@ -89,9 +109,12 @@ impl Foundry {
                         });
                     }
                 }
-                Action::Search => self.paint_search(p, r),
-                Action::ClearSearch => self.icon(p, Badge::ClearSearch, r),
-                Action::Refresh => self.icon(p, Badge::Refresh, r),
+                Action::Search => p.commands.push(Command::External {
+                    bounds: p.bounds(r),
+                    key: composition::SEARCH,
+                }),
+                Action::ClearSearch => self.record_icon(p, Badge::ClearSearch, r),
+                Action::Refresh => self.record_icon(p, Badge::Refresh, r),
                 Action::Filters => {
                     p.fill_rounded_rect(
                         r.x,
@@ -105,7 +128,7 @@ impl Foundry {
                             CARD
                         },
                     );
-                    self.icon(p, Badge::Filters, r);
+                    self.record_icon(p, Badge::Filters, r);
                 }
                 _ => (),
             }
@@ -121,7 +144,7 @@ impl Foundry {
             format!("{} items", self.count())
         };
         let width = text_width(&self.regular, &count, 12.0 * self.scale).ceil() as u32;
-        self.text(
+        self.record_text(
             p,
             &count,
             Rect {
@@ -141,8 +164,15 @@ impl Foundry {
                 MUTED
             },
         );
+    }
+
+    pub(super) fn paint_overlays(
+        &self,
+        p: &mut Canvas,
+        focus: retinue_ui::focus_visible::FocusVisible,
+    ) {
         if self.ready && self.filtered.is_empty() {
-            self.text(
+            self.record_text(
                 p,
                 "No matching Foundry items",
                 Rect {
@@ -155,32 +185,6 @@ impl Foundry {
                 MUTED,
             );
         }
-        p.viewport(
-            self.viewport,
-            (
-                self.viewport.x as i32,
-                self.viewport.y as i32 - self.offset as i32,
-            ),
-            |p| {
-                let hovered = self.hovered_card();
-                for index in self.visible(0) {
-                    let (x, y) = self.grid.origin(index);
-                    let r = Rect {
-                        x,
-                        y,
-                        width: self.grid.width,
-                        height: self.grid.height,
-                    };
-                    p.viewport(r, (x as i32, y as i32), |p| {
-                        self.paint_card(
-                            p,
-                            &self.snapshot.items[self.filtered[index]],
-                            hovered == Some(index),
-                        )
-                    });
-                }
-            },
-        );
         if !self.popup_open()
             && focus.shows(
                 matches!(
@@ -224,7 +228,7 @@ impl Foundry {
                 };
                 p.fill_rounded_rect(r.x, r.y, r.width, r.height, self.px(4.0), rgb(0x323c58));
                 p.viewport(r, (0, 0), |p| {
-                    self.text(
+                    self.record_text(
                         p,
                         text,
                         Rect {
@@ -238,50 +242,43 @@ impl Foundry {
             }
         }
     }
-    fn paint_card(&self, p: &mut Painter<'_>, c: &Card, hovered: bool) {
-        let w = self.grid.width;
-        let h = self.grid.height;
-        let pad = self.px(10.0);
-        p.fill_rounded_rect(
-            0,
-            0,
-            w,
-            h,
-            self.px(15.0),
-            if hovered { CARD_HOVER } else { CARD },
-        );
-        if c.owned {
-            p.fill_rounded_rect(
-                0,
-                0,
-                w,
-                h,
-                self.px(15.0),
-                if hovered {
-                    crate::style::OWNED_CARD_HOVER
-                } else {
-                    crate::style::OWNED_CARD
-                },
-            );
-            p.inset_shadow(
+    pub(super) fn record_icon(&self, p: &mut Canvas, badge: Badge, r: Rect) {
+        if let Some(image) = self.icons.get(&badge).and_then(|r| self.images.get(&r.key)) {
+            let (w, h) = image.dimensions();
+            p.image(
                 Rect {
-                    x: 0,
-                    y: 0,
+                    x: r.x + r.width.saturating_sub(w) / 2,
+                    y: r.y + r.height.saturating_sub(h) / 2,
                     width: w,
                     height: h,
                 },
-                self.px(15.0),
-                7.0 * self.scale,
-                3.0 * self.scale,
-                if hovered {
-                    crate::style::OWNED_EDGE_HOVER
-                } else {
-                    crate::style::OWNED_EDGE
-                },
+                image.clone(),
+                ImageFit::Stretch,
             );
         }
-        let (star, title, mastered) = self.title_rects(c);
-        self.icon(
+    }
+
+    pub(super) fn record_text(
+        &self,
+        p: &mut Canvas,
+        text: &str,
+        r: Rect,
+        size: f32,
+        color: [u8; 4],
+    ) {
+        p.text(r, self.regular.clone(), text.into(), size, color);
+    }
+
+    pub(super) fn record_card_content(
+        &self,
+        p: &mut Canvas,
+        c: &Card,
+        layout: &composition::CardLayout,
+    ) {
+        let w = self.grid.width;
+        let pad = self.px(10.0);
+        let (star, _, mastered) = layout.title;
+        self.record_icon(
             p,
             if self.preferences.is_favorite(&c.id) {
                 Badge::FavoriteOn
@@ -290,27 +287,11 @@ impl Foundry {
             },
             star,
         );
-        let mut name = c.name.clone();
-        while text_width(&self.regular, &name, 20.0 * self.scale) > title.width as f32
-            && !name.is_empty()
-        {
-            name.pop();
-        }
-        if name != c.name {
-            while !name.is_empty()
-                && text_width(&self.regular, &format!("{name}..."), 20.0 * self.scale)
-                    > title.width as f32
-            {
-                name.pop();
-            }
-            name.push_str("...");
-        }
-        self.text(p, &name, title, 20.0, TEXT);
         if c.mastered {
-            self.icon(p, Badge::Mastered, mastered);
+            self.record_icon(p, Badge::Mastered, mastered);
         }
         if c.is_prime {
-            self.icon(
+            self.record_icon(
                 p,
                 if c.vaulted {
                     Badge::Vaulted
@@ -333,16 +314,10 @@ impl Foundry {
                 height: self.px(18.0),
             };
             p.fill_rounded_rect(r.x, r.y, r.width, r.height, r.height / 2, rgb(0x365ca0));
-            self.icon(p, Badge::Pending, r);
+            self.record_icon(p, Badge::Pending, r);
         }
         let warframe = c.group == "warframe";
-        let size = self.px(if warframe { 105.0 } else { 86.0 });
-        let r = Rect {
-            x: pad + self.px(3.0),
-            y: if warframe { h - size } else { self.px(43.0) },
-            width: size,
-            height: size,
-        };
+        let r = layout.hero;
         self.picture(p, c.asset.as_ref(), r, warframe);
         let level = self.snapshot.profile["player_level"].as_u64().unwrap_or(0);
         if c.mastery_requirement > level {
@@ -360,7 +335,7 @@ impl Foundry {
                 badge.height / 2,
                 rgb(0x101620),
             );
-            self.text(
+            self.record_text(
                 p,
                 &format!("MR {}", c.mastery_requirement),
                 Rect {
@@ -372,30 +347,53 @@ impl Foundry {
             );
         }
         if c.subsumed && warframe {
-            let r = Rect {
-                x: r.x + r.width - self.px(27.0),
-                y: h - self.px(29.0),
-                width: self.px(25.0),
-                height: self.px(25.0),
-            };
+            let r = layout.subsumed;
             p.fill_rounded_rect(r.x, r.y, r.width, r.height, r.height / 2, rgb(0x7e3a3a));
             p.outline(r, r.height / 2, self.px(1.0), rgb(0xb86767));
-            self.icon(p, Badge::Subsumed, r);
+            self.record_icon(p, Badge::Subsumed, r);
         }
-        for (part, r) in c.components.iter().zip(self.parts(c.components.len())) {
+        for (part, layout) in c.components.iter().zip(&layout.parts) {
+            let r = layout.image;
             let owned = part.owned >= part.required;
             let blueprint = part.blueprint_owned > 0;
-            crate::style::component_background(p, r, blueprint || owned);
+            p.fill(
+                r,
+                r.width / 2,
+                if blueprint || owned {
+                    crate::style::COMPONENT_READY
+                } else {
+                    crate::style::COMPONENT_EMPTY
+                },
+            );
             if let Some(image) = self.displayed_image(part.asset.as_ref(), self.px(35.0)) {
-                p.draw_image_contained_circle(
-                    image,
-                    r.x + self.px(2.0),
-                    r.y + self.px(2.0),
-                    self.px(35.0),
+                p.image(
+                    Rect {
+                        x: r.x + self.px(2.0),
+                        y: r.y + self.px(2.0),
+                        width: self.px(35.0),
+                        height: self.px(35.0),
+                    },
+                    image.clone(),
+                    ImageFit::Circle,
                 );
             }
             if owned || blueprint {
-                crate::style::component_highlight(p, r, self.component_glow.as_ref(), self.scale);
+                let bounds = p.bounds(r);
+                p.commands.push(if let Some(image) = &self.component_glow {
+                    Command::Image {
+                        bounds,
+                        image: image.clone().into(),
+                        fit: retinue_ui::composition::ImageFit::Stretch,
+                    }
+                } else {
+                    Command::InsetShadow {
+                        bounds,
+                        radius: (r.width / 2) as f32 / self.scale,
+                        blur: 4.0,
+                        spread: 1.0,
+                        color: Color::from_bgra(crate::style::COMPONENT_GLOW),
+                    }
+                });
             }
             let query = self.search.borrow().text().to_lowercase();
             if !query.is_empty() && part.name.to_lowercase().contains(&query) {
@@ -420,7 +418,7 @@ impl Foundry {
             }
             if part.owned > 0 {
                 let mut count = part.owned.to_string();
-                let badge = self.count_badge(r, &count, part.owned_relic);
+                let badge = layout.count;
                 let available = badge.width.saturating_sub(self.px(8.0));
                 if text_width(&self.regular, &count, 12.5 * self.scale) > available as f32 {
                     while !count.is_empty()
@@ -442,8 +440,8 @@ impl Foundry {
                     badge.height / 2,
                     [0, 0, 0, 0xbd],
                 );
-                p.viewport(badge, (0, 0), |p| {
-                    self.text(
+                p.clip(badge, |p| {
+                    self.record_text(
                         p,
                         &count,
                         Rect {
@@ -458,7 +456,7 @@ impl Foundry {
                 });
             }
             if part.owned_relic {
-                let badge = self.relic_badge(r);
+                let badge = layout.relic;
                 p.fill_rounded_rect(
                     badge.x,
                     badge.y,
@@ -467,11 +465,11 @@ impl Foundry {
                     badge.width / 2,
                     [0x16, 0x4a, 0x4b, 0xb3],
                 );
-                self.icon(p, Badge::Relic, badge);
+                self.record_icon(p, Badge::Relic, badge);
                 p.outline(badge, badge.width / 2, self.px(2.0), rgb(0xcfb020));
             }
             if self.preferences.is_favorite(&part.id) {
-                self.icon(
+                self.record_icon(
                     p,
                     Badge::FavoriteOn,
                     Rect {

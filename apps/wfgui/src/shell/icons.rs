@@ -1,5 +1,5 @@
 use retinue_ui::{image, painter::RasterImage};
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Icon {
@@ -55,7 +55,7 @@ pub struct Icons {
 }
 
 pub struct Prepared {
-    pub image: RasterImage,
+    pub image: Rc<RasterImage>,
     pub width: u32,
     pub height: u32,
 }
@@ -63,7 +63,7 @@ impl Prepared {
     fn new(pixels: image::RgbaImage) -> Result<Self, String> {
         let (width, height) = pixels.dimensions();
         Ok(Self {
-            image: RasterImage::from_rgba(pixels).map_err(|e| e.to_string())?,
+            image: Rc::new(RasterImage::from_rgba(pixels).map_err(|e| e.to_string())?),
             width,
             height,
         })
