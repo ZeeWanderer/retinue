@@ -49,7 +49,7 @@ rebar3.crashdump
 __pycache__/
 
 # Disposable upstream source used for implementation research
-research/
+/research/
 
 # Direct Cargo output if project-level target configuration is bypassed
 apps/wfcompanion/target/

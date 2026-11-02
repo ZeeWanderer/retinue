@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
 import {load} from 'cheerio';
 import {topic, linkResolver} from '../markdown.mjs';
 import {protocolPages} from '../protocol.mjs';
@@ -7,6 +8,12 @@ import {integrate} from '../native.mjs';
 import {root, basePath} from '../paths.mjs';
 import {route} from '../prepare.mjs';
 import {navigationErrors} from '../check.mjs';
+
+test('research documentation is publishable while raw evidence remains ignored', () => {
+  const ignored = file => spawnSync('git', ['check-ignore', '--no-index', file], {cwd: root, encoding: 'utf8'});
+  assert.equal(ignored('docs/research/index.md').status, 1);
+  assert.equal(ignored('research/capture.bin').status, 0);
+});
 
 test('navigation validation rejects empty groups and unlinked topics', () => {
   const $ = load(`<nav id="starlight__sidebar"><a href="${basePath}">Overview</a>
