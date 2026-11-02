@@ -14,7 +14,10 @@ audit.
 - [`shared_utilities.md`](developer/shared_utilities.md): stable cross-application contracts
 - [`cli.md`](developer/cli.md): command dispatch, parsing, and terminal output
 - [`companion.md`](developer/companion.md): native observer, local protocol, player data, and overlay
-- [`gui.md`](developer/gui.md): Qt model/view, painting, and asynchronous update rules
+- [`gui-organization.md`](developer/gui-organization.md): Rust GUI source map and ownership
+- [`companion-presentation.md`](developer/companion-presentation.md): overlay views, models and workers
+- [`ui-sdk.md`](developer/ui-sdk.md): retained views, observable state and custom layout
+- [`render-pipeline.md`](developer/render-pipeline.md): paint programs, optimization and repair
 - [`player-data.md`](developer/player-data.md): account payload, collector, and indexing boundary
 - [`assets.md`](developer/assets.md): embedded and dynamic texture ownership
 
@@ -33,6 +36,7 @@ audit.
 - [`workflows.md`](developer/workflows.md): build, test, fixture, and metadata routines
 - [`adding_features.md`](developer/adding_features.md): checklist for features and data sources
 - [`tools.md`](developer/tools.md): inspection and benchmark helpers
+- [`documentation.md`](developer/documentation.md): generated reference, topic authoring and site builds
 
 ## Research And Audits
 

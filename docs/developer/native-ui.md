@@ -2,10 +2,8 @@
 
 `apps/wfgui/src/` is the default `wfgui` client. `make gui-dev` and `make gui-prod`
 stage the matching Rust executable. All seven page routes have native implementations.
-Qt source and tests remain in `apps/wfgui/qt/`; explicitly build them with
-`make gui-qt-dev` or `make gui-qt-prod`, which stage `wfgui-qt` instead.
-Qt is a temporary reference, not a parallel implementation to maintain. The next
-release waits for the native replacement and removal of Qt.
+The previous Qt implementation is retired. See the [source map](gui-organization.md)
+for current view, model and service ownership.
 
 The three-rail shell uses the existing GUI icons and custom title bar. Drag,
 double-click maximize/restore, resize edges and window controls delegate to Winit.
@@ -19,7 +17,8 @@ the content. Mouse routing and wheel handling prioritize that drawer.
 
 ## Boundaries
 
-- `retinue-ui`: retained composition, painter, Taffy layout, caches, scrolling and transitions.
+- `retinue-ui`: authoring, Taffy layout, scrolling, transitions and window hosts.
+- `retinue-render`: retained drawing, painter, resources, caches and damage repair.
 - `desktop` feature: Winit windows/events/accessibility and Softbuffer presentation.
 - `overlay` feature: existing layer-shell, game focus, portals and clipboard.
 - App: screens, styles and asynchronous daemon/filesystem work. Daemon retains
@@ -56,14 +55,20 @@ Preserve intentional Retinue changes such as compact
 Foundry cards and title-line badges. `alecaframe foundry` in the UI reference
 tool renders vendor cards/components for close-up comparisons. Owned backgrounds
 and component readiness use inset glows; `Painter::inset_shadow` approximates
-the Gaussian edge with queued vector bands. Repeated component glows are painted
-once per scale with `RasterImage::render`, held in RAM and reused through Blend2D
-image operations. Do not create raster contexts per card or per frame.
+the Gaussian edge with queued vector bands. Repeated component glows are named
+paint fragments; the shared planner controls their optional rasterization and
+retention. Do not add widget-owned glow caches or raster contexts per card.
 
 Sample transitions at redraw, not on every event-loop wake. Keep one redraw pending
 while Winit waits for the compositor; measure the next deadline before painting so
 render time does not extend the interval. A late wake must still paint the final
-position. Idle windows sleep. Layout changes invalidate geometry; scrolling and
+position. Idle windows sleep. Keep nonvisual expiry in
+`Application::maintenance_deadline`/`maintain`, separate from frame deadlines.
+Maintenance must consume its deadline, work while occluded and request no redraw.
+Native paint hosts expose their `RenderHost` and keep its frame guard alive through
+`Painter::finish`, using the guard's thread allowance. Ending the guard after
+command submission would let analysis overlap unaccounted native workers.
+Layout changes invalidate geometry; scrolling and
 moving a width-capped page translate its existing geometry without rebuilding it.
 Paint, hit testing, captures and accessibility must use the same translation.
 Keep controls keyboard-operable and expose their semantics through AccessKit.
@@ -86,7 +91,7 @@ consumer requirement and a measured cost.
 
 `--report` includes native control/region bounds and draw styles in logical pixels.
 `make previews-gui` writes `layout/<page>.json` beside the images, joining these
-to Aleca DOM measurements and named Qt source constants. Missing observations
+to Aleca DOM measurements and historical Qt constants pinned to their Git revision. Missing observations
 remain absent; source-derived dimensions are not runtime measurements. Use live
 captures for artwork, since deterministic fixtures intentionally omit remote assets.
 Capture a listing context menu with `--view context-menu --capture-target page.menu`.
@@ -109,6 +114,74 @@ Filter popovers retain their separate form-style Tab traversal.
 
 Navigation, including Settings, has no idle filled background. Hover changes the
 text/icon and trailing indicator; selection uses the same geometry in white.
+
+Loading placeholders use `scene::LoadingFrame`, sampled once by the host
+per update. Progress and skeleton shapes emit ordinary commands and invalidate
+only their visible bounds. Do not sample time inside paint: partial repairs and
+full-paint oracles must draw the same phase. Activity placeholders follow the
+real rail geometry; unknown Market authentication is loading, not signed-out.
+Use `--view loading` with `--fixture` to capture these states.
+
+### Resource Residency
+
+Visible images and prepared card rasters are owned by their consumers, outside
+idle retention limits. Foundry also owns one nearby row for scrolling, prepared
+after visible images. Weak cache lookup finds still-owned resources even when
+the idle LRU cannot hold the viewport. Keep recent thumbnails for reverse scroll
+and page returns; do not use visible-only eviction or decode each page again.
+
+Deactivate hidden page rasters, not their models/search/scroll state. Source
+images are preparation inputs: retain only those requested by the current batch,
+within the source cache allowance. Resampled images own independent pixels.
+Immutable command fragments share storage between their description and scene.
+Text fields share `EditResources`; cursor/selection/text remain per editor.
+Do not allocate a font database per field or duplicate full dataset arrays.
+Share immutable parsed font geometry through application-scoped `FontFaces`;
+glyph caches keep their own budgets. Hidden layout and accessibility queries must
+not prepare paint resources. Test resize and scale changes while a page is hidden,
+not only the page-switch event.
+
+Hit-testing must not materialize raster caches, including on visible pages. Prepare
+the final scene during paint, not intermediate pointer-event states. A captured
+scrollbar keeps its cursor without resolving card paint on each motion; hover can
+still update at frame time. Route release to the press owner even across rails.
+
+Disk derivatives remain keyed by upstream digest and physical size/crop/tint.
+There is no size eviction on disk; superseded origins are removed after the new
+derivative is stored. Embedded-only batches must not reset persistence tracking
+and rewrite unchanged files on return. All decode/resample/disk work stays on the
+preparation worker, which publishes ready images before slower preparation.
+
+`interaction_residency_benchmark` cycles pages, categories, searches, filters,
+scroll positions, context menus, rails and scales. Set `GUI_BENCH_CYCLES=6` for
+repeated visits; `page_residency_benchmark` is the smaller page-switch check.
+Add `GUI_BENCH_LIVE=1` for read-only daemon data and cached assets. These headless
+tests do not exercise compositor buffers, the asynchronous image worker or live
+trade requests. Reports stream metrics, not inventory, without retaining samples.
+RSS includes fonts, models, allocator retention and native work, not just images;
+presentation buffers add roughly 14 MiB each at 2560x1440. Freed cache bytes need
+not immediately reduce RSS. Do not add allocator trimming to the frame path.
+`--report` includes process memory, glibc heap, native images and Blend2D runtime
+pools. These overlap: do not sum them. The glibc counters are not valid for a
+replacement allocator; Blend2D's global pool counters are not its entire heap.
+Normal runs do not sample these diagnostics periodically.
+
+GUI policy prioritizes render latency and smooth navigation over minimum RSS.
+Keep useful active resources; avoid aggressive purge/eviction that causes new
+decodes, faults or rasterization. Overlays share these mechanisms but use tighter
+optional-layer and in-flight limits because they coexist with the game. Do not
+apply one memory/thread policy to both hosts.
+
+Allocator comparisons must cover Rust and native allocations, sustained interaction,
+p50/tail latency and retained memory. A higher stable RSS is not by itself a GUI
+regression; a lower RSS bought with frame spikes is not an optimization. Blend2D
+uses the shared worker pool/JIT and external target pixels; per-frame contexts and
+allocator arenas are distinct from its reported global pools.
+
+Mastery and Inventory filters use anchored capsule-choice popovers, preserving
+grid geometry and scroll position. Opening a popover does not fetch or reorder
+data. Its close button, Escape and outside press dismiss it; Tab/arrows reveal
+clipped choices. Only changing a filter changes the result set.
 
 ### Foundry Controls
 
@@ -185,6 +258,19 @@ Keep data fetching and resource preparation outside painting. Preserve visible-o
 preparation, stable control IDs and damage bounds. Verify geometry, pixels and
 scrolling cost before replacing a rendering path.
 
+Use `scroll::Viewport` with `Padding` for content insets. Its extent includes top
+and bottom padding; translation, visible-range culling and hit testing use the
+same geometry. Padding scrolls with the content, not with the viewport clip.
+`Ui::begin_scroll_viewport` accepts it directly. Foundry adds 12 logical pixels
+below the final row and no top inset. Nested viewport scopes intersect parent
+clips, compose translations and restore the parent on exit.
+
+Build Planner shares one mod-card renderer across equipment, discovered builds
+and groups. Wrap names and effects in logical card coordinates before animating;
+grow the expanded description to preserve every property. Compatibility plaques
+use the daemon's `compat_name`. Frame variants retain their own side/bottom anchors.
+Sample artwork at the expanded endpoint, not at each intermediate animation size.
+
 The page session multiplexes bounded requests with player push updates. Activity
 uses the existing 60-second query refresh; the local protocol does not offer a
 world-state subscription. Reject failed subscriptions rather than silently losing
@@ -231,13 +317,12 @@ are repainted. Cancellation drops stale results, not images already on screen.
 
 Catalog derivatives also persist under `gui/derivatives/native-v1`. Keys include
 source identity, source hash, physical bounds, crop and resampling recipe. PNG
-writes follow visible preparation; embedded UI icons stay RAM-only. The Qt cache
-has a separate namespace because its pixel recipe differs. There is no disk size
+writes follow visible preparation; embedded UI icons stay RAM-only. There is no disk size
 cap: obsolete source revisions are removed after a replacement is stored. Atomic
 writes and a cache-generation lock prevent old work from restoring cleared files.
 Corrupt or missing disk entries fall back to preparation and can be rewritten in
 the same session; a previous successful write must not suppress repair. Settings
-counts and clears both derivative namespaces; memory controls include glyphs.
+counts and clears the derivative directory; memory controls include glyphs.
 
 Keep file access, decoding and resampling outside paint/input handlers. Scroll
 repaints the viewport, not the entire window; model changes damage affected visible

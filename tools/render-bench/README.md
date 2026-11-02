@@ -1,5 +1,20 @@
 # Overlay Benchmarks
 
+For shared target repair, run `make bench-repair REPAIR_REPORT=research/repair.jsonl`.
+It alternates command-first regions (strategy 0), region-first replay (1),
+128x32-pixel coverage tiles (2), bounding rectangles (3) and full repaint (4).
+Cases 0..4 are separated corners, horizontal strips, vertical strips, a large
+continuous region and 192 small rectangles. Reports retain raw nanosecond samples,
+pixel coverage, logical commands/blits and requested/actual native thread counts.
+Preparation runs once per frame in every strategy. These are headless renderer
+measurements, not window presentation or game-impact measurements.
+
+For the actual GUI rail animation, compare `make bench-gui
+GUI_BENCH_PROFILE=release GUI_BENCH_CASE=rail_animation_benchmark
+GUI_BENCH_OUTPUT=research/rails.json` against the same command with
+`GUI_BENCH_BOUNDING_DAMAGE=1` and a different output path. Alternate run order;
+keep unrelated builds and benchmarks stopped.
+
 ```bash
 make bench-overlays
 make bench-overlays BENCH_SAMPLES=120 BENCH_OUTPUT=research/retinue/benchmarks/render-after
@@ -15,6 +30,13 @@ Default reports: `research/retinue/benchmarks/overlays/<UTC time>/{warframe,poe2
 The target builds release test binaries, uses deterministic fixtures and needs
 neither game nor daemon. It does not stage binaries or reload a running companion.
 The helper is compiled only into tests; normal companions have no instrumentation.
+
+PoE2 also reports description, scene update, preparation, submission and native
+completion totals, plus section layout-update counts. Compare the same binary with
+`RETINUE_BENCH_FULL_LAYOUT=1` and/or `RETINUE_BENCH_FULL_REPLAY=1` to disable local
+reductions. These counters include cold/warmup frames; warm latency samples do not.
+`RETINUE_BENCH_NO_LAYERS=1` disables optional subtree promotion while retaining
+command reductions. Reports include promotions, demotions and peak layer bytes.
 
 Each case records setup, first paint, warm p50/p95/p99/max, raw frame samples,
 caller and process CPU time, process RSS/high-water RSS and known pixel-buffer sizes.
@@ -111,3 +133,77 @@ in RAM and written between cases, not per frame. Normal builds exclude it.
 Keep display refresh, game/background load and scale unchanged during a run.
 No noisy performance threshold is enforced. This measures overlay scheduling and
 presentation only, not game impact. Game frame-time recording remains separate.
+
+## GUI Memory And Motion
+
+### Paint Replay
+
+`make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=foundry_drag_benchmark
+GUI_BENCH_OUTPUT=research/drag.json` exercises scrollbar dragging with eight cursor
+events per paint, both over the track and across the grid, at 100%, 125% and 200%.
+It includes the native host's cursor queries and release routing; reports separate
+input, submission, completion and process CPU time. Fixture-only, no presentation
+timing or live account changes. Wheel/jump-only traces do not cover this workload.
+
+```bash
+make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=paint_replay_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/paint-replay.json
+GUI_BENCH_REVERSE=1 make bench-gui GUI_BENCH_PROFILE=release \
+  GUI_BENCH_CASE=paint_replay_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/paint-replay-reverse.json
+```
+
+Captures 32 immutable paint frames from a fixture Relic grid: forward/reverse
+scroll, a changed label and reordered items. Drops the producing page before
+replaying identical frames through raw commands, compiled commands, item caching
+and current layer admission. This does not compare row/tile policies yet.
+
+Capture, resource preparation and pixel oracles are outside timing. Each policy
+starts with an empty renderer cache; fixture glyphs and embedded icons are already
+prepared. Remote item artwork is absent, so this trace alone cannot choose the
+best cache policy for fully populated grids.
+Reports include the first cycle plus two subsequent cycles, preparation/submission/
+native completion, caller/process CPU, cache work/bytes and pixel error. Raw versus
+compiled must be exact; cached paths permit at most one channel step from existing
+premultiplied intermediate-image rounding. A mismatch fails the run.
+The captured region must not depend on live callbacks. Reports exclude layout,
+presentation and game impact; use the end-to-end scroll benchmarks alongside them.
+
+### Memory And Motion
+
+```bash
+GUI_BENCH_CYCLES=6 make bench-gui GUI_BENCH_PROFILE=release \
+  GUI_BENCH_CASE=interaction_residency_benchmark GUI_BENCH_LIVE=1 \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/gui-memory.json
+make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=subtree_motion_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/gui-motion.json
+make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=adaptive_motion_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/gui-adaptive-motion.json
+```
+
+Memory cycles exercise filters, queries, scrolling, category/page changes, context
+menus, rails and scales. They use the real layout/cache paths but no desktop input
+or account mutations. Compare matched end states across several cycles, not a
+single open/close pair. Output is streamed so measurements do not grow the heap.
+Preparation/paint timing excludes the memory diagnostic snapshot itself. It still
+includes asset preparation and any required daemon reads, so use the focused
+render cases to isolate allocator or raster performance.
+
+For Valgrind, first build the test through Make, then run the resulting `wfgui`
+test executable under Memcheck or Massif with the same environment and
+`shell::benchmark::interaction_residency_benchmark --exact --ignored --test-threads=1`.
+Store logs under `research/`. Valgrind memory overhead and timing are not application
+measurements; use it to attribute allocations and find invalid accesses/leaks.
+
+An isolated `LD_PRELOAD` allocator comparison covers Rust's system allocator and
+native Blend2D/AsmJit heap allocations. A Rust-only allocator replacement does not.
+Keep allocator options explicit and compare RSS, live resources and latency;
+lower retained memory may cost more page faults. Never change the user's global
+allocator configuration for a benchmark.
+
+The motion case compares existing card rasters with an additional isolated grid
+layer at 100%, 125% and 200%, including creation and content invalidation. Reports
+include the first 12/20 frames, full-run latency, layer bytes and pixel equivalence.
+The adaptive case includes admission delay, promotion and content-change demotion.
+Use `GUI_BENCH_ADAPTIVE_FIRST=1` to reverse execution order in repeated comparisons.
+The GUI benchmark accepts `RETINUE_BENCH_NO_LAYERS=1` for other page traces too.

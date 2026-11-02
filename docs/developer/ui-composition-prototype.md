@@ -1,16 +1,16 @@
-# Composition Prototype
+# Shared View Demo
 
-Standalone exercise and benchmark for `retinue-ui/composition`, also used by the
-GUI and ducat tooltip. This tests [composition policies](ui-composition.md), not a
-new Foundry appearance.
+Standalone exercise for `retinue-ui/view` and its layout/render pipeline, under
+`crates/retinue-ui/examples/views`. Uses neutral raster swatches, not game fixtures.
+Tests [composition policies](ui-composition.md), not an application's appearance.
 
 ## Run
 
 ```sh
-make composition-demo
-make composition-demo COMPOSITION_ARGS='--scale 1.25'
-make composition-demo COMPOSITION_ARGS='--capture'
-make bench-composition
+make view-demo
+make view-demo VIEW_ARGS='--scale 1.25'
+make view-demo VIEW_ARGS='--capture'
+make bench-views
 make test-composition
 ```
 
@@ -20,7 +20,7 @@ after two seconds. Tab/arrow navigation and accessibility use resolved geometry.
 No daemon connection or game required.
 
 Captures at 100%, 125% and 200%, card/tab crops, matching geometry JSON and benchmark reports go
-under `research/retinue/ui-composition/`. `COMPOSITION_OUTPUT` selects another
+under `research/retinue/ui-views/`. `VIEW_OUTPUT` selects another
 benchmark directory. `RETINUE_BENCH_SAMPLES` controls sample count. Benchmarks use
 four total rendering threads for continuity with the original prototype baseline.
 The desktop host now prefers six; real-page `make bench-gui` defaults to that policy
@@ -38,12 +38,15 @@ and accepts `GUI_BENCH_THREADS=1..8` for controlled comparisons.
 - Coordinated keyed selection transitions, retargeting and reduced-motion policy.
 - Old/new damage, painter-order repair and existing host buffer-age handling.
 - Bounded explicit raster reuse, direct replay fallback and resource accounting.
-- A 5,000-item virtual grid that constructs only visible rows plus overscan.
+- Strict Views, State, Text, Image, ScrollViewport and a 5,000-item UniformGrid.
+  Only visible rows plus explicit overscan construct card Views; stable items
+  retain their state and paint while scrolling.
 
 `Paint.key` identifies content, not an element: include every changing resource,
 font and paint property in that identity. Equal identities can share rasters across
 instances. Logical size and physical scale are added by the engine. This explicit
-contract is provisional; there is no automatic resource dependency graph yet.
+contract is now backed by shared programs and resource dependency metadata in
+the [render pipeline](render-pipeline.md).
 Prepare the renderer after updating the scene; stale prepared generations are
 rejected. Cache preparation is separate from the queued main paint context.
 
@@ -53,7 +56,8 @@ Differential tests cover scrolling, interrupted transitions, removal, reordering
 image arrivals, clipped glyphs, hidden elements, scale changes, eviction and three
 rotating buffers. Direct partial painting must equal full painting. Optional
 source-over rasters allow at most two channel levels of integer blending rounding
-for overlapping translucent primitives. Zero-budget caches replay directly.
+for overlapping translucent primitives. Explicit replay mode disables raster
+selection; a zero warm-retention allowance still permits selected rasters.
 
 Benchmarks separate these policies:
 
@@ -63,6 +67,10 @@ Benchmarks separate these policies:
 | `commands-full` | Retained | Full |
 | `commands` | Retained | Damaged area |
 | `raster` | Retained, explicit composed rasters | Damaged area |
+
+The example now uses the declarative frontend and neutral swatches. `rebuild`
+recreates its ViewTree and scene; retained modes publish changed inputs. Do not
+compare new reports to historical numbers below as though the workload were unchanged.
 
 Scroll and counter workloads include periodic image changes. Inputs, pre-resampled
 images and thread policy are shared. Reports include p50/p95/p99, process/caller
@@ -82,8 +90,9 @@ Geometry inspection exposed zero-sized leaves in nested custom containers. Keep
 geometry assertions, real-composition tests and visual captures together.
 
 Production integration added namespaced identities, direct custom paint and
-presentation patches that skip description reconstruction. Isolated group opacity
-and exit lifetimes remain unimplemented. The example's simple hit testing is not
+presentation patches that skip description reconstruction. Bounded exit lifetimes
+are implemented by `switch`; isolated group opacity remains unimplemented.
+The example's simple hit testing is not
 the GUI's complete input model.
 
 ## Integration Discipline

@@ -26,7 +26,6 @@ keeps the player's mastery emblem; hover it for the full name and rank.
 Favorites and UI scale are saved between launches. `--ui-scale 125` overrides
 the saved scale for one run; changing it in the title bar saves the new value.
 
-The preserved `wfgui-qt` executable remains available for migration comparisons.
 
 ## Captures
 

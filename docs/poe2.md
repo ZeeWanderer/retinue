@@ -6,7 +6,7 @@ changed snapshots are published immediately.
 
 ## Steam Launch
 
-Build the [source installation](../README.md#build), then set **Path of Exile 2 >
+After [installing Retinue](installation.md), set **Path of Exile 2 >
 Properties > General > Launch Options**:
 
 ```text

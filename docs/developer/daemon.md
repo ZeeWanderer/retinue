@@ -136,10 +136,35 @@ companion HUD view. The store projects before sending, and publish acknowledgeme
 request metadata only. HUD subscribers receive game/collector changes and clears,
 not unrelated inventory updates.
 
-Native clients use request IDs over newline-delimited JSON on the Unix socket. Each connection
-can run independent reads concurrently; market mutation and rate-limited fetches remain serialized
-by their owning service. A representative 80 KB relic-planner response costs about 1 ms to encode
-or decode on BEAM, so JSON is retained until profiling shows transport encoding is material.
+Native clients correlate requests by ID. The initial JSON-line handshake requires
+`transport: "protobuf"` and `native` version 1. After its JSON acknowledgement,
+every session uses a four-byte big-endian length followed by
+`retinue.wire.v1.Packet`. Requests, replies, acknowledgements, failures and events have distinct
+typed envelopes. Game payloads carry a fully qualified schema name and Protobuf bytes; there is
+no generic JSON packet fallback. Receivers bound lengths before allocating and retain
+partial frames across cancellation. A failed schema check is an error, never an empty dataset.
+
+`wfgui`, `wfcompanion` and `poe2companion` use this transport. The GUI retains Foundry,
+Inventory, Mastery, Relics and equipment as generated records. `apps/wfcore/proto/`
+and `apps/poe2core/proto/` own their game contracts; `apps/retinue_core/proto/` owns
+the envelope. `gpb` generates Erlang boundary code; `prost-build` plus `protox` generate Rust
+models in `retinue-protocol`, without a system `protoc` dependency. Neither gRPC nor a second
+hand-maintained field mask is involved. The schema is a client view, not the canonical store:
+raw game documents, diagnostic extensions and open-ended calculator results use explicit
+`Document` fields. They are not substitutes for known view schemas. CLI calls and subscriptions
+use distributed Erlang native terms, independently of the native-client socket; user-facing CLI
+JSON, query and MCP output remain unchanged. Optional scalar and collection presence matters for
+patches and trade filters; test absent, null, zero, false and empty values separately.
+
+`scripts/protobuf-deps` invalidates generated Erlang code when cross-app schema imports or
+generator configuration change. Generated sources are ignored; both languages build from the
+checked-in schemas. Update all affected clients and daemon contracts together.
+
+The daemon already stores decoded native Erlang maps/lists. Do not replace domain state with
+wire messages or reparse JSON to project it. Serialize large replies in bounded request workers,
+then pass encoded binaries to the connection owner. Keep only one generation of each derived
+player view; a late worker must not overwrite a newer reservation or repopulate an invalidated cache.
+Independent reads remain concurrent; mutations and rate-limited fetches stay with their owners.
 GUI and companion can reconcile current decode failures through the optional diagnostics feature;
 the daemon stores them with its own name, metadata, and asset failures.
 
@@ -290,11 +315,24 @@ complete plans using the same assignment implementation used to produce their lo
 children. Queue workers are monitored; worker failure becomes a request error while the owner
 survives. Systemd adds VM-level restart for explicitly installed user services.
 
+### Memory Ownership
+
+Keep temporary decoding and projection work in bounded workers, not long-lived service heaps.
+Resolution audits coalesce updates into one current worker and one pending refresh; failures
+retain the last good registry. Source freshness checks use the serialized source-worker queue.
+Hot migrations must not eagerly reload a cache already present in state.
+
+Build replies expire through a nearest-deadline timer and retain at most 128 entries;
+saved groups are separate and never evicted. Build, resolution and source services use OTP's
+30-second idle hibernation to release spare heap capacity. This startup setting needs a service
+restart when first introduced; hot-loading callback code does not retrofit it.
+Measure RSS, live state and allocated heaps separately before changing allocator settings.
+
 ## Hot Update
 
 Both explicit and automatic updates use `retinue_hot_update`:
 
-1. Read and validate `retinue_core`, `wfcore`, and `retinue_daemon` BEAM bundles.
+1. Read and validate `retinue_core`, `wfcore`, `poe2core`, and `retinue_daemon` BEAM bundles.
 2. Reject duplicate module identities.
 3. Skip unchanged modules by BEAM MD5.
 4. Suspend affected registered stateful services.

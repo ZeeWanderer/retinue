@@ -27,7 +27,7 @@ Overlay state stays native. Canonical player state stays in the daemon.
 - `inventory.rs`: ordered HTTP decode and publication.
 - `game_observer/inventory.rs`, `inventory/refresh.rs`: scoped native inventory reads.
 - `inventory/observation.rs`: session identity, acquisition times and publication ordering.
-- `daemon.rs`, `daemon/`: local JSON-lines client, bounded outbound queue,
+- `daemon.rs`, `daemon/`: local Protobuf client, bounded outbound queue,
   reconnect, replay, and request routing.
 - `capture.rs`, `relic.rs`: KWin window capture, crop detection, OCR, and relic
   scene construction.
@@ -240,11 +240,12 @@ is documented in [`assets.md`](assets.md); inventory indexing is documented in
 
 ## Local Contract
 
-Transport is newline-delimited JSON over the shared owner-only
-`$XDG_RUNTIME_DIR/retinue/daemon.sock` socket. Clients send `hello` first with envelope 2 and
-mandatory `game: "warframe"`. PoE2 uses the same endpoint with `game: "poe2"` and its separate
-`session` interface. The connection stays game-scoped. Envelope version covers framing and
-handshake. Exact Warframe interface
+Transport is length-prefixed Protobuf over the shared owner-only
+`$XDG_RUNTIME_DIR/retinue/daemon.sock` socket. Only the initial `hello` exchange is
+newline-delimited JSON: envelope 2, `transport: "protobuf"`, `native: 1` in interfaces,
+and mandatory `game: "warframe"`. PoE2 uses the same endpoint with `game: "poe2"`
+and its separate `session` interface. The connection stays game-scoped; there is
+no JSON session fallback. Exact Warframe interface
 versions cover `datasets`, `player`, `game_metadata`, `worldstate`, `notifications`, `market`,
 `overframe`, `relics`, `assets`, `builds`, `build_stats`, `diagnostics`, and `checks` independently.
 Clients send only required interfaces and request optional features.

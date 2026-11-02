@@ -48,7 +48,7 @@ when a drive mounts late at login. During this wait the service is `activating`.
 ## Updates
 
 Each connection checks required interface versions, build flavor, and a fingerprint of
-`retinue_core`, `wfcore`, and `retinue_daemon`. Stale modules are hot-loaded automatically;
+`retinue_core`, `wfcore`, `poe2core`, and `retinue_daemon`. Stale modules are hot-loaded automatically;
 unresolved mismatches restart the requested release.
 
 A running daemon also watches the staged `BUILD_ID`, so replacing a repository or packaged build

@@ -1,24 +1,37 @@
 # Declarative UI Composition
 
-`retinue-ui/composition` provides retained layout and paint for wfgui, Warframe
-overlays and PoE2 Evaluate. It uses the existing Blend2D queue, hosts and resource
-workers. Applications own visuals, actions and domain state. The
+`retinue-ui::scene` provides retained layout and paint recording for
+wfgui, Warframe overlays and PoE2 Evaluate. `retinue-render` owns the
+layout-independent programs, analysis, cache planning and execution on Blend2D.
+Both use existing hosts and resource workers. Applications own visuals, actions
+and domain state. The
 [standalone example](ui-composition-prototype.md) exercises optional raster policies.
 
 ## Current Contract
 
+- `ViewTree` retains strict Views, observed state and keyed child identity above
+  `Scene`. Bodies describe only active content. `Items` tracks row changes
+  separately from order; `UniformGrid` supplies geometry, visible ranges and
+  identity-based scroll anchoring without prescribing raster-cache granularity.
+  `LayoutView` can change its algorithm without resetting child state. `Switch`
+  retains current content and at most one noninteractive outgoing subtree during
+  a transition. See the [authoring contract](ui-sdk.md) and [layout tools](declarative-layout.md).
 - `Scene::update` reconciles a bounded visible description. Unchanged layout caches
   and paint recordings survive; description construction is still caller work.
 - `update_subtree` replaces one owned scope; outside keys cannot be stolen. Clean
   descriptions need not be reconstructed. Placement patches resolve affected
   preorder ranges and ancestors, not the entire Taffy tree.
-- `Scene::patch` changes offsets or paint without rebuilding descriptions or layout.
-  Both operations return old/new damage. The host still repairs buffer history.
+- `Scene::patch` changes layout properties/child values, offsets, paint, clips, hit participation
+  or reuse hints without rebuilding descriptions. Only layout changes need layout;
+  hit-only changes do not re-record paint. Operations return old/new damage.
+  The host still repairs buffer history.
+  `HitTesting` gates an entire subtree without changing paint or layout; disabling
+  a parent cannot be overridden by an interactive child.
 - `Scene::resize` updates window constraints without reconstructing descriptions;
   use relative container sizing and keep fixed content recordings intact.
 - `Scene::record_many` compares immutable commands and revisions only changed
-  chunks. `Canvas` records custom pixel-layout drawing into those same commands.
-- `Recording` collects named pixel-layout sections; `Surface` retains and replays
+  chunks. `drawing::PixelCanvas` records pixel-layout drawing into those same commands.
+- `drawing::PixelLayers` collects named pixel-layout drawings; `runtime::ViewSurface` retains and replays
   them into the host's Painter without another output buffer. Static and cached
   images share `ImageSource`; commands hold their resources through queued paint.
   `layout_rect` and `content_rect` expose unclipped physical geometry for controls
@@ -28,12 +41,17 @@ workers. Applications own visuals, actions and domain state. The
   not turn an item into another item's identity.
 - Standard rows, columns, grids and stacks can nest custom measurement/placement.
   Paint, hit regions and capture geometry share resolved coordinates.
-- `Renderer::prepare` precedes painting each changed generation. `draw_with`
+  Custom `Layout` uses comparable parameters and a node-local cache; `Anchored`
+  supports direct sibling/container attachments without changing paint order.
+  See the [layout contract and scope](declarative-layout.md#custom-arrangement).
+- `Scene::frame()` exposes layout-independent ordered paint and cache groups.
+  `Renderer::prepare` takes that `PaintFrame`, before painting each changed
+  generation. `draw_with`
   preserves the destination; `paint_with` clears and fills the requested repair.
 - External paint runs in the existing Painter, in node-local physical pixels. It
   declares bounds, reports changes with `Scene::invalidate`, and cannot use optional
   raster caching. No page-sized intermediate image or second event system.
-- `Canvas::local` and `Painter::local` expose a zero-origin rectangle to custom
+- `PixelCanvas::local` and `Painter::local` expose a zero-origin rectangle to custom
   drawing. Retained commands stay local; the painter adds accumulated integer
   origins at native submission, so custom callbacks also avoid per-leaf backend
   transforms. Clips remain host-space intersections. Never bake moving host
@@ -41,13 +59,14 @@ workers. Applications own visuals, actions and domain state. The
   Scope exit restores clipping only when changed; primitives specify their own
   remaining native draw state. The native transform path is a pixel-test oracle.
 - Fills, outlines, text, images, paths and clips lower directly to Blend2D. Explicit
-  item rasters are byte-bounded and support local dirty-region repair. External
+  item rasters support local dirty-region repair and shared residency accounting. External
   commands, including those nested inside clips, are never cached.
 
-wfgui's shell, Foundry and Settings use keyed compositions directly. Other pages
-and the right rail use the custom-layout `Ui` builder. Its semantic `Visual` leaves
-resolve into retained commands, including late artwork; there is no parallel
-generic paint replay. Resource arrivals patch paint without re-running layout.
+wfgui's shell, pages and right rail use the same ViewTree frontend. The app's `Ui`
+controller still owns existing editors and input policies; its paint slots enter
+the tree as observed primitives. Resource arrivals patch retained commands without
+re-running unaffected layout. Both overlays use the same frontend, with custom
+pixel-layout drawing where preserving exact game presentation is appropriate.
 Only editors, progress animation and nested page-host dispatch use live painting.
 Collection rows scope paint keys by domain identity. `Ui::finish` is the transaction
 boundary before paint or input. Existing modal, editing and accessibility policies
@@ -58,13 +77,15 @@ the center must not rebuild an unchanged rail. Layout-only descriptions preserve
 their `Scene::paint` bindings instead of reinstating placeholder callbacks; doing
 otherwise creates false content damage on every animation frame.
 
-Isolated group opacity, exit lifetimes and automatic background raster promotion
-remain extensions, not implemented APIs. Explicit Foundry item rasters reuse pixels
+Isolated group opacity and automatic background raster promotion remain extensions.
+Bounded exit lifetimes are available in the declarative content switch. Explicit Foundry item rasters reuse pixels
 while scrolling, with independent repairs for changed content. They do not copy or
 slice the presentation buffer; window-buffer age repair remains separate.
 The sections below define their constraints when a feature needs them.
 The [incremental-rendering follow-up](ui-invalidation.md) distinguishes input diffing,
 layout dependencies, scroll-cache repair and safe background optimization.
+The [render pipeline redesign](render-pipeline.md) develops the retained
+representation and execution planner beneath this composition API.
 
 ## Model
 
@@ -176,13 +197,12 @@ its bounding box alone. Custom opaque callbacks form optimization barriers.
 
 ### Raster Promotion
 
-Use the existing RAM cache and immutable resource handles. Its byte budget bounds
-idle retention, not the active scene's working set. Hold visible rasters through
-frame preparation, including when their combined size exceeds that budget; release
-them when no longer needed. Weak lookup avoids duplicate work after LRU eviction
-without retaining inactive pixels. A zero raster budget explicitly disables this
-optional optimization. Provide a
-policy such as Never, Auto or Prefer; Prefer is a hint, not permission to violate
+Use the [materialization store](render-residency.md) and immutable resource handles,
+not the asset LRU. Selected rasters belong to plan consumers; preparation reserves
+peak storage. The byte-bounded warm store holds only unselected rasters with likely
+near-term reuse. A zero warm allowance does not disable rasterization. Native
+readers keep retired pixels alive until completion. `CachePolicy::Never` and
+`Prefer` control item candidates; Prefer is a hint, not permission to violate
 compositing or memory constraints. Required intermediate effect surfaces are
 semantically distinct from optional persistent caches.
 

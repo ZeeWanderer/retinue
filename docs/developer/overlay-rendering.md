@@ -1,8 +1,8 @@
 # Overlay Rendering
 
-Shared rendering belongs in `retinue-ui`; game clients own layout, appearance
-and interaction. The plan below extends the existing Blend2D/Wayland stack, not a
-new widget framework or GPU renderer.
+Drawing belongs in `retinue-render`; `retinue-ui` supplies layout mechanisms and
+window hosts. Clients own their layouts, appearance and interaction. The plan
+below extends the existing Blend2D/Wayland stack, not a new GPU renderer.
 
 ## Flexibility
 
@@ -95,7 +95,7 @@ images, masks, early drop, errors and cache eviction.
 
 ## Runtime Cache
 
-`retinue_ui::resources::ResourceCache<K, V>` owns an LRU of immutable
+`retinue_render::resources::ResourceCache<K, V>` owns an LRU of immutable
 `Resource<V>` handles. Keys are fixed-size identities; values report their owned
 heap storage through `ResourceSize`. An oversized value is usable without
 flushing the working set, but is not retained by the cache. Empty values still
@@ -194,8 +194,8 @@ damage tracking avoids touching unchanged destination pixels.
 ## Resource Ownership
 
 The daemon owns encoded sources, fetching and source revisions. Clients own
-renderer-native derivatives. Keep Qt's native cache separate; share identity and
-policy, not pixel objects across processes.
+renderer-native derivatives. Share identity and policy, not pixel objects across
+processes.
 
 A render-session resource service should provide:
 
@@ -427,4 +427,4 @@ Both harnesses exclude recording code from normal companion builds.
 - [LRU eviction primitive](https://docs.rs/lru/0.19.0/lru/struct.LruCache.html)
 - [Rust condition-variable wait semantics](https://doc.rust-lang.org/std/sync/struct.Condvar.html)
 - [Qt's offscreen layer model and caching tradeoffs](https://doc.qt.io/qt-6/qml-qtquick-item.html#item-layers)
-- [Asset ownership and existing Qt cache](assets.md)
+- [Asset ownership and derivative caches](assets.md)

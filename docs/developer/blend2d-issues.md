@@ -28,11 +28,11 @@ command->add_flags(RenderCommandFlags::kRetainsMaskImageData);
 ctx_impl->worker_mgr().command_appender().mark_fetch_data();
 ```
 
-Our [CMake workaround](../../crates/retinue-ui/native/blend2d-mask-retention.cmake)
+Our [CMake workaround](../../crates/retinue-render/native/blend2d-mask-retention.cmake)
 compiles a corrected source copy, leaving the vendor checkout untouched. It stops
 the build if the expected code changes. The regression test
 `queued_images_and_masks_live_until_completion_or_drop` in
-[blend2d.rs](../../crates/retinue-ui/src/painter/blend2d.rs) covers explicit finish,
+[blend2d.rs](../../crates/retinue-render/src/painter/blend2d.rs) covers explicit finish,
 context drop and 1/2/4 threads. `make test-gui` runs it against the **patched** build;
 an upstream reproduction must use stock Blend2D without our CMake replacement.
 

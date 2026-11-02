@@ -56,6 +56,11 @@ application callback, supervisor, or process:
 - `contract/`: Warframe datasets, request ownership, paths, and schemas.
 - `value/`: polarity and worldstate diff helpers.
 
+`apps/poe2core/` is the corresponding process-free PoE2 contract library. Game-owned
+Protobuf schemas live under each core's `proto/`; the common envelope belongs to
+`retinue_core/proto/`. Generated Rust models live in `crates/retinue-protocol/`.
+Services, fetching and storage remain daemon-owned, not in either game core.
+
 Compiling these files separately into CLI and daemon applications creates duplicate BEAM ownership,
 breaks xref, and makes debugger code paths ambiguous. Keep only stable cross-application contracts
 and value helpers here.
@@ -68,21 +73,33 @@ and value helpers here.
 - `observer`: collector lifecycle and observation policy.
 - `daemon`: owner-only Unix socket transport and reconnect replay.
 - `relic`: trigger, capture, OCR, item resolution, and market requests.
-- `overlay`, `ui`: Warframe scenes, surface orchestration and hit regions.
+- `presentation`: named overlay views, scene models, drawing and surface/input hosts.
+- `domain/media`: asynchronous image preparation and resource leases.
 - `preview`: registered still and animated overlay previews.
 - `main`: process composition and Steam wrapper mode.
 
 The companion owns native window and overlay state. It publishes normalized observations to the
 daemon and requests shared data from it.
+See the [overlay source map](companion-presentation.md) for view entry points.
 
 ## Native Libraries and Inspector
 
 `apps/retinue-inspect/` builds independently of the companion renderer. `wfinspect` is an alias.
 
-- `crates/retinue-client`: native paths, lifecycle, bounded JSON transport and socket contracts.
-- `crates/retinue-ui`: Blend2D painting, Taffy layout, caches, damage and input.
+- `crates/retinue-client`: native paths, lifecycle, bounded JSON/Protobuf transport and socket contracts.
+- `crates/retinue-protocol`: generated envelope and game-owned native view models. Edit the
+  `.proto` files under the owning Erlang app, not generated Rust or Erlang code.
+- `crates/retinue-render`: paint programs, optimization, raster resources, damage
+  repair and Blend2D execution. Owns the native bridge and vendor submodules;
+  depends on neither UI authoring nor game policy.
+- `crates/retinue-ui`: UI authoring, observable state, environment, layout and input.
+  `layout` defines custom layout contracts; `scene` adapts layout to renderer frames.
+  `drawing` supplies typed custom drawing and pixel-layout helpers; `runtime`
+  retains both authored views and custom drawings. Shared UI examples live here.
   Separate `overlay` and `desktop` features provide layer-shell and ordinary window hosts.
   Screens, styling and game policy remain in clients.
+- `crates/retinue-ui-macros`: compile-time UI authoring. Generated models use the
+  UI state runtime; the macro implementation has no runtime dependency on it.
 - `crates/retinue-native`: game-independent memory queries, capture/replay, work budgets and reports.
 - `crates/retinue-warframe`: game discovery, native adapters, observations, cache and script decoders.
 
@@ -114,6 +131,10 @@ bounded typed readers, shared with `retinue-inspect poe2`. Generic memory/captur
 mechanics remain in `retinue-native`; companion lifecycle/reload mechanics live in
 `retinue-client`. See the [PoE2 guide](../poe2.md).
 
+Its `presentation` folder owns the overlay host and Evaluate views/model;
+`domain` owns request workers, image preparation and preferences. Plain evaluation
+records live in `data`. See the [overlay source map](companion-presentation.md).
+
 `apps/arccompanion/` provides ARC Raiders launch/discovery scaffolding only. It has no observer,
 daemon worker or data store until an actual source is implemented.
 
@@ -121,22 +142,29 @@ daemon worker or data store until an actual source is implemented.
 
 `apps/wfgui/src/` contains the Rust desktop client, using `retinue-ui` windowing
 and `retinue-client` transport; no overlay host or game-memory dependency.
-All seven page routes have native implementations; parity work is ongoing.
-`resources/` holds GUI assets shared with the
-retained Qt implementation under `qt/`. See [native UI](native-ui.md).
-Qt reference modules:
+All seven page routes use the retained SDK. There is one layout/paint path;
+custom drawings are SDK primitives rather than a fallback scene.
 
-- `daemon_client`: local JSON-lines transport, daemon startup, reconnect, and request correlation.
-- `relic_model`: typed relic list, filtering, and asset-path updates.
-- `relic_grid_widget`: virtualized relic-card delegate and interaction routing.
-- `player_item_model`: shared Inventory and Mastery data/filter model.
-- `player_item_grid_widget`: responsive model/view card rendering and visible-asset requests.
-- `app_controller`: per-view cached metadata, price, asset, loading, and error state.
-- `relic_card_layout`: responsive card constraints shared by rendering and tests.
-- `main_window` and view widgets: navigation and desktop rendering.
+- `main.rs`, `app.rs`: entrypoint, window lifecycle, task delivery and captures.
+- `data/`: plain data models and serialized preferences. Canonical game models
+  come from `retinue-protocol`; clients do not define competing schemas.
+- `domain/`: shared client services, sessions, image leases, preference storage
+  and asynchronous workers. Game fetching and calculation stay in the daemon.
+- `presentation/`: feature-grouped views, layouts, controllers and adjacent
+  observable models. Start with `shell/shell_view.rs`, then a page's `*_view.rs`.
+- `presentation/widgets/`: reusable visual components, search and menu tools.
+- `presentation/controls/`: application input/editor state and SDK paint-host
+  integration, not another widget/layout framework.
+- `resources/`: application assets; shared assets remain in their shared owner.
 
-`make gui`, `make dev` and `make prod` build Rust. Qt's CMake/vcpkg build is opt-in
-through `make gui-qt-dev` or `make gui-qt-prod`; it outputs `wfgui-qt`.
+Use one file per meaningful View or Layout, named for that type. Keep a page's
+model beside its view. Add subdirectories for cohesive features, not an empty
+layer for every kind of file. Shared services are application-owned and injected;
+the `domain` directory is not a requirement for global singletons. See the
+[GUI source map](gui-organization.md) for concrete entrypoints.
+
+`make gui`, `make dev` and `make prod` build the Rust client. Historical Qt source
+remains in Git history, not as a parallel implementation in the working tree.
 
 ## Runtime Layout
 

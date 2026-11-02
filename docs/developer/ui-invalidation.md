@@ -1,16 +1,19 @@
 # Incremental Rendering
 
-Incremental updates and explicit item-raster reuse extend [composition](ui-composition.md).
-Automatic background optimization is deferred. Keep a full replay oracle and
-benchmark real pages. Blend2D owns rasterization and its ordered worker queue.
+Incremental updates, command reductions and reuse-driven raster layers extend
+[composition](ui-composition.md). Keep a full replay oracle and benchmark real
+pages. Blend2D owns rasterization and its ordered worker queue.
 
 ## Next Work
 
-1. Profile current GUI/overlay regressions against matched baselines. Separate
-   description/layout work, command recording/submission, native completion and
-   buffer copies; fix demonstrated regressions first.
-2. Implement stage 3: the ordered draw-tree optimizations below, with equivalence
-   tests and measured total costs. Automatic raster promotion is only one part.
+The [render pipeline redesign](render-pipeline.md) now separates resolved paint
+frames from layout. Its incremental compiler, materialization planner and
+granularity experiments remain in progress. The mechanisms below describe the
+current implementation, not the completed design.
+
+Profile new page/overlay changes against matched baselines, including preparation,
+native completion and retained resources. Do not enable a new optimization merely
+because it reduces command counts.
 
 ## Existing Behavior
 
@@ -103,15 +106,14 @@ writable tile must finish writes before publishing its image and retain the old
 generation until consumers finish. Fractional scroll, scale changes or unsupported
 effects fall back to replay unless separately proven equivalent.
 
-The bounded multi-rectangle damage set lives inside the cache. The host may
-still use conservative bounding damage; cache repair does not require replacing
-all host damage APIs. Account for allocation, repaired pixels, copies, cache RAM,
-blits and final composition. Foundry uses 32 MiB of idle raster retention and includes
-it in Settings memory usage/clearing. Active rasters remain frame-owned even when
-their total exceeds retention. Preserve previous frame handles until replacements
-are acquired; otherwise a viewport larger than the LRU thrashes on every scroll.
-Weak lookup reuses still-live entries without keeping inactive pixels alive.
-A zero raster budget disables optional caching; changing scene identity clears
+Host invalidation and buffer history also retain disjoint regions. Account for
+allocation, repaired pixels, copies, cache RAM,
+blits and final composition. Foundry allows 32 MiB of warm raster retention and
+includes raster residency in Settings memory usage/clearing. Selected rasters remain
+plan-owned even when their total exceeds warm retention. Rebind surviving consumers
+before releasing previous plan ownership. The materialization store accounts those
+consumers directly, separately from queued native readers. A zero warm allowance
+keeps selected rasterization enabled; changing scene identity clears
 rasters because local keys/revisions alone do not identify another scene's content.
 Rasters, command storage and held resources have bounded lifetimes;
 shared source images remain accounted by their existing resource cache.
@@ -123,50 +125,157 @@ not evidence that a CPU cache will beat our renderer.
 Live residency and bounded keep-alive retention are also separate in
 [Flutter's image cache](https://api.flutter.dev/flutter/painting/ImageCache-class.html).
 
-## Deferred Draw-Tree Optimization
+## Target Repair
 
-Deferred. No analyzer, automatic promotion, or additional worker is enabled.
+Keep this sequence explicit: frame changes, pending damage, acquired-buffer
+history, repair regions, rendering, presentation. `Repaint::damage` describes
+the current displayed change; `Repaint::repair` also includes changes missed by
+the acquired buffer. Never report the latter as compositor damage just because
+an older buffer required more repair.
 
-The scope is useful ordered draw-tree reductions, not only raster promotion:
+`Damage::union` preserves gaps. `Region` normalizes overlapping rectangles into
+disjoint coverage, so translucent draws cannot be applied twice. Excessively
+fragmented invalidations use bounded conservative tiles; this is a storage/work
+bound, not a tuned repaint-cost heuristic. Intersections used for clipping never
+expand coverage. Use `bounds()` only when a bounding rectangle is actually needed.
 
-1. Remove empty work, identity transforms and redundant state scopes.
-2. Cull by proven paint bounds; occlusion requires proven opaque coverage, not
-   merely an overlapping rounded or translucent bounding box.
-3. Reuse stable command fragments by identity, comparable inputs and resource
-   generations. Do not hash or pattern-match the entire scene every frame.
-4. Promote/demote raster groups using measured cost and parent/child reuse.
-5. Consider batching/fusion only where Blend2D does not already optimize it and
-   painter order, clipping, antialiasing and alpha remain equivalent.
+Set the target repair with `Painter::repair`. Prepare layout, programs and caches
+once, then submit through one target context and finish once. Playback skips
+nonintersecting instances and commands; the backend clips each surviving draw to
+the active disjoint regions. External paint callbacks still execute once per
+source occurrence, not once per damaged rectangle. Scoped clips and translations
+must preserve target repair.
 
-Each pass needs a full-replay pixel oracle, work counters, a disable switch and
-cost accounting including analysis/preparation, retained bytes and submission.
-Hints identify static, conditional and dynamic work but never replace invalidation.
-Cheap local passes stay synchronous; expensive optional analysis may run behind
-the current correct plan using immutable metadata and a bounded result cache.
+Blend2D chooses horizontal bands from target dimensions and worker count, not
+from our damage rectangles. Its workers process interleaved bands and skip
+irrelevant commands. Geometry jobs use a separate shared job index. These are
+not reasons to repaint entire horizontal bands or merge separated dirty areas.
+Verify the pinned `rastercontext.cpp` and `workerproc.cpp` when upgrading; see
+[Blend2D multithreading](https://blend2d.com/doc/multithreaded-rendering.html).
 
-Render the current correct plan while optional analysis/preparation is pending.
-Publish a replacement only if content, resources, geometry and scale generations
-still match. Bound and coalesce the queue; cancel obsolete work. No idle whole-tree
-scanner and no frame blocked waiting for an optimization result.
+Chrome still recorded during paint must invalidate both old and new layout
+envelopes when resized. A previous recorded program cannot predict the bounds of
+new commands. Prefer declaring size-dependent paint before damage planning.
 
-Current paint chunks contain `Rc` and mutable font caches: they are not a worker
-payload. Send immutable analysis metadata first. Background rasterization needs
-an explicitly frozen, thread-safe resource/text snapshot; do not bypass Rust's
-ownership rules to share a live scene.
+`make bench-repair REPAIR_REPORT=research/repair.jsonl` compares exact command-first
+clipping, region-first replay, coarser regions, bounding repair and full repaint.
+It measures preparation, context creation, submission, completion and CPU time
+separately, with replayed/cached content and 100/125/200% scales. Run without other
+builds or benchmarks. Queued thread count 1 is not the synchronous backend;
+native synchronous controls must explicitly use Blend2D thread count 0.
+These measurements exclude presentation and game effects. Cost-based adaptive
+coalescing remains a policy extension; do not invent thresholds from dirty-area
+percentage alone.
 
-Keep cheap deterministic reductions at recording/submission time. Examples are
-empty work and identical clip/translation operations. Do not merge matching fills
-unless antialiasing, overlap, opacity and painter order remain equivalent. Blend2D
-already bins ordered commands into bands; a second batching layer must demonstrate
-an additional benefit. [Blend2D threading](https://blend2d.com/doc/multithreaded-rendering.html)
+## Draw-Tree Optimization
 
-Automatic raster promotion is later than explicit cache validation. Consider
-measured replay cost, blit cost, reuse count, invalidation frequency and bytes, with
-hysteresis. Static/dynamic hints guide priority, never correctness. Cross-instance
-reuse needs equivalent local content and compositing, not merely a matching shape.
-Promotion also needs demotion: a valid parent raster can make child caches redundant,
-but a child used outside that parent still needs its own policy. Publish the parent
-before releasing descendants; invalidation must immediately permit direct replay.
+Enabled local reductions retain the same ordered Blend2D commands:
+
+- `Surface` reconciles section layout only when size, keys, order or bounds change.
+  Paint revisions still update independently. No subtree is assumed static.
+- `Paint::commands` shares immutable fragments with the scene, without cloning
+  their strings and command arrays into another retained representation.
+- Partially damaged chunks skip transparent fills/text/inset shadows and rectangular
+  draws outside the repair clip. Full-chunk replay avoids these extra checks.
+  Empty clips skip their children. Line, ring, polygon
+  and stroke edge bounds are not used for this reduction; preserve antialiasing.
+- Translation remains level-by-level at device-pixel rounding. Combining floating
+  offsets before rounding can move pixels at fractional scales.
+
+`PaintStats` reports submitted and culled command roots. `Renderer::set_optimizations`
+disables all optional rasterization and replay reductions for pixel oracles.
+`set_materializations(false)` keeps command compilation enabled but disables
+optional rasters, including nested fragments, for a compiled-only comparison.
+Benchmark builds additionally accept
+`RETINUE_BENCH_FULL_LAYOUT=1` and `RETINUE_BENCH_FULL_REPLAY=1` for matched comparisons.
+Native completion must be included in wall time; layout savings alone are not an
+end-to-end rendering speedup.
+
+Recorded paint also caches a compiled command stream. It removes transparent or
+empty work, zero translations and fully covered fills/text/images. Opaque coverage
+must come from a solid rectangular fill; rounded/translucent bounds prove nothing.
+External callbacks are observation barriers. Fractional nested translations retain
+their separate rounding. Unchanged command vectors remain shared, with no copy.
+
+Named `Command::Fragment` sources share compilation and optional raster preparation
+below layout/item boundaries. `OptimizationContext` on fragments/groups holds
+extensible typed hints; unknown annotations do not affect pixels. Group hint edits
+update the planning journal without inspecting every paint instance. Nested hint
+changes participate in source reconciliation, but recipe repair compares actual
+paint separately so unchanged pixels need no redraw. See the
+[context contract](render-pipeline.md#optimization-context).
+
+`TileHint` lets the renderer propose spatial coverage without replacing the
+collection's paint order. Ready tiles mask only their own output regions from
+source/item replay. Missing or failed producers keep the gaps on the source path;
+parent preparation uses the same rule. `PaintStats::preparation_blits` counts
+successful region substitutions during preparation. Row/tile extent remains a
+policy input to measure, not a mandated scroll-container bitmap.
+
+`Element::cache_hint` or `Recording::cached_section` marks a candidate subtree.
+`Stable` and `Conditional` are reuse hints; `Dynamic` requests no layer. They never
+replace invalidation. The renderer counts actual drawn frames, not idle prepares,
+and admits complex, repeatedly reused candidates. Tiny partial repairs do not count
+as full-subtree reuse. Already-rasterized children count
+as blits, not their former glyph/shadow work. Large sparse groups of cached cards
+failed end-to-end benchmarks and remain separate.
+
+`Renderer::with_layers` and `Surface::with_layers` take `ResidencyPolicy` and
+`LayerPolicy`. Unconfigured renderers keep only explicit leaf caching. Initial
+guardrails for the shared item/layer store:
+
+| Host | Peak Pixels | Single Surface | Stable/Conditional Repaints |
+| --- | ---: | ---: | ---: |
+| GUI | 128 MiB | 12 MiB | 3 / 8 |
+| Overlay | 8 MiB | 512 KiB | 12 / 24 |
+
+Peak admission includes selected, warm, retired and pending output pixels in one
+renderer, not all process memory. Host-wide aggregation and native scratch remain
+follow-up work. The warm allowance is separate; zero does not disable selected
+rasters. These are safety guardrails, not benchmark-tuned limits or asset eviction
+quotas. Validate hints at the supported scales: larger text-layer blits can lose
+even when command submission gets cheaper. Selected dirty layers are repaired
+first, subject to peak admission; at most one new speculative layer is promoted
+per frame. Signatures include content
+revision, resources, scale, relative placement, painter order and effective clips.
+Moving a whole unclipped subtree can reuse its raster; changing visibility cannot
+reuse missing pixels. External paint is ineligible. Failed preparation falls back
+to direct painting. Frequent invalidation adds a cooldown.
+
+`PaintFrame` also accepts advisory `CollectionContext`: a content origin, optional
+row partitions and motion state. Row rasters retain full paint bounds and repair
+clip changes locally. Reordering discourages whole rows/ancestors while allowing
+independent cell reuse. This lower-level API is tested independently; current
+layout callers do not yet emit it. See [raster planning](render-pipeline.md#raster-planning).
+
+A ready parent releases redundant child layers and explicit rasters, except leaves
+also used outside that parent. Hidden, previously drawn candidates can retain warm
+pixels briefly; removed or invalid content is discarded. Warm entries do not retain
+source programs. Hosts call `clear_cache` when a page/panel closes; `trim_inactive`
+releases warm storage without disturbing selected work. No disk I/O or idle scanner.
+`residency_stats` separates selected/warm/retired/pending pixels. Paint stats report
+changed plan entries, inspected groups, promotions, preparation time and simplified
+commands. `set_optimizations(false)` selects raw replay and disables promotion;
+benchmark builds also accept `RETINUE_BENCH_NO_LAYERS=1`.
+
+Analysis is local and cached; layer preparation currently completes synchronously
+through Blend2D's queued renderer, with the host's bounded thread policy. There is
+no background optimizer. Larger or more expensive work needs a measured case and
+a frozen, thread-safe resource/text snapshot first: live `Rc` paint/font caches
+cannot be sent to a worker. Such a worker must keep direct painting available,
+coalesce requests, bound in-flight bytes and reject stale results.
+
+Do not reorder/fuse commands merely to reduce counts. Painter order, antialiasing,
+clipping and alpha must remain equivalent, and Blend2D already bins ordered work
+into bands. [Blend2D threading](https://blend2d.com/doc/multithreaded-rendering.html)
+
+Motion can make an unchanged subtree worth caching; it does not make changing
+paint static. Build an isolated layer from that subtree, not a crop of the final
+framebuffer containing unrelated overlays or aged pixels. Include preparation,
+invalidation, short-animation break-even and retained bytes in comparisons. The
+`subtree_motion_benchmark` compares an explicit layer with existing card rasters;
+`adaptive_motion_benchmark` measures admission, invalidation, preparation and reuse
+against full replay. Fewer commands or visible cards need not mean faster painting.
 
 ## Validation Order
 

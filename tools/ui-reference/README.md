@@ -53,7 +53,7 @@ Outputs are under `previews/warframe/gui/<resolution>/<scale>/`, separated into
 `GUI_PREVIEW_RESOLUTIONS` defaults to `2560x1440`.
 
 `layout/<page>.json` pairs measured native regions and Aleca DOM geometry/styles
-with source-derived Qt dimensions and file references. Measurements use logical
+with historical Qt dimensions linked to their pinned Git revision. Measurements use logical
 pixels; native colors use CSS `#RRGGBBAA`. These explain differences, not an
 automatic pixel-parity verdict. Fixtures check composition; use live captures
 to inspect resolved artwork. The crosswalk is in `gui-layout.mjs`.
@@ -69,7 +69,7 @@ or `previews-poe2` to select one. Warframe references are written to
 
 The original feature is **Evaluate**: window/renderer `ingame-evaluate`, state
 `evaluate`, configuration `evaluateConfig`. Its native counterpart is
-`apps/poe2companion/src/evaluate/`; shared comparison fixtures are
+`apps/poe2companion/src/presentation/evaluate/`; shared comparison fixtures are
 `apps/poe2companion/tests/fixtures/evaluate-*.json`. Use these names when tracing
 UI parity. Trade services remain separate from the window in both implementations.
 

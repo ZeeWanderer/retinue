@@ -44,7 +44,7 @@ Catalog assets:
 - Never bundled wholesale; the current WFCD image tree is hundreds of megabytes.
 
 Player rank cards use the constrained `mastery` source (`<rank>.webp`). They share the daemon
-cache and validation path used by catalog assets; Qt clients include WebP decoding.
+cache and validation path used by catalog assets, including WebP decoding in clients.
 
 Embedding is based on startup or offline necessity, not on how often a texture happens to repeat.
 A shared prime-component image can still be a catalog asset because one cached file serves every
@@ -53,7 +53,7 @@ item that references it.
 ## Ownership
 
 Shared embedded assets, including Roboto, live in repository-root `assets/`, not
-inside a renderer or client. Qt and Rust consume the same files and stage their
+inside a renderer or client. GUI and overlays consume the same files and stage their
 licenses. Game-only assets remain game-owned.
 
 `retinue-daemon` owns:
@@ -142,12 +142,10 @@ and shaped image fills stay in Blend2D; do not create resized Rust pixel buffers
 drawing. Blend2D static-scene caching remains useful after decode: static card art can be
 rasterized once, while a changed price or selection invalidates only the affected scene region.
 
-Qt widgets load catalog and embedded images through `wfgui::cachedThumbnail` in `image_cache`.
-Keys include source digest (path for embedded assets), target bounds, and device-pixel ratio.
-Individual widgets must not decode full-size pixmaps or maintain separate thumbnail caches.
-Accept daemon descriptors through `acceptThumbnailAsset` before updating models. Its ordered
-background writer owns source freshness; decode jobs only read identities. Clearing derivatives
-retains source markers so delayed jobs cannot revive superseded images.
+The desktop image service in `domain/media` loads catalog and embedded images.
+Keys include source identity, target bounds and resampling recipe. Views hold
+leases and receive completed images; they do not decode or resample inside paint.
+See [native UI caching](native-ui.md) for persistence and invalidation.
 
 The [shared overlay rendering plan](overlay-rendering.md) covers runtime-only
 derivatives, optional disk persistence and reusable partial-repaint machinery.

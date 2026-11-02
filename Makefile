@@ -1,5 +1,7 @@
 REBAR3 ?= rebar3
 .DEFAULT_GOAL := all
+DOCS_BASE ?= /retinue/
+export DOCS_BASE
 CARGO ?= cargo
 REBAR_CACHE_DIR ?= $(CURDIR)/.cache/rebar3
 CARGO_TARGET_DIR ?= $(CURDIR)/_build/cargo
@@ -291,3 +293,34 @@ package: prod
 
 clean:
 	rm -rf _build dev prod
+
+.PHONY: docs docs-setup docs-api-rust docs-api-erlang docs-site docs-check docs-serve test-docs
+docs-setup:
+	npm ci --prefix tools/docs --no-audit --no-fund
+
+docs-api-rust: sccache-setup
+	+$(CARGO) doc --locked --workspace --exclude retinue-protocol --no-deps --document-private-items --features retinue-ui/desktop
+
+docs-api-erlang:
+	@mkdir -p _build/documentation/erlang
+	@for app in retinue_core wfcore poe2core retinue_cli retinue_daemon; do \
+		$(REBAR3) as docs_api ex_doc --app "$$app" --formatter html --output "$(CURDIR)/_build/documentation/erlang/$$app" || exit; \
+	done
+	escript tools/docs/cli.escript "$$($(REBAR3) as docs_api,docs path --base)" "$(CURDIR)/_build/documentation/cli.json"
+
+docs-site:
+	npm --prefix tools/docs run build
+
+docs: docs-setup
+	+$(MAKE) docs-api-rust
+	+$(MAKE) docs-api-erlang
+	+$(MAKE) docs-site
+
+docs-check:
+	node tools/docs/check.mjs
+
+docs-serve:
+	npm --prefix tools/docs run preview -- --port 4321
+
+test-docs:
+	npm --prefix tools/docs test

@@ -42,6 +42,8 @@ rebar3.crashdump
 /temp.txt
 /.context/
 /tools/ui-reference/node_modules/
+/tools/docs/node_modules/
+/tools/docs/.astro/
 .elixir_ls/
 __pycache__/
 

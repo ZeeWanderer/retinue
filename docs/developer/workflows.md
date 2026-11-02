@@ -66,31 +66,10 @@ unchanged. Preparation uses reflinks where available and copies otherwise. Activ
 Linux filesystem support for `renameat2(RENAME_EXCHANGE)` on the destination filesystem.
 Both Erlang releases contain copied files; dev keeps debug metadata and `_build/` source paths.
 
-### Qt Reference
-
-Qt is excluded from normal builds. Existing `wfgui-qt` executables remain usable
-alongside Rust. Rebuilding it additionally requires LLVM with libc++, Ninja,
-vcpkg, Autoconf, Autoconf Archive, Automake, and Libtool. Use vcpkg manifest mode:
-
-```bash
-export VCPKG_ROOT=/path/to/vcpkg
-make gui-qt-dev
-```
-
-Configuration runs `vcpkg` from `PATH`; `VCPKG_ROOT` supplies the shared ports and CMake
-scripts. Homebrew's executable works directly. Override the executable with
-`-DWFCLI_VCPKG_EXECUTABLE=/path/to/vcpkg` when configuring CMake.
-
-`make gui-qt-dev` selects Clang from `PATH`; set `LLVM_ROOT` to select another complete LLVM prefix.
-System packages must include the matching LLVM tools, libc++, libc++abi, and libunwind development
-files. GUI builds refresh CMake configuration automatically, preserving unchanged objects,
-vcpkg installations and compiler caches. No clean is needed after an LLVM update. Keep custom
-CMake options in presets, not only in the generated cache.
-Host tools and target libraries share one fixed `x86-64-v2` triplet in dev and prod. The build environment supplies LLVM's runtime
-path while generated tools execute. vcpkg archives and sccache data remain under `.cache/`;
-compiler output remains under `_build/`.
-
-VS Code CMake Tools uses the Qt reference presets and existing `_build/cmake/` trees.
+Native renderer configuration is owned by Cargo's build script. Compiler or flag
+changes trigger reconfiguration; no clean is normally needed after a toolchain
+update. Make selects Clang from `PATH`; use `LLVM_ROOT` for a particular LLVM
+installation, or set `CC` and `CXX` explicitly.
 
 ## Tests
 
@@ -100,10 +79,23 @@ VS Code CMake Tools uses the Qt reference presets and existing `_build/cmake/` t
 - `make test-staging`: failed/interrupted installs, concurrent writers, and prefix activation.
 - `make test-build`: compiler changes, incremental builds, tool overrides and build ordering.
 - `make test-companion`: shared native libraries, inspector, and all companion tests.
+- `make test-protocol`: generated native schemas and client framing tests.
 - `make test-poe2`: staged observer, daemon and CLI integration in isolated storage and networking; requires Python 3.
   Reports remain under `research/retinue/tests/poe2/`; temporary runtime files are removed.
 - `make test-gui`: native desktop model tests.
-- `make test-composition`: shared layout, paint retention and damage-repair tests.
+- `make test-gui-app GUI_TEST=presentation::foundry::`: focused app tests without repeating the shared SDK suite.
+- `make test-ui-sdk UI_TEST='--test modifiers'`: one SDK integration suite.
+- `make test-composition`: shared authoring, layout, paint retention and damage-repair tests.
+- `make test-ui-macros`: authoring diagnostics and generated-code integration tests.
+- `make docs`: guides and generated Rust/Erlang/CLI/protocol reference, with link checks.
+- `make docs-serve`: local site at `http://127.0.0.1:4321/retinue/`.
+- `make test-docs`: documentation generator regression tests.
+- `make view-demo`: standalone shared UI example; `VIEW_ARGS='--capture'` saves
+  offscreen images and layout reports. `make bench-views` measures its retained pipeline.
+- `make view-sdk-demo`: new `View::body` runtime example, rendered offscreen at
+  100/125/200%; `VIEW_OUTPUT` overrides the capture/report directory.
+- `make view-sdk-content`: composed/Canvas card equivalence, streamed image states
+  and partial-repair checks with captures at the same scales.
 - `make test-release`: production startup under the x86-64-v2 baseline using QEMU user emulation.
 - `make test`: Erlang, Rust, native desktop, staging and PoE2 integration suites.
 - `make check`: Rust formatting, xref, tests, and both staged builds.
