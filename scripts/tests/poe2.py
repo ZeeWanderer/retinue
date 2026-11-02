@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Staged PoE2 native session API/CLI smoke test using synthetic wire samples.
 
-Run: python3 scripts/tests/poe2.py [--stage prod]
+Run: make test-poe2, or rerun this script with --stage after building fixture-codec.
 No games, memory reads, builds, or live daemon access. Native reader/transport tests
 run separately. Reports stay under research/retinue/tests/poe2 unless --output
 is supplied. Temporary runtime files are removed; all owned processes are stopped.
@@ -66,38 +66,71 @@ def await_ready(predicate, process, description, timeout=8):
     raise TimeoutError(f"waiting for {description}")
 
 
+class Codec:
+    def __init__(self, process):
+        self.process = process
+
+    def convert(self, **value):
+        self.process.stdin.write(json.dumps(value).encode() + b"\n")
+        self.process.stdin.flush()
+        result = json.loads(self.process.stdout.readline())
+        require("error" not in result, f"native fixture codec: {result.get('error')}")
+        return result
+
+
 class Peer:
-    def __init__(self, path, evidence):
+    def __init__(self, path, evidence, codec):
         self.sock = socket.socket(socket.AF_UNIX)
         self.sock.settimeout(8)
         self.sock.connect(str(path))
         self.buffer = b""
         self.evidence = evidence
+        self.codec = codec
+        self.native = False
 
     def send(self, value):
-        self.sock.sendall(json.dumps(value).encode() + b"\n")
+        payload = (bytes(self.codec.convert(encode=value, game="poe2")["bytes"])
+                   if self.native else json.dumps(value).encode() + b"\n")
+        self.sock.sendall(payload)
 
     def receive(self):
-        while b"\n" not in self.buffer:
+        def complete():
+            if not self.native:
+                return b"\n" in self.buffer
+            if len(self.buffer) < 4:
+                return False
+            length = int.from_bytes(self.buffer[:4], "big")
+            require(0 < length <= 1024 * 1024, "API frame exceeded fixture limit")
+            return len(self.buffer) >= length + 4
+
+        while not complete():
             chunk = self.sock.recv(8192)
             require(chunk, "API disconnected before expected frame")
             self.buffer += chunk
             require(len(self.buffer) <= 1024 * 1024, "API frame exceeded fixture limit")
-        line, self.buffer = self.buffer.split(b"\n", 1)
-        value = json.loads(line)
+        if self.native:
+            length = int.from_bytes(self.buffer[:4], "big")
+            value = self.codec.convert(decode=list(self.buffer[4:4 + length]))["value"]
+            self.buffer = self.buffer[4 + length:]
+        else:
+            line, self.buffer = self.buffer.split(b"\n", 1)
+            value = json.loads(line)
         self.evidence.write(json.dumps(value) + "\n")
         self.evidence.flush()
         return value
 
     def hello(self, client, **extra):
         self.send({"id": 1, "op": "hello", "game": "poe2", "client": client,
-                   "envelope": 2, "interfaces": {"session": 2}, "features": [], **extra})
+                   "envelope": 2, "transport": "protobuf", "interfaces": {"session": 2, "native": 1},
+                   "features": [], **extra})
         reply = self.receive()
         require(reply.get("id") == 1 and reply.get("ok") is True
                 and reply.get("compatible") is True and reply.get("game") == "poe2"
                 and reply.get("envelope") == 2
-                and reply.get("interfaces") == {"session": 2, "trade": 5, "checks": 1},
+                and reply.get("interfaces") == {"session": 2, "trade": 5, "checks": 1,
+                                                "native": 1},
                 f"real daemon contract mismatch: {reply}")
+        self.native = True
 
     def snapshot(self, sequence):
         value = self.receive()
@@ -119,12 +152,12 @@ class Peer:
             self.sock.settimeout(8)
 
 
-def execute(stage, root, evidence, report):
+def execute(stage, root, evidence, report, codec_path):
     release = stage / "libexec/retinue_daemon"
     erts = only(release.glob("erts-*/bin"), "staged Erlang runtime")
     boot = only(release.glob("releases/*/start_clean.boot"), "clean boot file")
     ebins = sorted((release / "lib").glob("*/ebin"))
-    for app in ("retinue_core", "wfcore", "retinue_daemon"):
+    for app in ("retinue_core", "wfcore", "poe2core", "retinue_daemon"):
         only((release / "lib").glob(f"{app}-*/ebin"), f"staged {app}")
     cli = stage / "bin/retinue"
     for executable in (cli, erts / "erl", erts / "epmd"):
@@ -192,6 +225,13 @@ def execute(stage, root, evidence, report):
         return command(name, ["--json", "poe2", "companion", "events"])
 
     try:
+        codec_log = (evidence / "codec.log").open("wb")
+        handles.append(codec_log)
+        codec_process = subprocess.Popen([str(codec_path)], cwd=root, env=env,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=codec_log)
+        owned.append(("codec", codec_process))
+        handles.append(codec_process.stdout)
+        codec = Codec(codec_process)
         epmd = spawn("epmd", [str(erts / "epmd"), "-port", str(port),
                               "-address", "127.0.0.1"])
 
@@ -221,7 +261,7 @@ def execute(stage, root, evidence, report):
         await_ready(ready_path.exists, daemon, "isolated production application", timeout=30)
         wire = (evidence / "subscription.jsonl").open("w")
         handles.append(wire)
-        peer = Peer(socket_path, wire)
+        peer = Peer(socket_path, wire, codec)
         peer.hello("poe2-e2e")
         peer.send({"id": 2, "op": "subscribe", "dataset": "session"})
         subscribed = peer.receive()
@@ -229,7 +269,7 @@ def execute(stage, root, evidence, report):
                 "session subscription rejected")
         require(subscribed["data"]["schema"] == 2 and subscribed["data"]["events"] == [],
                 "isolated daemon has unexpected schema/history")
-        publisher = Peer(socket_path, wire)
+        publisher = Peer(socket_path, wire, codec)
         publisher.hello("poe2companion", mode="watch", pid=os.getpid())
         report["synthetic_publisher"] = True
 
@@ -249,8 +289,12 @@ def execute(stage, root, evidence, report):
         require(waiting["current"] is None and waiting["process"] is None
                 and waiting["events"] == [], "waiting fabricated native state")
         observed_sample = sample(2)
-        observed_sample["raw"] = "DO_NOT_FORWARD"
-        observed_sample["snapshot"]["player"]["raw"] = "DO_NOT_FORWARD"
+        invalid_sample = {**observed_sample, "raw": "DO_NOT_FORWARD"}
+        try:
+            codec.convert(game="poe2", encode={"op": "publish", "dataset": "session", "data": invalid_sample})
+            raise AssertionError("typed publisher accepted an unknown field")
+        except RuntimeError as error:
+            require("unknown field" in str(error), f"unexpected codec rejection: {error}")
         observed = publish(observed_sample)
         require(observed["current"] == sample(2)["snapshot"], "native projection/allowlist mismatch")
         require([event["kind"] for event in observed["events"]] ==
@@ -398,6 +442,9 @@ def main(argv=None):
     parser.add_argument("--stage", type=Path,
                         default=REPOSITORY / "prod")
     parser.add_argument("--output", type=Path, help="new directory for retained reports")
+    parser.add_argument("--codec", type=Path,
+                        default=REPOSITORY / "_build/cargo/debug/examples/fixture-codec",
+                        help="retinue-protocol fixture-codec example (built by make test-poe2)")
     args = parser.parse_args(argv)
     evidence = report_directory(args.output)
     report = {"result": "failed", "evidence": str(evidence)}
@@ -416,7 +463,7 @@ def main(argv=None):
         root = Path(temporary)
         signal.alarm(60)
         try:
-            execute(args.stage.resolve(), root, evidence, report)
+            execute(args.stage.resolve(), root, evidence, report, args.codec.resolve())
             report["result"] = "passed"
         except Exception as error:
             report["error"] = str(error)

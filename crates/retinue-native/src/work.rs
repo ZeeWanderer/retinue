@@ -96,7 +96,7 @@ impl Budget {
     ) -> io::Result<()> {
         self.check()?;
         if counter
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 used.checked_add(bytes as u64).filter(|next| *next <= limit)
             })
             .is_err()

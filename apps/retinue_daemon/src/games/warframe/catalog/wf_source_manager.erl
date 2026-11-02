@@ -17,6 +17,8 @@
 -define(SERVER, ?MODULE).
 -define(DEFAULT_REFRESH_INTERVAL_MS, 3600000).
 -define(DEFAULT_MAX_AGE_SECONDS, 86400).
+-define(DEFAULT_JOB_TIMEOUT_MS, 300000).
+-define(HIBERNATE_AFTER_MS, 30000).
 
 -type requirement() :: #{kind := export | wfcd | star_chart,
                          id := string(),
@@ -26,7 +28,8 @@
 -doc "Start the serialized metadata/source job manager.".
 -spec start_link() -> {ok, pid()} | ignore | {error, term()}.
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [],
+                          [{hibernate_after, ?HIBERNATE_AFTER_MS}]).
 
 -doc "Ensure every source required by a catalog request is valid and locally available.".
 -spec ensure_catalog(string(), map()) -> ok | {error, term()}.
@@ -123,7 +126,7 @@ handle_info(process_queue, State) ->
         {{value, Job}, Queue} ->
             Parent = self(),
             Token = make_ref(),
-            {_Pid, WorkerMonitor} = spawn_monitor(
+            {Pid, WorkerMonitor} = spawn_monitor(
               fun() ->
                   Result = try execute_job(Job)
                            catch Class:Reason:Stack ->
@@ -131,21 +134,37 @@ handle_info(process_queue, State) ->
                            end,
                   Parent ! {source_job_result, Token, Result}
               end),
-            Current = #{token => Token, worker_monitor => WorkerMonitor, job => Job},
+            Timer = erlang:send_after(job_timeout(), self(), {source_job_timeout, Token}),
+            Current = #{pid => Pid, token => Token, worker_monitor => WorkerMonitor,
+                        timer => Timer, job => Job},
             {noreply, State#{queue => Queue, current => Current}}
     end;
+handle_info({source_job_result, Token, _Result},
+            State = #{current := #{token := Token, timed_out := true}}) ->
+    {noreply, State};
 handle_info({source_job_result, Token, Result},
-            State = #{current := #{token := Token, worker_monitor := WorkerMonitor, job := Job}}) ->
+            State = #{current := #{token := Token, worker_monitor := WorkerMonitor,
+                                  job := Job} = Current}) ->
     erlang:demonitor(WorkerMonitor, [flush]),
+    cancel_refresh_timer(maps:get(timer, Current, undefined)),
     State1 = complete_job(Job, Result, State#{current => undefined}),
     self() ! process_queue,
     {noreply, State1};
 handle_info({'DOWN', Monitor, process, _Pid, Reason},
-            State = #{current := #{worker_monitor := Monitor, job := Job}}) ->
-    State1 = complete_job(Job, {error, {source_worker_down, Reason}},
+            State = #{current := #{worker_monitor := Monitor, job := Job} = Current}) ->
+    cancel_refresh_timer(maps:get(timer, Current, undefined)),
+    Error = case maps:get(timed_out, Current, false) of
+        true -> {error, source_job_timeout};
+        false -> {error, {source_worker_down, Reason}}
+    end,
+    State1 = complete_job(Job, Error,
                           State#{current => undefined}),
     self() ! process_queue,
     {noreply, State1};
+handle_info({source_job_timeout, Token},
+            State = #{current := #{token := Token, pid := Pid} = Current}) ->
+    exit(Pid, kill),
+    {noreply, State#{current => Current#{timed_out => true}}};
 handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
     case maps:take(Monitor, maps:get(client_monitors, State)) of
         error -> {noreply, State};
@@ -155,6 +174,7 @@ handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
             {noreply, State#{queue => Queue, client_monitors => Monitors}}
     end;
 handle_info(refresh_stale_sources, State) ->
+    cancel_refresh_timer(maps:get(refresh_timer, State, undefined)),
     State1 = State#{refresh_timer => undefined},
     State2 = maybe_enqueue_stale_refresh(State1),
     {noreply, schedule_refresh(State2, maps:get(refresh_interval_ms, State2))};
@@ -163,6 +183,13 @@ handle_info(_Message, State) ->
 
 terminate(_Reason, State) ->
     cancel_refresh_timer(maps:get(refresh_timer, State, undefined)),
+    case maps:get(current, State, undefined) of
+        #{pid := Pid, worker_monitor := Monitor} = Current ->
+            cancel_refresh_timer(maps:get(timer, Current, undefined)),
+            exit(Pid, kill),
+            erlang:demonitor(Monitor, [flush]);
+        _ -> ok
+    end,
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -208,6 +235,8 @@ execute_job(#{kind := ensure, command := Command, query := Query}) ->
     ensure_requirements(Command, Query);
 execute_job(#{kind := refresh, request := Request}) ->
     refresh_sources(maps:get(selections, Request, [default]));
+execute_job(#{kind := periodic, max_age_seconds := MaxAge}) ->
+    refresh_sources(stale_selections(MaxAge, erlang:system_time(second)));
 execute_job(#{kind := periodic, selections := Selections}) ->
     refresh_sources(Selections).
 
@@ -343,14 +372,8 @@ maybe_enqueue_stale_refresh(State) ->
     case has_refresh_job(State) of
         true -> State;
         false ->
-            Selections = stale_selections(
-                           maps:get(max_age_seconds, State),
-                           erlang:system_time(second)),
-            case Selections of
-                [] -> State;
-                _ -> enqueue(#{kind => periodic, selections => Selections, reply => none},
-                             State)
-            end
+            enqueue(#{kind => periodic, max_age_seconds => maps:get(max_age_seconds, State),
+                      reply => none}, State)
     end.
 
 has_refresh_job(State) ->
@@ -432,3 +455,9 @@ cancel_refresh_timer(_) ->
 
 daemon_env(Key, Default) ->
     application:get_env(retinue_daemon, Key, Default).
+
+job_timeout() ->
+    case daemon_env(source_job_timeout_ms, ?DEFAULT_JOB_TIMEOUT_MS) of
+        Timeout when is_integer(Timeout), Timeout > 0 -> Timeout;
+        _ -> ?DEFAULT_JOB_TIMEOUT_MS
+    end.

@@ -186,6 +186,7 @@ enum ClientMessage<'a> {
         id: u64,
         game: &'a str,
         envelope: u32,
+        transport: &'a str,
         interfaces: &'a BTreeMap<&'static str, u32>,
         features: &'a [&'static str],
         client: &'a str,
@@ -546,6 +547,7 @@ async fn connection_session(
                 id: 1,
                 game: "warframe",
                 envelope: ENVELOPE_VERSION,
+                transport: "protobuf",
                 interfaces: &interfaces,
                 features: &features,
                 client: "wfcompanion",
@@ -560,6 +562,7 @@ async fn connection_session(
     .await
     .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "daemon handshake timed out"))??;
     let negotiated = validate_hello(&hello)?;
+    reader.decoder_mut().enable_protobuf();
     incident::info(
         "daemon.connected",
         format!("local_envelope={ENVELOPE_VERSION} mode={mode}"),
@@ -1016,6 +1019,7 @@ struct NegotiatedFeatures {
 fn validate_hello(message: &Value) -> io::Result<NegotiatedFeatures> {
     let compatible = message.get("id").and_then(Value::as_u64) == Some(1)
         && message.get("ok").and_then(Value::as_bool) == Some(true)
+        && message.get("transport").and_then(Value::as_str) == Some("protobuf")
         && message.get("compatible").and_then(Value::as_bool) == Some(true);
     if !compatible {
         let daemon_envelope = message
@@ -1126,6 +1130,48 @@ where
 }
 
 fn encode_message(message: &ClientMessage<'_>) -> io::Result<Vec<u8>> {
+    use retinue_protocol::{native, warframe_native::WarframeRequest, wire::Document};
+    let publication = match message {
+        ClientMessage::Publish {
+            id,
+            dataset,
+            source,
+            data,
+        } => Some((
+            *id,
+            WarframeRequest {
+                op: "publish".into(),
+                dataset: Some((*dataset).into()),
+                source: Some((*source).into()),
+                data: Some(Document {
+                    json: serde_json::to_string(data)?,
+                }),
+                ..Default::default()
+            },
+        )),
+        ClientMessage::CompanionDiagnostics { request_id, data } => Some((
+            0,
+            WarframeRequest {
+                op: "companion_diagnostics".into(),
+                request_id: Some((*request_id).into()),
+                data: Some(Document {
+                    json: serde_json::to_string(data)?,
+                }),
+                ..Default::default()
+            },
+        )),
+        _ => None,
+    };
+    if let Some((id, request)) = publication {
+        return native::frame(&native::typed_request(id, &request), MAX_CLIENT_FRAME_BYTES);
+    }
+    if !matches!(message, ClientMessage::Hello { .. }) {
+        let value = serde_json::to_value(message)?;
+        return retinue_protocol::native::frame(
+            &retinue_protocol::native::request("warframe", value)?,
+            MAX_CLIENT_FRAME_BYTES,
+        );
+    }
     let mut frame = serde_json::to_vec(message)?;
     if frame.len() >= MAX_CLIENT_FRAME_BYTES {
         return Err(io::Error::new(
@@ -1365,6 +1411,96 @@ pub(crate) fn daemon_socket_path() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::{Buf, BytesMut};
+    use retinue_protocol::{
+        prost::{Message, Name},
+        warframe_native, wire,
+    };
+    use tokio_util::codec::Decoder;
+
+    struct PeerFrames;
+
+    impl Decoder for PeerFrames {
+        type Item = (u64, warframe_native::WarframeRequest);
+        type Error = io::Error;
+
+        fn decode(&mut self, bytes: &mut BytesMut) -> io::Result<Option<Self::Item>> {
+            if bytes.len() < 4 {
+                return Ok(None);
+            }
+            let length = u32::from_be_bytes(bytes[..4].try_into().unwrap()) as usize;
+            if length == 0 || length > MAX_CLIENT_FRAME_BYTES {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid request length",
+                ));
+            }
+            if bytes.len() < 4 + length {
+                return Ok(None);
+            }
+            bytes.advance(4);
+            let packet = wire::Packet::decode(bytes.split_to(length).freeze())?;
+            let Some(wire::packet::Body::Request(request)) = packet.body else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "expected request",
+                ));
+            };
+            assert_eq!(
+                request.type_name,
+                warframe_native::WarframeRequest::full_name()
+            );
+            Ok(Some((
+                request.id,
+                warframe_native::WarframeRequest::decode(request.payload)?,
+            )))
+        }
+    }
+
+    fn native_frames() -> ServerFrames {
+        let mut frames = ServerFrames::new();
+        frames.enable_protobuf();
+        frames
+    }
+
+    fn packet_frame(body: wire::packet::Body) -> Vec<u8> {
+        retinue_protocol::native::frame(
+            &wire::Packet { body: Some(body) },
+            framing::MAX_SERVER_FRAME_BYTES,
+        )
+        .unwrap()
+    }
+
+    fn typed_reply<T: Message + Name>(id: u64, dataset: &str, data: T) -> wire::packet::Body {
+        wire::packet::Body::Reply(wire::DataReply {
+            id,
+            dataset: dataset.into(),
+            type_name: T::full_name(),
+            payload: data.encode_to_vec().into(),
+        })
+    }
+
+    fn typed_event<T: Message + Name>(event: &str, data: T) -> wire::Event {
+        wire::Event {
+            event: event.into(),
+            type_name: T::full_name(),
+            payload: data.encode_to_vec().into(),
+            ..Default::default()
+        }
+    }
+
+    fn server_message(body: wire::packet::Body) -> Value {
+        native_frames()
+            .decode_eof(&mut BytesMut::from(packet_frame(body).as_slice()))
+            .unwrap()
+            .unwrap()
+    }
+
+    fn document(value: Value) -> wire::Document {
+        wire::Document {
+            json: value.to_string(),
+        }
+    }
 
     #[test]
     fn dropped_nonblocking_request_cancels_only_itself() {
@@ -1396,7 +1532,7 @@ mod tests {
     async fn diagnostics_use_connection_scoped_replies_without_player_replay() {
         let (client, server) = tokio::io::duplex(4096);
         let (read, mut write) = tokio::io::split(client);
-        let mut reader = FramedRead::new(read, ServerFrames::new());
+        let mut reader = FramedRead::new(read, native_frames());
         let (_sender, mut outbound) = outbound_channel();
         let (mut events, _, _) = server_events();
         let (requests, receiver) = diagnostics::channel();
@@ -1420,27 +1556,30 @@ mod tests {
         let id = "0123456789abcdef0123456789abcdef";
         let serve = async {
             let (read, mut write) = tokio::io::split(server);
+            let mut event = typed_event(
+                "companion_diagnostics",
+                wire::DiagnosticCommand {
+                    action: Some("watch".into()),
+                    topic: Some("inventory".into()),
+                    seconds: Some(60),
+                    ..Default::default()
+                },
+            );
+            event.request_id = Some(id.into());
             write
-                .write_all(
-                    format!(
-                        "{}\n",
-                        serde_json::json!({
-                            "event": "companion_diagnostics", "request_id": id,
-                            "request": {"action": "watch", "topic": "inventory", "seconds": 60}
-                        })
-                    )
-                    .as_bytes(),
-                )
+                .write_all(&packet_frame(wire::packet::Body::Event(event)))
                 .await
                 .unwrap();
-            let response = FramedRead::new(read, ServerFrames::new())
+            let (request_id, response) = FramedRead::new(read, PeerFrames)
                 .next()
                 .await
                 .unwrap()
                 .unwrap();
-            assert_eq!(response["op"], "companion_diagnostics");
-            assert_eq!(response["request_id"], id);
-            assert_eq!(response["data"]["snapshot"]["receipts"], 7);
+            assert_eq!(request_id, 0);
+            assert_eq!(response.op, "companion_diagnostics");
+            assert_eq!(response.request_id.as_deref(), Some(id));
+            let data: Value = serde_json::from_str(&response.data.unwrap().json).unwrap();
+            assert_eq!(data["snapshot"]["receipts"], 7);
         };
         let observe = async {
             while requests.stats().items == 0 {
@@ -1475,7 +1614,7 @@ mod tests {
     async fn stalled_write_still_routes_controls_and_resumes_exact_frame() {
         let (client, server) = tokio::io::duplex(32);
         let (read, mut write) = tokio::io::split(client);
-        let mut reader = FramedRead::new(read, ServerFrames::new());
+        let mut reader = FramedRead::new(read, native_frames());
         let (sender, mut outbound) = outbound_channel();
         let (events, ui, _) = server_events();
         let payload = "x".repeat(10_000);
@@ -1504,7 +1643,18 @@ mod tests {
         });
         let serve = async {
             let (read, mut write) = tokio::io::split(server);
-            write.write_all(b"{\"event\":\"command\",\"data\":{\"command\":\"overlay\",\"visible\":false}}\n").await.unwrap();
+            let event = typed_event(
+                "command",
+                wire::CompanionCommand {
+                    command: Some("overlay".into()),
+                    visible: Some(false),
+                    ..Default::default()
+                },
+            );
+            write
+                .write_all(&packet_frame(wire::packet::Body::Event(event)))
+                .await
+                .unwrap();
             time::timeout(Duration::from_secs(1), async {
                 loop {
                     match ui.try_recv() {
@@ -1518,10 +1668,16 @@ mod tests {
             })
             .await
             .expect("control blocked behind outbound write");
-            let mut frames = FramedRead::new(read, ServerFrames::new());
-            let published = frames.next().await.unwrap().unwrap();
-            assert_eq!(published["data"], payload);
-            assert_eq!(published["id"], 10);
+            let mut frames = FramedRead::new(read, PeerFrames);
+            let (id, published) = frames.next().await.unwrap().unwrap();
+            assert_eq!(published.op, "publish");
+            assert_eq!(published.dataset.as_deref(), Some("player"));
+            assert_eq!(published.source.as_deref(), Some("inventory_http"));
+            assert_eq!(
+                serde_json::from_str::<Value>(&published.data.unwrap().json).unwrap(),
+                payload
+            );
+            assert_eq!(id, 10);
             stopping.store(true, Ordering::Release);
             drop(sender);
             // Keep the peer alive until the session notices shutdown.
@@ -1603,10 +1759,28 @@ mod tests {
 
     #[tokio::test]
     async fn broken_frames_fail_pending_requests_and_next_session_recovers() {
-        for response in [
-            b"{invalid}\n".as_slice(),
-            b"{\"id\":10}",
-            b"{\"id\":10,\"ok\":true}\n",
+        let ack = packet_frame(wire::packet::Body::Ack(wire::Ack {
+            id: 10,
+            revision: Some(7),
+        }));
+        let wrong_direction = encode_message(&ClientMessage::Get {
+            id: 10,
+            dataset: "player",
+        })
+        .unwrap();
+        for (response, succeeds) in [
+            (vec![0, 0, 0, 1, 0xff], false),
+            (ack[..3].to_vec(), false),
+            (ack[..ack.len() - 1].to_vec(), false),
+            (0u32.to_be_bytes().to_vec(), false),
+            (
+                ((framing::MAX_SERVER_FRAME_BYTES + 1) as u32)
+                    .to_be_bytes()
+                    .to_vec(),
+                false,
+            ),
+            (wrong_direction, false),
+            (ack, true),
         ] {
             let (client, mut server) = UnixStream::pair().unwrap();
             let (sender, mut outbound) = outbound_channel();
@@ -1629,23 +1803,35 @@ mod tests {
             );
             let serve = async {
                 let (read, mut write) = server.split();
-                let mut frames = FramedRead::new(read, ServerFrames::new());
-                assert_eq!(frames.next().await.unwrap().unwrap()["op"], "hello");
+                let mut read = BufReader::new(read);
+                let mut line = String::new();
+                read.read_line(&mut line).await.unwrap();
+                let request: Value = serde_json::from_str(&line).unwrap();
+                assert_eq!(request["op"], "hello");
+                assert_eq!(request["transport"], "protobuf");
+                assert_eq!(request["interfaces"]["native"], 1);
                 let mut hello = serde_json::to_vec(&serde_json::json!({
                     "id": 1, "ok": true, "compatible": true, "envelope": ENVELOPE_VERSION,
-                    "interfaces": companion_interfaces()
+                    "transport": "protobuf", "interfaces": companion_interfaces()
                 }))
                 .unwrap();
                 hello.push(b'\n');
                 write.write_all(&hello).await.unwrap();
+                let mut frames = FramedRead::new(read, PeerFrames);
                 for id in [2, 3, 10] {
-                    let request = frames.next().await.unwrap().unwrap();
-                    assert_eq!(request["id"], id);
-                    if id == 2 {
-                        assert_eq!(request["view"], "hud");
-                    }
+                    let (request_id, request) = frames.next().await.unwrap().unwrap();
+                    assert_eq!(request_id, id);
+                    assert_eq!(request.op, if id == 2 { "subscribe" } else { "get" });
+                    assert_eq!(
+                        request.dataset.as_deref(),
+                        Some(if id == 3 { "daemon" } else { "player" })
+                    );
+                    assert_eq!(
+                        request.view.as_deref(),
+                        if id == 2 { Some("hud") } else { None }
+                    );
                 }
-                write.write_all(response).await.unwrap();
+                write.write_all(&response).await.unwrap();
                 write.shutdown().await.unwrap();
             };
             let (session_result, ()) = time::timeout(Duration::from_secs(2), async {
@@ -1656,8 +1842,10 @@ mod tests {
             assert!(session_result.is_err());
             assert!(queued.is_empty());
             let reply = result.try_recv().unwrap();
-            if response == b"{\"id\":10,\"ok\":true}\n" {
-                assert_eq!(reply.unwrap()["id"], 10);
+            if succeeds {
+                let reply = reply.unwrap();
+                assert_eq!(reply["id"], 10);
+                assert_eq!(reply["revision"], 7);
             } else {
                 assert_eq!(reply, Err("daemon connection closed".to_owned()));
             }
@@ -1669,8 +1857,12 @@ mod tests {
     async fn partial_frame_does_not_block_shutdown() {
         let (mut client, mut server) = UnixStream::pair().unwrap();
         let (read, mut write) = client.split();
-        let mut reader = FramedRead::new(read, ServerFrames::new());
-        server.write_all(b"{\"id\":").await.unwrap();
+        let mut reader = FramedRead::new(read, native_frames());
+        let frame = packet_frame(wire::packet::Body::Ack(wire::Ack {
+            id: 10,
+            revision: Some(7),
+        }));
+        server.write_all(&frame[..frame.len() - 1]).await.unwrap();
         let (_sender, mut outbound) = outbound_channel();
         let (events, _, _) = server_events();
         let stopping = AtomicBool::new(true);
@@ -1700,7 +1892,7 @@ mod tests {
     async fn shutdown_drains_publications_but_not_new_requests() {
         let (mut client, mut server) = UnixStream::pair().unwrap();
         let (read, mut write) = client.split();
-        let mut reader = FramedRead::new(read, ServerFrames::new());
+        let mut reader = FramedRead::new(read, native_frames());
         let (sender, mut outbound) = outbound_channel();
         let (reply, result) = std_mpsc::channel();
         sender
@@ -1752,15 +1944,21 @@ mod tests {
             result.try_recv(),
             Err(std_mpsc::TryRecvError::Disconnected)
         ));
-        let mut frames = FramedRead::new(&mut server, ServerFrames::new());
-        let frame = time::timeout(Duration::from_secs(2), frames.next())
+        let mut frames = FramedRead::new(&mut server, PeerFrames);
+        let (id, frame) = time::timeout(Duration::from_secs(2), frames.next())
             .await
             .unwrap()
             .unwrap()
             .unwrap();
-        assert_eq!(frame["op"], "publish");
-        assert_eq!(frame["source"], "capture_result");
-        assert_eq!(frame["data"]["state"], "saved");
+        assert_eq!(id, 10);
+        assert_eq!(frame.op, "publish");
+        assert_eq!(frame.dataset.as_deref(), Some("player"));
+        assert_eq!(frame.source.as_deref(), Some("capture_result"));
+        assert_eq!(
+            serde_json::from_str::<Value>(&frame.data.unwrap().json).unwrap()["state"],
+            "saved"
+        );
+        assert!(frames.read_buffer().is_empty());
     }
 
     #[tokio::test]
@@ -1951,8 +2149,8 @@ mod tests {
         runtime.block_on(async {
             let (mut client, server) = UnixStream::pair().unwrap();
             let (reader, mut writer) = client.split();
-            let mut reader = FramedRead::new(reader, ServerFrames::new());
-            let mut server = BufReader::new(server).lines();
+            let mut reader = FramedRead::new(reader, native_frames());
+            let mut server = FramedRead::new(server, PeerFrames);
             let (sender, mut outbound) = outbound_channel();
             let (events, _ui_events, _relic_events) = server_events();
             let stopping = AtomicBool::new(false);
@@ -1973,7 +2171,7 @@ mod tests {
             });
             tokio::pin!(session);
 
-            let line = time::timeout(Duration::from_secs(1), async {
+            let (id, message) = time::timeout(Duration::from_secs(1), async {
                 time::sleep(Duration::from_millis(10)).await;
                 sender
                     .send(Outbound::Publish {
@@ -1984,15 +2182,19 @@ mod tests {
                     .unwrap();
                 tokio::select! {
                     result = &mut session => panic!("session ended before publish: {result:?}"),
-                    line = server.next_line() => line.unwrap().unwrap(),
+                    request = server.next() => request.unwrap().unwrap(),
                 }
             })
             .await
             .unwrap();
-            let message: Value = serde_json::from_str(&line).unwrap();
-            assert_eq!(message["op"], "publish");
-            assert_eq!(message["source"], "game");
-            assert_eq!(message["data"]["running"], true);
+            assert_eq!(id, 10);
+            assert_eq!(message.op, "publish");
+            assert_eq!(message.dataset.as_deref(), Some("player"));
+            assert_eq!(message.source.as_deref(), Some("game"));
+            assert_eq!(
+                serde_json::from_str::<Value>(&message.data.unwrap().json).unwrap()["running"],
+                true
+            );
 
             drop(server);
             assert!(
@@ -2013,7 +2215,7 @@ mod tests {
             .unwrap();
         runtime.block_on(async {
             let (mut client, server) = UnixStream::pair().unwrap();
-            let mut server = BufReader::new(server).lines();
+            let mut server = FramedRead::new(server, PeerFrames);
             let (reply, result) = std_mpsc::channel();
             let mut latest = BTreeMap::new();
             let mut pending = BTreeMap::new();
@@ -2031,24 +2233,41 @@ mod tests {
             .await
             .unwrap();
 
-            let request: Value = serde_json::from_str(
-                &time::timeout(Duration::from_secs(1), server.next_line())
+            let (id, request) = time::timeout(Duration::from_secs(1), server.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert_eq!(id, 10);
+            assert_eq!(request.op, "get");
+            assert_eq!(request.dataset.as_deref(), Some("game_metadata"));
+
+            let (events, _ui_events, _relic_events) = server_events();
+            let reply = typed_reply(
+                id,
+                "game_metadata",
+                warframe_native::PlayerSnapshot {
+                    data: Some(document(serde_json::json!({"schema": 2}))),
+                    ..Default::default()
+                },
+            );
+            server
+                .get_mut()
+                .write_all(&packet_frame(reply))
+                .await
+                .unwrap();
+            let mut reader = FramedRead::new(client, native_frames());
+            handle_server_message(
+                time::timeout(Duration::from_secs(1), reader.next())
                     .await
                     .unwrap()
                     .unwrap()
                     .unwrap(),
-            )
-            .unwrap();
-            assert_eq!(request["op"], "get");
-            assert_eq!(request["dataset"], "game_metadata");
-
-            let (events, _ui_events, _relic_events) = server_events();
-            handle_server_message(
-                serde_json::json!({"id":10,"ok":true,"data":{"data":{"schema":2}}}),
                 &events,
                 &mut pending,
             );
             assert_eq!(result.recv().unwrap().unwrap()["data"]["data"]["schema"], 2);
+            assert!(pending.is_empty());
         });
     }
 
@@ -2076,6 +2295,7 @@ mod tests {
             "id": 1,
             "ok": false,
             "compatible": false,
+            "transport": "protobuf",
             "envelope": 2,
             "mismatches": [{"kind": "envelope"}]
         }));
@@ -2088,8 +2308,10 @@ mod tests {
             "id": 1,
             "ok": false,
             "compatible": false,
+            "transport": "protobuf",
             "envelope": ENVELOPE_VERSION,
             "interfaces": {
+                "native": 1,
                 "player": INTERFACE_PLAYER,
                 "market": INTERFACE_MARKET,
                 "relics": INTERFACE_RELICS,
@@ -2104,8 +2326,10 @@ mod tests {
             "id": 1,
             "ok": false,
             "compatible": false,
+            "transport": "protobuf",
             "envelope": ENVELOPE_VERSION,
             "interfaces": {
+                "native": 1,
                 "datasets": INTERFACE_DATASETS + 1,
                 "player": INTERFACE_PLAYER,
                 "market": INTERFACE_MARKET,
@@ -2132,8 +2356,10 @@ mod tests {
             "id": 1,
             "ok": true,
             "compatible": true,
+            "transport": "protobuf",
             "envelope": ENVELOPE_VERSION,
             "interfaces": {
+                "native": 1,
                 "datasets": INTERFACE_DATASETS,
                 "player": INTERFACE_PLAYER
             }
@@ -2152,8 +2378,10 @@ mod tests {
             "id": 1,
             "ok": true,
             "compatible": true,
+            "transport": "protobuf",
             "envelope": ENVELOPE_VERSION,
             "interfaces": {
+                "native": 1,
                 "datasets": INTERFACE_DATASETS,
                 "player": INTERFACE_PLAYER,
                 "game_metadata": INTERFACE_GAME_METADATA,
@@ -2170,12 +2398,53 @@ mod tests {
     }
 
     #[test]
+    fn rejects_handshake_without_native_transport_or_interface() {
+        let hello = serde_json::json!({
+            "id": 1, "ok": true, "compatible": true, "envelope": ENVELOPE_VERSION,
+            "transport": "protobuf", "interfaces": companion_interfaces()
+        });
+        for transport in [None, Some(Value::String("json".into()))] {
+            let mut message = hello.clone();
+            if let Some(transport) = transport {
+                message["transport"] = transport;
+            } else {
+                message.as_object_mut().unwrap().remove("transport");
+            }
+            assert_eq!(
+                validate_hello(&message).unwrap_err().kind(),
+                io::ErrorKind::InvalidData
+            );
+        }
+        for version in [None, Some(2)] {
+            let mut message = hello.clone();
+            if let Some(version) = version {
+                message["interfaces"]["native"] = version.into();
+            } else {
+                message["interfaces"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("native");
+            }
+            assert!(
+                validate_hello(&message)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("native")
+            );
+        }
+    }
+
+    #[test]
     fn routes_correlated_request_reply() {
         let (events, _ui_events, _relic_events) = server_events();
         let (reply, result) = std_mpsc::channel();
         let mut pending = BTreeMap::from([(17, RequestReply::new(reply))]);
         handle_server_message(
-            serde_json::json!({"id":17,"ok":true,"data":{"matches":[]}}),
+            server_message(typed_reply(
+                17,
+                "market",
+                warframe_native::Resolution::default(),
+            )),
             &events,
             &mut pending,
         );
@@ -2187,19 +2456,32 @@ mod tests {
     fn player_events_project_hud_state_without_retaining_unrelated_datasets() {
         let (events, ui, _relic) = server_events();
         let mut pending = BTreeMap::new();
+        let mut event = typed_event(
+            "dataset",
+            document(serde_json::json!({"data": {"large": "unused"}})),
+        );
+        event.dataset = Some("worldstate".into());
         handle_server_message(
-            serde_json::json!({"event":"dataset", "dataset":"worldstate", "data":{"data":{"large":"unused"}}}),
+            server_message(wire::packet::Body::Event(event)),
             &events,
             &mut pending,
         );
         assert!(ui.try_recv().is_err());
         for debug_lines in [1, 2] {
+            let mut event = typed_event(
+                "dataset",
+                warframe_native::PlayerSnapshot {
+                    data: Some(document(serde_json::json!({
+                        "game":{"phase":"game", "pid":42},
+                        "collector":{"debug_output_active":true,"debug_output_lines_observed":debug_lines},
+                        "inventory":{"raw":"x".repeat(1024 * 1024)}
+                    }))),
+                    ..Default::default()
+                },
+            );
+            event.dataset = Some("player".into());
             handle_server_message(
-                serde_json::json!({"event":"dataset", "dataset":"player", "data":{"data":{
-                    "game":{"phase":"game", "pid":42},
-                    "collector":{"debug_output_active":true,"debug_output_lines_observed":debug_lines},
-                    "inventory":{"raw":"x".repeat(1024 * 1024)}
-                }}}),
+                server_message(wire::packet::Body::Event(event)),
                 &events,
                 &mut pending,
             );
@@ -2219,7 +2501,14 @@ mod tests {
         let mut pending = BTreeMap::new();
 
         handle_server_message(
-            serde_json::json!({"event":"command","data":{"command":"overlay","visible":false}}),
+            server_message(wire::packet::Body::Event(typed_event(
+                "command",
+                wire::CompanionCommand {
+                    command: Some("overlay".into()),
+                    visible: Some(false),
+                    ..Default::default()
+                },
+            ))),
             &events,
             &mut pending,
         );
@@ -2229,7 +2518,14 @@ mod tests {
         ));
 
         handle_server_message(
-            serde_json::json!({"event":"command","data":{"command":"hud","visible":true}}),
+            server_message(wire::packet::Body::Event(typed_event(
+                "command",
+                wire::CompanionCommand {
+                    command: Some("hud".into()),
+                    visible: Some(true),
+                    ..Default::default()
+                },
+            ))),
             &events,
             &mut pending,
         );
@@ -2245,7 +2541,16 @@ mod tests {
         let mut pending = BTreeMap::new();
 
         handle_server_message(
-            serde_json::json!({"event":"asset","data":{"source":"market","image_name":"item.webp","path":"/cache/item.webp","digest":"new"}}),
+            server_message(wire::packet::Body::Event(typed_event(
+                "asset",
+                warframe_native::AssetDescriptor {
+                    source: Some("market".into()),
+                    image_name: Some("item.webp".into()),
+                    path: Some("/cache/item.webp".into()),
+                    digest: Some("new".into()),
+                    ..Default::default()
+                },
+            ))),
             &events,
             &mut pending,
         );
@@ -2264,7 +2569,17 @@ mod tests {
         let mut pending = BTreeMap::new();
 
         handle_server_message(
-            serde_json::json!({"event":"command","data":{"command":"capture","action":"arm","target":"relic_reward","directory":"/tmp/reward","timeout_ms":9000}}),
+            server_message(wire::packet::Body::Event(typed_event(
+                "command",
+                wire::CompanionCommand {
+                    command: Some("capture".into()),
+                    action: Some("arm".into()),
+                    target: Some("relic_reward".into()),
+                    directory: Some("/tmp/reward".into()),
+                    timeout_ms: Some(9000),
+                    ..Default::default()
+                },
+            ))),
             &events,
             &mut pending,
         );

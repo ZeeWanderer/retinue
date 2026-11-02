@@ -109,6 +109,31 @@ pinned_revision_refreshes_derived_metadata_test() ->
     ?assertEqual(12, maps:get(<<"cost">>, Presented)),
     ?assertEqual(<<"galvanized">>, maps:get(<<"mod_variant">>, Presented)).
 
+pinned_revision_gets_current_ranked_card_text_test() ->
+    Key = {wfcli, mod_map, 2},
+    Previous = persistent_term:get(Key, undefined),
+    persistent_term:put(Key, #{}),
+    try
+        Catalog = test_catalog(),
+        Original = wf_overframe_source:normalize_detail(raw_build(), Catalog),
+        Effects = [<<"+165% Damage">>, <<"On Kill: +5% Fire Rate">>],
+        Details = #{compat => <<"Shotgun">>,
+                    level_stats => lists:duplicate(8, #{<<"stats">> => [<<"Lower rank">>]})
+                                   ++ [#{<<"stats">> => Effects}]},
+        persistent_term:put(Key, #{<<"/Lotus/Mods/Test">> => Details}),
+        Updated = wf_overframe_source:present_revision(Original, Catalog),
+        ?assertEqual(maps:get(<<"content">>, Original), maps:get(<<"content">>, Updated)),
+        ?assertEqual(maps:get(<<"fingerprint">>, Original), maps:get(<<"fingerprint">>, Updated)),
+        [Presented] = maps:get(<<"upgrades">>, maps:get(<<"presentation">>, Updated)),
+        ?assertEqual(Effects, maps:get(<<"effects">>, Presented)),
+        ?assertEqual(<<"Shotgun">>, maps:get(<<"compat_name">>, Presented))
+    after
+        case Previous of
+            undefined -> persistent_term:erase(Key);
+            _ -> persistent_term:put(Key, Previous)
+        end
+    end.
+
 catalog_http_fun() ->
     Items = #{<<"/Lotus/Weapons/TestRifle">> =>
                   #{<<"id">> => 100, <<"name">> => <<"Test Rifle">>,

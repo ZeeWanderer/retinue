@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
 
-use crate::{daemon, incident, observer, overlay, relic, shortcut};
+use crate::{daemon, incident, observer, relic, shortcut};
 use retinue_client::child::{self, Monitor};
 use retinue_client::reload::{Gate, Watch};
 use retinue_client::signals::Signals;
@@ -112,7 +112,7 @@ pub(crate) fn run(
             reload::report,
         )?;
         core.shortcut = Some(shortcut::spawn(ui)?);
-        if let Err(error) = overlay::run(
+        if let Err(error) = crate::presentation::run(
             &events,
             relic,
             outbound,

@@ -7,10 +7,7 @@ use serde::Serialize;
 
 use super::{Movie, display, registry};
 use crate::game_observer::{
-    ProcessIdentity,
-    adapter::ScaleformLayout,
-    executable,
-    memory::{self, ProcessMemory},
+    ProcessIdentity, adapter::ScaleformLayout, executable, memory, memory::ProcessMemory,
 };
 use display::{has_vtables, pointers, read, read_prefix, u64_at};
 

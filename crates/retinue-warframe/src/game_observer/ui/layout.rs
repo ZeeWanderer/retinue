@@ -2,7 +2,10 @@ use pelite::pattern;
 use pelite::pe64::{Pe, PeFile};
 
 use crate::game_observer::adapter::ScaleformLayout;
-use crate::game_observer::executable::{self, function_range, signature, signature_in};
+use crate::game_observer::{
+    executable,
+    executable::{function_range, signature, signature_in},
+};
 
 const FLASH: &str = r#"
     48 8d 15 ${ "FlashInstanceImpl" 00 }

@@ -15,6 +15,8 @@ test("crosswalk preserves measured units and distinguishes Qt source constants",
   assert.equal(reward.native.elements.length, 1);
   assert.equal(reward.qt.diameter, 37);
   assert.match(reward.qt.source, /relic_card_layout.cpp$/);
+  assert.match(reward.qt.source, /^https:\/\/github.com\/ZeeWanderer\/retinue\/blob\/eaae51a\//);
+  assert.equal(reward.qt.historical, true);
   assert.equal(reward.aleca.elements.length, 1);
   assert.equal(report.units, "logical_pixels");
 });

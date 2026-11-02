@@ -34,6 +34,13 @@ impl FrameClock {
         // Winit owns the compositor frame callback; do not spin waiting for it.
         if self.pending { None } else { self.deadline }
     }
+
+    pub fn wake_deadline(&self, maintenance: Option<Instant>, drawable: bool) -> Option<Instant> {
+        maintenance
+            .into_iter()
+            .chain(drawable.then(|| self.deadline()).flatten())
+            .min()
+    }
 }
 
 #[cfg(test)]
@@ -79,5 +86,27 @@ mod tests {
         clock.frame_started();
         assert!(!clock.request(false, None, now));
         assert_eq!(clock.deadline(), None);
+    }
+
+    #[test]
+    fn maintenance_wakes_hidden_or_frame_pending_hosts_without_scheduling_paint() {
+        let mut clock = FrameClock::default();
+        let now = Instant::now();
+        let expiry = now + Duration::from_secs(2);
+        assert_eq!(clock.wake_deadline(Some(expiry), true), Some(expiry));
+        assert!(!clock.request(false, None, expiry));
+        assert_eq!(clock.wake_deadline(None, true), None);
+
+        clock.schedule(Some(now));
+        assert_eq!(clock.wake_deadline(Some(expiry), false), Some(expiry));
+        assert_eq!(clock.wake_deadline(None, false), None);
+        assert_eq!(clock.wake_deadline(Some(expiry), true), Some(now));
+        assert!(clock.request(false, Some(now), now));
+        assert_eq!(clock.deadline(), None);
+        assert_eq!(clock.wake_deadline(Some(expiry), true), Some(expiry));
+        assert_eq!(clock.wake_deadline(Some(expiry), false), Some(expiry));
+        assert_eq!(clock.wake_deadline(None, true), None);
+        clock.frame_started();
+        assert!(!clock.request(false, None, expiry));
     }
 }

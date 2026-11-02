@@ -1,0 +1,441 @@
+syntax = "proto3";
+package retinue.warframe.native.v1;
+
+import "retinue_wire.proto";
+import "wf_views.proto";
+
+message WarframeRequest {
+  string op = 1;
+  optional string game = 2;
+  optional string dataset = 3;
+  optional string source = 4;
+  optional string view = 5;
+  optional bool include_data = 6;
+  optional uint64 subscription = 7;
+  repeated string labels = 8;
+  optional uint32 limit = 9;
+  optional bool all = 10;
+  repeated string items = 11;
+  repeated AssetRequest assets = 12;
+  optional string era = 13;
+  optional bool fetch_prices = 14;
+  optional bool only_owned = 15;
+  optional uint32 ttl = 16;
+  optional bool cache_only = 17;
+  optional bool refresh = 18;
+  optional string query = 19;
+  optional string class = 20;
+  optional string item = 21;
+  optional string scope = 22;
+  optional string ordering = 23;
+  optional uint32 offset = 24;
+  optional uint64 build_id = 25;
+  optional string group_id = 26;
+  optional uint64 revision = 27;
+  GroupInput group = 28;
+  Patch patch = 29;
+  optional uint64 external_id = 30;
+  optional string fingerprint = 31;
+  optional string instance_id = 32;
+  optional uint32 config_index = 33;
+  optional string member_id = 34;
+  FissureSettings fissures = 35;
+  Order filters = 36;
+  optional string mode = 37;
+  optional string email = 38;
+  optional string password = 39;
+  repeated Cookie cookies = 40;
+  Order order = 41;
+  optional string order_id = 42;
+  optional uint32 quantity = 43;
+  optional bool visible = 44;
+  optional string type = 45;
+  optional string request_id = 46;
+  retinue.wire.v1.Document data = 47;
+  repeated retinue.wire.v1.Document issues = 48;
+  retinue.wire.v1.Document options = 49;
+}
+
+message AssetRequest {
+  string id = 1;
+  optional string source = 2;
+  string image_name = 3;
+}
+
+message GroupInput {
+  optional string name = 1;
+  optional string definition_id = 2;
+  optional string instance_id = 3;
+}
+
+message PlanOptions {
+  optional bool preserve_source_slots = 1;
+  optional bool allow_omni = 2;
+  optional bool allow_umbral_forma = 3;
+  optional bool prefer_omni = 4;
+}
+
+message Patch {
+  optional string name = 1;
+  optional string instance_id = 2;
+  optional bool clear_instance = 3;
+  PlanOptions options = 4;
+  optional uint32 platinum = 5;
+  optional uint32 quantity = 6;
+  optional bool visible = 7;
+  optional uint32 per_trade = 8 [json_name = "perTrade"];
+  optional uint32 rank = 9;
+  optional uint32 charges = 10;
+  optional uint32 amber_stars = 11 [json_name = "amberStars"];
+  optional uint32 cyan_stars = 12 [json_name = "cyanStars"];
+  optional string subtype = 13;
+}
+
+message Cookie {
+  string name = 1;
+  string value = 2;
+  optional string domain = 3;
+  optional string path = 4;
+  optional double expires = 5;
+  optional bool http_only = 6 [json_name = "httpOnly"];
+  optional bool secure = 7;
+  optional string same_site = 8 [json_name = "sameSite"];
+}
+
+message Order {
+  optional string id = 1;
+  optional string item_id = 2 [json_name = "itemId"];
+  optional string type = 3;
+  optional uint32 platinum = 4;
+  optional uint32 quantity = 5;
+  optional bool visible = 6;
+  optional uint32 per_trade = 7 [json_name = "perTrade"];
+  optional uint32 rank = 8;
+  optional uint32 charges = 9;
+  optional uint32 amber_stars = 10 [json_name = "amberStars"];
+  optional uint32 cyan_stars = 11 [json_name = "cyanStars"];
+  optional string subtype = 12;
+  MarketUser user = 13;
+  optional string created_at = 14 [json_name = "createdAt"];
+  optional string updated_at = 15 [json_name = "updatedAt"];
+  optional string item = 16;
+}
+
+message MarketUser {
+  optional string id = 1;
+  optional string ingame_name = 2 [json_name = "ingameName"];
+  optional string slug = 3;
+  optional string status = 4;
+  optional sint64 reputation = 5;
+  optional string avatar = 6;
+  optional string platform = 7;
+  optional bool crossplay = 8;
+}
+
+message MarketPresence {
+  optional bool authenticated = 1;
+  optional bool connected = 2;
+  optional bool connecting = 3;
+  optional string mode = 4;
+  optional string status = 5;
+  optional string desired_status = 6;
+  optional string error = 7;
+}
+
+message MarketAccount {
+  optional bool authenticated = 1;
+  MarketUser profile = 2;
+  repeated Order orders = 3;
+  optional uint64 updated_at = 4;
+  MarketPresence presence = 5;
+}
+
+message MarketItem {
+  optional string id = 1;
+  optional string name = 2;
+  optional string slug = 3;
+  optional string game_ref = 4;
+  optional uint32 ducats = 5;
+  optional bool tradable = 6;
+  optional bool bulk_tradable = 7;
+  optional bool set_root = 8;
+  optional uint32 max_rank = 9;
+  optional uint32 max_charges = 10;
+  optional uint32 max_amber_stars = 11;
+  optional uint32 max_cyan_stars = 12;
+  repeated string tags = 13;
+  repeated string subtypes = 14;
+  optional string icon = 15;
+  optional string thumb = 16;
+  optional string sub_icon = 17;
+  retinue.warframe.v1.Asset asset = 18;
+  optional double confidence = 19;
+  optional uint32 distance = 20;
+}
+
+message Resolution { string label = 1; repeated MarketItem matches = 2; }
+message MarketContext { optional string platform = 1; optional string language = 2; optional bool crossplay = 3; }
+message Quote {
+  optional uint32 lowest_sell = 1;
+  optional uint32 highest_buy = 2;
+  optional uint64 quoted_at = 3;
+  optional bool stale = 4;
+  repeated Order orders = 5;
+  repeated Order sell_orders = 6;
+  repeated Order buy_orders = 7;
+  optional string source = 8;
+  optional string item = 9;
+  optional string slug = 10;
+  optional string platform = 11;
+  optional bool crossplay = 12;
+  optional string stale_reason = 13;
+  optional uint64 last_attempt_at = 14;
+}
+message QuoteRow {
+  optional string item = 1;
+  optional string slug = 2;
+  MarketItem item_data = 3;
+  Quote quote = 4;
+  optional string error = 5;
+}
+message MarketReply {
+  MarketContext context = 1;
+  repeated Resolution resolutions = 2;
+  repeated MarketItem items = 3;
+  repeated string missing = 4;
+  repeated QuoteRow quotes = 5;
+  optional string item = 6;
+  optional string slug = 7;
+  Quote quote = 8;
+  Order filters = 9;
+}
+
+message AssetDescriptor {
+  optional string id = 1;
+  optional bool ok = 2;
+  optional string source = 3;
+  optional string image_name = 4;
+  optional string path = 5;
+  optional string digest = 6;
+  optional string media_type = 7;
+  optional uint64 size = 8;
+  optional bool stale = 9;
+  optional string error = 10;
+}
+message Assets { repeated AssetDescriptor assets = 1; }
+message AssetCache {
+  optional string cache_root = 1;
+  optional uint64 entries = 2;
+  optional uint64 objects = 3;
+  optional uint64 bytes = 4;
+  optional uint32 queued = 5;
+  optional uint32 pending = 6;
+  optional uint32 fetching = 7;
+  optional uint32 waiting_calls = 8;
+  optional uint32 subscribers = 9;
+  optional bool cleared = 10;
+}
+message ParentItem { string name = 1; bool owned = 2; bool mastered = 3; bool subsumed = 4; }
+message DucatItem { string id = 1; string name = 2; uint32 ducats = 3; ParentItem parent = 4; optional string slug = 5; Quote quote = 6; }
+message DucatInventory { repeated DucatItem items = 1; }
+
+message RelicPart {
+  optional string id = 1;
+  optional string slug = 2;
+  optional string name = 3;
+  optional string game_ref = 4;
+  optional uint32 ducats = 5;
+  optional bool set_root = 6;
+  optional uint32 required = 7;
+  optional uint64 owned = 8;
+  retinue.warframe.v1.Asset asset = 9;
+  optional uint64 count_owned = 10;
+  optional uint32 total_to_own = 11;
+  optional bool crafted = 12;
+  optional bool set_complete = 13;
+  optional bool vaulted = 14;
+  repeated RelicPart parts = 15;
+  optional uint32 lowest_sell = 16;
+  optional uint32 highest_buy = 17;
+  optional string set_slug = 18;
+  optional uint32 set_price = 19;
+}
+message AccountBalances { optional uint64 platinum = 1; optional uint64 ducats = 2; }
+message RelicContext {
+  repeated RelicPart items = 1;
+  AccountBalances account = 2;
+  map<string, string> detail_errors = 3;
+  map<string, string> quote_errors = 4;
+}
+
+message FissureSettings {
+  optional string mode = 1;
+  FissureFilterList filters = 2;
+}
+message FissureFilterList { repeated FissureFilter values = 1; }
+message FissureFilter { optional string type = 1; optional string mode = 2; optional string location = 3; optional string steel_path = 4 [json_name = "steelPath"]; }
+message NotificationSettings { FissureSettings fissures = 1; }
+message Fissure { string id = 1; string tier = 2; string mission = 3; string node = 4; string expiry = 5; bool hard = 6; }
+message Cycle { string id = 1; string name = 2; string state = 3; uint64 expires_at = 4; }
+message Baro { string name = 1; string node = 2; string activation = 3; string expiry = 4; }
+message Resurgence { string name = 1; string featured = 2; string activation = 3; string expiry = 4; }
+message Activity {
+  repeated Fissure fissures = 1;
+  repeated Cycle cycles = 2;
+  Baro baro = 3;
+  Resurgence resurgence = 4;
+  optional string source = 5;
+  optional string snapshot_origin = 6;
+  optional uint64 snapshot_age_ms = 7;
+  bool stale = 8;
+}
+
+message PlayerSnapshot {
+  optional uint64 revision = 1;
+  optional uint64 updated_at = 2;
+  optional string source = 3;
+  retinue.wire.v1.Document data = 4;
+  retinue.wire.v1.Document sources = 5;
+}
+
+message OverframeProfile { optional uint64 id = 1; optional string username = 2; optional string avatar = 3; }
+message OverframeAccount { bool authenticated = 1; bool stale = 2; OverframeProfile profile = 3; optional uint64 checked_at = 4; }
+message SourceItem {
+  optional string source = 1;
+  optional uint64 external_id = 2;
+  optional string canonical_id = 3;
+  optional string name = 4;
+  optional string class = 5;
+  repeated string categories = 6;
+  optional string texture = 7;
+  retinue.warframe.v1.Asset asset = 8;
+  optional bool buildable = 9;
+}
+message BuildItems { optional string source = 1; repeated SourceItem items = 2; uint64 count = 3; }
+message BuildIdentity { string source = 1; uint64 external_id = 2; }
+message BuildMetadata {
+  SourceItem item = 1;
+  optional string title = 2;
+  OverframeProfile author = 3;
+  optional sint64 score = 4;
+  optional uint32 formas = 5;
+  optional string created_at = 6;
+  optional string updated_at = 7;
+  optional string url = 8;
+  optional string description = 9;
+}
+message BuildSummary {
+  BuildIdentity identity = 1;
+  SourceItem item = 2;
+  string title = 3;
+  OverframeProfile author = 4;
+  sint64 score = 5;
+  uint32 formas = 6;
+  optional string updated_at = 7;
+  optional string url = 8;
+}
+message Builds {
+  string source = 1;
+  string scope = 2;
+  uint64 count = 3;
+  optional string next = 4;
+  optional string previous = 5;
+  repeated BuildSummary builds = 6;
+}
+message BuildPresentation {
+  retinue.warframe.v1.Topology topology = 1;
+  repeated retinue.warframe.v1.Upgrade upgrades = 2;
+  retinue.warframe.v1.Asset item_asset = 3;
+}
+message BuildContent {
+  optional string item = 1;
+  optional uint64 item_external_id = 2;
+  optional uint32 item_rank = 3;
+  optional string buildstring = 4;
+  repeated retinue.warframe.v1.Upgrade slots = 5;
+  retinue.warframe.v1.AbilityOverride ability_override = 6;
+}
+message BuildRevision {
+  optional uint32 schema = 1;
+  BuildIdentity identity = 2;
+  string fingerprint = 3;
+  BuildContent content = 4;
+  BuildMetadata metadata = 5;
+  BuildPresentation presentation = 6;
+  optional uint64 fetched_at = 7;
+  optional string definition_id = 8;
+  optional string instance_id = 9;
+  retinue.warframe.v1.EquipmentConfig config = 10;
+  optional bool update_available = 11;
+}
+message GroupMember {
+  string id = 1;
+  string kind = 2;
+  string name = 3;
+  optional string source = 4;
+  optional uint64 external_id = 5;
+  string fingerprint = 6;
+  BuildRevision snapshot = 7;
+  optional string instance_id = 8;
+  optional uint32 config_index = 9;
+}
+message BuildGroup {
+  optional uint32 schema = 1;
+  string id = 2;
+  string name = 3;
+  string definition_id = 4;
+  optional string instance_id = 5;
+  retinue.warframe.v1.EquipmentInstance baseline = 6;
+  repeated GroupMember members = 7;
+  PlanOptions options = 8;
+  uint64 revision = 9;
+  optional uint64 created_at = 10;
+  optional uint64 updated_at = 11;
+  optional uint32 member_count = 12;
+  optional uint32 source_member_count = 13;
+  optional uint32 config_member_count = 14;
+  optional string target_status = 15;
+  optional uint64 player_revision = 16;
+  BuildPlan plan_result = 17;
+  optional bool deleted = 18;
+}
+message BuildGroups { uint32 schema = 1; repeated BuildGroup groups = 2; uint64 player_revision = 3; }
+message PlanOperation {
+  string action = 1;
+  string slot_id = 2;
+  string label = 3;
+  optional string before = 4;
+  optional string polarity = 5;
+  optional string other_slot_id = 6;
+  optional string other_label = 7;
+  optional string forma = 8;
+}
+message PlannedBuild {
+  string member_id = 1;
+  string name = 2;
+  sint64 capacity = 3;
+  sint64 drain = 4;
+  sint64 remaining_capacity = 5;
+  repeated retinue.warframe.v1.Upgrade upgrade_slots = 6;
+  repeated string ability_override = 7;
+  repeated PlannedArcane arcanes = 8;
+}
+message PlannedArcane { string name = 1; optional uint32 rank = 2; }
+message BuildPlan {
+  uint32 schema = 1;
+  string group_id = 2;
+  uint64 group_revision = 3;
+  optional string target_fingerprint = 4;
+  uint64 generated_at = 5;
+  string status = 6;
+  optional double forma_cost = 7;
+  optional uint32 forma_count = 8;
+  map<string, uint32> forma_requirements = 9;
+  repeated PlanOperation operations = 10;
+  optional uint32 change_count = 11;
+  repeated retinue.warframe.v1.Polarity changes = 12;
+  repeated retinue.warframe.v1.Polarity final_polarities = 13;
+  repeated PlannedBuild builds = 14;
+  repeated retinue.warframe.v1.Shard shard_slots = 15;
+  retinue.wire.v1.Document reason = 16;
+}

@@ -124,6 +124,7 @@ set -eu
 [[ "${FAIL_AT:-}" != identity ]] || exit 17
 [[ -d "$RETINUE_PLATFORM_EBIN" && "$RETINUE_PLATFORM_EBIN" == */retinue_core-*/ebin ]]
 [[ -d "$RETINUE_CORE_EBIN" && "$RETINUE_CORE_EBIN" == */wfcore-*/ebin ]]
+[[ -d "$RETINUE_POE2_EBIN" && "$RETINUE_POE2_EBIN" == */poe2core-*/ebin ]]
 [[ -d "$RETINUE_DAEMON_EBIN" && "$RETINUE_DAEMON_EBIN" == */retinue_daemon-*/ebin ]]
 printf '%s' "$FAKE_ID"
 SH
@@ -131,6 +132,7 @@ chmod +x "$repo/_build/default/bin/retinue" "$release/erts-test/bin/escript" \
     "$release/bin/retinue_daemon" "$repo/commands/erl"
 printf old-beam > "$repo/source/ebin/core.beam"
 cp -a "$repo/source" "$release/lib/wfcore-test"
+cp -a "$repo/source" "$release/lib/poe2core-test"
 cp -a "$repo/source" "$release/lib/retinue_core-test"
 cp -a "$repo/source" "$release/lib/retinue_daemon-test"
 mkdir -p "$repo/dev/bin" "$repo/dev/libexec/wfdaemon" "$repo/dev/libexec/wfcli" \
@@ -166,33 +168,23 @@ PATH="$repo/commands:$PATH" FAKE_ID=new bash "$repo/scripts/stage-erlang" dev
 [[ "$(< "$repo/dev/BUILD_ID")" == new && \
    "$(< "$repo/dev/libexec/retinue_daemon/lib/wfcore-test/ebin/core.beam")" == new-beam ]] || fail 'Erlang activation was incomplete'
 
-cat > "$repo/commands/cmake" <<'SH'
-#!/usr/bin/env bash
-set -eu
-mkdir -p "$4/lib" "$4/Qt6" "$4/share/retinue/games/warframe/icons" "$4/share/licenses/wfgui"
-printf new-lib > "$4/lib/qt"
-touch "$4/share/retinue/games/warframe/icons/wfgui.svg" "$4/share/licenses/wfgui/LLVM-LICENSE.txt"
-[[ "${FAIL_AT:-}" != gui ]]
-SH
-chmod +x "$repo/commands/cmake"
-mkdir -p "$repo/dev/lib" "$repo/dev/Qt6" "$repo/dev/share/wfcli/icons" "$repo/dev/share/licenses/wfcli"
-printf old-lib > "$repo/dev/lib/qt"
-touch "$repo/dev/share/wfcli/icons/"{wfgui.svg,wfgui-256.png,unrelated.svg} \
-    "$repo/dev/share/licenses/wfcli/"{Lucide-LICENSE.txt,LLVM-LICENSE.txt,unrelated.txt}
-if PATH="$repo/commands:$PATH" FAIL_AT=gui bash "$repo/scripts/stage-gui" dev qt; then
+mkdir -p "$repo/target/debug" "$repo/apps/wfgui/resources/app" "$repo/assets/fonts/roboto"
+printf '#!/bin/sh\nprintf old-gui\n' > "$repo/dev/bin/wfgui"
+printf '#!/bin/sh\nprintf new-gui\n' > "$repo/target/debug/wfgui"
+chmod +x "$repo/dev/bin/wfgui"
+printf unchanged > "$repo/dev/shared-resource"
+if CARGO_TARGET_DIR="$repo/target" bash "$repo/scripts/stage-gui" dev; then
     fail 'failed GUI installation succeeded'
 fi
-[[ "$(< "$repo/dev/lib/qt")" == old-lib ]] || fail 'GUI failure removed live libraries'
-[[ -f "$repo/dev/share/wfcli/icons/wfgui.svg" && -f "$repo/dev/share/licenses/wfcli/LLVM-LICENSE.txt" ]] || fail 'GUI failure removed live resources'
-PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev qt
-[[ "$(< "$repo/dev/lib/qt")" == new-lib && -x "$repo/dev/bin/wfcli" ]] || fail 'GUI activation lost Erlang files'
-[[ ! -e "$repo/dev/share/wfcli/icons/wfgui.svg" && ! -e "$repo/dev/share/wfcli/icons/wfgui-256.png" && \
-   ! -e "$repo/dev/share/licenses/wfcli/LLVM-LICENSE.txt" && ! -e "$repo/dev/share/licenses/wfcli/Lucide-LICENSE.txt" ]] || fail 'retired GUI resources remain'
-[[ -f "$repo/dev/share/retinue/games/warframe/icons/wfgui.svg" && -f "$repo/dev/share/licenses/wfgui/LLVM-LICENSE.txt" ]] || fail 'GUI resources missing'
-[[ -f "$repo/dev/share/wfcli/icons/unrelated.svg" && -f "$repo/dev/share/licenses/wfcli/unrelated.txt" ]] || fail 'unrelated resources removed'
-rm "$repo/dev/share/wfcli/icons/unrelated.svg" "$repo/dev/share/licenses/wfcli/unrelated.txt"
-PATH="$repo/commands:$PATH" bash "$repo/scripts/stage-gui" dev qt
-[[ ! -d "$repo/dev/share/wfcli" && ! -d "$repo/dev/share/licenses/wfcli" ]] || fail 'empty retired resource directories remain'
+[[ "$("$repo/dev/bin/wfgui")" == old-gui ]] || fail 'GUI failure replaced live executable'
+[[ "$(< "$repo/dev/shared-resource")" == unchanged ]] || fail 'GUI failure removed live resources'
+touch "$repo/assets/fonts/roboto/Roboto-LICENSE.txt" "$repo/apps/wfgui/resources/Lucide-LICENSE.txt" \
+    "$repo/apps/wfgui/resources/app/"{wfgui.svg,wfgui-256.png}
+CARGO_TARGET_DIR="$repo/target" bash "$repo/scripts/stage-gui" dev
+[[ "$("$repo/dev/bin/wfgui")" == new-gui && -x "$repo/dev/bin/wfcli" ]] || fail 'GUI activation lost Erlang files'
+[[ -f "$repo/dev/share/retinue/games/warframe/icons/wfgui.svg" && \
+   -f "$repo/dev/share/licenses/wfgui/Lucide-LICENSE.txt" ]] || fail 'GUI resources missing'
+[[ "$(< "$repo/dev/shared-resource")" == unchanged ]] || fail 'unrelated resources removed'
 
 if [[ -w /dev/shm && "$(stat -c %d /dev/shm)" != "$(stat -c %d "$fixture")" ]]; then
     foreign="$(mktemp -d /dev/shm/wfcli-staging-test.XXXXXX)"

@@ -173,6 +173,10 @@ terminate(_Reason, State) ->
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     Path = maps:get(cache_path, State, wf_market_cache:path()),
+    Snapshot = case maps:find(snapshot, State) of
+        {ok, CurrentSnapshot} -> CurrentSnapshot;
+        error -> wf_market_cache:load(Path)
+    end,
     {ok, State#{queue => maps:get(queue, State, queue:new()),
                 current => maps:get(current, State, undefined),
                 read_queue => maps:get(read_queue, State, queue:new()),
@@ -180,7 +184,7 @@ code_change(_OldVsn, State, _Extra) ->
                 max_reads => maps:get(max_reads, State, read_worker_limit()),
                 monitors => maps:get(monitors, State, #{}),
                 cache_path => Path,
-                snapshot => maps:get(snapshot, State, wf_market_cache:load(Path)),
+                snapshot => Snapshot,
                 next_request_at => maps:get(next_request_at, State, 0),
                 cache_error => maps:get(cache_error, State, undefined),
                 cache_dirty => maps:get(cache_dirty, State, false),

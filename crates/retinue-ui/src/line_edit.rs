@@ -1,13 +1,15 @@
-use crate::{
-    Rect,
-    painter::{Painter, RasterImage},
-};
+use crate::Rect;
 use cosmic_text::{
     Action, Attrs, Buffer, Color, Cursor, Edit, Editor, Family, FontSystem, Metrics, Motion,
     Selection, Shaping, SwashCache, Wrap, fontdb,
 };
 use image::{Pixel, Rgba, RgbaImage};
-use std::time::{Duration, Instant};
+use retinue_render::painter::{Painter, RasterImage};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Colors {
@@ -15,11 +17,48 @@ pub struct Colors {
     pub selection: [u8; 4],
 }
 
-pub struct LineEdit {
+struct Resources {
     fonts: FontSystem,
-    editor: Editor<'static>,
     glyphs: SwashCache,
+}
+
+#[derive(Clone)]
+pub struct EditResources {
+    shared: Rc<RefCell<Resources>>,
     family: String,
+}
+
+impl EditResources {
+    pub fn new(font: &[u8], family: &str) -> Self {
+        let mut db = fontdb::Database::new();
+        db.load_font_data(font.to_vec());
+        Self {
+            shared: Rc::new(RefCell::new(Resources {
+                fonts: FontSystem::new_with_locale_and_db("en-US".into(), db),
+                glyphs: SwashCache::new(),
+            })),
+            family: family.into(),
+        }
+    }
+
+    pub fn editor(&self) -> LineEdit {
+        LineEdit::with_resources(self.clone())
+    }
+
+    pub fn password(&self) -> LineEdit {
+        let mut editor = self.editor();
+        editor.masked = Some(Box::new(self.editor()));
+        editor
+    }
+
+    pub fn clear_glyphs(&self) {
+        self.shared.borrow_mut().glyphs = SwashCache::new();
+    }
+}
+
+pub struct LineEdit {
+    resources: EditResources,
+    editor: Editor<'static>,
     frame: Option<(u32, u32, f32)>,
     colors: Option<Colors>,
     raster: Option<RasterImage>,
@@ -31,16 +70,18 @@ pub struct LineEdit {
 
 impl LineEdit {
     pub fn new(font: &[u8], family: &str) -> Self {
-        let mut db = fontdb::Database::new();
-        db.load_font_data(font.to_vec());
-        let mut fonts = FontSystem::new_with_locale_and_db("en-US".into(), db);
-        let mut buffer = Buffer::new(&mut fonts, Metrics::new(12.0, 16.0));
+        EditResources::new(font, family).editor()
+    }
+
+    fn with_resources(resources: EditResources) -> Self {
+        let mut buffer = Buffer::new(
+            &mut resources.shared.borrow_mut().fonts,
+            Metrics::new(12.0, 16.0),
+        );
         buffer.set_wrap(Wrap::None);
         Self {
-            fonts,
+            resources,
             editor: Editor::new(buffer),
-            glyphs: SwashCache::new(),
-            family: family.into(),
             frame: None,
             colors: None,
             raster: None,
@@ -52,9 +93,7 @@ impl LineEdit {
     }
 
     pub fn password(font: &[u8], family: &str) -> Self {
-        let mut editor = Self::new(font, family);
-        editor.masked = Some(Box::new(Self::new(font, family)));
-        editor
+        EditResources::new(font, family).password()
     }
 
     fn sync_mask(&self, display: &mut LineEdit) {
@@ -106,7 +145,7 @@ impl LineEdit {
         self.editor.with_buffer_mut(|buffer| {
             buffer.set_text(
                 text,
-                &Attrs::new().family(Family::Name(&self.family)),
+                &Attrs::new().family(Family::Name(&self.resources.family)),
                 Shaping::Advanced,
                 None,
             )
@@ -183,7 +222,10 @@ impl LineEdit {
             } else {
                 self.editor.set_selection(Selection::None);
             }
-            self.editor.action(&mut self.fonts, Action::Motion(motion));
+            self.editor.action(
+                &mut self.resources.shared.borrow_mut().fonts,
+                Action::Motion(motion),
+            );
         } else {
             match symbol {
                 0x61 | 0x41 if control => {
@@ -196,7 +238,7 @@ impl LineEdit {
                         self.editor
                             .set_selection(Selection::Normal(self.editor.cursor()));
                         self.editor.action(
-                            &mut self.fonts,
+                            &mut self.resources.shared.borrow_mut().fonts,
                             Action::Motion(if symbol == 0xff08 {
                                 Motion::PreviousWord
                             } else {
@@ -205,7 +247,7 @@ impl LineEdit {
                         );
                     }
                     self.editor.action(
-                        &mut self.fonts,
+                        &mut self.resources.shared.borrow_mut().fonts,
                         if symbol == 0xff08 {
                             Action::Backspace
                         } else {
@@ -239,7 +281,7 @@ impl LineEdit {
                 .set_selection(Selection::Normal(self.editor.cursor()));
         }
         self.editor.action(
-            &mut self.fonts,
+            &mut self.resources.shared.borrow_mut().fonts,
             if shift {
                 Action::Drag { x: x as i32, y: 1 }
             } else if double {
@@ -260,8 +302,10 @@ impl LineEdit {
             return;
         }
         let x = x + self.horizontal_scroll();
-        self.editor
-            .action(&mut self.fonts, Action::Drag { x: x as i32, y: 1 });
+        self.editor.action(
+            &mut self.resources.shared.borrow_mut().fonts,
+            Action::Drag { x: x as i32, y: 1 },
+        );
         self.changed();
     }
 
@@ -300,7 +344,11 @@ impl LineEdit {
             self.raster = None;
             let cursor = self.editor.cursor();
             self.editor.with_buffer_mut(|buffer| {
-                buffer.shape_until_cursor(&mut self.fonts, cursor, false)
+                buffer.shape_until_cursor(
+                    &mut self.resources.shared.borrow_mut().fonts,
+                    cursor,
+                    false,
+                )
             });
             self.clamp_horizontal_scroll();
         }
@@ -324,11 +372,13 @@ impl LineEdit {
         if self.raster.is_none() {
             let mut bitmap = RgbaImage::new(rect.width, rect.height);
             let color = |c: [u8; 4]| Color::rgba(c[2], c[1], c[0], c[3]);
-            self.editor.shape_as_needed(&mut self.fonts, false);
+            let mut resources = self.resources.shared.borrow_mut();
+            let Resources { fonts, glyphs } = &mut *resources;
+            self.editor.shape_as_needed(fonts, false);
             let horizontal = self.horizontal_scroll().round() as i32;
             self.editor.draw(
-                &mut self.fonts,
-                &mut self.glyphs,
+                fonts,
+                glyphs,
                 color(colors.text),
                 Color::rgba(0, 0, 0, 0),
                 color(colors.selection),
@@ -371,7 +421,8 @@ impl LineEdit {
     }
 
     fn changed(&mut self) {
-        self.editor.shape_as_needed(&mut self.fonts, false);
+        self.editor
+            .shape_as_needed(&mut self.resources.shared.borrow_mut().fonts, false);
         self.clamp_horizontal_scroll();
         self.raster = None;
         self.changed = Instant::now();
@@ -408,6 +459,55 @@ impl LineEdit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_resources_keep_editors_independent_and_match_standalone_pixels() {
+        let resources = EditResources::new(
+            include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
+            "Roboto",
+        );
+        let mut a = resources.editor();
+        let mut b = resources.password();
+        assert!(Rc::ptr_eq(&a.resources.shared, &b.resources.shared));
+        assert!(Rc::ptr_eq(
+            &b.resources.shared,
+            &b.masked.as_ref().unwrap().resources.shared
+        ));
+        a.set_text("Mesa Prime", true);
+        b.set_text("private", false);
+        for scale in [1.0, 1.25, 2.0] {
+            let rect = Rect {
+                x: 0,
+                y: 0,
+                width: (220.0 * scale) as u32,
+                height: (36.0 * scale) as u32,
+            };
+            let paint = |e: &mut LineEdit| {
+                let mut pixels = vec![0; rect.width as usize * rect.height as usize * 4];
+                let mut p = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
+                e.paint(
+                    &mut p,
+                    rect,
+                    14.0 * scale,
+                    Colors {
+                        text: [255; 4],
+                        selection: [120, 60, 40, 255],
+                    },
+                );
+                p.finish().unwrap();
+                pixels
+            };
+            let mut oracle = editor();
+            oracle.set_text("Mesa Prime", true);
+            assert_eq!(paint(&mut a), paint(&mut oracle));
+            paint(&mut b);
+            resources.clear_glyphs();
+        }
+        assert_eq!(a.selected_text().as_deref(), Some("Mesa Prime"));
+        assert_eq!(b.text(), "private");
+        assert_eq!(b.selected_text(), None);
+    }
+
     fn editor() -> LineEdit {
         LineEdit::new(
             include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),

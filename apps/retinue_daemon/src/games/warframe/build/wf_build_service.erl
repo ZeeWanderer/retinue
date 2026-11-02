@@ -17,11 +17,14 @@
 -define(DEFAULT_WORKERS, 4).
 -define(DEFAULT_CATALOG_TTL_MS, 86400000).
 -define(PERSIST_DELAY_MS, 250).
+-define(MAX_REPLY_CACHE_ENTRIES, 128).
+-define(HIBERNATE_AFTER_MS, 30000).
 
 -doc "Start the daemon-owned build repository and source coordinator.".
 -spec start_link() -> {ok, pid()} | ignore | {error, term()}.
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [],
+                          [{hibernate_after, ?HIBERNATE_AFTER_MS}]).
 
 -doc "Submit a build request; result arrives as `{retinue_build, Ref, Reply}`.".
 -spec submit(pid(), map()) -> {ok, reference()} | {error, term()}.
@@ -113,7 +116,8 @@ init([]) ->
     end,
     {ok, #{store => Store, store_error => StoreError,
            store_load_error => StoreError, dirty => false,
-           persist_timer => undefined, cache => #{}, pending => #{},
+           persist_timer => undefined, cache => #{}, cache_timer => undefined,
+           pending => #{},
            queue => queue:new(), workers => #{}, worker_monitors => #{},
            client_monitors => #{}, catalog_refresh => undefined,
            subscribers => #{}, subscriber_monitors => #{},
@@ -126,12 +130,13 @@ handle_call({Kind, Client, Request0}, _From, State)
     case normalize_request(Request0) of
         {ok, Request} ->
             Ref = make_ref(),
-            case cached_reply(Request, State) of
+            State1 = prune_reply_cache(State),
+            case cached_reply(Request, State1) of
                 {ok, Reply} ->
                     Client ! {Tag, Ref, {ok, Reply}},
-                    {reply, {ok, Ref}, State};
+                    {reply, {ok, Ref}, State1};
                 miss ->
-                    {reply, {ok, Ref}, add_request(Client, Ref, Tag, Request, State)}
+                    {reply, {ok, Ref}, add_request(Client, Ref, Tag, Request, State1)}
             end;
         {error, _Reason} = Error -> {reply, Error, State}
     end;
@@ -258,8 +263,8 @@ handle_info({catalog_result, Token, Reply},
             Catalogs = maps:get(catalogs, Store0),
             Changed = catalog_identity(Store0) =/= maps:with([schema, version], Catalog),
             Store = Store0#{catalogs => Catalogs#{overframe => Catalog}},
-            State2 = mark_dirty(State1#{store => Store, cache => #{},
-                                        store_error => undefined}),
+            State2 = mark_dirty(set_reply_cache(#{}, State1#{store => Store,
+                                                            store_error => undefined})),
             Updated = [Group || Group <- maps:values(maps:get(goals, Store)),
                                 Changed, needs_catalog(Group)],
             Published = lists:foldl(fun(Group, Acc) -> publish_group(updated, Group, Acc) end,
@@ -316,9 +321,12 @@ handle_info(persist_store, State) ->
                     {noreply, State#{persist_timer => Timer, store_error => Reason}}
             end
     end;
+handle_info({timeout, Timer, prune_reply_cache}, State = #{cache_timer := Timer}) ->
+    {noreply, set_reply_cache(live_reply_cache(State), State#{cache_timer => undefined})};
 handle_info(_Message, State) -> {noreply, State}.
 
 terminate(_Reason, State) ->
+    cancel_cache_timer(State),
     maps:foreach(fun(_Key, Worker) -> stop_worker(Worker) end,
                  maps:get(workers, State, #{})),
     case maps:get(catalog_refresh, State, undefined) of
@@ -331,6 +339,8 @@ terminate(_Reason, State) ->
     end,
     ok.
 
+code_change(_OldVsn, State = #{store_load_error := LoadError}, _Extra) ->
+    migrate_state(State, LoadError);
 code_change(_OldVsn, State, _Extra) ->
     LoadError = case wf_build_store:load() of
         {ok, _} -> undefined;
@@ -347,12 +357,13 @@ persist_legacy_groups(#{dirty := true, store := Store}, undefined) ->
 persist_legacy_groups(_, _) -> ok.
 
 migrate_state(State, LoadError) ->
+    cancel_cache_timer(State),
     {ok, State#{store => maps:get(store, State, wf_build_store:empty()),
                 store_error => maps:get(store_error, State, undefined),
                 store_load_error => maps:get(store_load_error, State, LoadError),
                 dirty => maps:get(dirty, State, false),
                 persist_timer => maps:get(persist_timer, State, undefined),
-                cache => #{},
+                cache => #{}, cache_timer => undefined,
                 pending => maps:get(pending, State, #{}),
                 queue => maps:get(queue, State, queue:new()),
                 workers => maps:get(workers, State, #{}),
@@ -538,9 +549,42 @@ cached_reply(Request, State) ->
 
 cache_reply(Request, Data, State) ->
     Expires = erlang:monotonic_time(millisecond) + cache_ttl(Request),
-    Cache = maps:get(cache, State),
-    State#{cache => Cache#{request_key(Request) =>
-                               #{expires => Expires, data => Data}}}.
+    Cache = (live_reply_cache(State))#{request_key(Request) =>
+                                         #{expires => Expires, data => Data,
+                                           inserted => erlang:unique_integer([monotonic, positive])}},
+    Ranked = lists:reverse(lists:sort(
+               [{maps:get(inserted, Entry, 0), Key} || {Key, Entry} <- maps:to_list(Cache)])),
+    Keys = [Key || {_Inserted, Key} <- lists:sublist(Ranked, ?MAX_REPLY_CACHE_ENTRIES)],
+    set_reply_cache(maps:with(Keys, Cache), State).
+
+live_reply_cache(State) ->
+    Now = erlang:monotonic_time(millisecond),
+    maps:filter(fun(_Key, #{expires := Expires}) -> Expires > Now end,
+                maps:get(cache, State)).
+
+prune_reply_cache(State) ->
+    Cache = live_reply_cache(State),
+    case Cache =:= maps:get(cache, State) of
+        true -> State;
+        false -> set_reply_cache(Cache, State)
+    end.
+
+set_reply_cache(Cache, State) ->
+    cancel_cache_timer(State),
+    Timer = case map_size(Cache) of
+        0 -> undefined;
+        _ ->
+            Expires = lists:min([maps:get(expires, Entry) || Entry <- maps:values(Cache)]),
+            Delay = max(1, Expires - erlang:monotonic_time(millisecond)),
+            erlang:start_timer(Delay, self(), prune_reply_cache)
+    end,
+    State#{cache => Cache, cache_timer => Timer}.
+
+cancel_cache_timer(State) ->
+    case maps:get(cache_timer, State, undefined) of
+        undefined -> ok;
+        Timer -> _ = erlang:cancel_timer(Timer), ok
+    end.
 
 cache_ttl(#{action := search}) -> 3600000;
 cache_ttl(#{action := list}) -> 300000;
@@ -819,8 +863,9 @@ public_member(Member = #{<<"kind">> := <<"source_revision">>,
 public_member(Member = #{<<"kind">> := <<"player_config">>,
                          <<"snapshot">> := Snapshot = #{<<"config">> := Config}}, Store) ->
     Catalog = maps:get(overframe, maps:get(catalogs, Store, #{}), #{}),
-    Upgrades = [Upgrade#{<<"elemental_types">> => wf_overframe_source:mod_elements(
-                         Catalog, maps:get(<<"item_type">>, Upgrade, null))}
+    Upgrades = [wf_mod_catalog:enrich_card_text(
+                  Upgrade#{<<"elemental_types">> => wf_overframe_source:mod_elements(
+                             Catalog, maps:get(<<"item_type">>, Upgrade, null))})
                 || Upgrade <- maps:get(<<"upgrade_slots">>, Config, [])],
     Member#{<<"snapshot">> => Snapshot#{<<"config">> => Config#{<<"upgrade_slots">> => Upgrades}}};
 public_member(Member, _Store) -> Member.
@@ -843,9 +888,17 @@ current_result(Group, Store) ->
         #{<<"schema">> := 2, <<"group_revision">> := Revision,
           <<"catalog">> := Catalog,
           <<"target_fingerprint">> := Fingerprint} = Result when Fingerprint =/= null ->
-            Result;
+            present_result(Result);
         _ -> undefined
     end.
+
+present_result(#{<<"builds">> := Builds} = Result) ->
+    Result#{<<"builds">> =>
+        [Build#{<<"upgrade_slots">> =>
+            [wf_mod_catalog:enrich_card_text(Upgrade)
+             || Upgrade <- maps:get(<<"upgrade_slots">>, Build, [])]}
+         || Build <- Builds]};
+present_result(Result) -> Result.
 
 queue_group_plan(Client, Id, Revision, State) ->
     case checked_group(Id, Revision, State) of

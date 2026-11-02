@@ -191,5 +191,5 @@ timed_out_launcher_process_is_terminated_test() ->
     end.
 
 current_build_identity() ->
-    {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, retinue_daemon]),
+    {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, poe2core, retinue_daemon]),
     retinue_hot_update:build_identity(Bundles).

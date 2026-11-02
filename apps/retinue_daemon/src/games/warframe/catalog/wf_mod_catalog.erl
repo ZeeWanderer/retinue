@@ -3,13 +3,35 @@
 %%%-------------------------------------------------------------------
 -module(wf_mod_catalog).
 
--export([details/1, lookup_by_name/1]).
+-export([details/1, lookup_by_name/1, card_text/2, enrich_card_text/1]).
 
 -doc "Return canonical metadata for one mod unique name.".
 -spec details(term()) -> map() | undefined.
 details(undefined) -> undefined;
 details(ItemType) ->
     maps:get(retinue_text:to_binary(ItemType), wf_resolve_registry:mod_map(), undefined).
+
+-spec card_text(term(), map() | undefined) -> map().
+card_text(Rank, Details) when is_map(Details) ->
+    Base = case maps:get(compat, Details, undefined) of
+        Name when is_binary(Name), byte_size(Name) > 0 -> #{<<"compat_name">> => Name};
+        _ -> #{}
+    end,
+    case maps:get(level_stats, Details, undefined) of
+        Levels when is_list(Levels), is_integer(Rank), Rank >= 0, length(Levels) > Rank ->
+            case lists:nth(Rank + 1, Levels) of
+                #{<<"stats">> := Stats} when is_list(Stats) -> Base#{<<"effects">> => Stats};
+                _ -> Base
+            end;
+        _ -> Base
+    end;
+card_text(_Rank, _Details) -> #{}.
+
+-spec enrich_card_text(map()) -> map().
+enrich_card_text(Upgrade) ->
+    Text = card_text(maps:get(<<"rank">>, Upgrade, undefined),
+                    details(maps:get(<<"item_type">>, Upgrade, undefined))),
+    maps:merge(Upgrade, Text).
 
 -doc "Resolve a display name to the preferred Forma-planner polarity and cost.".
 -spec lookup_by_name(term()) -> {ok, map()} | {error, no_name | not_found}.

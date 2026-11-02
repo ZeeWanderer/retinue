@@ -1,7 +1,10 @@
 use pelite::pe64::{Pe, PeFile};
 use serde::Serialize;
 
-use crate::game_observer::executable::{self, function_range, signature};
+use crate::game_observer::{
+    executable,
+    executable::{function_range, signature},
+};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 pub(crate) struct Layout {

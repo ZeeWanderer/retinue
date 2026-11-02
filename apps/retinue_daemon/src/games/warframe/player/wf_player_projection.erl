@@ -6,7 +6,6 @@
 -export([build/1, from_observation/1, audit/1, summary/1]).
 
 -define(SCHEMA_VERSION, 1).
--define(VIEW_CACHE, wf_player_view_cache).
 
 -type origin() :: {binary(), [binary() | non_neg_integer()]}.
 -type projection() :: map().
@@ -20,13 +19,7 @@ build(Snapshot) ->
            maps:get(updated_at, Snapshot, undefined), erlang:phash2(Observation),
            ?MODULE:module_info(md5), wf_player_items:module_info(md5),
            wf_player_schema:module_info(md5)},
-    case cache_lookup(Key) of
-        {ok, Projection} -> Projection;
-        error ->
-            Projection = from_observation(Observation),
-            cache_store(Key, Projection),
-            Projection
-    end.
+    wf_player_view_cache:get(Key, fun() -> from_observation(Observation) end).
 
 -doc "Build a projection directly from one inventory observation.".
 -spec from_observation(map()) -> projection().
@@ -422,16 +415,3 @@ id_value(_Value) -> undefined.
 stack_collections() ->
     [<<"FlavourItems">>, <<"MiscItems">>, <<"Recipes">>, <<"Consumables">>,
      <<"LevelKeys">>, <<"FusionTreasures">>, <<"CrewShipAmmo">>].
-
-cache_lookup(Key) ->
-    try ets:lookup(?VIEW_CACHE, Key) of
-        [{Key, Projection}] -> {ok, Projection};
-        [] -> error
-    catch error:badarg -> error
-    end.
-
-cache_store(Key, Projection) ->
-    try ets:insert(?VIEW_CACHE, {Key, Projection})
-    catch error:badarg -> false
-    end,
-    ok.

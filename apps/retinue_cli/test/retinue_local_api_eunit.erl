@@ -9,6 +9,68 @@ unix_socket_lifecycle_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(State) -> fun() -> lifecycle(State) end end}.
 
+legacy_json_session_is_rejected_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         {ok, Legacy} = socket:open(local, stream, default),
+         ok = socket:connect(Legacy, #{family => local, path => Path}),
+         try
+             Hello = (retinue_local_protocol:contract())#{<<"op">> => <<"hello">>,
+                 <<"id">> => 1, <<"client">> => <<"test">>, <<"transport">> => <<"json">>},
+             ok = socket:send(Legacy, retinue_local_protocol:encode(Hello)),
+             {ok, Line} = socket:recv(Legacy, 0, 1000),
+             {ok, Reply} = retinue_local_protocol:decode(string:trim(Line)),
+             ?assertMatch(#{<<"ok">> := false, <<"compatible">> := false}, Reply),
+             ok = socket:send(Legacy, retinue_local_protocol:encode(
+                 #{<<"op">> => <<"foundry_view">>, <<"id">> => 2})),
+             {ok, Rejected} = socket:recv(Legacy, 0, 1000),
+             ?assertMatch({ok, #{<<"ok">> := false, <<"error">> := <<"hello_required">>}},
+                          retinue_local_protocol:decode(string:trim(Rejected)))
+         after socket:close(Legacy) end,
+         Native = connect_client(Path, <<"test">>, #{}),
+         try
+             ok = socket:send(Native, retinue_local_protocol:encode(
+                 #{<<"op">> => <<"foundry_view">>, <<"id">> => 3})),
+             ?assertEqual({error, closed}, socket:recv(Native, 0, 1000))
+         after socket:close(Native) end
+     end end}.
+
+native_views_and_failures_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(#{socket := Path}) -> fun() ->
+         Client = connect_client(Path, <<"wfgui">>, #{<<"transport">> => <<"protobuf">>}),
+         try
+             lists:foreach(fun({Id, Op, Type}) ->
+                 ok = socket:send(Client, native_request(Id,
+                     #{<<"op">> => Op, <<"era">> => <<"axi">>})),
+                 Packet = receive_native(Client, <<>>),
+                 #{<<"body">> := {reply, Reply}} = Packet,
+                 ?assertEqual(Id, maps:get(<<"id">>, Reply)),
+                 ?assertEqual(wf_views_pb:msg_name_to_fqbin(Type), maps:get(<<"type_name">>, Reply)),
+                 ?assert(is_map(wf_views_pb:decode_msg(maps:get(<<"payload">>, Reply), Type)))
+             end, [{20, <<"foundry_view">>, 'FoundrySnapshot'},
+                   {21, <<"inventory_view">>, 'ListingSnapshot'},
+                   {22, <<"mastery_view">>, 'ListingSnapshot'},
+                   {23, <<"build_equipment">>, 'Equipment'},
+                   {25, <<"relic_planner">>, 'ListingSnapshot'}]),
+             ok = socket:send(Client, native_request(24, #{<<"op">> => <<"unknown">>})),
+             #{<<"body">> := {failure, Error}} = receive_native(Client, <<>>),
+             ?assertMatch(#{<<"id">> := 24, <<"error">> := _}, Error)
+         after socket:close(Client) end
+     end end}.
+
+native_request(Id, Map) ->
+    {ok, Type, Payload} = retinue_native:encode(wf_native_pb, 'WarframeRequest', Map),
+    retinue_wire:request(Id, Type, Payload).
+
+receive_native(Socket, Buffer) ->
+    case retinue_wire:next(protobuf, Buffer, 33554432) of
+        more ->
+            {ok, Chunk} = socket:recv(Socket, 0, 5000),
+            receive_native(Socket, <<Buffer/binary, Chunk/binary>>);
+        {ok, Packet, <<>>} -> retinue_wire_pb:decode_msg(Packet, 'Packet')
+    end.
+
 poe2_currency_requests_leave_session_responsive_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(#{socket := Path}) -> fun() ->
@@ -19,14 +81,14 @@ poe2_currency_requests_leave_session_responsive_test_() ->
              Parent ! {asset_worker, self()}, receive continue -> {ok, Data} end end}),
          Client = connect_client(Path, <<"poe2companion">>, retinue_local_protocol:contract(<<"poe2">>)),
          try
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 70,
-                 <<"op">> => <<"currency_asset">>, <<"currency">> => <<"future-coin">>})),
+             ok = send(Client, #{<<"id">> => 70,
+                 <<"op">> => <<"currency_asset">>, <<"currency">> => <<"future-coin">>}),
              Worker = receive {asset_worker, Pid} -> Pid after 1000 -> error(no_asset_worker) end,
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 71,
-                 <<"op">> => <<"get">>, <<"dataset">> => <<"session">>})),
+             ok = send(Client, #{<<"id">> => 71,
+                 <<"op">> => <<"get">>, <<"dataset">> => <<"session">>}),
              ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 71, <<>>)),
              Worker ! continue,
-             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>, <<"data">> := Data},
+             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"currency_asset">>, <<"data">> := Data},
                           receive_response(Client, 70, <<>>))
          after socket:close(Client), gen_server:stop(Assets) end
      end end}.
@@ -38,7 +100,7 @@ shared_check_publications_do_not_touch_player_data_test_() ->
          {ok, ChecksPid} = retinue_checks:start_link(),
          Client = connect_client(Path, <<"wfcompanion">>, #{}),
          Poe2 = connect_client(Path, <<"poe2companion">>, retinue_local_protocol:contract(<<"poe2">>)),
-         Limited = connect_client(Path, <<"test">>, #{<<"interfaces">> => #{}}),
+         Limited = connect_client(Path, <<"test">>, #{<<"interfaces">> => #{<<"native">> => 1}}),
          Before = sys:get_state(wf_player_service),
          Time = erlang:system_time(millisecond),
          Request = #{<<"id">> => 90, <<"op">> => <<"publish">>, <<"dataset">> => <<"checks">>,
@@ -46,7 +108,7 @@ shared_check_publications_do_not_touch_player_data_test_() ->
                  <<"checks">> => #{<<"reader">> => #{<<"state">> => <<"fail">>,
                      <<"error">> => <<"anchor missing">>, <<"checked_at">> => Time}}}},
          Exchange = fun(Socket, Message) ->
-             ok = socket:send(Socket, retinue_local_protocol:encode(Message)),
+             ok = send(Socket, Message),
              receive_response(Socket, 90, <<>>)
          end,
          try
@@ -83,47 +145,46 @@ poe2_trade_does_not_block_session_test_() ->
          Contract = retinue_local_protocol:contract(<<"poe2">>),
          Client = connect_client(Path, <<"poe2companion">>, Contract),
          try
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 20,
-                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()})),
+             ok = send(Client, #{<<"id">> => 20,
+                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()}),
              Worker = receive {trade_http, Pid} -> Pid after 1000 -> error(http_not_started) end,
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 23,
-                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()})),
+             ok = send(Client, #{<<"id">> => 23,
+                 <<"op">> => <<"trade_item">>, <<"text">> => retinue_poe2_trade_eunit:item()}),
              Read = #{<<"id">> => 21, <<"op">> => <<"get">>, <<"dataset">> => <<"session">>},
-             ok = socket:send(Client, retinue_local_protocol:encode(Read)),
+             ok = send(Client, Read),
              ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"schema">> := 2}},
                           receive_response(Client, 21, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 22,
+             ok = send(Client, #{<<"id">> => 22,
                  <<"op">> => <<"publish">>, <<"dataset">> => <<"session">>,
-                 <<"data">> => retinue_poe2_fixture:sample(1)})),
+                 <<"data">> => retinue_poe2_fixture:sample(1)}),
              ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 22, <<>>)),
              Worker ! continue,
-             %% One recv can contain both coalesced replies; inspect both lines.
              Replies = trade_responses(Client, [], 2),
              ?assertEqual([20, 23], lists:sort([maps:get(<<"id">>, R) || R <- Replies])),
              lists:foreach(fun(R) ->
-                 ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>,
+                 ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade_item">>,
                      <<"data">> := #{<<"item">> := #{<<"name">> := <<"Doom Shelter">>}}}, R)
              end, Replies),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 24,
-                 <<"op">> => <<"trade_item">>, <<"text">> => <<"not an item">>})),
+             ok = send(Client, #{<<"id">> => 24,
+                 <<"op">> => <<"trade_item">>, <<"text">> => <<"not an item">>}),
              ?assertMatch(#{<<"ok">> := false, <<"error">> := #{<<"reason">> := <<"invalid_item_text">>}},
                  receive_response(Client, 24, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 25,
+             ok = send(Client, #{<<"id">> => 25,
                  <<"op">> => <<"trade_search">>, <<"text">> => retinue_poe2_trade_eunit:item(),
-                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []})),
+                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []}),
              ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"listings">> := [], <<"next_offset">> := 0}},
                  receive_response(Client, 25, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 26,
-                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 10})),
+             ok = send(Client, #{<<"id">> => 26,
+                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 10}),
              ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"listings">> := [#{<<"id">> := <<"11">>}],
                                                              <<"next_offset">> := 20}},
                  receive_response(Client, 26, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 27,
-                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 0})),
+             ok = send(Client, #{<<"id">> => 27,
+                 <<"op">> => <<"trade_fetch">>, <<"search_id">> => <<"search-id">>, <<"offset">> => 0}),
              ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 27, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 28,
+             ok = send(Client, #{<<"id">> => 28,
                  <<"op">> => <<"trade_restore">>, <<"text">> => retinue_poe2_trade_eunit:item(),
-                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []})),
+                 <<"league">> => <<"Standard">>, <<"base">> => true, <<"filters">> => []}),
              ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"auto_search_allowed">> := true,
                  <<"results">> := #{<<"listings">> := [#{<<"id">> := <<"1">>}, #{<<"id">> := <<"11">>}],
                                     <<"next_offset">> := 20}}}, receive_response(Client, 28, <<>>))
@@ -148,29 +209,25 @@ poe2_prediction_feature_and_independent_worker_test_() ->
              <<"text">> => <<"Item Class: Rings\nRarity: Rare\nGloom Finger\nGold Ring\n--------\n",
                  "Item Level: 82\n--------\n+80 to maximum Life">>},
          try
-             ok = socket:send(Disabled, retinue_local_protocol:encode(Request)),
+             ok = send(Disabled, Request),
              ?assertMatch(#{<<"ok">> := false}, receive_response(Disabled, 31, <<>>)),
-             ok = socket:send(Client, retinue_local_protocol:encode(Request)),
+             ok = send(Client, Request),
              Worker = receive {prediction_http, Pid} -> Pid after 1000 -> error(no_prediction) end,
-             ok = socket:send(Client, retinue_local_protocol:encode(#{<<"id">> => 32,
-                 <<"op">> => <<"trade_leagues">>})),
+             ok = send(Client, #{<<"id">> => 32,
+                 <<"op">> => <<"trade_leagues">>}),
              ?assertMatch(#{<<"ok">> := true}, receive_response(Client, 32, <<>>)),
              Worker ! continue,
-             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade">>,
+             ?assertMatch(#{<<"ok">> := true, <<"dataset">> := <<"trade_predict">>,
                  <<"data">> := #{<<"estimate">> := #{<<"amount">> := 40}}},
                  receive_response(Client, 31, <<>>))
          after socket:close(Client), socket:close(Disabled),
                gen_server:stop(Trade), gen_server:stop(Prediction) end
      end end}.
 
-trade_responses(Socket, Replies, Count) -> trade_responses(Socket, Replies, Count, <<>>).
-trade_responses(_Socket, Replies, Count, _) when length(Replies) >= Count -> Replies;
-trade_responses(Socket, Replies, Count, Buffer) ->
-    {ok, Data} = socket:recv(Socket, 0, 2000),
-    Lines = binary:split(<<Buffer/binary, Data/binary>>, <<"\n">>, [global]),
-    Rest = lists:last(Lines),
-    Rows = [jsone:decode(Line) || Line <- lists:droplast(Lines), Line =/= <<>>],
-    trade_responses(Socket, Replies ++ Rows, Count, Rest).
+trade_responses(_Socket, Replies, Count) when length(Replies) >= Count -> Replies;
+trade_responses(Socket, Replies, Count) ->
+    {ok, Reply} = recv(Socket, 2000),
+    trade_responses(Socket, Replies ++ [Reply], Count).
 
 game_scoped_session_test_() ->
     {setup, fun setup/0, fun cleanup/1,
@@ -184,38 +241,38 @@ game_scoped_session_test_() ->
          ?assertMatch([#{mode := <<"watch">>, game := <<"poe2">>}],
                       [Client || #{client := <<"poe2companion">>} = Client <- Clients]),
          Read = #{<<"id">> => 2, <<"op">> => <<"get">>, <<"dataset">> => <<"session">>},
-         ok = socket:send(Warframe, retinue_local_protocol:encode(Read)),
+         ok = send(Warframe, Read),
          ?assertMatch(#{<<"ok">> := false}, receive_response(Warframe, 2, <<>>)),
-         ok = socket:send(Reader, retinue_local_protocol:encode(Read#{<<"game">> => <<"warframe">>})),
+         ok = send(Reader, Read#{<<"game">> => <<"warframe">>}),
          ?assertMatch(#{<<"error">> := <<"wrong_game">>}, receive_response(Reader, 2, <<>>)),
-         ok = socket:send(Reader, retinue_local_protocol:encode(Read#{<<"op">> => <<"subscribe">>})),
+         ok = send(Reader, Read#{<<"op">> => <<"subscribe">>}),
          ?assertMatch(#{<<"data">> := #{<<"revision">> := 0}}, receive_response(Reader, 2, <<>>)),
          Publish = #{<<"id">> => 3, <<"op">> => <<"publish">>, <<"dataset">> => <<"session">>,
                      <<"data">> => retinue_poe2_fixture:sample(1)},
-         ok = socket:send(Reader, retinue_local_protocol:encode(Publish)),
+         ok = send(Reader, Publish),
          ?assertMatch(#{<<"error">> := <<"observer_required">>}, receive_response(Reader, 3, <<>>)),
-         ok = socket:send(Observer, retinue_local_protocol:encode(Publish)),
+         ok = send(Observer, Publish),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Observer, 3, <<>>)),
          ?assertMatch(#{<<"event">> := <<"session">>, <<"game">> := <<"poe2">>,
                         <<"subscription">> := 2, <<"data">> := #{<<"schema">> := 2,
                             <<"current">> := #{<<"scene">> := <<"in_game">>}}}, diagnostic_command(Reader)),
-         ok = socket:send(Observer, retinue_local_protocol:encode(Publish)),
+         ok = send(Observer, Publish),
          ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"unchanged">> := true}},
                       receive_response(Observer, 3, <<>>)),
          ?assertEqual({error, timeout}, socket:recv(Reader, 0, 25)),
-         ok = socket:send(Observer, retinue_local_protocol:encode(Publish#{<<"id">> => 4,
-             <<"data">> => retinue_poe2_fixture:sample(2)})),
+         ok = send(Observer, Publish#{<<"id">> => 4,
+             <<"data">> => retinue_poe2_fixture:sample(2)}),
          ?assertMatch(#{<<"ok">> := true, <<"data">> := #{<<"revision">> := 1,
                                                         <<"unchanged">> := true}},
                       receive_response(Observer, 4, <<>>)),
          ?assertEqual({error, timeout}, socket:recv(Reader, 0, 25)),
-         ok = socket:send(Observer, retinue_local_protocol:encode(Publish#{<<"id">> => 5,
-             <<"data">> => #{<<"source">> => <<"/Client.txt">>, <<"cursor">> => 1, <<"events">> => []}})),
+         ok = send(Observer, Publish#{<<"id">> => 5,
+             <<"data">> => #{}}),
          ?assertMatch(#{<<"ok">> := false, <<"error">> := <<"invalid_session_sample">>},
                       receive_response(Observer, 5, <<>>)),
          ok = gen_server:stop(wf_player_service),
          ?assertEqual({error, closed}, socket:recv(Warframe, 0, 2000)),
-         ok = socket:send(Reader, retinue_local_protocol:encode(Read)),
+         ok = send(Reader, Read),
          ?assertMatch(#{<<"data">> := #{<<"revision">> := 1, <<"sequence">> := 2,
                                        <<"observed_at">> := 2000}}, receive_response(Reader, 2, <<>>)),
          {ok, _} = wf_player_service:start_link(),
@@ -229,28 +286,27 @@ inventory_scopes_socket_test_() ->
          Companion = connect_client(Path, <<"wfcompanion">>, #{<<"pid">> => 123}),
          Publish = #{<<"op">> => <<"publish">>, <<"dataset">> => <<"player">>},
          Full = wf_player_inventory_eunit:full(1, 12),
-         ok = socket:send(Companion, retinue_local_protocol:encode(Publish#{<<"id">> => 2,
-                           <<"source">> => <<"inventory_http">>, <<"data">> => Full})),
+         ok = send(Companion, Publish#{<<"id">> => 2,
+                           <<"source">> => <<"inventory_http">>, <<"data">> => Full}),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Companion, 2, <<>>)),
          Subscriber = connect_client(Path, <<"test">>, #{}),
-         ok = socket:send(Subscriber, retinue_local_protocol:encode(#{<<"id">> => 2,
-             <<"op">> => <<"subscribe">>, <<"dataset">> => <<"player">>, <<"include_data">> => false})),
+         ok = send(Subscriber, #{<<"id">> => 2,
+             <<"op">> => <<"subscribe">>, <<"dataset">> => <<"player">>, <<"include_data">> => false}),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Subscriber, 2, <<>>)),
          Native = wf_player_inventory_eunit:native(2, 1, 17),
-         ok = socket:send(Companion, retinue_local_protocol:encode(Publish#{<<"id">> => 3,
-                           <<"source">> => <<"inventory_native">>, <<"data">> => Native})),
+         ok = send(Companion, Publish#{<<"id">> => 3,
+                           <<"source">> => <<"inventory_native">>, <<"data">> => Native}),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Companion, 3, <<>>)),
-         {ok, Line} = socket:recv(Subscriber, 0, 1000),
          ?assertMatch({ok, #{<<"event">> := <<"dataset">>, <<"source">> := <<"inventory">>}},
-                      retinue_local_protocol:decode(string:trim(Line))),
+                      recv(Subscriber, 1000)),
          Before = wf_player_service:snapshot(),
-         ok = socket:send(Companion, retinue_local_protocol:encode(Publish#{<<"id">> => 4,
-                           <<"source">> => <<"inventory_http">>, <<"data">> => Full})),
+         ok = send(Companion, Publish#{<<"id">> => 4,
+                           <<"source">> => <<"inventory_http">>, <<"data">> => Full}),
          ?assertMatch(#{<<"ok">> := true}, receive_response(Companion, 4, <<>>)),
          ?assertEqual(Before, wf_player_service:snapshot()),
          ?assertEqual({error, timeout}, socket:recv(Subscriber, 0, 25)),
-         ok = socket:send(Companion, retinue_local_protocol:encode(Publish#{<<"id">> => 5,
-                           <<"source">> => <<"inventory">>, <<"data">> => Full})),
+         ok = send(Companion, Publish#{<<"id">> => 5,
+                           <<"source">> => <<"inventory">>, <<"data">> => Full}),
          ?assertMatch(#{<<"ok">> := false}, receive_response(Companion, 5, <<>>)),
          ok = socket:close(Subscriber),
          ok = socket:close(Companion)
@@ -268,10 +324,10 @@ player_hud_subscription_test_() ->
          Subscribe = #{<<"op">> => <<"subscribe">>, <<"id">> => 2,
                        <<"dataset">> => <<"player">>, <<"view">> => <<"hud">>},
          lists:foreach(fun(Invalid) ->
-             ok = socket:send(Socket, retinue_local_protocol:encode(Invalid)),
+             ok = send(Socket, Invalid),
              ?assertMatch(#{<<"ok">> := false}, receive_response(Socket, 2, <<>>))
          end, [Subscribe#{<<"view">> => <<"unknown">>}, Subscribe#{<<"include_data">> => false}]),
-         ok = socket:send(Socket, retinue_local_protocol:encode(Subscribe)),
+         ok = send(Socket, Subscribe),
          Initial = receive_response(Socket, 2, <<>>),
          ?assertEqual(#{<<"game">> => maps:without([<<"running">>], Game),
                         <<"collector">> => maps:without([<<"inventory_updates">>], Collector)},
@@ -279,8 +335,8 @@ player_hud_subscription_test_() ->
          Full = wf_player_inventory_eunit:full(1, 12),
          {ok, _} = wf_player_service:publish(<<"inventory_http">>, Full),
          ?assertEqual({error, timeout}, socket:recv(Socket, 0, 25)),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
-             #{<<"op">> => <<"get">>, <<"id">> => 3, <<"dataset">> => <<"player">>})),
+         ok = send(Socket,
+             #{<<"op">> => <<"get">>, <<"id">> => 3, <<"dataset">> => <<"player">>}),
          Reply = receive_response(Socket, 3, <<>>),
          ?assertEqual(Full, maps:get(<<"inventory_http">>,
                             maps:get(<<"data">>, maps:get(<<"data">>, Reply)))),
@@ -304,8 +360,8 @@ companion_diagnostic_socket_test_() ->
          #{<<"event">> := <<"companion_diagnostics">>, <<"request_id">> := Id,
            <<"request">> := #{<<"action">> := <<"watch">>}} = diagnostic_command(Socket),
          Data = #{<<"state">> => <<"running">>, <<"job">> => Id, <<"samples">> => 1},
-         ok = socket:send(Socket, retinue_local_protocol:encode(
-             #{<<"op">> => <<"companion_diagnostics">>, <<"request_id">> => Id, <<"data">> => Data})),
+         ok = send(Socket,
+             #{<<"op">> => <<"companion_diagnostics">>, <<"request_id">> => Id, <<"data">> => Data}),
          receive {retinue_daemon, Ref, {ok, Data}} -> ok after 1000 -> error(no_reply) end,
          retinue_local_api:diagnostics_consume(self(), Ref),
          ?assertMatch(#{<<"request">> := #{<<"action">> := <<"credit">>}}, diagnostic_command(Socket)),
@@ -318,8 +374,7 @@ companion_diagnostic_socket_test_() ->
      end end}.
 
 diagnostic_command(Socket) ->
-    {ok, Line} = socket:recv(Socket, 0, 2000),
-    {ok, Message} = retinue_local_protocol:decode(string:trim(Line)),
+    {ok, Message} = recv(Socket, 2000),
     Message.
 
 build_stats_socket_test_() ->
@@ -331,10 +386,10 @@ build_stats_socket_test_() ->
                    [wf_build_stats_eunit:weapon() | wf_stat_frames_eunit:exports()])
            end),
          Socket = connect_client(Path, <<"test">>, #{}),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
+         ok = send(Socket,
              #{<<"op">> => <<"build_stats">>, <<"id">> => 2,
                <<"options">> => (wf_build_stats_eunit:options())#{<<"armor">> => 2700,
-                                                                   <<"bounds">> => true}})),
+                                                                   <<"bounds">> => true}}),
          Reply = receive_response(Socket, 2, <<>>),
          ?assertEqual(true, maps:get(<<"ok">>, Reply)),
          Data = maps:get(<<"data">>, Reply),
@@ -348,9 +403,9 @@ build_stats_socket_test_() ->
          ?assertEqual(101, maps:get(<<"player_revision">>, Data)),
          ?assertMatch(#{<<"lower">> := #{}, <<"upper">> := #{}}, maps:get(<<"bounds">>, Data)),
          ?assert(is_list(maps:get(<<"effect_graph">>, Data))),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
+         ok = send(Socket,
              #{<<"op">> => <<"build_stats">>, <<"id">> => 3,
-               <<"options">> => (wf_build_stats_eunit:options())#{<<"armor">> => -1}})),
+               <<"options">> => (wf_build_stats_eunit:options())#{<<"armor">> => -1}}),
          ?assertEqual(false, maps:get(<<"ok">>, receive_response(Socket, 3, <<>>))),
          Nourish = <<"/Lotus/Powersuits/Devourer/Abilities/DevourerConsumeAbility">>,
          Frame = #{<<"definition_id">> => <<"/Lotus/Powersuits/Cowgirl/MesaPrime">>,
@@ -360,11 +415,11 @@ build_stats_socket_test_() ->
                        <<"ability_ranks">> => #{Nourish => 3}}},
          Options = wf_build_stats_eunit:options(),
          Builds = maps:get(<<"buildset">>, Options),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
+         ok = send(Socket,
              #{<<"op">> => <<"build_stats">>, <<"id">> => 4,
                <<"options">> => Options#{<<"buildset">> => Builds#{
                    <<"warframe">> => #{<<"build">> => Frame}},
-                   <<"effects">> => #{<<"warframe/nourish">> => 1}}})),
+                   <<"effects">> => #{<<"warframe/nourish">> => 1}}}),
          AbilityReply = receive_response(Socket, 4, <<>>),
          ?assertEqual(true, maps:get(<<"ok">>, AbilityReply)),
          [Ability] = [N || N = #{<<"kind">> := <<"ability">>} <-
@@ -374,10 +429,10 @@ build_stats_socket_test_() ->
                         <<"effects">> := [#{<<"element">> := <<"viral">>,
                                            <<"target">> := <<"weapon">>}]},
                       maps:get(<<"selected">>, maps:get(<<"states">>, Ability))),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
+         ok = send(Socket,
              #{<<"op">> => <<"build_stats">>, <<"id">> => 5,
                <<"options">> => (wf_stat_frames_eunit:request(<<"Nova Prime">>, 30, []))#{
-                   <<"bounds">> => true}})),
+                   <<"bounds">> => true}}),
          FrameReply = receive_response(Socket, 5, <<>>),
          ?assertEqual(true, maps:get(<<"ok">>, FrameReply)),
          FrameData = maps:get(<<"data">>, FrameReply),
@@ -395,7 +450,7 @@ backend_restart_disconnects_and_restores_events_test_() ->
          Socket = connect_client(Path, <<"test">>, #{}),
          Request = #{<<"op">> => <<"subscribe">>, <<"id">> => 2,
                      <<"dataset">> => <<"player">>, <<"include_data">> => false},
-         ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
+         ok = send(Socket, Request),
          _ = receive_response(Socket, 2, <<>>),
          ok = gen_server:stop(wf_player_service),
          {ok, _} = wf_player_service:start_link(),
@@ -414,9 +469,9 @@ backend_restart_closes_pending_requests_test_() ->
                                  receive finish -> {error, unused} end
                              end),
          Socket = connect_client(Path, <<"test">>, #{}),
-         ok = socket:send(Socket, retinue_local_protocol:encode(
+         ok = send(Socket,
                            #{<<"op">> => <<"build_detail">>, <<"id">> => 2,
-                             <<"build_id">> => 300})),
+                             <<"build_id">> => 300}),
          receive build_started -> ok after 2000 -> error(build_not_started) end,
          ok = gen_server:stop(wf_build_service),
          {ok, _} = wf_build_service:start_link(),
@@ -681,15 +736,13 @@ request_mastery_view_from_raw_publish(Socket) ->
     Publish = #{<<"op">> => <<"publish">>, <<"id">> => 3,
                 <<"dataset">> => <<"player">>, <<"source">> => <<"inventory_http">>,
                 <<"data">> => inventory_observation(Observation)},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Publish)),
-    {ok, PublishLine} = socket:recv(Socket, 0, 5000),
-    {ok, PublishReply} = retinue_local_protocol:decode(string:trim(PublishLine)),
+    ok = send(Socket, Publish),
+    {ok, PublishReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, PublishReply)),
 
     Request = #{<<"op">> => <<"mastery_view">>, <<"id">> => 4},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     Summary = maps:get(<<"summary">>, maps:get(<<"data">>, Reply)),
     ?assertEqual(true,
@@ -707,33 +760,29 @@ request_game_metadata_publish(Socket) ->
                  <<"archimedea">> => #{<<"catalog">> => #{}}},
     Publish = #{<<"op">> => <<"publish">>, <<"id">> => 81,
                 <<"dataset">> => <<"game_metadata">>, <<"data">> => Metadata},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Publish)),
-    {ok, PublishLine} = socket:recv(Socket, 0, 5000),
-    {ok, PublishReply} = retinue_local_protocol:decode(string:trim(PublishLine)),
+    ok = send(Socket, Publish),
+    {ok, PublishReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, PublishReply)),
 
     Get = #{<<"op">> => <<"get">>, <<"id">> => 82,
             <<"dataset">> => <<"game_metadata">>},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Get)),
-    {ok, GetLine} = socket:recv(Socket, 0, 5000),
-    {ok, GetReply} = retinue_local_protocol:decode(string:trim(GetLine)),
+    ok = send(Socket, Get),
+    {ok, GetReply} = recv(Socket, 5000),
     ?assertEqual(Metadata,
                  maps:get(<<"data">>, maps:get(<<"data">>, GetReply))).
 
 request_asset_cache_controls(Socket) ->
     Status = #{<<"op">> => <<"asset_cache_status">>, <<"id">> => 40},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Status)),
-    {ok, StatusLine} = socket:recv(Socket, 0, 1000),
-    {ok, StatusReply} = retinue_local_protocol:decode(string:trim(StatusLine)),
+    ok = send(Socket, Status),
+    {ok, StatusReply} = recv(Socket, 1000),
     ?assertEqual(true, maps:get(<<"ok">>, StatusReply)),
     StatusData = maps:get(<<"data">>, StatusReply),
     ?assert(is_integer(maps:get(<<"bytes">>, StatusData))),
     ?assert(is_binary(maps:get(<<"cache_root">>, StatusData))),
 
     Clear = #{<<"op">> => <<"asset_cache_clear">>, <<"id">> => 41},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Clear)),
-    {ok, ClearLine} = socket:recv(Socket, 0, 1000),
-    {ok, ClearReply} = retinue_local_protocol:decode(string:trim(ClearLine)),
+    ok = send(Socket, Clear),
+    {ok, ClearReply} = recv(Socket, 1000),
     ?assertEqual(true, maps:get(<<"ok">>, ClearReply)),
     ClearData = maps:get(<<"data">>, ClearReply),
     ?assertEqual(0, maps:get(<<"objects">>, ClearData)),
@@ -753,7 +802,7 @@ slow_asset_does_not_block_dataset(Socket) ->
     AssetRequest = #{<<"op">> => <<"asset_resolve">>, <<"id">> => 10,
                      <<"assets">> => [#{<<"id">> => <<"test">>,
                                          <<"image_name">> => <<"test.png">>}]},
-    ok = socket:send(Socket, retinue_local_protocol:encode(AssetRequest)),
+    ok = send(Socket, AssetRequest),
     AssetWorker = receive
         {asset_fetch_started, Pid} -> Pid
     after 1000 ->
@@ -761,14 +810,12 @@ slow_asset_does_not_block_dataset(Socket) ->
     end,
     GetRequest = #{<<"op">> => <<"get">>, <<"id">> => 11,
                    <<"dataset">> => <<"daemon">>},
-    ok = socket:send(Socket, retinue_local_protocol:encode(GetRequest)),
-    {ok, GetLine} = socket:recv(Socket, 0, 1000),
-    {ok, GetReply} = retinue_local_protocol:decode(string:trim(GetLine)),
+    ok = send(Socket, GetRequest),
+    {ok, GetReply} = recv(Socket, 1000),
     ?assertEqual(11, maps:get(<<"id">>, GetReply)),
     ?assertEqual(true, maps:get(<<"ok">>, GetReply)),
     AssetWorker ! continue,
-    {ok, AssetLine} = socket:recv(Socket, 0, 1000),
-    {ok, AssetReply} = retinue_local_protocol:decode(string:trim(AssetLine)),
+    {ok, AssetReply} = recv(Socket, 1000),
     ?assertEqual(10, maps:get(<<"id">>, AssetReply)),
     ?assertEqual(true, maps:get(<<"ok">>, AssetReply)),
     application:unset_env(retinue_daemon, asset_http_fun).
@@ -779,8 +826,7 @@ streams_stale_asset_refresh(Socket) ->
       retinue_daemon, asset_http_fun,
       fun(_Url, _Headers) -> {ok, 200, [], Png} end),
     send_asset_request(Socket, 12, <<"refresh.png">>),
-    {ok, InitialLine} = socket:recv(Socket, 0, 1000),
-    {ok, Initial} = retinue_local_protocol:decode(string:trim(InitialLine)),
+    {ok, Initial} = recv(Socket, 1000),
     [InitialAsset] = maps:get(<<"assets">>, maps:get(<<"data">>, Initial)),
     InitialDigest = maps:get(<<"digest">>, InitialAsset),
 
@@ -797,15 +843,13 @@ streams_stale_asset_refresh(Socket) ->
         {socket_asset_refresh_started, Pid} -> Pid
     after 1000 -> error(socket_asset_refresh_not_started)
     end,
-    {ok, StaleLine} = socket:recv(Socket, 0, 1000),
-    {ok, Stale} = retinue_local_protocol:decode(string:trim(StaleLine)),
+    {ok, Stale} = recv(Socket, 1000),
     [StaleAsset] = maps:get(<<"assets">>, maps:get(<<"data">>, Stale)),
     ?assertEqual(true, maps:get(<<"stale">>, StaleAsset)),
     ?assertEqual(InitialDigest, maps:get(<<"digest">>, StaleAsset)),
 
     Worker ! continue,
-    {ok, EventLine} = socket:recv(Socket, 0, 1000),
-    {ok, Event} = retinue_local_protocol:decode(string:trim(EventLine)),
+    {ok, Event} = recv(Socket, 1000),
     ?assertEqual(<<"asset">>, maps:get(<<"event">>, Event)),
     Refreshed = maps:get(<<"data">>, Event),
     ?assertNotEqual(InitialDigest, maps:get(<<"digest">>, Refreshed)),
@@ -830,7 +874,7 @@ local_request_limit_queues_excess_work(Socket) ->
           Request = #{<<"op">> => <<"asset_resolve">>, <<"id">> => Id,
                       <<"assets">> => [#{<<"id">> => integer_to_binary(Id),
                                           <<"image_name">> => Name}]},
-          ok = socket:send(Socket, retinue_local_protocol:encode(Request))
+          ok = send(Socket, Request)
       end,
       [20, 21, 22]),
     First = receive {local_asset_started, Pid1} -> Pid1 after 1000 -> timeout end,
@@ -884,18 +928,12 @@ send_asset_request(Socket, Id, Name) ->
     Request = #{<<"op">> => <<"asset_resolve">>, <<"id">> => Id,
                 <<"assets">> => [#{<<"id">> => integer_to_binary(Id),
                                     <<"image_name">> => Name}]},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)).
+    ok = send(Socket, Request).
 
 recv_reply_ids(_Socket, Count, _Buffer, Ids) when length(Ids) >= Count -> Ids;
 recv_reply_ids(Socket, Count, Buffer, Ids) ->
-    {ok, Data} = socket:recv(Socket, 0, 1000),
-    Parts = binary:split(<<Buffer/binary, Data/binary>>, <<"\n">>, [global]),
-    [Rest | ReversedLines] = lists:reverse(Parts),
-    Lines = lists:reverse(ReversedLines),
-    NewIds = [maps:get(<<"id">>, Reply)
-              || Line <- Lines, Line =/= <<>>,
-                 {ok, Reply} <- [retinue_local_protocol:decode(Line)]],
-    recv_reply_ids(Socket, Count, Rest, NewIds ++ Ids).
+    {ok, Reply} = recv(Socket, 1000),
+    recv_reply_ids(Socket, Count, Buffer, [maps:get(<<"id">>, Reply) | Ids]).
 
 connect_client(SocketPath, Client, Extra) ->
     {ok, Socket} = socket:open(local, stream, default),
@@ -918,7 +956,54 @@ connect_client(SocketPath, Client, Extra) ->
     ExpectedFeatures = [Feature || Feature <- retinue_local_protocol:features(maps:get(<<"game">>, Hello)),
                                    lists:member(Feature, Requested)],
     ?assertEqual(ExpectedFeatures, maps:get(<<"features">>, Reply)),
+    put({game, Socket}, maps:get(<<"game">>, Hello)),
     Socket.
+
+send(Socket, Request) ->
+    {ok, Type, Payload} = case get({game, Socket}) of
+        <<"poe2">> -> poe2_native:encode_request(Request);
+        <<"warframe">> -> retinue_native:encode(wf_native_pb, 'WarframeRequest', Request)
+    end,
+    socket:send(Socket, retinue_wire:request(maps:get(<<"id">>, Request, 0), Type, Payload)).
+
+recv(Socket, Timeout) ->
+    Buffer = case erase({buffer, Socket}) of undefined -> <<>>; Value -> Value end,
+    recv(Socket, Timeout, Buffer).
+
+recv(Socket, Timeout, Buffer) ->
+    case retinue_wire:next(protobuf, Buffer, 33554432) of
+        {ok, Frame, Rest} ->
+            put({buffer, Socket}, Rest),
+            {ok, packet(retinue_wire_pb:decode_msg(Frame, 'Packet'))};
+        more ->
+            case socket:recv(Socket, 0, Timeout) of
+                {ok, Chunk} -> recv(Socket, Timeout, <<Buffer/binary, Chunk/binary>>);
+                Error -> put({buffer, Socket}, Buffer), Error
+            end;
+        Error -> Error
+    end.
+
+packet(#{<<"body">> := {ack, Ack}}) -> Ack#{<<"ok">> => true};
+packet(#{<<"body">> := {failure, #{<<"error">> := #{<<"json">> := Json}} = Failure}}) ->
+    Failure#{<<"ok">> => false, <<"error">> => jsone:decode(Json)};
+packet(#{<<"body">> := {Kind, #{<<"type_name">> := Type, <<"payload">> := Bytes} = Message}}) ->
+    Data = payload(Type, Bytes),
+    Header = maps:without([<<"type_name">>, <<"payload">>], Message),
+    case {Kind, maps:get(<<"event">>, Header, undefined)} of
+        {reply, _} -> Header#{<<"ok">> => true, <<"data">> => Data};
+        {event, <<"companion_diagnostics">>} -> Header#{<<"request">> => Data};
+        {event, _} -> Header#{<<"data">> => Data}
+    end.
+
+payload(<<"retinue.poe2.", _/binary>> = Type, Bytes) ->
+    {ok, Data} = poe2_native:decode(Type, Bytes), Data;
+payload(Type, Bytes) ->
+    Codec = case Type of
+        <<"retinue.warframe.v1.", _/binary>> -> wf_views_pb;
+        <<"retinue.warframe.native.", _/binary>> -> wf_native_pb;
+        <<"retinue.wire.", _/binary>> -> retinue_wire_pb
+    end,
+    retinue_native:decode(Codec, Codec:fqbin_to_msg_name(Type), Bytes).
 
 inventory_observation(Observation) ->
     Full = wf_player_inventory_eunit:full(1, 0),
@@ -942,15 +1027,13 @@ request_build_equipment_view(Socket) ->
     Publish = #{<<"op">> => <<"publish">>, <<"id">> => 42,
                 <<"dataset">> => <<"player">>, <<"source">> => <<"inventory_http">>,
                 <<"data">> => inventory_observation(Observation)},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Publish)),
-    {ok, PublishLine} = socket:recv(Socket, 0, 5000),
-    {ok, PublishReply} = retinue_local_protocol:decode(string:trim(PublishLine)),
+    ok = send(Socket, Publish),
+    {ok, PublishReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, PublishReply)),
 
     Request = #{<<"op">> => <<"build_equipment">>, <<"id">> => 43},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     Data = maps:get(<<"data">>, Reply),
     [Instance] = maps:get(<<"instances">>, Data),
@@ -969,10 +1052,8 @@ request_build_source_views(Socket) ->
     ],
     lists:foreach(
       fun({Id, Request, Dataset}) ->
-          ok = socket:send(Socket,
-                           retinue_local_protocol:encode(Request#{<<"id">> => Id})),
-          {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-          {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+          ok = send(Socket, Request#{<<"id">> => Id}),
+          {ok, Reply} = recv(Socket, 5000),
           ?assertEqual(true, maps:get(<<"ok">>, Reply)),
           ?assertEqual(Dataset, maps:get(<<"dataset">>, Reply))
       end, Requests).
@@ -984,7 +1065,7 @@ request_build_groups(Socket) ->
                          <<"/Lotus/Powersuits/Excalibur/DoomSword">>,
                      <<"instance_id">> => <<"exalted-1">>,
                      <<"name">> => <<"Exalted plans">>}},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Create)),
+    ok = send(Socket, Create),
     {CreateReply, CreateEvent} = receive_group_mutation(Socket, 80),
     ?assertEqual(true, maps:get(<<"ok">>, CreateReply)),
     ?assertEqual(<<"created">>, maps:get(<<"action">>, CreateEvent)),
@@ -994,7 +1075,7 @@ request_build_groups(Socket) ->
     AddConfig = #{<<"op">> => <<"build_group_add_config">>, <<"id">> => 81,
                   <<"group_id">> => GroupId, <<"revision">> => 1,
                   <<"instance_id">> => <<"exalted-1">>, <<"config_index">> => 0},
-    ok = socket:send(Socket, retinue_local_protocol:encode(AddConfig)),
+    ok = send(Socket, AddConfig),
     {ConfigReply, ConfigEvent} = receive_group_mutation(Socket, 81),
     ?assertEqual(<<"member_added">>, maps:get(<<"action">>, ConfigEvent)),
     Group1 = maps:get(<<"data">>, ConfigReply),
@@ -1004,14 +1085,14 @@ request_build_groups(Socket) ->
                   <<"group_id">> => GroupId, <<"revision">> => 2,
                   <<"source">> => <<"overframe">>, <<"external_id">> => 374539,
                   <<"fingerprint">> => <<"test-revision">>},
-    ok = socket:send(Socket, retinue_local_protocol:encode(AddSource)),
+    ok = send(Socket, AddSource),
     {SourceReply, _SourceEvent} = receive_group_mutation(Socket, 82),
     Group2 = maps:get(<<"data">>, SourceReply),
     ?assertEqual(2, maps:get(<<"member_count">>, Group2)),
 
     Plan = #{<<"op">> => <<"build_group_plan">>, <<"id">> => 84,
              <<"group_id">> => GroupId, <<"revision">> => 3},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Plan)),
+    ok = send(Socket, Plan),
     {PlanReply, PlanEvent} = receive_group_mutation(Socket, 84),
     ?assertEqual(<<"planned">>, maps:get(<<"action">>, PlanEvent)),
     ?assertEqual(<<"build_plan">>, maps:get(<<"dataset">>, PlanReply)),
@@ -1019,7 +1100,7 @@ request_build_groups(Socket) ->
                  maps:get(<<"status">>, maps:get(<<"data">>, PlanReply))),
 
     List = #{<<"op">> => <<"build_group_list">>, <<"id">> => 83},
-    ok = socket:send(Socket, retinue_local_protocol:encode(List)),
+    ok = send(Socket, List),
     ListReply = receive_response(Socket, 83, <<>>),
     [Summary] = maps:get(<<"groups">>, maps:get(<<"data">>, ListReply)),
     ?assertEqual(GroupId, maps:get(<<"id">>, Summary)),
@@ -1034,40 +1115,27 @@ receive_group_mutation(Socket, Id) ->
 receive_group_mutation(_Socket, _Id, _Buffer, Reply, Event)
   when Reply =/= undefined, Event =/= undefined -> {Reply, Event};
 receive_group_mutation(Socket, Id, Buffer, Reply, Event) ->
-    {ok, Data} = socket:recv(Socket, 0, 5000),
-    Parts = binary:split(<<Buffer/binary, Data/binary>>, <<"\n">>, [global]),
-    [Rest | Reversed] = lists:reverse(Parts),
-    {NextReply, NextEvent} = lists:foldl(
-      fun(Line, {ReplyAcc, EventAcc}) when Line =/= <<>> ->
-              {ok, Message} = retinue_local_protocol:decode(Line),
-              case Message of
-                  #{<<"id">> := Id} -> {Message, EventAcc};
-                  #{<<"event">> := <<"build_group">>} -> {ReplyAcc, Message};
-                  _ -> {ReplyAcc, EventAcc}
-              end;
-         (_Line, Acc) -> Acc
-      end, {Reply, Event}, lists:reverse(Reversed)),
-    receive_group_mutation(Socket, Id, Rest, NextReply, NextEvent).
+    {ok, Message} = recv(Socket, 5000),
+    {NextReply, NextEvent} = case Message of
+        #{<<"id">> := Id} -> {Message, Event};
+        #{<<"event">> := <<"build_group">>} -> {Reply, Message};
+        _ -> {Reply, Event}
+    end,
+    receive_group_mutation(Socket, Id, Buffer, NextReply, NextEvent).
 
 receive_response(Socket, Id, Buffer) ->
-    {ok, Data} = socket:recv(Socket, 0, 5000),
-    Parts = binary:split(<<Buffer/binary, Data/binary>>, <<"\n">>, [global]),
-    [Rest | Reversed] = lists:reverse(Parts),
-    case [Message || Line <- lists:reverse(Reversed), Line =/= <<>>,
-                     {ok, Message = #{<<"id">> := MessageId}} <-
-                         [retinue_local_protocol:decode(Line)],
-                     MessageId =:= Id] of
-        [Reply | _] -> Reply;
-        [] -> receive_response(Socket, Id, Rest)
+    {ok, Message} = recv(Socket, 5000),
+    case Message of
+        #{<<"id">> := Id} -> Message;
+        _ -> receive_response(Socket, Id, Buffer)
     end.
 
 request_player_metadata_subscription(SocketPath) ->
     Socket = connect_client(SocketPath, <<"test">>, #{}),
     Request = #{<<"op">> => <<"subscribe">>, <<"id">> => 2,
                 <<"dataset">> => <<"player">>, <<"include_data">> => false},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, InitialLine} = socket:recv(Socket, 0, 5000),
-    {ok, Initial} = retinue_local_protocol:decode(string:trim(InitialLine)),
+    ok = send(Socket, Request),
+    {ok, Initial} = recv(Socket, 5000),
     InitialData = maps:get(<<"data">>, Initial),
     ?assertEqual(true, maps:get(<<"ok">>, Initial)),
     ?assert(maps:is_key(<<"revision">>, InitialData)),
@@ -1075,13 +1143,11 @@ request_player_metadata_subscription(SocketPath) ->
 
     {ok, _} = wf_player_service:publish(
                 <<"collector">>, #{<<"inventory_active">> => true}),
-    {ok, CollectorLine} = socket:recv(Socket, 0, 5000),
-    {ok, CollectorEvent} = retinue_local_protocol:decode(string:trim(CollectorLine)),
+    {ok, CollectorEvent} = recv(Socket, 5000),
     ?assertEqual(<<"collector">>, maps:get(<<"source">>, CollectorEvent)),
     {ok, Snapshot} = wf_player_service:publish(
                        <<"inventory">>, #{<<"schema">> => 1}),
-    {ok, EventLine} = socket:recv(Socket, 0, 5000),
-    {ok, Event} = retinue_local_protocol:decode(string:trim(EventLine)),
+    {ok, Event} = recv(Socket, 5000),
     EventData = maps:get(<<"data">>, Event),
     ?assertEqual(<<"dataset">>, maps:get(<<"event">>, Event)),
     ?assertEqual(<<"inventory">>, maps:get(<<"source">>, Event)),
@@ -1092,17 +1158,15 @@ request_player_metadata_subscription(SocketPath) ->
 
 request_notification_settings(Socket) ->
     Get = #{<<"op">> => <<"notification_settings">>, <<"id">> => 15},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Get)),
-    {ok, GetLine} = socket:recv(Socket, 0, 5000),
-    {ok, GetReply} = retinue_local_protocol:decode(string:trim(GetLine)),
+    ok = send(Socket, Get),
+    {ok, GetReply} = recv(Socket, 5000),
     ?assertEqual(<<"off">>, maps:get(
                               <<"mode">>,
                               maps:get(<<"fissures">>, maps:get(<<"data">>, GetReply)))),
     Set = #{<<"op">> => <<"notification_settings_set">>, <<"id">> => 16,
             <<"fissures">> => #{<<"mode">> => <<"session">>}},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Set)),
-    {ok, SetLine} = socket:recv(Socket, 0, 5000),
-    {ok, SetReply} = retinue_local_protocol:decode(string:trim(SetLine)),
+    ok = send(Socket, Set),
+    {ok, SetReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, SetReply)),
     ?assertEqual(<<"session">>, maps:get(
                                   <<"mode">>,
@@ -1116,9 +1180,8 @@ request_diagnostics_report(Socket) ->
               <<"fallback">> => <<"test.png">>},
     Report = #{<<"op">> => <<"diagnostics_report">>, <<"id">> => 45,
                <<"issues">> => [Issue]},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Report)),
-    {ok, ReportLine} = socket:recv(Socket, 0, 5000),
-    {ok, ReportReply} = retinue_local_protocol:decode(string:trim(ReportLine)),
+    ok = send(Socket, Report),
+    {ok, ReportReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, ReportReply)),
     [Stored] = [Entry || Entry <- wf_resolution_issues:list(),
                          maps:get(<<"scope">>, Entry, undefined) =:= Scope,
@@ -1127,9 +1190,8 @@ request_diagnostics_report(Socket) ->
     ?assertEqual(<<"asset_decode">>, maps:get(<<"kind">>, Stored)),
     Clear = #{<<"op">> => <<"diagnostics_report">>, <<"id">> => 46,
               <<"issues">> => []},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Clear)),
-    {ok, ClearLine} = socket:recv(Socket, 0, 5000),
-    {ok, ClearReply} = retinue_local_protocol:decode(string:trim(ClearLine)),
+    ok = send(Socket, Clear),
+    {ok, ClearReply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, ClearReply)),
     ?assertEqual([], [Entry || Entry <- wf_resolution_issues:list(),
                               maps:get(<<"scope">>, Entry, undefined) =:= Scope]).
@@ -1138,9 +1200,8 @@ reject_unnegotiated_diagnostics(SocketPath) ->
     Socket = connect_client(SocketPath, <<"limited">>, #{<<"features">> => []}),
     Request = #{<<"op">> => <<"diagnostics_report">>, <<"id">> => 47,
                 <<"issues">> => []},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(false, maps:get(<<"ok">>, Reply)),
     ?assertEqual(<<"feature_not_negotiated">>, maps:get(<<"error">>, Reply)),
     ok = socket:close(Socket).
@@ -1149,18 +1210,16 @@ publish_game_running(Socket) ->
     Request = #{<<"op">> => <<"publish">>, <<"id">> => 2,
                 <<"dataset">> => <<"player">>, <<"source">> => <<"game">>,
                 <<"data">> => #{<<"running">> => true}},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(2, maps:get(<<"id">>, Reply)).
 
 request_market_quote(Socket) ->
     Request = #{<<"op">> => <<"market_quote">>, <<"id">> => 9,
                 <<"items">> => [<<"saryn_prime_set">>]},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(9, maps:get(<<"id">>, Reply)),
     ?assertEqual(<<"market">>, maps:get(<<"dataset">>, Reply)),
@@ -1175,9 +1234,8 @@ request_market_variant_quote(Socket) ->
                 <<"item">> => <<"saryn_prime_set">>,
                 <<"filters">> => #{<<"rank">> => 5,
                                      <<"subtype">> => <<"blueprint">>}},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(21, maps:get(<<"id">>, Reply)),
     Data = maps:get(<<"data">>, Reply),
@@ -1188,9 +1246,8 @@ request_cached_market_quote(Socket) ->
     Request = #{<<"op">> => <<"market_quote">>, <<"id">> => 14,
                 <<"items">> => [<<"saryn_prime_set">>],
                 <<"cache_only">> => true},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(14, maps:get(<<"id">>, Reply)),
     [QuoteRow] = maps:get(<<"quotes">>, maps:get(<<"data">>, Reply)),
@@ -1199,7 +1256,7 @@ request_cached_market_quote(Socket) ->
 request_market_resolve(Socket) ->
     Request = #{<<"op">> => <<"market_resolve">>, <<"id">> => 8,
                 <<"labels">> => [<<"Saryn Prme Set">>], <<"limit">> => 1},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
+    ok = send(Socket, Request),
     Reply = receive_response(Socket, 8, <<>>),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(8, maps:get(<<"id">>, Reply)),
@@ -1214,27 +1271,25 @@ request_market_resolve(Socket) ->
 request_market_describe(Socket) ->
     Request = #{<<"op">> => <<"market_describe">>, <<"id">> => 17,
                 <<"items">> => [<<"saryn">>, <<"Saryn Prime Set">>]},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     [ById, ByName] = maps:get(<<"items">>, maps:get(<<"data">>, Reply)),
     ?assertEqual(ById, ByName),
     ?assertEqual(<<"saryn">>, maps:get(<<"id">>, ById)).
 
 request_ducat_inventory(Socket) ->
-    ok = socket:send(Socket, retinue_local_protocol:encode(
-        #{<<"op">> => <<"ducat_inventory">>, <<"id">> => 217})),
+    ok = send(Socket,
+        #{<<"op">> => <<"ducat_inventory">>, <<"id">> => 217}),
     Reply = receive_response(Socket, 217, <<>>),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
-    ?assertEqual(<<"market">>, maps:get(<<"dataset">>, Reply)),
+    ?assertEqual(<<"ducat_inventory">>, maps:get(<<"dataset">>, Reply)),
     ?assert(is_list(maps:get(<<"items">>, maps:get(<<"data">>, Reply)))).
 
 request_market_account(Socket) ->
     Request = #{<<"op">> => <<"market_account">>, <<"id">> => 18},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     Data = maps:get(<<"data">>, Reply),
     ?assertEqual(false, maps:get(<<"authenticated">>, Data)),
@@ -1242,9 +1297,8 @@ request_market_account(Socket) ->
 
 request_overframe_account(Socket) ->
     Request = #{<<"op">> => <<"overframe_account">>, <<"id">> => 25},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(<<"overframe_account">>, maps:get(<<"dataset">>, Reply)),
     Data = maps:get(<<"data">>, Reply),
@@ -1253,16 +1307,15 @@ request_overframe_account(Socket) ->
 
 reject_invalid_overframe_session(Socket) ->
     Request = #{<<"op">> => <<"overframe_session_import">>, <<"id">> => 26},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(false, maps:get(<<"ok">>, Reply)),
-    ?assertEqual(<<"invalid_overframe_session">>, maps:get(<<"error">>, Reply)).
+    ?assertEqual(<<"Could not import Overframe session: missing_session_cookie">>, maps:get(<<"error">>, Reply)).
 
 request_market_presence(Socket) ->
     Request = #{<<"op">> => <<"market_presence_set">>, <<"id">> => 20,
                 <<"mode">> => <<"auto">>},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
+    ok = send(Socket, Request),
     Reply = receive_market_presence(Socket, undefined, false),
     ?assertEqual(true, maps:get(<<"ok">>, Reply)),
     ?assertEqual(<<"auto">>,
@@ -1271,14 +1324,8 @@ request_market_presence(Socket) ->
 receive_market_presence(_Socket, Reply, true) when Reply =/= undefined ->
     Reply;
 receive_market_presence(Socket, Reply, SawEvent) ->
-    {ok, Chunk} = socket:recv(Socket, 0, 5000),
-    {NextReply, NextSawEvent} = lists:foldl(
-      fun(Line, Acc) ->
-          {ok, Message} = retinue_local_protocol:decode(Line),
-          classify_market_presence(Message, Acc)
-      end,
-      {Reply, SawEvent},
-      binary:split(Chunk, <<"\n">>, [global, trim_all])),
+    {ok, Message} = recv(Socket, 5000),
+    {NextReply, NextSawEvent} = classify_market_presence(Message, {Reply, SawEvent}),
     receive_market_presence(Socket, NextReply, NextSawEvent).
 
 classify_market_presence(#{<<"id">> := 20} = Reply, {_OldReply, SawEvent}) ->
@@ -1289,9 +1336,8 @@ classify_market_presence(#{<<"event">> := <<"market_presence">>}, {Reply, _}) ->
 reject_invalid_market_order(Socket) ->
     Request = #{<<"op">> => <<"market_order_create">>, <<"id">> => 19,
                 <<"order">> => #{<<"type">> => <<"sell">>}},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-    {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-    {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+    ok = send(Socket, Request),
+    {ok, Reply} = recv(Socket, 5000),
     ?assertEqual(false, maps:get(<<"ok">>, Reply)),
     ?assertEqual(<<"invalid_market_order">>, maps:get(<<"error">>, Reply)).
 
@@ -1307,9 +1353,8 @@ route_market_order_mutations(Socket) ->
     ],
     lists:foreach(
       fun(Request) ->
-          ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-          {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-          {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+          ok = send(Socket, Request),
+          {ok, Reply} = recv(Socket, 5000),
           ?assertEqual(maps:get(<<"id">>, Request), maps:get(<<"id">>, Reply)),
           ?assertEqual(false, maps:get(<<"ok">>, Reply)),
           ?assertEqual(<<"Sign in to Warframe.market first">>,
@@ -1321,17 +1366,15 @@ reject_invalid_market_resolve(Socket) ->
     TooMany = [<<"label">> || _ <- lists:seq(1, 21)],
     Request1 = #{<<"op">> => <<"market_resolve">>, <<"id">> => 7,
                  <<"labels">> => TooMany, <<"limit">> => 1},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request1)),
-    {ok, ReplyLine1} = socket:recv(Socket, 0, 5000),
-    {ok, Reply1} = retinue_local_protocol:decode(string:trim(ReplyLine1)),
+    ok = send(Socket, Request1),
+    {ok, Reply1} = recv(Socket, 5000),
     ?assertEqual(false, maps:get(<<"ok">>, Reply1)),
     ?assertEqual(<<"invalid_market_labels">>, maps:get(<<"error">>, Reply1)),
 
     Request2 = #{<<"op">> => <<"market_resolve">>, <<"id">> => 6,
                  <<"labels">> => [<<"Saryn">>], <<"limit">> => 0},
-    ok = socket:send(Socket, retinue_local_protocol:encode(Request2)),
-    {ok, ReplyLine2} = socket:recv(Socket, 0, 5000),
-    {ok, Reply2} = retinue_local_protocol:decode(string:trim(ReplyLine2)),
+    ok = send(Socket, Request2),
+    {ok, Reply2} = recv(Socket, 5000),
     ?assertEqual(false, maps:get(<<"ok">>, Reply2)),
     ?assertEqual(<<"invalid_market_limit">>, maps:get(<<"error">>, Reply2)).
 
@@ -1340,9 +1383,8 @@ reject_invalid_relic_limit(Socket) ->
       fun({Id, Operation}) ->
           Request = #{<<"op">> => Operation, <<"id">> => Id,
                       <<"era">> => <<"axi">>, <<"limit">> => 0},
-          ok = socket:send(Socket, retinue_local_protocol:encode(Request)),
-          {ok, ReplyLine} = socket:recv(Socket, 0, 5000),
-          {ok, Reply} = retinue_local_protocol:decode(string:trim(ReplyLine)),
+          ok = send(Socket, Request),
+          {ok, Reply} = recv(Socket, 5000),
           ?assertEqual(false, maps:get(<<"ok">>, Reply)),
           ?assertEqual(<<"invalid_relic_limit">>, maps:get(<<"error">>, Reply))
       end,

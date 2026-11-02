@@ -1,14 +1,12 @@
 %%%-------------------------------------------------------------------
-%% EUnit coverage for native companion JSON protocol.
+%% EUnit coverage for the local protocol handshake.
 %%%-------------------------------------------------------------------
 -module(retinue_local_protocol_eunit).
 
 -include_lib("eunit/include/eunit.hrl").
 
 round_trip_binary_keyed_message_test() ->
-    Message = #{<<"op">> => <<"publish">>, <<"id">> => 7,
-                <<"dataset">> => <<"player">>,
-                <<"data">> => #{<<"phase">> => <<"launcher">>}},
+    Message = (retinue_local_protocol:contract())#{<<"op">> => <<"hello">>, <<"id">> => 7},
     Encoded = iolist_to_binary(retinue_local_protocol:encode(Message)),
     {ok, Decoded} = retinue_local_protocol:decode(string:trim(Encoded)),
     ?assertEqual(Message, Decoded).
@@ -19,7 +17,9 @@ invalid_json_is_data_error_test() ->
 contract_exposes_versioned_interfaces_test() ->
     ?assertEqual(2, retinue_local_protocol:envelope_version()),
     Interfaces = retinue_local_protocol:interfaces(),
-    ?assertEqual(13, map_size(Interfaces)),
+    ?assertEqual(15, map_size(Interfaces)),
+    ?assertEqual(1, maps:get(<<"native">>, Interfaces)),
+    ?assertEqual(1, maps:get(<<"views">>, Interfaces)),
     ?assertEqual(1, maps:get(<<"checks">>, Interfaces)),
     ?assertEqual(2, maps:get(<<"player">>, Interfaces)),
     ?assertEqual(1, maps:get(<<"build_stats">>, Interfaces)),
@@ -46,7 +46,7 @@ interface_mismatch_is_rejected_test() ->
 
 game_is_required_and_interfaces_are_scoped_test() ->
     Contract = retinue_local_protocol:contract(<<"poe2">>),
-    ?assertEqual(#{<<"session">> => 2, <<"trade">> => 5, <<"checks">> => 1}, maps:get(<<"interfaces">>, Contract)),
+    ?assertEqual(#{<<"session">> => 2, <<"trade">> => 5, <<"checks">> => 1, <<"native">> => 1}, maps:get(<<"interfaces">>, Contract)),
     ?assertEqual(true, maps:get(<<"compatible">>, retinue_local_protocol:negotiate(Contract))),
     lists:foreach(fun(Bad) ->
         ?assertEqual(false, maps:get(<<"compatible">>, retinue_local_protocol:negotiate(Bad)))
@@ -58,7 +58,17 @@ game_is_required_and_interfaces_are_scoped_test() ->
 trade_is_poe2_only_test() ->
     ?assertNot(maps:is_key(<<"trade">>, retinue_local_protocol:interfaces(<<"warframe">>))),
     ?assertMatch(#{<<"compatible">> := true}, retinue_local_protocol:negotiate(
-        (retinue_local_protocol:contract(<<"poe2">>))#{<<"interfaces">> => #{<<"trade">> => 5}})).
+        (retinue_local_protocol:contract(<<"poe2">>))#{<<"interfaces">> => #{<<"trade">> => 5, <<"native">> => 1}})).
+
+legacy_json_sessions_are_rejected_test() ->
+    Contract = retinue_local_protocol:contract(),
+    lists:foreach(fun(Hello) ->
+        ?assertMatch(#{<<"compatible">> := false, <<"transport">> := <<"protobuf">>,
+            <<"mismatches">> := [#{<<"kind">> := <<"transport">>}]},
+            retinue_local_protocol:negotiate(Hello))
+    end, [maps:remove(<<"transport">>, Contract), Contract#{<<"transport">> => <<"json">>}]),
+    ?assertMatch(#{<<"compatible">> := false}, retinue_local_protocol:negotiate(
+        Contract#{<<"interfaces">> => #{}})).
 
 native_session_rpc_contract_test() ->
     ?assertEqual(2, maps:get(poe2_session, retinue_protocol:interfaces())),

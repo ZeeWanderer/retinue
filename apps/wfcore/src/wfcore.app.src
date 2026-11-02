@@ -1,5 +1,5 @@
 {application, wfcore, [
-    {description, "Shared wfcli contracts and pure data helpers"},
+    {description, "Shared Warframe contracts and pure data helpers"},
     {vsn, {file, "../../VERSION"}},
     {registered, []},
     {applications, [kernel, stdlib, retinue_core]},

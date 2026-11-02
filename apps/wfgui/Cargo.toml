@@ -8,16 +8,18 @@ license = "Apache-2.0"
 name = "wfgui"
 path = "src/main.rs"
 
-[[example]]
-name = "composition"
-path = "examples/composition/main.rs"
+[features]
+profiling = ["retinue-ui/profiling"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
 pulldown-cmark = { version = "0.13", default-features = false }
 retinue-client = { path = "../../crates/retinue-client" }
+retinue-protocol = { path = "../../crates/retinue-protocol" }
 retinue-ui = { path = "../../crates/retinue-ui", default-features = false, features = ["desktop"] }
+retinue-render = { path = "../../crates/retinue-render" }
+rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"

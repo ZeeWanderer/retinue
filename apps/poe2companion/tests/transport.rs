@@ -40,7 +40,7 @@ async fn prediction_requires_its_negotiated_optional_feature() {
             support::write(
                 &mut writer,
                 json!({"id":1,"ok":true,"compatible":true,
-                "game":"poe2","envelope":2,"interfaces":{"session":2,"trade":5},
+                "game":"poe2","envelope":2,"transport":"protobuf","interfaces":{"session":2,"trade":5,"native":1},
                 "features": if enabled {vec!["trade.prediction"]} else {vec![]}}),
             )
             .await;
@@ -49,7 +49,7 @@ async fn prediction_requires_its_negotiated_optional_feature() {
                 assert_eq!(request["op"], "trade_predict");
                 support::write(
                     &mut writer,
-                    json!({"id":2,"ok":true,"dataset":"trade",
+                    json!({"id":2,"ok":true,"dataset":"trade_predict",
                     "data":{"estimate":{"amount":40,"currency":"exalted"}}}),
                 )
                 .await;
@@ -75,8 +75,8 @@ async fn prediction_requires_its_negotiated_optional_feature() {
 #[tokio::test]
 async fn trade_negotiates_its_contract_and_rejects_wrong_datasets() {
     for (trade_version, dataset, expected) in [
-        (5, "trade", None),
-        (4, "trade", Some(ErrorKind::Unsupported)),
+        (5, "trade_leagues", None),
+        (4, "trade_leagues", Some(ErrorKind::Unsupported)),
         (5, "session", Some(ErrorKind::InvalidData)),
     ] {
         let directory = tempfile::tempdir().unwrap();
@@ -87,12 +87,15 @@ async fn trade_negotiates_its_contract_and_rejects_wrong_datasets() {
             let (reader, mut writer) = stream.into_split();
             let mut reader = BufReader::new(reader);
             let hello = support::read(&mut reader).await;
-            assert_eq!(hello["interfaces"], json!({"session":2,"trade":5}));
+            assert_eq!(
+                hello["interfaces"],
+                json!({"session":2,"trade":5,"native":1})
+            );
             assert_eq!(hello["mode"], "overlay");
             support::write(
                 &mut writer,
                 json!({"id":1,"ok":true,"compatible":true,
-                "game":"poe2","envelope":2,"interfaces":{"session":2,"trade":trade_version}}),
+                "game":"poe2","envelope":2,"transport":"protobuf","interfaces":{"session":2,"trade":trade_version,"native":1}}),
             )
             .await;
             if trade_version == 5 {
@@ -143,7 +146,7 @@ async fn native_sample_is_published_under_session_two_and_acknowledged() {
 async fn invalid_acknowledgements_and_permanent_rejections_fail_closed() {
     let mut replies = vec![
         (
-            json!({"id":9,"ok":true,"dataset":"session","data":{"revision":1}}),
+            json!({"id":9,"ok":true,"dataset":"session_published","data":{"revision":1}}),
             ErrorKind::InvalidData,
         ),
         (
@@ -151,7 +154,7 @@ async fn invalid_acknowledgements_and_permanent_rejections_fail_closed() {
             ErrorKind::InvalidData,
         ),
         (
-            json!({"id":2,"ok":true,"dataset":"session","data":{"revision":"1"}}),
+            json!({"id":2,"ok":true,"dataset":"session_published","data":{}}),
             ErrorKind::InvalidData,
         ),
         (
@@ -194,7 +197,7 @@ async fn invalid_acknowledgements_and_permanent_rejections_fail_closed() {
 
 #[tokio::test]
 async fn incompatible_hello_invalid_json_and_oversized_frames_fail_closed() {
-    let hello = json!({"id":1,"ok":true,"compatible":true,"game":"poe2","envelope":2,"interfaces":{"session":2}});
+    let hello = json!({"id":1,"ok":true,"compatible":true,"game":"poe2","envelope":2,"transport":"protobuf","interfaces":{"session":2,"native":1}});
     let mut cases = Vec::new();
     for (field, value) in [
         ("interfaces", json!({"session":1})),

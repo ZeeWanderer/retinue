@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-use crate::game_observer::adapter::{self, AdapterSupport};
 use crate::game_observer::identify_process;
 use crate::game_observer::memory::ProcessMemory;
-use crate::game_observer::ui::{
-    self, BoundedScanMetrics, PointerReferences, RelicRewardText, RelicSelection, ScanMetrics,
-    Snapshot, TextScan,
+use crate::game_observer::{adapter, adapter::AdapterSupport};
+use crate::game_observer::{
+    ui,
+    ui::{
+        BoundedScanMetrics, PointerReferences, RelicRewardText, RelicSelection, ScanMetrics,
+        Snapshot, TextScan,
+    },
 };
 use crate::observation::ui_capture;
 

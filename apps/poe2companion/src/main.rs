@@ -57,8 +57,8 @@ enum Command {
         /// Keep the full game-sized canvas instead of cropping to the panel.
         #[arg(long)]
         full_frame: bool,
-        #[arg(long, value_enum, default_value_t = poe2companion::evaluate::PreviewState::Results)]
-        state: poe2companion::evaluate::PreviewState,
+        #[arg(long, value_enum, default_value_t = poe2companion::presentation::preview::PreviewState::Results)]
+        state: poe2companion::presentation::preview::PreviewState,
     },
 }
 
@@ -91,7 +91,7 @@ fn main() -> ExitCode {
     }) = &args.command
     {
         return finish(
-            poe2companion::evaluate::preview(
+            poe2companion::presentation::preview::preview(
                 output,
                 input.as_deref(),
                 *scale,

@@ -8,6 +8,7 @@ description = "Linux/Proton Warframe observer and overlay companion for Retinue"
 build = "build.rs"
 
 [dependencies]
+retinue-protocol = { path = "../../crates/retinue-protocol" }
 bytes = "1"
 ashpd = { version = "0.13.13", default-features = false, features = ["global_shortcuts", "tokio"] }
 futures-util = "0.3"
@@ -17,6 +18,7 @@ memchr = "2.7"
 retinue-client = { path = "../../crates/retinue-client" }
 retinue-native = { path = "../../crates/retinue-native" }
 retinue-ui = { path = "../../crates/retinue-ui" }
+retinue-render = { path = "../../crates/retinue-render" }
 retinue-warframe = { path = "../../crates/retinue-warframe" }
 rustix = { version = "1", features = ["fs", "process", "time"] }
 serde = { version = "1", features = ["derive"] }

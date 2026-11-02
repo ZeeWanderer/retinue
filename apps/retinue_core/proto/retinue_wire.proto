@@ -1,0 +1,76 @@
+syntax = "proto3";
+package retinue.wire.v1;
+
+message Packet {
+  oneof body {
+    Request request = 1;
+    DataReply reply = 2;
+    Ack ack = 3;
+    Failure failure = 4;
+    Event event = 5;
+  }
+}
+
+message Request {
+  uint64 id = 1;
+  string type_name = 2;
+  bytes payload = 3;
+}
+
+message DataReply {
+  uint64 id = 1;
+  string type_name = 2;
+  bytes payload = 3;
+  string dataset = 4;
+}
+
+message Ack {
+  uint64 id = 1;
+  optional uint64 revision = 2;
+}
+
+message Failure {
+  uint64 id = 1;
+  Document error = 2;
+}
+
+message Event {
+  string event = 1;
+  optional uint64 subscription = 2;
+  optional string source = 3;
+  optional string action = 4;
+  optional string request_id = 5;
+  optional string dataset = 6;
+  string type_name = 7;
+  bytes payload = 8;
+  optional string game = 9;
+}
+
+// Only for open-ended captured documents and diagnostic extensions, not view DTOs.
+message Document { string json = 1; }
+
+message Accepted { bool accepted = 1; }
+message DaemonIdentity {
+  string status = 1;
+  string node = 2;
+  string version = 3;
+  string otp = 4;
+  optional string build = 5;
+}
+
+message DiagnosticCommand {
+  optional string action = 1;
+  optional string topic = 2;
+  optional uint32 seconds = 3;
+  optional string job = 4;
+}
+
+message CompanionCommand {
+  optional string command = 1;
+  optional string target = 2;
+  Document options = 3;
+  optional string action = 4;
+  optional bool visible = 5;
+  optional string directory = 6;
+  optional uint64 timeout_ms = 7;
+}

@@ -128,7 +128,7 @@ hot_update(Dir) ->
     hot_update_bundles_from_dirs(sibling_ebin_dirs(filename:absname(Dir))).
 
 hot_update_from_embedded() ->
-    case retinue_hot_update:read_applications([retinue_core, wfcore, retinue_daemon]) of
+    case retinue_hot_update:read_applications([retinue_core, wfcore, poe2core, retinue_daemon]) of
         {ok, Bundles} -> hot_update_bundles(Bundles);
         {error, EmbeddedReason} ->
             case hot_update_from_directory() of
@@ -345,6 +345,7 @@ sibling_ebin_dirs(Dir) ->
             LibDir = filename:dirname(filename:dirname(Dir)),
             Dirs = [filename:join([LibDir, "retinue_core", "ebin"]),
                     filename:join([LibDir, "wfcore", "ebin"]),
+                    filename:join([LibDir, "poe2core", "ebin"]),
                     filename:join([LibDir, "retinue_daemon", "ebin"])],
             case [Path || Path <- Dirs, filelib:is_dir(Path)] of
                 [] -> [Dir];

@@ -45,12 +45,15 @@ done
 
 platform_ebin=("$stage"/libexec/retinue_daemon/lib/retinue_core-*/ebin)
 core_ebin=("$stage"/libexec/retinue_daemon/lib/wfcore-*/ebin)
+poe2_ebin=("$stage"/libexec/retinue_daemon/lib/poe2core-*/ebin)
 daemon_ebin=("$stage"/libexec/retinue_daemon/lib/retinue_daemon-*/ebin)
 identity="$(
     RETINUE_PLATFORM_EBIN="${platform_ebin[0]}" RETINUE_CORE_EBIN="${core_ebin[0]}" \
+        RETINUE_POE2_EBIN="${poe2_ebin[0]}" \
         RETINUE_DAEMON_EBIN="${daemon_ebin[0]}" \
         erl -pa "${daemon_ebin[0]}" -noshell -eval '
         Dirs = [os:getenv("RETINUE_PLATFORM_EBIN"), os:getenv("RETINUE_CORE_EBIN"),
+                os:getenv("RETINUE_POE2_EBIN"),
                 os:getenv("RETINUE_DAEMON_EBIN")],
         {ok, Bundles} = retinue_hot_update:read_directories(Dirs),
         {ok, Identity} = retinue_hot_update:build_identity(Bundles),

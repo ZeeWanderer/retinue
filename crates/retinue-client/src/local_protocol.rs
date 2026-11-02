@@ -15,6 +15,7 @@ pub fn companion_interfaces() -> BTreeMap<&'static str, u32> {
         ("diagnostics", INTERFACE_DIAGNOSTICS),
         ("game_metadata", INTERFACE_GAME_METADATA),
         ("market", INTERFACE_MARKET),
+        ("native", INTERFACE_NATIVE),
         ("player", INTERFACE_PLAYER),
         ("relics", INTERFACE_RELICS),
     ])
@@ -50,10 +51,12 @@ mod tests {
                 "diagnostics",
                 "game_metadata",
                 "market",
+                "native",
                 "notifications",
                 "overframe",
                 "player",
                 "relics",
+                "views",
                 "worldstate",
             ]
         );

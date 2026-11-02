@@ -1,6 +1,6 @@
 use crate::Rect;
-use crate::damage::{Damage, RepaintTracker};
 use crate::schedule::{Deadlines, PingSource};
+use retinue_render::damage::{Damage, RepaintTracker};
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
 mod clipboard;
@@ -87,7 +87,7 @@ pub trait Application {
     fn clipboard_text(&self) -> Option<String> {
         None
     }
-    /// Interactive rectangles in buffer pixels, after painting.
+    /// Interactive rectangles in buffer pixels, published by preparation.
     fn pointer_regions(&self) -> Vec<Rect>;
     /// Level-triggered sources; tick must drain them even while hidden.
     fn event_fds(&self) -> std::io::Result<Vec<OwnedFd>> {
@@ -96,13 +96,16 @@ pub trait Application {
     fn deadlines(&self, now: Instant) -> Deadlines;
     fn tick(&mut self, drawable: bool) -> Damage;
     fn input(&mut self, event: Input) -> Damage;
+    fn prepare(&mut self, _size: (u32, u32), _scale: u32) -> Result<(), String> {
+        Ok(())
+    }
     /// Clear and repaint every layer within repair, preserving pixels outside it.
     fn paint(
         &mut self,
         pixels: &mut [u8],
         size: (u32, u32),
         scale: u32,
-        repair: Rect,
+        repair: &retinue_render::damage::Region,
     ) -> Result<(), String>;
 }
 
@@ -413,15 +416,17 @@ impl Surface {
         let Some(plan) = self.repaint.plan(index, (width, height)) else {
             return Ok(());
         };
+        #[cfg(feature = "benchmark")]
+        let paint_start = Instant::now();
+        // Keep actionable geometry on the displayed frame while buffers are busy.
+        self.app.prepare((width, height), self.scale)?;
         let buffer = &self.buffers[index];
         let pixels = buffer
             .canvas(&mut self.pool)
             .ok_or("overlay buffer unavailable")?;
-        #[cfg(feature = "benchmark")]
-        let paint_start = Instant::now();
         if let Err(error) = self
             .app
-            .paint(pixels, (width, height), self.scale, plan.repair)
+            .paint(pixels, (width, height), self.scale, &plan.repair)
         {
             self.repaint.failed(index);
             return Err(error.into());
@@ -450,12 +455,14 @@ impl Surface {
             self.pointer_regions = regions;
         }
         buffer.attach_to(self.layer.wl_surface())?;
-        self.layer.wl_surface().damage_buffer(
-            plan.damage.x as i32,
-            plan.damage.y as i32,
-            plan.damage.width as i32,
-            plan.damage.height as i32,
-        );
+        for rect in plan.damage.rects() {
+            self.layer.wl_surface().damage_buffer(
+                rect.x as i32,
+                rect.y as i32,
+                rect.width as i32,
+                rect.height as i32,
+            );
+        }
         self.layer
             .wl_surface()
             .frame(qh, self.layer.wl_surface().clone());

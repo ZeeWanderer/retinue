@@ -1,0 +1,9 @@
+{application, poe2core, [
+    {description, "Process-free PoE2 native contracts and codecs"},
+    {vsn, {file, "../../VERSION"}},
+    {registered, []},
+    {applications, [kernel, stdlib, retinue_core]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.

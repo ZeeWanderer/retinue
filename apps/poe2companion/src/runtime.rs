@@ -305,7 +305,7 @@ async fn observe(
 ) -> Result<(), String> {
     let (mut collector, mut updates) = Collector::start(pid, stopping.clone())?;
     let _overlay = if overlay && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        Some(crate::evaluate::Service::start(
+        Some(crate::presentation::Service::start(
             updates.clone(),
             stopping.clone(),
             gate.clone(),

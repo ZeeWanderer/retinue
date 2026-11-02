@@ -181,9 +181,11 @@ terminate(_Reason, State) ->
 code_change(_OldVsn, State, hot_update) ->
     release_legacy_game_hold(State),
     ensure_view_cache(),
+    invalidate_view_cache(),
     {ok, ensure_persistence_state(State#{game_active => maps:get(game_active, State, false)})};
 code_change(_OldVsn, State, _Extra) ->
     ensure_view_cache(),
+    invalidate_view_cache(),
     {ok, ensure_persistence_state(State#{game_active => maps:get(game_active, State, false)})}.
 
 publish_source(Source, Data, State) ->

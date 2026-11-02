@@ -1,0 +1,280 @@
+syntax = "proto3";
+package retinue.warframe.v1;
+
+message Asset {
+  string id = 1;
+  string source = 2;
+  string image_name = 3;
+}
+
+message Profile {
+  optional uint64 player_level = 1;
+  string player_name = 2;
+  Asset rank_asset = 3;
+  uint64 daily_focus = 4;
+  uint64 fusion_points = 5;
+  string last_region_played = 6;
+  uint64 premium_credits = 7;
+  uint64 premium_credits_free = 8;
+  uint64 regular_credits = 9;
+  uint64 trades_remaining = 10;
+}
+
+message Component {
+  string id = 1;
+  string name = 2;
+  string full_name = 3;
+  uint64 required = 4;
+  uint64 owned = 5;
+  uint64 blueprint_owned = 6;
+  bool owned_relic = 7;
+  bool relic_drop = 8;
+  bool tradable = 9;
+  optional string market_name = 10;
+  Asset asset = 11;
+  bool market_required = 12;
+}
+
+message FoundrySnapshot {
+  uint64 revision = 1;
+  repeated FoundryCard items = 2;
+  Profile profile = 3;
+}
+
+message FoundryCard {
+  string id = 1;
+  string name = 2;
+  string group = 3;
+  bool owned = 4;
+  bool mastered = 5;
+  bool is_prime = 6;
+  bool vaulted = 7;
+  bool pending = 8;
+  bool subsumed = 9;
+  bool ready_to_build = 10;
+  bool used_for_crafting = 11;
+  bool has_archon_shards = 12;
+  bool has_incarnon = 13;
+  uint64 mastery_requirement = 14;
+  repeated Component components = 15;
+  Asset asset = 16;
+}
+
+message ListingSnapshot {
+  uint64 revision = 1;
+  repeated ListingItem items = 2;
+  Profile profile = 3;
+  MasterySummary summary = 4;
+  uint64 trace_count = 5;
+}
+
+message ListingItem {
+  string id = 1;
+  string name = 2;
+  string group = 3;
+  string era = 4;
+  optional string market_name = 5;
+  Asset asset = 6;
+  uint64 quantity = 7;
+  uint64 ducats = 8;
+  bool owned = 9;
+  bool mastered = 10;
+  bool is_prime = 11;
+  optional bool vaulted = 12;
+  bool from_relics = 13;
+  bool buyable = 14;
+  bool has_recipe = 15;
+  uint64 rank = 16;
+  uint64 max_rank = 17;
+  uint64 potential_xp = 18;
+  uint64 missing_parts = 19;
+  double relic_probability = 20;
+  uint64 amount_owned = 21;
+  optional double expected_platinum = 22;
+  string refinement = 23;
+  repeated Refinement refinements = 24;
+  repeated Reward rewards = 25;
+  repeated Component components = 26;
+  double expected_ducats = 27;
+  optional bool price_complete = 28;
+  optional uint32 priced_rewards = 29;
+  optional uint32 priceable_rewards = 30;
+}
+
+message Refinement {
+  string refinement = 1;
+  uint64 amount_owned = 2;
+  double expected_ducats = 3;
+  optional double expected_platinum = 4;
+  bool price_complete = 5;
+}
+
+message Reward {
+  string name = 1;
+  optional string slug = 2;
+  string rarity = 3;
+  double chance = 4;
+  uint64 ducats = 5;
+  optional double platinum = 6;
+  uint64 owned = 7;
+  Asset asset = 8;
+}
+
+message Progress {
+  bool available = 1;
+  optional uint64 current = 2;
+  optional uint64 total = 3;
+  optional uint64 mastered = 4;
+  optional double percent = 5;
+  optional uint64 total_xp = 6;
+}
+
+message Intrinsics {
+  Progress duviri = 1;
+  Progress railjack = 2;
+  optional double percent = 3;
+  optional uint64 xp = 4;
+}
+
+message StarChart {
+  Progress normal = 1;
+  Progress steel = 2;
+  Progress junctions = 3;
+  Progress steel_junctions = 4;
+  optional double percent = 5;
+  optional uint64 xp = 6;
+}
+
+message MasterySummary {
+  Progress companions = 1;
+  Progress warframes = 2;
+  Progress weapons = 3;
+  Progress rank_progress = 4;
+  Intrinsics intrinsics = 5;
+  StarChart star_chart = 6;
+  double content_percent = 7;
+  uint64 mastered = 8;
+  uint64 total = 9;
+  optional uint64 player_level = 10;
+  optional string player_name = 11;
+}
+
+message Equipment {
+  uint64 player_revision = 1;
+  repeated EquipmentDefinition definitions = 2;
+  repeated EquipmentInstance instances = 3;
+}
+
+message EquipmentDefinition {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  Asset asset = 4;
+}
+
+message EquipmentInstance {
+  string instance_id = 1;
+  string definition_id = 2;
+  optional string custom_name = 3;
+  string name = 4;
+  string class = 5;
+  uint64 xp = 6;
+  uint32 forma_count = 7;
+  repeated EquipmentConfig configs = 8;
+  Topology topology = 9;
+  repeated Polarity effective_polarities = 10;
+  repeated Shard shard_slots = 11;
+  optional uint32 capacity = 12;
+  optional uint64 feature_flags = 13;
+  EquipmentFeatures features = 14;
+  optional string fingerprint = 15;
+}
+
+message EquipmentFeatures {
+  optional bool double_capacity = 1;
+  optional bool exilus = 2;
+  optional bool aura_omni = 3;
+  optional bool stance_omni = 4;
+}
+
+message EquipmentConfig {
+  uint32 config_index = 1;
+  string name = 2;
+  repeated Upgrade upgrade_slots = 3;
+  AbilityOverride ability_override = 4;
+}
+
+message AbilityOverride {
+  string name = 1;
+  string ability = 2 [json_name = "Ability"];
+  uint32 index = 3 [json_name = "Index"];
+}
+
+message Topology {
+  string layout_class = 1;
+  repeated Region regions = 2;
+}
+
+message Region {
+  string id = 1;
+  string label = 2;
+  uint32 columns = 3;
+  repeated Slot slots = 4;
+}
+
+message Slot {
+  string id = 1;
+  string label = 2;
+  string role = 3;
+  optional bool unlocked = 4;
+  optional bool planner = 5;
+  optional uint32 player_index = 6;
+}
+
+message Polarity {
+  string slot_id = 1;
+  string polarity = 2;
+  string before = 3;
+  string label = 4;
+  bool changed = 5;
+  optional string role = 6;
+  optional uint32 player_index = 7;
+}
+
+message Shard {
+  string slot_id = 1;
+  string topology_slot = 2;
+  string name = 3;
+  Asset asset = 4;
+  uint32 index = 5;
+  ShardUpgrade upgrade = 6;
+}
+
+message ShardUpgrade {
+  string color = 1 [json_name = "Color"];
+  string upgrade_type = 2 [json_name = "UpgradeType"];
+}
+
+message Upgrade {
+  string topology_slot = 1;
+  string name = 2;
+  uint32 rank = 3;
+  uint32 max_rank = 4;
+  repeated string effects = 5;
+  string mod_variant = 6;
+  string rarity = 7;
+  Asset asset = 8;
+  optional int64 effective_drain = 9;
+  optional int64 drain = 10;
+  optional int64 cost = 11;
+  string polarity_state = 12;
+  string polarity = 13;
+  string mod_polarity = 14;
+  string slot_polarity = 15;
+  string compat_name = 16;
+  string kind_name = 17;
+  string role = 18;
+  optional string item_type = 19;
+  repeated string elemental_types = 20;
+  optional string original_slot = 21;
+}

@@ -212,7 +212,7 @@ impl Gate {
     pub fn try_interaction(&self) -> bool {
         self.0
             .activity
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |value| {
                 (value & APPROVED == 0).then_some(value | INTERACTIVE)
             })
             .is_ok()
@@ -711,11 +711,10 @@ mod tests {
                     .unwrap();
             }
             // The pinned probe still emits readiness even after its path names /usr/bin/true.
+            let error = candidate.replace(&CONFIG, &handoff, || true).unwrap_err();
             assert!(
-                candidate
-                    .replace(&CONFIG, &handoff, || true)
-                    .unwrap_err()
-                    .contains("changed during reload validation")
+                error.contains("changed during reload validation"),
+                "replace_inode={replace_inode}: {error}"
             );
             assert!(
                 decode::<State>(&CONFIG, handoff.file(&CONFIG).unwrap(), handoff.owner).is_ok()

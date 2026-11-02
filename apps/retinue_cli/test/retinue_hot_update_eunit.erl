@@ -20,7 +20,7 @@ retired_cli_module_is_not_loadable_test() ->
     end, [wfcli, wfcli_retired_fixture]).
 
 read_embedded_daemon_applications_test() ->
-    {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, retinue_daemon]),
+    {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, poe2core, retinue_daemon]),
     Modules = [Module || #{module := Module, binary := Binary} <- Bundles,
                          is_binary(Binary)],
     ?assert(lists:member(wf_protocol, Modules)),

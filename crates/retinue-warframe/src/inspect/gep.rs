@@ -10,7 +10,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::game_observer::gep::{PollState, Sources};
-use crate::observation::gep::{self as sampling, Content, POLL_INTERVAL, Sampler};
+use crate::observation::{
+    gep as sampling,
+    gep::{Content, POLL_INTERVAL, Sampler},
+};
 
 const INVENTORY_MARKER: &[u8] = b"LastInventorySync";
 

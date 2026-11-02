@@ -15,7 +15,7 @@
 ## Build And Test
 - Use Make targets from [workflows](docs/developer/workflows.md). Rebuild the selected
   dev/prod flavor before manual checks; do not edit staged files.
-- `wfgui` is Rust; Qt under `apps/wfgui/qt` is reference-only and excluded from normal builds.
+- `wfgui` and overlays use `retinue-ui`; Blend2D execution belongs to `retinue-render`.
   Do not default to `make clean` after toolchain updates.
 - Verify the running binary and reload completion. Preserve the user's running game and services.
 - Code, fixture and build changes require `./scripts/test-quiet ct` plus affected-layer tests.

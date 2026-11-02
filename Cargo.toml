@@ -7,8 +7,11 @@ members = [
     "apps/wfcompanion",
     "apps/wfgui",
     "crates/retinue-client",
+    "crates/retinue-protocol",
     "crates/retinue-native",
     "crates/retinue-ui",
+    "crates/retinue-ui-macros",
+    "crates/retinue-render",
     "crates/retinue-poe2",
     "crates/retinue-warframe",
 ]

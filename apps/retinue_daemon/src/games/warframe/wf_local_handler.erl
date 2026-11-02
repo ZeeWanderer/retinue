@@ -1,8 +1,12 @@
 -module(wf_local_handler).
--export([init/1, request/2, event/2]).
+-export([init/1, request/2, event/2, encode_reply/2, encode_event/2, decode_request/2]).
 -define(MAX_MARKET_RESOLVE_LABELS, 20).
 -define(MAX_MARKET_RESOLVE_LIMIT, 5).
--import(retinue_connection, [send_json/2, send_error/3, send_ok/4, request_id/1, start_local_request/4, feature_enabled/2, daemon_identity/0]).
+-import(retinue_connection, [send_message/2, send_error/3, send_ok/4, request_id/1, start_local_request/4, feature_enabled/2, daemon_identity/0]).
+
+encode_reply(Dataset, Data) -> wf_native:encode(Dataset, Data).
+encode_event(Event, Data) -> wf_native:event(Event, Data).
+decode_request(Type, Data) -> wf_native:decode_request(Type, Data).
 
 init(State) ->
     ensure_build_group_subscription(State#{subscriptions => #{}, refs => #{}, market_refs => #{},
@@ -33,7 +37,7 @@ request(#{<<"op">> := <<"diagnostics_report">>,
             Client = maps:get(client, State, <<"unknown">>),
             Scope = <<"client:", Client/binary>>,
             ok = wf_resolution_issues:reconcile(Scope, Issues),
-            send_json(maps:get(socket, State), #{<<"id">> => Id, <<"ok">> => true});
+            send_message(maps:get(socket, State), #{<<"id">> => Id, <<"ok">> => true});
         false ->
             send_error(maps:get(socket, State), Id, feature_not_negotiated)
     end,
@@ -229,7 +233,7 @@ request(#{<<"op">> := <<"subscribe">>, <<"dataset">> := <<"player">>} = Request,
 request(#{<<"op">> := <<"unsubscribe">>, <<"subscription">> := Id} = Request,
                State) when is_integer(Id) ->
     State1 = unsubscribe_player(Id, State),
-    send_json(maps:get(socket, State),
+    send_message(maps:get(socket, State),
               #{<<"id">> => request_id(Request), <<"ok">> => true}),
     {ok, State1};
 request(#{<<"op">> := <<"publish">>, <<"dataset">> := <<"player">>,
@@ -241,7 +245,7 @@ request(#{<<"op">> := <<"publish">>, <<"dataset">> := <<"player">>,
   when is_binary(Source), is_map(Data) ->
     case wf_player_service:publish(Source, Data, metadata) of
         {ok, Snapshot} ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"id">> => request_id(Request), <<"ok">> => true,
                         <<"revision">> => maps:get(revision, Snapshot)});
         {error, Reason} -> send_error(maps:get(socket, State), request_id(Request), Reason)
@@ -251,7 +255,7 @@ request(#{<<"op">> := <<"publish">>, <<"dataset">> := <<"game_metadata">>,
                  <<"data">> := Data} = Request, State) when is_map(Data) ->
     case wf_game_metadata_service:publish(Data) of
         {ok, Snapshot} ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"id">> => request_id(Request), <<"ok">> => true,
                         <<"revision">> => maps:get(revision, Snapshot)});
         {error, Reason} -> send_error(maps:get(socket, State), request_id(Request), Reason)
@@ -274,7 +278,7 @@ request(#{<<"op">> := <<"market_resolve">>} = Request, State) ->
             case wf_market_service:submit(self(), MarketRequest) of
                 {ok, Ref} ->
                     Refs = maps:get(market_refs, State),
-                    {ok, State#{market_refs => Refs#{Ref => Id}}};
+                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"market">>}}}};
                 {error, Reason} ->
                     send_error(maps:get(socket, State), Id, Reason),
                     {ok, State}
@@ -294,7 +298,7 @@ request(#{<<"op">> := <<"market_quote">>, <<"items">> := Items} = Request, State
             case wf_market_service:submit(self(), MarketRequest) of
                 {ok, Ref} ->
                     Refs = maps:get(market_refs, State),
-                    {ok, State#{market_refs => Refs#{Ref => Id}}};
+                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"market">>}}}};
                 {error, Reason} ->
                     send_error(maps:get(socket, State), Id, Reason),
                     {ok, State}
@@ -453,7 +457,7 @@ request(#{<<"op">> := <<"relic_context">>,
     case wf_market_service:submit(self(), MarketRequest) of
         {ok, Ref} ->
             Refs = maps:get(market_refs, State),
-            {ok, State#{market_refs => Refs#{Ref => Id}}};
+            {ok, State#{market_refs => Refs#{Ref => {Id, <<"relic_context">>}}}};
         {error, Reason} ->
             send_error(maps:get(socket, State), Id, Reason),
             {ok, State}
@@ -474,7 +478,7 @@ request(#{<<"op">> := <<"relic_recommendations">>,
             case wf_market_service:submit(self(), MarketRequest) of
                 {ok, Ref} ->
                     Refs = maps:get(market_refs, State),
-                    {ok, State#{market_refs => Refs#{Ref => Id}}};
+                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"relics">>}}}};
                 {error, Reason} ->
                     send_error(maps:get(socket, State), Id, Reason),
                     {ok, State}
@@ -489,7 +493,7 @@ request(#{<<"op">> := <<"relic_recommendations">>} = Request, State) ->
 request(#{<<"op">> := <<"relic_planner">>,
                  <<"era">> := Era} = Request, State) when is_binary(Era) ->
     Id = request_id(Request),
-    case relic_limit(Request, all) of
+    case relic_limit(Request, <<"all">>) of
         {ok, Limit} ->
             MarketRequest = #{source => market, action => relic_recommendations,
                               era => Era, view => planner, limit => Limit,
@@ -500,7 +504,7 @@ request(#{<<"op">> := <<"relic_planner">>,
             case wf_market_service:submit(self(), MarketRequest) of
                 {ok, Ref} ->
                     Refs = maps:get(market_refs, State),
-                    {ok, State#{market_refs => Refs#{Ref => Id}}};
+                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"relics">>}}}};
                 {error, Reason} ->
                     send_error(maps:get(socket, State), Id, Reason),
                     {ok, State}
@@ -705,7 +709,7 @@ send_player_event(Id, Source, Snapshot, State) ->
         undefined -> Event0;
         JsonSource -> Event0#{<<"source">> => JsonSource}
     end,
-    send_json(maps:get(socket, State), Event),
+    send_message(maps:get(socket, State), Event),
     State.
 
 subscription_options(Request) ->
@@ -740,12 +744,17 @@ send_service_reply(Ref, Reply, State) ->
 send_market_reply(Ref, Reply, State) ->
     case maps:take(Ref, maps:get(market_refs, State, #{})) of
         error -> State;
-        {Id, MarketRefs} ->
-            case Reply of
-                {ok, Data} -> send_ok(maps:get(socket, State), Id, <<"market">>, Data);
-                {error, Reason} -> send_error(maps:get(socket, State), Id, Reason)
-            end,
-            State#{market_refs => MarketRefs}
+        {{Id, Dataset}, MarketRefs} ->
+            Next = State#{market_refs => MarketRefs},
+            case Dataset of
+                <<"relics">> -> start_local_request(Id, Dataset, fun() -> Reply end, Next);
+                _ ->
+                    case Reply of
+                        {ok, Data} -> send_ok(maps:get(socket, State), Id, Dataset, Data);
+                        {error, Reason} -> send_error(maps:get(socket, State), Id, Reason)
+                    end,
+                    Next
+            end
     end.
 
 send_market_account_reply(Ref, Reply, State) ->
@@ -777,7 +786,7 @@ send_build_reply(Ref, Reply, State) ->
 send_build_group_event(Ref, Event, Group, State) ->
     case maps:get(build_group_ref, State, undefined) of
         Ref ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"event">> => <<"build_group">>,
                         <<"action">> => atom_to_binary(Event),
                         <<"data">> => Group}),
@@ -796,7 +805,7 @@ ensure_build_group_subscription(State) ->
 send_market_presence_event(Ref, Snapshot, State) ->
     case maps:get(market_presence_ref, State, undefined) of
         Ref ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"event">> => <<"market_presence">>,
                         <<"data">> => Snapshot}),
             State;
@@ -814,7 +823,7 @@ ensure_asset_subscription(State) ->
 send_asset_event(Ref, Descriptor, State) ->
     case maps:get(asset_ref, State, undefined) of
         Ref ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"event">> => <<"asset">>, <<"data">> => Descriptor}),
             State;
         _ -> State
@@ -832,7 +841,11 @@ submit_market(Id, MarketRequest, State) ->
     case wf_market_service:submit(self(), MarketRequest) of
         {ok, Ref} ->
             Refs = maps:get(market_refs, State),
-            {ok, State#{market_refs => Refs#{Ref => Id}}};
+            Dataset = case maps:get(action, MarketRequest) of
+                ducat_inventory -> <<"ducat_inventory">>;
+                _ -> <<"market">>
+            end,
+            {ok, State#{market_refs => Refs#{Ref => {Id, Dataset}}}};
         {error, Reason} ->
             send_error(maps:get(socket, State), Id, Reason),
             {ok, State}

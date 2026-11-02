@@ -3,9 +3,12 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
-use crate::game_observer::{self, DebugOutputEvent};
-use crate::observation::debug_output::{self, Bridge, Event, Runtime};
 use crate::observation::mailbox;
+use crate::observation::{
+    debug_output,
+    debug_output::{Bridge, Event, Runtime},
+};
+use crate::{game_observer, game_observer::DebugOutputEvent};
 
 #[derive(Debug, Serialize)]
 pub struct DebugWatch {

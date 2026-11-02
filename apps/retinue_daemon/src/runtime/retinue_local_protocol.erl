@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%% JSON-lines protocol shared by retinue_daemon and native companion clients.
+%% Handshake and dynamic messages shared by the daemon and native clients.
 %%%-------------------------------------------------------------------
 -module(retinue_local_protocol).
 
@@ -22,6 +22,8 @@
 -define(INTERFACE_BUILD_STATS, 1).
 -define(INTERFACE_DIAGNOSTICS, 1).
 -define(INTERFACE_CHECKS, 1).
+-define(INTERFACE_VIEWS, 1).
+-define(INTERFACE_NATIVE, 1).
 
 -doc "Version of the JSON-lines handshake and framing envelope.".
 -spec envelope_version() -> pos_integer().
@@ -42,7 +44,9 @@ interfaces() ->
       <<"builds">> => ?INTERFACE_BUILDS,
       <<"build_stats">> => ?INTERFACE_BUILD_STATS,
       <<"diagnostics">> => ?INTERFACE_DIAGNOSTICS,
-      <<"checks">> => ?INTERFACE_CHECKS}.
+      <<"checks">> => ?INTERFACE_CHECKS,
+      <<"views">> => ?INTERFACE_VIEWS,
+      <<"native">> => ?INTERFACE_NATIVE}.
 
 -doc "Optional Unix-socket features offered by retinue_daemon.".
 -spec features() -> [binary()].
@@ -50,7 +54,7 @@ features() -> [<<"companion.command">>, <<"companion.diagnostics">>, <<"diagnost
 
 interfaces(<<"warframe">>) -> interfaces();
 interfaces(<<"poe2">>) -> #{<<"session">> => ?INTERFACE_SESSION, <<"trade">> => ?INTERFACE_TRADE,
-                           <<"checks">> => ?INTERFACE_CHECKS};
+                           <<"checks">> => ?INTERFACE_CHECKS, <<"native">> => ?INTERFACE_NATIVE};
 interfaces(_) -> #{}.
 
 features(<<"warframe">>) -> features();
@@ -65,6 +69,7 @@ contract() ->
 contract(Game) ->
     #{<<"envelope">> => envelope_version(),
       <<"game">> => Game,
+      <<"transport">> => <<"protobuf">>,
       <<"interfaces">> => interfaces(Game),
       <<"features">> => features(Game)}.
 
@@ -88,7 +93,18 @@ negotiate(Client) when is_map(Client) ->
     InterfaceMismatches = interface_mismatches(
                             maps:get(<<"interfaces">>, Client, undefined),
                             maps:get(<<"interfaces">>, Server)),
-    Mismatches = GameMismatches ++ EnvelopeMismatches ++ InterfaceMismatches,
+    Transport = maps:get(<<"transport">>, Client, undefined),
+    TransportMismatches = case Transport of
+        <<"protobuf">> ->
+            case maps:get(<<"interfaces">>, Client, #{}) of
+                #{<<"native">> := ?INTERFACE_NATIVE} -> [];
+                _ -> [#{<<"kind">> => <<"interface">>, <<"interface">> => <<"native">>,
+                        <<"required">> => ?INTERFACE_NATIVE}]
+            end;
+        _ -> [#{<<"kind">> => <<"transport">>, <<"required">> => nullable(Transport),
+                <<"available">> => <<"protobuf">>}]
+    end,
+    Mismatches = GameMismatches ++ EnvelopeMismatches ++ InterfaceMismatches ++ TransportMismatches,
     RequestedFeatures = case maps:get(<<"features">>, Client, []) of
         Values when is_list(Values) -> Values;
         _Invalid -> []
@@ -105,7 +121,7 @@ negotiate(_Client) ->
                          <<"required">> => null,
                          <<"available">> => envelope_version()}]}.
 
--doc "Decode one JSON protocol line into a binary-keyed map.".
+-doc "Decode a JSON handshake line into a binary-keyed map.".
 -spec decode(binary()) -> {ok, map()} | {error, term()}.
 decode(Line) when is_binary(Line) ->
     try jsone:decode(Line, [{object_format, map}]) of
@@ -115,7 +131,7 @@ decode(Line) when is_binary(Line) ->
         error:Reason -> {error, {invalid_json, Reason}}
     end.
 
--doc "Encode one binary-keyed protocol map as a JSON line.".
+-doc "Encode a handshake map as a JSON line.".
 -spec encode(map()) -> iodata().
 encode(Map) when is_map(Map) ->
     [jsone:encode(Map), $\n].

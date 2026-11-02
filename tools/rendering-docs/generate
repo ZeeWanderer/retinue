@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-source="$root/crates/retinue-ui/vendor/blend2d"
+source="$root/crates/retinue-render/vendor/blend2d"
 output="$root/research/rendering/docs/blend2d-pinned"
 command -v doxygen >/dev/null || {
     printf 'Install doxygen to generate the optional rendering reference.\n' >&2

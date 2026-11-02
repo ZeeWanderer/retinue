@@ -88,7 +88,7 @@ legacy_protocol_handshake_is_rejected_test() ->
 typed_hot_update_request_test() ->
     Started = setup_daemon(),
     try
-        {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, retinue_daemon]),
+        {ok, Bundles} = retinue_hot_update:read_applications([retinue_core, wfcore, poe2core, retinue_daemon]),
         ?assertMatch({ok, #{loaded := _, unchanged := _, migrated := _}},
                      retinue_daemon:request({hot_update, Bundles})),
         ?assert(is_pid(whereis(retinue_daemon)))

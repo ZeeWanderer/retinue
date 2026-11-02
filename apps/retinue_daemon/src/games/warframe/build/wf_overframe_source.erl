@@ -379,9 +379,10 @@ present_slot(Slot, Catalog) ->
         null -> maps:get(<<"cost">>, Slot, null);
         Value -> Value
     end,
-    Current#{<<"item_type">> => CanonicalId,
-             <<"cost">> => Cost,
-             <<"asset">> => asset(CanonicalId, Texture)}.
+    wf_mod_catalog:enrich_card_text(
+      Current#{<<"item_type">> => CanonicalId,
+               <<"cost">> => Cost,
+               <<"asset">> => asset(CanonicalId, Texture)}).
 
 present_slot(Slot, Catalog, Bindings) ->
     Presented = present_slot(Slot, Catalog),

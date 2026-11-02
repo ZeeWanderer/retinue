@@ -25,45 +25,45 @@ struct Preview {
 const PREVIEWS: &[Preview] = &[
     Preview {
         name: "ducat-tooltip-loading",
-        render: crate::overlay::save_ducat_loading_preview,
+        render: crate::presentation::save_ducat_loading_preview,
         animation: None,
     },
     Preview {
         name: "ducat-tooltip-unlisted",
-        render: crate::overlay::save_ducat_unlisted_preview,
+        render: crate::presentation::save_ducat_unlisted_preview,
         animation: None,
     },
     Preview {
         name: "ducat-tooltip",
-        render: crate::overlay::save_ducat_preview,
+        render: crate::presentation::save_ducat_preview,
         animation: None,
     },
     Preview {
         name: "relic-loading",
-        render: crate::overlay::save_relic_loading_preview,
+        render: crate::presentation::save_relic_loading_preview,
         animation: Some(Animation {
             duration: Duration::from_secs(2),
             fps: 10,
-            render_frame: crate::overlay::render_relic_loading_preview,
+            render_frame: crate::presentation::render_relic_loading_preview,
         }),
     },
     Preview {
         name: "relic-rewards",
-        render: crate::overlay::save_relic_preview,
+        render: crate::presentation::save_relic_preview,
         animation: None,
     },
     Preview {
         name: "relic-suggestions",
-        render: crate::overlay::save_relic_suggestions_preview,
+        render: crate::presentation::save_relic_suggestions_preview,
         animation: Some(Animation {
             duration: Duration::from_secs(4),
             fps: 5,
-            render_frame: crate::overlay::render_relic_suggestions_preview,
+            render_frame: crate::presentation::render_relic_suggestions_preview,
         }),
     },
     Preview {
         name: "notification",
-        render: crate::overlay::save_notification_preview,
+        render: crate::presentation::save_notification_preview,
         animation: None,
     },
 ];
@@ -163,7 +163,7 @@ fn render_live(source: PreviewSource, dimensions: (u32, u32), path: &Path) -> Re
                 crate::relic::suggestion_preview_scene(era, &outbound)?
             }
         };
-        crate::overlay::save_relic_scene_preview(dimensions, &scene, path)
+        crate::presentation::save_relic_scene_preview(dimensions, &scene, path)
     })();
     result
 }

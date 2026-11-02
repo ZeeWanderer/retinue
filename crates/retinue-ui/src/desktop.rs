@@ -5,12 +5,12 @@ pub mod clipboard;
 mod frame_clock;
 use frame_clock::FrameClock;
 
-use crate::{
+use accesskit::{ActionRequest, TreeUpdate};
+use accesskit_winit::{Adapter, WindowEvent as AccessEvent};
+use retinue_render::{
     damage::{AgeRepaintTracker, Damage},
     painter::{Painter, render_thread_budget},
 };
-use accesskit::{ActionRequest, TreeUpdate};
-use accesskit_winit::{Adapter, WindowEvent as AccessEvent};
 use softbuffer::{Context, Surface};
 use std::{num::NonZeroU32, path::PathBuf, sync::Arc, time::Instant};
 use winit::{
@@ -35,6 +35,15 @@ pub trait Application {
         Damage::None
     }
     fn deadline(&self) -> Option<Instant> {
+        None
+    }
+    /// One-shot nonvisual deadline; `maintain` must advance or clear it.
+    fn maintenance_deadline(&self) -> Option<Instant> {
+        None
+    }
+    /// Nonvisual work that must also run while the window is occluded.
+    fn maintain(&mut self, _now: Instant) {}
+    fn render_host(&self) -> Option<retinue_render::RenderHost> {
         None
     }
     fn ready(&self) -> bool {
@@ -130,12 +139,12 @@ impl<A: Application> Host<A> {
     }
 
     fn invalidate(&mut self, damage: Damage) {
-        self.damage.invalidate(damage);
         if damage != Damage::None {
             if let Some(native) = &mut self.native {
                 native.adapter.update_if_active(|| self.app.accessibility());
             }
         }
+        self.damage.invalidate(damage);
     }
 
     fn resize(&mut self) -> Result<(), String> {
@@ -174,18 +183,26 @@ impl<A: Application> Host<A> {
         };
         {
             let pixels = bytemuck::cast_slice_mut(&mut buffer);
-            let mut painter = Painter::with_threads(pixels, size.width, size.height, self.threads)
+            let frame = self
+                .app
+                .render_host()
+                .map(|host| host.begin_frame(self.threads));
+            let threads = frame
+                .as_ref()
+                .map_or(self.threads, retinue_render::RenderPass::threads);
+            let mut painter = Painter::with_threads(pixels, size.width, size.height, threads)
                 .map_err(|e| e.to_string())?;
-            painter.clip_to_rect(plan.repair);
+            painter.repair(&plan.repair);
             let background = self.app.background();
             if background[3] != 255 {
                 return Err("desktop background must be opaque".into());
             }
+            let repair = plan.repair.bounds();
             painter.fill_rounded_rect(
-                plan.repair.x,
-                plan.repair.y,
-                plan.repair.width,
-                plan.repair.height,
+                repair.x,
+                repair.y,
+                repair.width,
+                repair.height,
                 0,
                 background,
             );
@@ -207,13 +224,19 @@ impl<A: Application> Host<A> {
             image.save(path).map_err(|e| e.to_string())?;
         }
         native.window.pre_present_notify();
+        let damage: Vec<_> = plan
+            .damage
+            .rects()
+            .iter()
+            .map(|r| softbuffer::Rect {
+                x: r.x,
+                y: r.y,
+                width: NonZeroU32::new(r.width).unwrap(),
+                height: NonZeroU32::new(r.height).unwrap(),
+            })
+            .collect();
         buffer
-            .present_with_damage(&[softbuffer::Rect {
-                x: plan.damage.x,
-                y: plan.damage.y,
-                width: NonZeroU32::new(plan.damage.width).unwrap(),
-                height: NonZeroU32::new(plan.damage.height).unwrap(),
-            }])
+            .present_with_damage(&damage)
             .map_err(|e| e.to_string())?;
         self.damage.submitted();
         if capture.is_some() {
@@ -338,8 +361,21 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
             events.exit();
             return;
         }
+        let now = Instant::now();
+        if self
+            .app
+            .maintenance_deadline()
+            .is_some_and(|due| due <= now)
+        {
+            self.app.maintain(now);
+        }
+        let maintenance = self.app.maintenance_deadline();
         if self.occluded {
-            events.set_control_flow(ControlFlow::Wait);
+            events.set_control_flow(
+                self.frames
+                    .wake_deadline(maintenance, false)
+                    .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
+            );
             return;
         }
         if self.options.capture.is_some() && self.app.ready() {
@@ -347,7 +383,7 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
         }
         if self
             .frames
-            .request(self.damage.is_dirty(), self.app.deadline(), Instant::now())
+            .request(self.damage.is_dirty(), self.app.deadline(), now)
         {
             if let Some(native) = &self.native {
                 native.window.request_redraw();
@@ -355,7 +391,7 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
         }
         events.set_control_flow(
             self.frames
-                .deadline()
+                .wake_deadline(maintenance, true)
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
     }

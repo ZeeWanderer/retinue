@@ -6,7 +6,6 @@
 -export([foundry/0, inventory/0, mastery/0,
          foundry/2, inventory/2, mastery/2, mastery/3, ducat_items/2]).
 
--define(VIEW_CACHE, wf_player_view_cache).
 
 -doc "Build Foundry view from current daemon snapshot and managed item catalog.".
 -spec foundry() -> {ok, map()} | {error, term()}.
@@ -137,13 +136,7 @@ cached_view(View, Build, Catalog, Meta, ExtraVersion) ->
            wf_item_catalog:module_info(md5),
            maps:get(recipe_version, Meta, undefined),
            maps:get(name_version, Meta, undefined)},
-    case cache_lookup(Key) of
-        {ok, Result} -> Result;
-        error ->
-            Result = Build(Snapshot, Catalog),
-            cache_store(Key, Result),
-            Result
-    end.
+    wf_player_view_cache:get(Key, fun() -> Build(Snapshot, Catalog) end).
 
 load_star_chart() ->
     case wf_star_chart:load() of
@@ -154,19 +147,6 @@ load_star_chart() ->
                 {error, _EnsureReason} = Error -> Error
             end
     end.
-
-cache_lookup(Key) ->
-    try ets:lookup(?VIEW_CACHE, Key) of
-        [{Key, Result}] -> {ok, Result};
-        [] -> error
-    catch error:badarg -> error
-    end.
-
-cache_store(Key, Result) ->
-    try ets:insert(?VIEW_CACHE, {Key, Result})
-    catch error:badarg -> false
-    end,
-    ok.
 
 base_response(Snapshot, Player) ->
     #{<<"revision">> => maps:get(revision, Snapshot, 0),

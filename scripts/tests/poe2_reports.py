@@ -39,7 +39,7 @@ class ReportTests(unittest.TestCase):
                 output = self.repository / ("failed" if failing else "passed")
                 runtime = []
 
-                def execute(stage, root, evidence, report):
+                def execute(stage, root, evidence, report, codec_path):
                     runtime.append(root)
                     self.assertLess(len(str(root / "api.sock").encode()), 108)
                     (evidence / "daemon.log").write_text("test log")

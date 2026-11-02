@@ -63,10 +63,10 @@ homebrew_install() ->
         _ -> homebrew_install_from_path(install_root())
     end.
 
--doc "Find hot-loadable wfcore and retinue_daemon ebin directories in current artifact.".
+-doc "Find platform, game-core and daemon modules in the current artifact.".
 -spec hot_ebin_dirs() -> {ok, [file:filename_all()]} | {error, term()}.
 hot_ebin_dirs() ->
-    find_ebin_dirs([retinue_core, wfcore, retinue_daemon], []).
+    find_ebin_dirs([retinue_core, wfcore, poe2core, retinue_daemon], []).
 
 find_ebin_dirs([], Acc) -> {ok, lists:reverse(Acc)};
 find_ebin_dirs([App | Rest], Acc) ->

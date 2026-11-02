@@ -13,7 +13,7 @@
                   wf_asset_service, wf_notification_service,
                   retinue_local_api]},
     {mod, {retinue_daemon_app, []}},
-    {applications, [kernel, stdlib, wfcore, crypto, yamerl, jsone, inets, ssl, gun]},
+    {applications, [kernel, stdlib, wfcore, poe2core, crypto, yamerl, jsone, inets, ssl, gun]},
     {modules, []},
     {licenses, ["Apache-2.0"]},
     {links, []}

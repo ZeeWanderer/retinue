@@ -225,7 +225,7 @@ slot_mod_labels(Config, Plan) ->
     case wf_forma_planner:assignments_for_plan(Config, Plan) of
         {ok, SlotMap} ->
             [{Slot, lists:sort(Mods)}
-             || {Slot, Mods} <- lists:sort(fun slot_order/2, maps:to_list(SlotMap))];
+             || {Slot, Mods} <- lists:keysort(1, maps:to_list(SlotMap))];
         _ -> []
     end.
 
@@ -243,13 +243,3 @@ build_arcane_entries(#{builds := Builds}) when is_list(Builds) ->
       {[], 1}, Builds),
     lists:reverse(Reversed);
 build_arcane_entries(_Other) -> [].
-
-slot_order(aura, aura) -> true;
-slot_order(aura, _) -> true;
-slot_order(_, aura) -> false;
-slot_order(exilus, exilus) -> true;
-slot_order(exilus, _) -> true;
-slot_order(_, exilus) -> false;
-slot_order(A, B) when is_integer(A), is_integer(B) -> A =< B;
-slot_order(A, _B) when is_integer(A) -> true;
-slot_order(_, _) -> true.

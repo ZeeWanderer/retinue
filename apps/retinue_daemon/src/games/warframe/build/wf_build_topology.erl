@@ -189,7 +189,10 @@ enrich_upgrade(Upgrade, Catalog, Slots, Polarities) ->
                {<<"rarity">>, <<"rarity">>},
                {<<"compat_name">>, <<"compatName">>}], Item, Base0),
     Base2 = copy_mod_details(Details, Base1),
-    Base3 = maybe_effects(Base2, Item, Details),
+    TextDetails = Details#{level_stats => maps:get(<<"levelStats">>, Item,
+                                                   maps:get(level_stats, Details, undefined))},
+    Base3 = maps:merge(Base2, wf_mod_catalog:card_text(
+                              maps:get(<<"rank">>, Upgrade, undefined), TextDetails)),
     Base4 = Base3#{<<"mod_variant">> => mod_variant(Item)},
     Base5 = case first([maps:get(<<"polarity">>, Item, undefined),
                         maps:get(polarity, Details, undefined)]) of
@@ -247,24 +250,6 @@ copy_mod_details(Details, Base) ->
       end, Base,
       [{<<"base_drain">>, base_drain}, {<<"max_rank">>, fusion_limit},
        {<<"rarity">>, rarity}, {<<"compat_name">>, compat}]).
-
-maybe_effects(#{<<"rank">> := Rank} = Upgrade, Item, Details)
-  when is_integer(Rank), Rank >= 0 ->
-    Levels0 = maps:get(<<"levelStats">>, Item, undefined),
-    Levels = case Levels0 of
-        undefined -> maps:get(level_stats, Details, undefined);
-        _ -> Levels0
-    end,
-    case Levels of
-        Levels when is_list(Levels), length(Levels) > Rank ->
-            Level = lists:nth(Rank + 1, Levels),
-            case maps:get(<<"stats">>, Level, undefined) of
-                Stats when is_list(Stats) -> Upgrade#{<<"effects">> => Stats};
-                _ -> Upgrade
-            end;
-        _ -> Upgrade
-    end;
-maybe_effects(Upgrade, _Item, _Details) -> Upgrade.
 
 maybe_drain(#{<<"base_drain">> := Base, <<"rank">> := Rank} = Upgrade)
   when is_integer(Base), is_integer(Rank), Rank >= 0 ->

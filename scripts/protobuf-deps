@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+for name in retinue_core wfcore poe2core; do
+    app="$root/apps/$name"
+    sources=("$app"/proto/*.proto "$app/rebar.config" "$root/rebar.config")
+    if [[ "$name" != retinue_core ]]; then
+        sources+=("$root"/apps/retinue_core/proto/*.proto)
+    fi
+    digest="$(sha256sum "${sources[@]}" | sha256sum)"
+    output="$app/src/generated"
+    mkdir -p "$output"
+    stamp="$output/.source-digest"
+    if [[ -f "$stamp" && "$(<"$stamp")" == "$digest" ]]; then
+        continue
+    fi
+    # The gpb plugin tracks imports within an app, not imports from another app.
+    rm -f -- "$output"/*.erl
+    printf '%s\n' "$digest" > "$stamp"
+done

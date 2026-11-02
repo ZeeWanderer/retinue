@@ -100,7 +100,7 @@ impl Producer {
             && self
                 .counters
                 .pending_info
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |pending| {
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |pending| {
                     (pending < MAX_PENDING_INFO).then_some(pending + 1)
                 })
                 .is_err()

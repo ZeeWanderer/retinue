@@ -1,5 +1,5 @@
 -module(retinue_connection).
--export([run/2, send_json/2, send_error/3, send_ok/4, request_id/1, start_local_request/4, feature_enabled/2, daemon_identity/0]).
+-export([run/2, send_message/2, send_error/3, send_ok/4, request_id/1, start_local_request/4, feature_enabled/2, daemon_identity/0]).
 -define(MAX_BUFFER_BYTES, 8388608).
 -define(DEFAULT_REQUEST_WORKERS, 4).
 -define(SERVER, retinue_local_api).
@@ -10,10 +10,10 @@ run(Socket, Parent) ->
     Owners = [Parent],
     OwnerMonitors = maps:from_list([{erlang:monitor(process, Pid), Pid}
                                    || Pid <- Owners]),
-    State = #{socket => Socket, parent => Parent, reader => Reader,
+    State = #{socket => {handshake, Socket}, parent => Parent, reader => Reader,
               owner_monitors => OwnerMonitors,
               reader_monitor => ReaderMonitor, buffer => <<>>,
-              hello => false, client => <<"unknown">>, features => [],
+              hello => false, transport => handshake, client => <<"unknown">>, features => [],
               workers => #{}, worker_queue => queue:new(),
               worker_permits => 0, worker_permit_requests => 0,
               max_workers => local_worker_limit()},
@@ -43,7 +43,7 @@ connection_loop(State = #{reader_monitor := ReaderMonitor,
                               worker_permit_requests => Waiting}),
             connection_loop(State1);
         {daemon_command, Command} ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"event">> => <<"command">>, <<"data">> => Command}),
             connection_loop(State);
         {'DOWN', Monitor, process, _Owner, _Reason}
@@ -57,7 +57,7 @@ connection_loop(State = #{reader_monitor := ReaderMonitor,
             State1 = local_request_down(Monitor, Reason, State),
             connection_loop(State1);
         {companion_diagnostics, Id, Command} ->
-            send_json(maps:get(socket, State),
+            send_message(maps:get(socket, State),
                       #{<<"event">> => <<"companion_diagnostics">>,
                         <<"request_id">> => Id, <<"request">> => Command}),
             connection_loop(State);
@@ -77,33 +77,28 @@ socket_reader(Socket, Handler) ->
 
 consume_data(Data, State) ->
     Buffer = <<(maps:get(buffer, State))/binary, Data/binary>>,
-    case byte_size(Buffer) > ?MAX_BUFFER_BYTES of
-        true -> {stop, message_too_large, State};
-        false ->
-            Parts = binary:split(Buffer, <<"\n">>, [global]),
-            {Lines, Rest} = split_last(Parts),
-            case consume_lines(Lines, State#{buffer => Rest}) of
-                {ok, State1} -> {ok, State1};
-                Stop -> Stop
+    consume_frames(State#{buffer => Buffer}).
+
+consume_frames(State = #{buffer := Buffer, transport := Transport}) ->
+    case retinue_wire:next(Transport, Buffer, ?MAX_BUFFER_BYTES) of
+        more -> {ok, State};
+        {error, Reason} -> {stop, Reason, State};
+        {ok, <<>>, Rest} -> consume_frames(State#{buffer => Rest});
+        {ok, Frame, Rest} ->
+            Decoded = case Transport of
+                handshake -> retinue_local_protocol:decode(Frame);
+                protobuf -> retinue_wire:decode_request(Frame, maps:get(adapter, State))
+            end,
+            case Decoded of
+                {ok, Request} ->
+                    case handle_request(Request, State#{buffer => Rest}) of
+                        {ok, State1} -> consume_frames(State1);
+                        Stop -> Stop
+                    end;
+                {error, Reason} ->
+                    send_error(maps:get(socket, State), 0, Reason),
+                    {stop, Reason, State}
             end
-    end.
-
-split_last(Parts) ->
-    [Rest | Reversed] = lists:reverse(Parts),
-    {lists:reverse(Reversed), Rest}.
-
-consume_lines([], State) -> {ok, State};
-consume_lines([<<>> | Rest], State) -> consume_lines(Rest, State);
-consume_lines([Line | Rest], State) ->
-    case retinue_local_protocol:decode(Line) of
-        {ok, Request} ->
-            case handle_request(Request, State) of
-                {ok, State1} -> consume_lines(Rest, State1);
-                Stop -> Stop
-            end;
-        {error, Reason} ->
-            send_error(maps:get(socket, State), 0, Reason),
-            consume_lines(Rest, State)
     end.
 
 handle_request(#{<<"op">> := <<"hello">>} = Request, State = #{hello := true}) ->
@@ -124,16 +119,17 @@ handle_request(#{<<"op">> := <<"hello">>} = Request, State) ->
     Reply = maps:merge(
               (daemon_identity())#{<<"id">> => Id, <<"ok">> => Compatible},
               Negotiation),
-    send_json(maps:get(socket, State), Reply),
+    send_message(maps:get(socket, State), Reply),
     case Compatible of
         true -> maps:get(parent, State) ! {client_identified, self(), ClientInfo};
         false -> ok
     end,
-    State1 = State#{hello => Compatible, client => Client, game => Game, features => Features,
+    State1 = State#{hello => Compatible,
+                    client => Client, game => Game, features => Features,
                     interfaces => maps:get(<<"interfaces">>, Request, #{}),
                     client_info => ClientInfo},
     {ok, case Compatible of
-             true -> identify_game(Game, State1);
+             true -> identify_game(Game, State1#{transport => protobuf});
              false -> State1
          end};
 handle_request(Request, State = #{hello := false}) ->
@@ -181,8 +177,13 @@ start_local_request(Id, Dataset, Work, State) ->
 start_local_worker(Id, Dataset, Work, State) ->
     Parent = self(),
     Token = make_ref(),
+    Socket = maps:get(socket, State),
     {Pid, Monitor} = spawn_opt(fun() ->
-        Reply = try Work()
+        Reply = try
+                    case Work() of
+                        {ok, Data} -> {encoded, encode_ok(Socket, Id, Dataset, Data)};
+                        Error -> Error
+                    end
                 catch Class:Reason:Stack ->
                     logger:error("local API request failed: ~p:~p~n~p",
                                  [Class, Reason, Stack]),
@@ -194,14 +195,14 @@ start_local_worker(Id, Dataset, Work, State) ->
     Workers = maps:get(workers, State, #{}),
     State#{workers => Workers#{Token => Worker}}.
 
-send_local_request_result(Token, Id, Dataset, Reply, State) ->
+send_local_request_result(Token, Id, _Dataset, Reply, State) ->
     case maps:take(Token, maps:get(workers, State, #{})) of
         error -> State;
         {#{monitor := Monitor}, Workers} ->
             erlang:demonitor(Monitor, [flush]),
             release_global_local_worker(),
             case Reply of
-                {ok, Data} -> send_ok(maps:get(socket, State), Id, Dataset, Data);
+                {encoded, Bytes} -> send_bytes(maps:get(socket, State), Bytes);
                 {error, Reason} -> send_error(maps:get(socket, State), Id, Reason)
             end,
             schedule_local_workers(State#{workers => Workers})
@@ -283,15 +284,39 @@ feature_enabled(Feature, State) ->
 
 
 send_ok(Socket, Id, Dataset, Snapshot) ->
-    send_json(Socket, #{<<"id">> => Id, <<"ok">> => true,
-                        <<"dataset">> => Dataset, <<"data">> => Snapshot}).
+    send_bytes(Socket, encode_ok(Socket, Id, Dataset, Snapshot)).
+
+encode_ok({protobuf, _, Adapter}, Id, Dataset, Snapshot) ->
+    {ok, Type, Payload} = case Dataset of
+        <<"checks">> -> retinue_native:encode(retinue_wire_pb, 'Accepted', Snapshot);
+        _ -> Adapter:encode_reply(Dataset, Snapshot)
+    end,
+    retinue_wire:reply(Id, Dataset, Type, Payload).
 
 send_error(Socket, Id, Reason) ->
-    send_json(Socket, #{<<"id">> => Id, <<"ok">> => false,
+    send_message(Socket, #{<<"id">> => Id, <<"ok">> => false,
                         <<"error">> => format_reason(Reason)}).
 
-send_json(Socket, Map) ->
-    case socket:send(Socket, retinue_local_protocol:encode(Map)) of
+send_message(Socket, Map) ->
+    send_bytes(Socket, encode_message(Socket, Map)).
+
+encode_message({protobuf, _, _} = Socket, #{<<"ok">> := true, <<"id">> := Id,
+                                             <<"data">> := Data} = Map) ->
+    encode_ok(Socket, Id, maps:get(<<"dataset">>, Map, <<"session">>), Data);
+encode_message({protobuf, _, Adapter}, #{<<"event">> := Event} = Map) ->
+    {ok, Type, Payload} = case Event of
+        <<"command">> -> retinue_native:encode(retinue_wire_pb, 'CompanionCommand', maps:get(<<"data">>, Map));
+        <<"companion_diagnostics">> -> retinue_native:encode(retinue_wire_pb, 'DiagnosticCommand', maps:get(<<"request">>, Map));
+        _ -> Adapter:encode_event(Event, maps:get(<<"data">>, Map))
+    end,
+    retinue_wire:event(Map, Type, Payload);
+encode_message({protobuf, _, _}, Map) -> retinue_wire:control(Map);
+encode_message({handshake, _}, Map) -> retinue_local_protocol:encode(Map).
+
+send_bytes({protobuf, Socket, _}, Bytes) -> send_bytes(Socket, Bytes);
+send_bytes({handshake, Socket}, Bytes) -> send_bytes(Socket, Bytes);
+send_bytes(Socket, Bytes) ->
+    case socket:send(Socket, Bytes) of
         ok -> ok;
         {error, closed} -> ok;
         {error, Reason} -> exit({socket_send_failed, Reason})
@@ -339,4 +364,6 @@ identify_game(Game, State) ->
     Monitors = maps:from_list([{erlang:monitor(process, Pid), Pid}
                               || #{id := Name} <- Specs,
                                  Pid <- [whereis(Name)], is_pid(Pid)]),
-    Adapter:init(State#{adapter => Adapter, owner_monitors => maps:merge(Existing, Monitors)}).
+    {handshake, Raw} = maps:get(socket, State),
+    Socket = {protobuf, Raw, Adapter},
+    Adapter:init(State#{socket => Socket, adapter => Adapter, owner_monitors => maps:merge(Existing, Monitors)}).

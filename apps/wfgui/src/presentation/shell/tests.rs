@@ -1,0 +1,806 @@
+use super::*;
+
+#[test]
+fn chrome_layout_keeps_fractional_device_pixel_positions() {
+    for scale in [1.1, 1.25, 1.5] {
+        let shell = view(scale, (2560, 1440));
+        let tree = shell.composition.tree.borrow();
+        let id = tree
+            .unique(composition::control_key(Control::Left))
+            .unwrap()
+            .unwrap();
+        let bounds = tree.geometry(id).unwrap().layout;
+        assert_eq!(bounds.width, 30.0);
+        assert_eq!(bounds.height, 30.0);
+        assert_eq!(bounds.x, 36.0);
+        assert_eq!(bounds.y, 5.0);
+    }
+}
+
+#[test]
+fn page_drag_release_over_right_rail_reaches_its_owner() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        shell.foundry.update(crate::data::foundry::fixture());
+        let center = shell.geometry.center;
+        let grid = shell.foundry.capture_bounds("foundry.grid").unwrap();
+        let x = (center.x + center.width - shell.px(9.0)) as f64;
+        let y = (center.y + grid.y + shell.px(3.0)) as f64;
+        let now = Instant::now();
+        shell.pointer_move((x, y));
+        shell.pointer_button(true, now);
+        assert!(shell.page_pressed);
+        for event in 0..1800 {
+            let fraction = (event % 120).min(120 - event % 120) as f64 / 120.0;
+            shell.pointer_move((x - 100.0, y + fraction * grid.height as f64));
+            shell.tick(now + Duration::from_millis(event * 17));
+        }
+        let right = shell.geometry.right;
+        assert!(right.width > 0);
+        shell.pointer_move(((right.x + right.width / 2) as f64, y + 200.0));
+        shell.pointer_button(false, now + Duration::from_secs(31));
+        assert!(!shell.page_pressed, "page capture retained at {scale}");
+        assert!(!shell.rail_pressed);
+        let offset = shell.foundry.offset;
+        shell.pointer_move((x - 100.0, y + 400.0));
+        assert_eq!(
+            shell.foundry.offset, offset,
+            "released thumb still follows pointer"
+        );
+    }
+}
+
+#[test]
+fn rail_animation_does_not_dirty_unchanged_title_paint() {
+    let mut shell = Shell::new(Some(Snapshot::fixture()), 1.0).unwrap();
+    let (width, height) = shell.size;
+    let mut pixels = vec![0; width as usize * height as usize * 4];
+    let mut painter = Painter::new(&mut pixels, width, height).unwrap();
+    shell.paint(&mut painter);
+    painter.finish().unwrap();
+    let now = Instant::now();
+    shell.activate(Control::Left, now);
+    let damage = shell
+        .tick(now + Duration::from_millis(85))
+        .bounds(shell.size)
+        .unwrap();
+    assert!(
+        damage.y >= shell.geometry.title.height,
+        "unexpected damage: {damage:?}"
+    );
+}
+use retinue_render::damage::AgeRepaintTracker;
+
+#[test]
+fn composition_geometry_drives_chrome_and_local_damage() {
+    for scale in [1.0, 1.25, 2.0] {
+        let shell = view(scale, (2560, 1440));
+        for (control, rect, _) in shell.controls() {
+            let key = composition::control_key(control);
+            assert_eq!(shell.composition.rect(key), rect);
+            if !rect.is_empty() {
+                assert_eq!(
+                    shell.composition.hit_test((
+                        (rect.x + rect.width / 2) as f64,
+                        (rect.y + rect.height / 2) as f64
+                    )),
+                    Some(key)
+                );
+            }
+            if control == Control::Smaller || control == Control::Larger {
+                assert_eq!(rect.y, shell.px(7.5));
+            }
+        }
+        assert_eq!(
+            shell.page_damage(Damage::Full),
+            Damage::rect(shell.geometry.center)
+        );
+        assert_eq!(
+            shell.page_damage(Damage::rect(Rect {
+                x: 3,
+                y: 4,
+                width: 10,
+                height: 12
+            })),
+            Damage::rect(Rect {
+                x: shell.geometry.center.x + 3,
+                y: shell.geometry.center.y + 4,
+                width: 10,
+                height: 12
+            })
+        );
+    }
+}
+
+#[test]
+fn scaled_minimum_keeps_the_mastery_grid_visible() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        let minimum = shell.minimum_size();
+        assert_eq!(minimum, ((1024.0 * scale) as u32, (600.0 * scale) as u32));
+        shell.resize(minimum, 1.0).unwrap();
+        shell.pages.fixture();
+        shell.set_page(Page::Mastery);
+        let grid = shell.pages.ui.bounds("page.grid").unwrap();
+        assert!(grid.height >= shell.px(100.0), "{scale}: {grid:?}");
+        shell.resize((minimum.0 * 2, minimum.1 * 2), 2.0).unwrap();
+        assert_eq!(shell.minimum_size(), minimum, "window minimum is logical");
+    }
+}
+
+#[test]
+fn explicit_market_navigation_opens_a_drawer_when_the_rail_does_not_fit() {
+    let mut shell = view(1.25, (1200, 800));
+    assert!(!shell.right_available);
+    let center = shell.geometry.center;
+    shell.show_market_rail();
+    shell.tick(Instant::now() + MOTION);
+    assert!(shell.right_available);
+    assert_eq!(shell.geometry.center, center);
+    assert_eq!(shell.geometry.right.width, shell.px(400.0));
+    shell.activate(Control::Right, Instant::now());
+    shell.tick(Instant::now() + MOTION);
+    assert_eq!(shell.geometry.right.width, 0);
+}
+
+#[test]
+fn wheel_step_scales_but_touchpad_pixels_do_not() {
+    use retinue_ui::{
+        desktop::winit::dpi::PhysicalPosition, desktop::winit::event::MouseScrollDelta,
+    };
+    for scale in [1.0, 1.25, 2.0] {
+        let shell = view(scale, (2560, 1440));
+        assert_eq!(
+            shell.wheel_delta(MouseScrollDelta::LineDelta(0.0, -1.0)),
+            (60.0 * scale, true)
+        );
+        assert_eq!(
+            shell.wheel_delta(MouseScrollDelta::LineDelta(0.0, 0.5)),
+            (-30.0 * scale, true)
+        );
+        assert_eq!(
+            shell.wheel_delta(MouseScrollDelta::PixelDelta(PhysicalPosition::new(
+                0.0, -7.25
+            ))),
+            (7.25, false)
+        );
+    }
+}
+
+fn render(shell: &Shell) -> Vec<u8> {
+    let (width, height) = shell.size;
+    let mut pixels = vec![0; width as usize * height as usize * 4];
+    let frame = shell.render_host.begin_frame(std::num::NonZeroU32::MIN);
+    let mut painter = Painter::with_threads(&mut pixels, width, height, frame.threads()).unwrap();
+    painter.fill_rounded_rect(0, 0, width, height, 0, BACKGROUND);
+    shell.paint(&mut painter);
+    painter.finish().unwrap();
+    pixels
+}
+
+fn render_settled(shell: &Shell) -> Vec<u8> {
+    for _ in 0..128 {
+        let pixels = render(shell);
+        if !shell.render_host.has_deferred() {
+            return pixels;
+        }
+    }
+    panic!("optional preparation did not settle");
+}
+
+#[test]
+fn deferred_preparation_requests_paced_passes_then_stops() {
+    let mut shell = view(1.0, (1920, 1080));
+    shell.set_page(Page::Foundry);
+    shell.foundry.update(crate::data::foundry::fixture());
+    shell.foundry.set_render_host(shell.render_host.clone());
+    render(&shell);
+    assert!(shell.render_host.has_deferred());
+    let deadline = shell.preparation_deadline.get().unwrap();
+    assert_ne!(shell.tick(deadline), Damage::None);
+    render_settled(&shell);
+    assert!(shell.preparation_deadline.get().is_none());
+    assert_eq!(shell.render_host.stats().pending_bytes, 0);
+}
+
+#[test]
+fn idle_expiry_releases_scrolled_pixels_without_repainting_selected_content() {
+    let mut shell = view(1.0, (1920, 1080));
+    shell.set_collapsed(false, true);
+    shell.set_page(Page::Foundry);
+    shell.foundry.update(crate::data::foundry::fixture());
+    render_settled(&shell);
+    shell.foundry.jump(900.0);
+    shell.tick(Instant::now());
+    render_settled(&shell);
+
+    let host = &shell.render_host;
+    let before = host.stats();
+    assert!(before.warm_bytes > 0);
+    assert!(before.selected_bytes > 0);
+    let deadline = host.maintenance_deadline().unwrap();
+    assert_eq!(shell.maintenance_deadline(), Some(deadline));
+    shell.maintain(deadline + Duration::from_secs(1));
+    assert_eq!(shell.tick(deadline + Duration::from_secs(1)), Damage::None);
+    let after = shell.render_host.stats();
+    assert_eq!(after.warm_bytes, 0);
+    assert_eq!(after.warm_entries, 0);
+    assert!(after.expired_entries > before.expired_entries);
+    assert_eq!(after.selected_bytes, before.selected_bytes);
+    assert_eq!(after.live_bytes, before.live_bytes - before.warm_bytes);
+    assert_eq!(shell.render_host.maintenance_deadline(), None);
+}
+
+#[test]
+fn filter_dismissal_consumes_chrome_press_and_release() {
+    for control in [Control::Left, Control::Settings, Control::Larger] {
+        let mut shell = view(1.25, (1920, 1080));
+        shell.set_page(Page::Foundry);
+        shell.foundry.update(crate::data::foundry::fixture());
+        shell.foundry.open_filters();
+        let (_, r, _) = shell
+            .controls()
+            .into_iter()
+            .find(|(c, _, _)| *c == control)
+            .unwrap();
+        shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
+        shell.pointer_button(true, Instant::now());
+        shell.pointer_button(false, Instant::now());
+        assert!(!shell.foundry.filters_open());
+        assert_eq!(shell.page, Page::Foundry);
+        assert!(!shell.left_collapsed);
+        assert_eq!(shell.scale(), 1.25);
+        assert_eq!(shell.focus, Some(Focus::Foundry(foundry::Action::Filters)));
+    }
+}
+
+#[test]
+fn listing_menu_dismisses_across_rails_without_activating_the_background() {
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        for control in [Control::Left, Control::Settings, Control::Larger] {
+            let mut shell = view(1.25, (1920, 1080));
+            shell.pages.fixture();
+            shell.set_page(page);
+            let card = shell.pages.ui.bounds("page.card").unwrap();
+            let center = shell.geometry.center;
+            shell.pointer_move((
+                (center.x + card.x + 5) as f64,
+                (center.y + card.y + 5) as f64,
+            ));
+            assert!(shell.open_context_menu(false));
+            assert!(shell.pages.ui.bounds("page.menu").is_some());
+            let (_, r, _) = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap();
+            shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
+            shell.pointer_button(true, Instant::now());
+            shell.pointer_button(false, Instant::now());
+            assert!(shell.pages.ui.bounds("page.menu").is_none());
+            assert_eq!(shell.page, page);
+            assert!(!shell.left_collapsed);
+            assert_eq!(shell.scale(), 1.25);
+        }
+    }
+}
+
+#[test]
+fn context_menu_takes_keyboard_focus_from_the_chrome_or_other_rail() {
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        for rail_focus in [false, true] {
+            let mut shell = view(1.25, (1920, 1080));
+            shell.pages.fixture();
+            shell.set_page(page);
+            shell.set_focus(Some(Focus::Chrome(Control::Settings)));
+            shell.rail_focus = rail_focus;
+            shell.pages.rail.focus = Some("rail:tab:market".into());
+            let card = shell.pages.ui.bounds("page.card").unwrap();
+            shell.pointer_move((
+                (shell.geometry.center.x + card.x + 5) as f64,
+                (shell.geometry.center.y + card.y + 5) as f64,
+            ));
+            assert!(shell.open_context_menu(false));
+            assert_eq!(shell.focus, None);
+            assert!(!shell.rail_focus);
+            assert_eq!(shell.pages.rail.focus, None);
+            assert!(shell.pages.ui.modal_open());
+        }
+    }
+}
+
+#[test]
+fn settings_navigation_is_transparent_and_all_pages_share_hover_edges() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        for control in [Control::Settings, Control::Inventory] {
+            let rect = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap()
+                .1;
+            shell.pointer_move((-1.0, -1.0));
+            let pixels = render(&shell);
+            let width = shell.size.0;
+            let pixel = |pixels: &[u8], x: u32, y: u32| -> [u8; 4] {
+                pixels[((y * width + x) * 4) as usize..((y * width + x) * 4 + 4) as usize]
+                    .try_into()
+                    .unwrap()
+            };
+            let x = shell.geometry.left.x + shell.geometry.left.width - shell.px(1.0);
+            let y = rect.y + rect.height / 2;
+            assert_eq!(pixel(&pixels, x, y), BACKGROUND);
+            shell.pointer_move(((rect.x + rect.width / 2) as f64, y as f64));
+            let pixels = render(&shell);
+            assert_eq!(pixel(&pixels, x, y), crate::presentation::style::NAV_HOVER);
+        }
+    }
+}
+
+#[test]
+fn navigation_hover_damage_includes_the_trailing_indicator_immediately() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        for control in [Control::Relics, Control::Settings] {
+            let r = shell
+                .controls()
+                .into_iter()
+                .find(|(c, _, _)| *c == control)
+                .unwrap()
+                .1;
+            shell.pointer_move((-1.0, -1.0));
+            let mut pixels = render(&shell);
+            let damage =
+                shell.pointer_move(((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64));
+            let repair = damage.bounds(shell.size).unwrap();
+            let edge = (
+                shell.geometry.left.x + shell.geometry.left.width - shell.px(1.0),
+                r.y + r.height / 2,
+            );
+            assert!(repair.contains(edge.0 as f64, edge.1 as f64));
+            let mut painter = Painter::new(&mut pixels, shell.size.0, shell.size.1).unwrap();
+            painter.clip_to_rect(repair);
+            painter.fill_rounded_rect(
+                repair.x,
+                repair.y,
+                repair.width,
+                repair.height,
+                0,
+                BACKGROUND,
+            );
+            shell.paint(&mut painter);
+            painter.finish().unwrap();
+            assert_eq!(pixels, render(&shell), "hover {control:?} at {scale}");
+            let damage = shell.pointer_move((-1.0, -1.0));
+            assert!(
+                damage
+                    .bounds(shell.size)
+                    .unwrap()
+                    .contains(edge.0 as f64, edge.1 as f64)
+            );
+        }
+    }
+}
+
+#[test]
+fn title_scale_edits_shared_preferences_and_warning_survives_data_refresh() {
+    let mut shell = view(1.25, (1920, 1080));
+    shell.activate(Control::Larger, Instant::now());
+    assert_eq!(shell.preferences.scale(), 1.3);
+    assert_eq!(shell.settings.ui_scale, 1.3);
+    assert!(!shell.preferences.take_changes().is_empty());
+    shell
+        .settings
+        .set_preference_error(Some("Preferences not saved".into()));
+    shell.settings.update(crate::domain::storage::Update {
+        snapshot: Snapshot::fixture(),
+        error: None,
+    });
+    assert!(shell.settings.preference_error.is_some());
+    assert!(
+        shell
+            .label(Control::Settings)
+            .contains("could not be saved")
+    );
+    shell.settings.set_preference_error(None);
+    assert_eq!(shell.label(Control::Settings), "Settings");
+}
+
+fn capture_focus(name: &str, shell: &Shell, pixels: &[u8], bounds: Rect) {
+    let Some(directory) = std::env::var_os("GUI_FOCUS_CAPTURES") else {
+        return;
+    };
+    let directory = std::path::PathBuf::from(directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let image = retinue_render::image::RgbImage::from_fn(bounds.width, bounds.height, |x, y| {
+        let i = ((y + bounds.y) as usize * shell.size.0 as usize + (x + bounds.x) as usize) * 4;
+        retinue_render::image::Rgb([pixels[i + 2], pixels[i + 1], pixels[i]])
+    });
+    image
+        .save(directory.join(format!("{name}-{}.png", (shell.scale() * 100.0).round())))
+        .unwrap();
+}
+
+#[test]
+fn pointer_focus_is_invisible_and_keyboard_rings_are_shared_across_pages() {
+    use retinue_ui::{desktop::winit::keyboard::Key, desktop::winit::keyboard::NamedKey};
+    for scale in [1.0, 1.25, 2.0] {
+        let mut shell = view(scale, (1920, 1080));
+        for (name, focus) in [
+            ("title", Focus::Chrome(Control::Close)),
+            ("settings", Focus::Page(settings::Action::ClearMemory)),
+            ("foundry", Focus::Foundry(foundry::Action::Filters)),
+        ] {
+            if matches!(focus, Focus::Foundry(_)) {
+                shell.set_page(Page::Foundry);
+                shell.foundry.update(crate::data::foundry::fixture());
+            }
+            let baseline = render_settled(&shell);
+            shell.focus_visible.pointer_down();
+            shell.set_focus(Some(focus));
+            let pointer = render(&shell);
+            let check = match name {
+                "title" => shell.geometry.title,
+                "foundry" => {
+                    let rect = shell.foundry.capture_bounds("foundry.toolbar").unwrap();
+                    Rect {
+                        x: rect.x + shell.geometry.center.x,
+                        y: rect.y + shell.geometry.center.y,
+                        ..rect
+                    }
+                }
+                _ => shell.geometry.center,
+            };
+            let unchanged = (check.y..check.y + check.height).all(|y| {
+                let start = (y as usize * shell.size.0 as usize + check.x as usize) * 4;
+                let end = start + check.width as usize * 4;
+                pointer[start..end] == baseline[start..end]
+            });
+            assert!(unchanged, "mouse focus drew a ring: {name}/{scale}");
+            shell.note_keyboard(Key::Named(NamedKey::Tab));
+            let keyboard = render(&shell);
+            assert!(keyboard != pointer, "missing keyboard ring: {name}/{scale}");
+            assert!(keyboard.chunks_exact(4).any(|pixel| pixel == rgb(0xaa9af9)));
+            let bounds = if name == "title" {
+                shell.geometry.title
+            } else {
+                shell.geometry.center
+            };
+            capture_focus(&format!("{name}-pointer"), &shell, &pointer, bounds);
+            capture_focus(&format!("{name}-keyboard"), &shell, &keyboard, bounds);
+            shell.set_focus(None);
+        }
+        shell.focus_visible.pointer_down();
+        shell.set_focus(Some(Focus::Foundry(foundry::Action::Search)));
+        assert!(
+            render(&shell)
+                .chunks_exact(4)
+                .any(|pixel| pixel == rgb(0xaa9af9))
+        );
+    }
+}
+
+#[test]
+fn keyboard_modality_survives_hover_and_focus_transfer_but_ignores_shortcuts() {
+    use retinue_ui::{desktop::winit::keyboard::Key, desktop::winit::keyboard::NamedKey};
+    let mut shell = view(1.0, (1440, 900));
+    shell.pointer_move((50.0, 20.0));
+    shell.pointer_button(true, Instant::now());
+    shell.pointer_move((300.0, 20.0));
+    shell.pointer_button(false, Instant::now());
+    assert!(!shell.focus_visible.shows(true, false));
+    shell.note_keyboard(Key::Named(NamedKey::Shift));
+    assert!(!shell.focus_visible.shows(true, false));
+    for modifiers in [
+        ModifiersState::CONTROL,
+        ModifiersState::ALT,
+        ModifiersState::SUPER,
+    ] {
+        shell.modifiers = modifiers;
+        shell.note_keyboard(Key::Character("r"));
+        assert!(!shell.focus_visible.shows(true, false));
+    }
+    shell.modifiers = ModifiersState::SHIFT;
+    shell.note_keyboard(Key::Named(NamedKey::Tab));
+    assert!(shell.focus_visible.shows(true, false));
+    shell.pointer_move((400.0, 40.0));
+    shell.set_focus(Some(Focus::Page(settings::Action::ClearRendered)));
+    assert!(shell.focus_visible.shows(true, false));
+    shell.settings.activate(settings::Action::ClearRendered);
+    assert_eq!(shell.settings.focus, Some(settings::Action::Cancel));
+    assert!(shell.focus_visible.shows(true, false));
+    shell.settings.activate(settings::Action::Cancel);
+    assert_eq!(shell.settings.focus, Some(settings::Action::ClearRendered));
+    assert!(shell.focus_visible.shows(true, false));
+}
+
+#[test]
+fn rail_and_window_buttons_have_matching_highlight_bounds() {
+    for scale in [1.0, 1.25, 1.5, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        let controls = shell.controls();
+        let reference = controls
+            .iter()
+            .find(|(c, _, _)| *c == Control::Close)
+            .unwrap()
+            .1;
+        let layout = |shell: &Shell, control| {
+            let tree = shell.composition.tree.borrow();
+            let id = tree
+                .unique(composition::control_key(control))
+                .unwrap()
+                .unwrap();
+            tree.geometry(id).unwrap().layout
+        };
+        let reference_layout = layout(&shell, Control::Close);
+        for control in [
+            Control::Left,
+            Control::Right,
+            Control::Minimize,
+            Control::Maximize,
+        ] {
+            let bounds = controls.iter().find(|(c, _, _)| *c == control).unwrap().1;
+            let layout = layout(&shell, control);
+            assert_eq!(
+                (layout.y, layout.width, layout.height),
+                (
+                    reference_layout.y,
+                    reference_layout.width,
+                    reference_layout.height
+                )
+            );
+            assert_eq!(bounds.y, reference.y);
+            assert_eq!(bounds.height, reference.height);
+            assert!(bounds.width.abs_diff(reference.width) <= 1);
+            if std::env::var_os("GUI_FOCUS_CAPTURES").is_some() {
+                shell.pointer_move((
+                    bounds.x as f64 + bounds.width as f64 / 2.0,
+                    bounds.y as f64 + bounds.height as f64 / 2.0,
+                ));
+                let pixels = render(&shell);
+                capture_focus(
+                    &format!("hover-{control:?}"),
+                    &shell,
+                    &pixels,
+                    bounds.expanded(shell.px(4.0)),
+                );
+            }
+        }
+        assert_eq!(
+            shell.icons.get(Icon::Left, true).width,
+            (16.0 * scale).round() as u32
+        );
+        assert_eq!(
+            shell.icons.get(Icon::Right, true).width,
+            (16.0 * scale).round() as u32
+        );
+    }
+}
+
+#[test]
+fn rail_damage_repairs_alternating_buffers_like_a_full_repaint() {
+    let size = (1440, 900);
+    for scale in [1.0, 1.25] {
+        let mut shell = view(scale, size);
+        let mut buffers = [
+            vec![0_u32; (size.0 * size.1) as usize],
+            vec![0_u32; (size.0 * size.1) as usize],
+        ];
+        let mut expected = buffers[0].clone();
+        let mut damage = AgeRepaintTracker::default();
+        let origin = Instant::now();
+        for (cycle, control) in [Control::Left, Control::Right, Control::Left, Control::Right]
+            .into_iter()
+            .enumerate()
+        {
+            let now = origin + Duration::from_secs(cycle as u64);
+            shell.activate(control, now);
+            damage.invalidate(Damage::Full);
+            for frame in 0..=5 {
+                damage.invalidate(shell.tick(now + MOTION.mul_f32(frame as f32 / 5.0)));
+                let age = if cycle == 0 && frame < 2 { 0 } else { 2 };
+                let Some(plan) = damage.plan(age, size) else {
+                    continue;
+                };
+                let pixels = &mut buffers[frame % 2];
+                let paint = |pixels: &mut [u32], region: retinue_render::damage::Region| {
+                    let mut painter =
+                        Painter::new(bytemuck::cast_slice_mut(pixels), size.0, size.1).unwrap();
+                    painter.repair(&region);
+                    let clip = region.bounds();
+                    painter.fill_rounded_rect(
+                        clip.x,
+                        clip.y,
+                        clip.width,
+                        clip.height,
+                        0,
+                        BACKGROUND,
+                    );
+                    shell.paint(&mut painter);
+                    painter.finish().unwrap();
+                };
+                paint(pixels, plan.repair.clone());
+                paint(&mut expected, Damage::Full.regions(size));
+                let mismatch = pixels.iter().zip(&expected).position(|(a, b)| a != b);
+                assert!(pixels.iter().all(|pixel| pixel >> 24 == 255));
+                assert!(
+                    mismatch.is_none(),
+                    "scale {scale}, cycle {cycle}, frame {frame}: {:?}, repair {:?}",
+                    mismatch.map(|i| (
+                        (i % size.0 as usize, i / size.0 as usize),
+                        pixels[i],
+                        expected[i]
+                    )),
+                    plan.repair
+                );
+                damage.submitted();
+            }
+        }
+    }
+}
+
+fn view(scale: f32, size: (u32, u32)) -> Shell {
+    let mut view = Shell::new(Some(Snapshot::fixture()), scale).unwrap();
+    view.resize(size, 1.0).unwrap();
+    view
+}
+
+#[test]
+fn rails_reverse_without_jumping_and_preserve_responsive_preferences() {
+    let mut shell = view(1.0, (1440, 900));
+    let now = Instant::now();
+    assert_eq!(shell.geometry.left.width, 142);
+    assert_eq!(shell.geometry.right.width, 400);
+    shell.activate(Control::Left, now);
+    shell.tick(now + MOTION / 2);
+    assert_eq!(shell.geometry.left.width, 97);
+    let before = shell.geometry;
+    shell.activate(Control::Left, now + MOTION / 2);
+    shell.tick(now + MOTION / 2);
+    assert_eq!(shell.geometry, before);
+    shell.tick(now + MOTION * 2);
+    assert_eq!(shell.geometry.left.width, 142);
+    assert_eq!(shell.composition.deadline(now + MOTION * 2, FRAME), None);
+    shell.set_collapsed(true, false);
+    shell.resize((960, 600), 1.0).unwrap();
+    assert_eq!(shell.geometry.right.width, 0);
+    shell.resize((1440, 900), 1.0).unwrap();
+    assert_eq!(shell.geometry.left.width, 52);
+    assert_eq!(shell.geometry.right.width, 400);
+    shell.set_collapsed(true, true);
+    shell.resize((1920, 1080), 1.0).unwrap();
+    assert_eq!(shell.geometry.right.width, 0);
+    shell.resize((1024, 700), 1.0).unwrap();
+    shell.set_collapsed(false, false);
+    let now = Instant::now();
+    shell.activate(Control::Left, now);
+    for elapsed in [Duration::ZERO, MOTION / 2, MOTION] {
+        shell.tick(now + elapsed);
+        assert_eq!(shell.geometry.right.width, 0);
+    }
+    shell.show_market_rail();
+    assert_eq!(shell.geometry.right.width, 400);
+    let now = Instant::now();
+    shell.activate(Control::Right, now);
+    shell.tick(now + MOTION);
+    assert_eq!(shell.geometry.right.width, 0);
+    assert!(!shell.force_right);
+    assert!(!shell.right_available);
+    assert_eq!(shell.composition.deadline(now + MOTION, FRAME), None);
+}
+
+#[test]
+fn scaled_chrome_does_not_overlap_and_edges_survive_restore() {
+    for (scale, size) in [
+        (1.0, (1440, 900)),
+        (1.25, (1920, 1080)),
+        (1.5, (2560, 1440)),
+        (2.0, (960, 600)),
+    ] {
+        let mut shell = view(scale, size);
+        let g = shell.geometry;
+        assert_eq!(g.center.y + g.center.height, size.1);
+        assert!(g.left.x + g.left.width < g.center.x);
+        assert!(g.center.width >= shell.px(360.0));
+        assert!(g.center.x + g.center.width <= g.right.x);
+        let controls = shell.controls();
+        for (i, (control, rect, _)) in controls.iter().enumerate() {
+            assert!(rect.x + rect.width <= size.0);
+            for (next, other, _) in &controls[i + 1..] {
+                assert!(
+                    rect.intersection(*other).is_empty(),
+                    "{control:?} {rect:?} overlaps {next:?} {other:?} at {scale}"
+                );
+            }
+        }
+        let close = controls
+            .iter()
+            .find(|(c, _, _)| *c == Control::Close)
+            .unwrap()
+            .1;
+        assert_eq!(
+            shell.resize_direction((close.x as f64 + 1.0, close.y as f64 + 1.0)),
+            None
+        );
+        assert_eq!(
+            shell.resize_direction((1.0, 1.0)),
+            Some(ResizeDirection::NorthWest)
+        );
+        shell.maximized = true;
+        assert_eq!(shell.resize_direction((1.0, 1.0)), None);
+        shell.maximized = false;
+        assert_eq!(
+            shell.resize_direction((1.0, 1.0)),
+            Some(ResizeDirection::NorthWest)
+        );
+        shell.activate(Control::Larger, Instant::now());
+        if scale < 2.0 {
+            assert!((shell.settings.ui_scale - (scale + 0.05)).abs() < 0.001);
+        }
+    }
+}
+
+#[test]
+fn shell_accessibility_uses_window_coordinates_and_modal_focus_is_isolated() {
+    let mut shell = view(1.25, (1920, 1080));
+    shell.set_focus(Some(Focus::Page(settings::Action::ClearRendered)));
+    let tree = shell.accessibility();
+    assert_eq!(tree.tree.unwrap().root, NodeId(1));
+    let node = tree
+        .nodes
+        .iter()
+        .find(|(id, _)| *id == settings::Action::ClearRendered.id())
+        .unwrap();
+    assert!(node.1.bounds().unwrap().x0 >= shell.geometry.center.x as f64);
+    shell.settings.activate(settings::Action::ClearRendered);
+    shell.activate(Control::Left, Instant::now());
+    assert!(!shell.left_collapsed);
+    let tree = shell.accessibility();
+    assert!(!tree.nodes.iter().any(|(id, _)| *id == Control::Left.id()));
+    assert_eq!(tree.focus, settings::Action::Cancel.id());
+}
+
+#[test]
+fn chrome_release_on_page_does_not_activate_and_disabled_controls_do_not_focus() {
+    let mut shell = view(1.0, (1000, 760));
+    let now = Instant::now();
+    shell.pointer_move((50.0, 20.0));
+    shell.pointer_button(true, now);
+    shell.pointer_move((500.0, 300.0));
+    shell.pointer_button(false, now);
+    assert!(!shell.left_collapsed);
+    assert_eq!(shell.pressed, None);
+    let rect = shell
+        .controls()
+        .into_iter()
+        .find(|(c, _, _)| *c == Control::Right)
+        .unwrap()
+        .1;
+    shell.set_focus(None);
+    shell.pointer_move((rect.x as f64 + 3.0, rect.y as f64 + 3.0));
+    shell.pointer_button(true, now);
+    assert_eq!(shell.focus, None);
+}
+
+#[test]
+fn shell_renders_all_rail_states_at_fractional_scales() {
+    for scale in [1.0, 1.25, 1.5] {
+        let mut shell = view(scale, (1920, 1080));
+        let now = Instant::now();
+        shell.activate(Control::Left, now);
+        shell.activate(Control::Right, now);
+        for elapsed in [Duration::ZERO, MOTION / 2, MOTION] {
+            shell.tick(now + elapsed);
+            let mut pixels = vec![0_u8; 1920 * 1080 * 4];
+            let mut painter = Painter::new(&mut pixels, 1920, 1080).unwrap();
+            painter.fill_rounded_rect(0, 0, 1920, 1080, 0, BACKGROUND);
+            shell.paint(&mut painter);
+            painter.finish().unwrap();
+            assert!(pixels.chunks_exact(4).all(|p| p[3] == 255));
+        }
+    }
+}

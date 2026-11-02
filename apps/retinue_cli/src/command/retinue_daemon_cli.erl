@@ -189,9 +189,9 @@ print_protocols(Info) ->
     io:format("  protocol contracts:~n"),
     print_contract("CLI/MCP Erlang RPC",
                    maps:get(erlang_distribution_rpc, Protocols, #{})),
-    print_contract("Warframe GUI/companion JSON-lines Unix socket",
+    print_contract("Warframe GUI/companion Protobuf Unix socket",
                    maps:get(native_socket_api, Protocols, #{})),
-    print_contract("PoE2 companion JSON-lines Unix socket",
+    print_contract("PoE2 companion Protobuf Unix socket",
                    maps:get(poe2_socket_api, Protocols, #{})).
 
 print_contract(Label, Contract) when is_map(Contract) ->

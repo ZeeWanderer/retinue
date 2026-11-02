@@ -1,0 +1,19 @@
+[package]
+name = "retinue-ui-macros"
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Authoring macros for the Retinue UI SDK"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro-crate = "3.5"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits", "visit-mut"] }
+
+[dev-dependencies]
+# Exercise expansion from a caller that renames the runtime dependency.
+ui_alias = { package = "retinue-ui", path = "../retinue-ui", default-features = false }

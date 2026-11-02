@@ -1,0 +1,22 @@
+[package]
+name = "retinue-render"
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Retained 2D drawing, raster resources and Blend2D execution"
+
+[features]
+benchmark = []
+
+[dependencies]
+fontdue = "0.9.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+lru = { version = "0.19", default-features = false }
+rustc-hash = "2.1.3"
+sha2 = "0.10"
+tempfile = "3"
+unicode-linebreak = "0.1.5"
+unicode-segmentation = "1.13"
+
+[dev-dependencies]
+rustix = { version = "1", features = ["time"] }

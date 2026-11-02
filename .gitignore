@@ -14,6 +14,9 @@ _vendor
 *.swo
 .erlang.cookie
 ebin
+/apps/retinue_core/src/generated/
+/apps/wfcore/src/generated/
+/apps/poe2core/src/generated/
 log
 erl_crash.dump
 .rebar

@@ -2,7 +2,7 @@
     {description, "Retinue platform contracts"},
     {vsn, {file, "../../VERSION"}},
     {registered, []},
-    {applications, [kernel, stdlib]},
+    {applications, [kernel, stdlib, jsone]},
     {modules, []},
     {licenses, ["Apache-2.0"]}
 ]}.

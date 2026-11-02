@@ -217,17 +217,7 @@ polarity_yaml(Pol) ->
     end.
 
 sort_plan(Plan) ->
-    lists:sort(fun slot_order/2, maps:to_list(Plan)).
-
-slot_order(aura, aura) -> true;
-slot_order(aura, _) -> true;
-slot_order(_, aura) -> false;
-slot_order(exilus, exilus) -> true;
-slot_order(exilus, _) -> true;
-slot_order(_, exilus) -> false;
-slot_order(A, B) when is_integer(A), is_integer(B) -> A =< B;
-slot_order(A, _B) when is_integer(A) -> true;
-slot_order(_, _) -> true.
+    lists:keysort(1, maps:to_list(Plan)).
 
 -doc "Return per-slot build/mod labels for the config's current polarities.".
 -spec slot_mod_labels(config()) -> slot_mod_labels().

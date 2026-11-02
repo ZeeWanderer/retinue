@@ -1,6 +1,51 @@
 use crate::transition::ScalarTransition;
 use std::time::{Duration, Instant};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Padding {
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+    pub left: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Viewport {
+    pub bounds: crate::Rect,
+    pub padding: Padding,
+}
+
+impl Viewport {
+    pub fn content_width(self) -> u32 {
+        self.bounds
+            .width
+            .saturating_sub(self.padding.left.saturating_add(self.padding.right))
+    }
+
+    pub fn extent(self, content_height: u32) -> u32 {
+        self.padding
+            .top
+            .saturating_add(content_height)
+            .saturating_add(self.padding.bottom)
+    }
+
+    pub fn translation(self, offset: u32) -> (i32, i32) {
+        (
+            (self.bounds.x + self.padding.left) as i32,
+            (self.bounds.y + self.padding.top) as i32 - offset as i32,
+        )
+    }
+
+    pub fn visible_content(self, offset: u32) -> (u32, u32) {
+        (
+            offset.saturating_sub(self.padding.top),
+            self.bounds
+                .height
+                .saturating_sub(self.padding.top.saturating_sub(offset)),
+        )
+    }
+}
+
 #[derive(Default)]
 pub struct Scroll {
     position: ScalarTransition,
@@ -59,6 +104,53 @@ impl Scroll {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn padding_scrolls_with_content_instead_of_insetting_the_clip() {
+        let viewport = Viewport {
+            bounds: crate::Rect {
+                x: 10,
+                y: 20,
+                width: 100,
+                height: 80,
+            },
+            padding: Padding {
+                top: 12,
+                right: 7,
+                bottom: 16,
+                left: 5,
+            },
+        };
+        assert_eq!(viewport.content_width(), 88);
+        assert_eq!(viewport.extent(200), 228);
+        assert_eq!(viewport.translation(0), (15, 32));
+        assert_eq!(viewport.visible_content(0), (0, 68));
+        assert_eq!(viewport.translation(50), (15, -18));
+        assert_eq!(viewport.visible_content(50), (38, 80));
+        let now = Instant::now();
+        let mut scroll = Scroll::default();
+        scroll.resize(
+            viewport.extent(200) as f32,
+            viewport.bounds.height as f32,
+            now,
+        );
+        scroll.to(f32::MAX, false, now);
+        assert_eq!(scroll.maximum(), 148.0);
+        let (_, y) = viewport.translation(scroll.offset(now) as u32);
+        assert_eq!(y + 200 + viewport.padding.bottom as i32, 100);
+
+        let tiny = Viewport {
+            bounds: crate::Rect {
+                width: 3,
+                height: 4,
+                ..Default::default()
+            },
+            ..viewport
+        };
+        assert_eq!(tiny.content_width(), 0);
+        assert_eq!(tiny.visible_content(0), (0, 0));
+        assert_eq!(tiny.extent(0), 28);
+    }
 
     #[test]
     fn scroll_clamps_reveals_and_stops_waking_when_settled() {

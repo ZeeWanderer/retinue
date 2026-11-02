@@ -5,9 +5,7 @@ use serde::Serialize;
 
 use super::{DisplayNode, DisplayTree, Movie, geometry, registry};
 use crate::game_observer::{
-    ProcessIdentity,
-    adapter::ScaleformLayout,
-    memory::{self, ProcessMemory},
+    ProcessIdentity, adapter::ScaleformLayout, memory, memory::ProcessMemory,
 };
 
 const SQUAD: &str = "/Lotus/Interface/ThemedSquadOverlay.swf";

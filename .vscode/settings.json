@@ -9,9 +9,5 @@
     "--query-driver=**/clang++,**/x86_64-w64-mingw32-*"
   ],
   "C_Cpp.intelliSenseEngine": "disabled",
-  "makefile.configureOnOpen": false,
-  "cmake.ignoreCMakeListsMissing": false,
-  "cmake.configureOnOpen": false,
-  "cmake.configureArgs": ["--fresh"],
-  "cmake.useCMakePresets": "always"
+  "makefile.configureOnOpen": false
 }

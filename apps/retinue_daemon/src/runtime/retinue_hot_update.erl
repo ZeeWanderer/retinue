@@ -86,7 +86,7 @@ build_identity(Other) ->
 current_build_identity() ->
     case persistent_term:get(?BUILD_ID_KEY, undefined) of
         undefined ->
-            case read_applications([retinue_core, wfcore, retinue_daemon]) of
+            case read_applications([retinue_core, wfcore, poe2core, retinue_daemon]) of
                 {ok, Bundles} ->
                     case build_identity(Bundles) of
                         {ok, Identity} = Result ->
@@ -182,7 +182,8 @@ bundle_manifest([Bundle | _Rest], _Acc) ->
 
 allowed_module(Module) ->
     Name = atom_to_list(Module),
-    lists:prefix("retinue_", Name) orelse lists:prefix("wf_", Name).
+    lists:prefix("retinue_", Name) orelse lists:prefix("wf_", Name) orelse
+    lists:prefix("poe2_", Name).
 
 apply_validated(Bundles, BuildIdentity) ->
     case recover_pending() of

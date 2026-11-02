@@ -8,7 +8,6 @@ SCCACHE_BASEDIRS ?= $(CURDIR)
 SCCACHE_DIR ?= $(CURDIR)/.cache/sccache
 SCCACHE_SERVER_UDS ?= $(CURDIR)/.cache/sccache.sock
 LLVM_ROOT ?= $(shell command -v clang >/dev/null 2>&1 && dirname "$$(dirname "$$(realpath "$$(command -v clang)")")")
-NINJA ?= $(shell command -v ninja 2>/dev/null)
 
 ifneq ($(strip $(LLVM_ROOT)),)
 export LLVM_ROOT
@@ -32,9 +31,6 @@ PREVIEW_SETS ?= companion reference
 PREVIEW_SCENES ?= all
 PREVIEW_RESOLUTIONS ?= 1920x1080 2560x1440
 PREVIEW_DEPS = $(if $(findstring companion,$(PREVIEW_SETS)),dev-companion)
-ICON_OPTICS_SCALE ?= 1.25
-ICON_OPTICS_OUTPUT ?= $(CURDIR)/previews/optics
-ICON_OPTICS_CONFIG ?= $(CURDIR)/tools/icon-optics/foundry.json
 BENCH_SAMPLES ?= 60
 BENCH_THREADS ?= 1
 BENCH_HZ ?= 0
@@ -57,9 +53,8 @@ export RUSTC_WRAPPER CMAKE_C_COMPILER_LAUNCHER CMAKE_CXX_COMPILER_LAUNCHER
 endif
 
 .PHONY: all build dev prod erlang cli daemon mcp companion inspect dev-inspect prod-inspect gui gui-dev gui-prod sccache-setup \
-	gui-qt-dev gui-qt-prod gui-qt-configure-dev gui-qt-configure-prod \
 	dev-erlang prod-erlang dev-companion prod-companion links \
-	debug-bridge native-bridges previews previews-all previews-wf previews-poe2 icon-optics ui-reference-setup fix-executables \
+	debug-bridge native-bridges previews previews-all previews-wf previews-poe2 ui-reference-setup fix-executables \
 	native-compile-commands bench-overlays bench-overlay-scheduling test test-erlang test-companion test-poe2 test-gui test-release test-staging test-build check fmt-check xref package clean
 
 # These phases share build trees; their internal compiler jobs remain parallel.
@@ -75,18 +70,38 @@ gui-prod: sccache-setup
 	./scripts/stage-gui prod
 
 test-gui: sccache-setup
-	+$(CARGO) test --locked -p retinue-ui --no-default-features --features desktop
-	+$(CARGO) test --locked -p wfgui --all-targets
+	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features --features retinue-ui/desktop --all-targets
+	+$(MAKE) test-gui-app
 
-.PHONY: test-composition composition-demo bench-composition
+.PHONY: test-gui-app
+test-gui-app: sccache-setup
+	+$(CARGO) test --locked -p wfgui --all-targets $(GUI_TEST)
+
+.PHONY: test-composition test-ui-sdk test-ui-macros view-demo view-sdk-demo view-sdk-content bench-views bench-repair
 test-composition: sccache-setup
-	+$(CARGO) test --locked -p retinue-ui --no-default-features
+	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features
 
-composition-demo: sccache-setup
-	+$(CARGO) run --locked --release -p wfgui --example composition -- $(COMPOSITION_ARGS)
+test-ui-sdk: sccache-setup
+	+$(CARGO) test --locked -p retinue-ui --no-default-features $(UI_TEST)
 
-bench-composition: sccache-setup
-	+RETINUE_BENCH_THREADS=4 RETINUE_BENCH_OUTPUT="$(or $(COMPOSITION_OUTPUT),research/retinue/ui-composition)" $(CARGO) run --locked --release -p wfgui --example composition -- --benchmark --output "$(or $(COMPOSITION_OUTPUT),research/retinue/ui-composition)" $(COMPOSITION_ARGS)
+test-ui-macros: sccache-setup
+	+$(CARGO) test --locked -p retinue-ui-macros
+
+bench-repair: sccache-setup
+	@test -n "$(REPAIR_REPORT)" || { printf '%s\n' 'Set REPAIR_REPORT to a JSONL report path'; exit 2; }
+	+RETINUE_REPAIR_REPORT="$(abspath $(REPAIR_REPORT))" $(CARGO) test --locked --release -p retinue-render --features benchmark repair_benchmark -- --ignored --test-threads=1
+
+view-demo: sccache-setup
+	+$(CARGO) run --locked --release -p retinue-ui --no-default-features --features desktop --example views -- $(VIEW_ARGS)
+
+view-sdk-demo: sccache-setup
+	+$(CARGO) run --locked -p retinue-ui --no-default-features --example retained -- $(or $(VIEW_OUTPUT),research/retinue/ui-sdk/view-runtime/example)
+
+view-sdk-content: sccache-setup
+	+$(CARGO) run --locked -p retinue-ui --no-default-features --example content -- $(or $(VIEW_OUTPUT),research/retinue/ui-sdk/content/example)
+
+bench-views: sccache-setup
+	+RETINUE_BENCH_THREADS=4 RETINUE_BENCH_OUTPUT="$(or $(VIEW_OUTPUT),research/retinue/ui-views)" $(CARGO) run --locked --release -p retinue-ui --no-default-features --features desktop --example views -- --benchmark --output "$(or $(VIEW_OUTPUT),research/retinue/ui-views)" $(VIEW_ARGS)
 
 .PHONY: test-gui-live
 test-gui-live: sccache-setup
@@ -95,7 +110,7 @@ test-gui-live: sccache-setup
 .PHONY: bench-gui
 bench-gui: sccache-setup
 	@test -n "$(GUI_BENCH_OUTPUT)" || { printf '%s\n' 'Set GUI_BENCH_OUTPUT to a JSON report path'; exit 2; }
-	+GUI_BENCH_OUTPUT="$(abspath $(GUI_BENCH_OUTPUT))" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --profile $(or $(GUI_BENCH_PROFILE),test) -p wfgui --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
+	+GUI_BENCH_OUTPUT="$(abspath $(GUI_BENCH_OUTPUT))" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --profile $(or $(GUI_BENCH_PROFILE),test) -p wfgui $(if $(GUI_BENCH_FEATURES),--features $(GUI_BENCH_FEATURES)) --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
 
 all: dev
 build: dev prod
@@ -129,22 +144,6 @@ previews-gui: gui-dev
 	GUI_PREVIEW_PAGES='$(GUI_PREVIEW_PAGES)' GUI_PREVIEW_SCALES='$(GUI_PREVIEW_SCALES)' \
 	GUI_PREVIEW_RESOLUTIONS='$(GUI_PREVIEW_RESOLUTIONS)' GUI_PREVIEW_LIVE='$(GUI_PREVIEW_LIVE)' \
 	node tools/ui-reference/gui-previews.mjs
-
-gui-qt-configure-dev: sccache-setup
-	test -n "$(NINJA)"
-	+cmake --fresh --preset gui-dev --log-level=WARNING -DCMAKE_MAKE_PROGRAM="$(NINJA)"
-
-gui-qt-dev: gui-qt-configure-dev
-	+cmake --build --preset gui-dev
-	./scripts/stage-gui dev qt
-
-gui-qt-configure-prod: sccache-setup
-	test -n "$(NINJA)"
-	+cmake --fresh --preset gui-prod --log-level=WARNING -DCMAKE_MAKE_PROGRAM="$(NINJA)"
-
-gui-qt-prod: gui-qt-configure-prod
-	+cmake --build --preset gui-prod
-	./scripts/stage-gui prod qt
 
 dev-erlang:
 	$(REBAR3) escriptize
@@ -182,7 +181,6 @@ links:
 	ln -sfn dev/bin/wfinspect wfinspectd
 	ln -sfn dev/bin/wf-luau-decompiler wf-luau-decompilerd
 	ln -sfn dev/bin/wfgui wfguid
-	ln -sfn dev/bin/wfgui-qt wfgui-qtd
 	ln -sfn prod/bin/retinue retinue
 	ln -sfn prod/bin/wfcli wfcli
 	ln -sfn prod/bin/poe2cli poe2cli
@@ -195,7 +193,6 @@ links:
 	ln -sfn prod/bin/wfinspect wfinspect
 	ln -sfn prod/bin/wf-luau-decompiler wf-luau-decompiler
 	ln -sfn prod/bin/wfgui wfgui
-	ln -sfn prod/bin/wfgui-qt wfgui-qt
 
 debug-bridge: sccache-setup
 	./scripts/build-debug-bridge
@@ -216,12 +213,6 @@ previews-all previews-wf previews-poe2: $(PREVIEW_DEPS)
 	PREVIEW_RESOLUTIONS='$(PREVIEW_RESOLUTIONS)' \
 	./scripts/generate-previews $(if $(filter previews-all,$@),all,$(if $(filter previews-wf,$@),warframe,poe2))
 
-icon-optics: gui-qt-configure-dev
-	+cmake --build --preset gui-dev --target wfgui_icon_optics
-	QT_QPA_PLATFORM=offscreen _build/cmake/gui-dev/apps/wfgui/qt/wfgui-icon-optics \
-		--config "$(ICON_OPTICS_CONFIG)" --ui-scale "$(ICON_OPTICS_SCALE)" \
-		--output-dir "$(ICON_OPTICS_OUTPUT)"
-
 ui-reference-setup:
 	./scripts/setup-ui-reference
 
@@ -234,11 +225,22 @@ test-erlang:
 	./scripts/test-quiet eunit
 	./scripts/test-quiet ct
 
+.PHONY: test-protocol
+test-protocol: sccache-setup
+	+$(CARGO) test --locked -p retinue-protocol -p retinue-client
+
 test-companion: native-bridges
 	python3 -m unittest discover -s tools/render-bench
-	+$(CARGO) test --locked --quiet -p retinue-client -p retinue-native -p retinue-ui -p retinue-poe2 -p retinue-warframe -p retinue-inspect -p arccompanion --features retinue-ui/benchmark
+	+$(CARGO) test --locked --quiet -p retinue-protocol -p retinue-client -p retinue-native -p retinue-render -p retinue-ui -p retinue-poe2 -p retinue-warframe -p retinue-inspect -p arccompanion --features retinue-ui/benchmark
 	+$(CARGO) test --locked --quiet --manifest-path $(COMPANION_MANIFEST)
 	+$(CARGO) test --locked --quiet --manifest-path $(POE2_COMPANION_MANIFEST)
+
+.PHONY: test-wfcompanion test-poe2companion
+test-wfcompanion: sccache-setup
+	+$(CARGO) test --locked --manifest-path $(COMPANION_MANIFEST) $(COMPANION_TEST)
+
+test-poe2companion: sccache-setup
+	+$(CARGO) test --locked --manifest-path $(POE2_COMPANION_MANIFEST) $(COMPANION_TEST)
 
 bench-overlays: export RETINUE_BENCH_OUTPUT := $(abspath $(BENCH_OUTPUT))
 bench-overlays: export RETINUE_BENCH_SAMPLES := $(BENCH_SAMPLES)
@@ -259,8 +261,9 @@ bench-overlay-scheduling: native-bridges
 	+$(CARGO) test --release --locked -p poe2companion --lib overlay_scheduling_benchmark -- --ignored --nocapture --test-threads=1
 
 test-poe2: dev-erlang dev-companion
+	+$(CARGO) build --locked -p retinue-protocol --example fixture-codec
 	python3 ./scripts/tests/poe2_reports.py
-	python3 ./scripts/tests/poe2.py --stage dev
+	python3 ./scripts/tests/poe2.py --stage dev --codec "$(CARGO_TARGET_DIR)/debug/examples/fixture-codec"
 
 test-staging:
 	./scripts/test-storage-migration

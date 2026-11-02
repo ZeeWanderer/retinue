@@ -1,0 +1,457 @@
+syntax = "proto3";
+package retinue.poe2.v1;
+import "retinue_wire.proto";
+
+// Missing outer field, null branch, and value branch are distinct. The null
+// branch must be true. No protobuf JSON Value/Struct or float coercion of u64.
+message NullableString { oneof kind { string value = 1; bool null = 2; } }
+message NullableBool { oneof kind { bool value = 1; bool null = 2; } }
+message NullableUint32 { oneof kind { uint32 value = 1; bool null = 2; } }
+message NullableUint64 { oneof kind { uint64 value = 1; bool null = 2; } }
+message NullableSint32 { oneof kind { sint32 value = 1; bool null = 2; } }
+message NullableSint64 { oneof kind { sint64 value = 1; bool null = 2; } }
+
+// Parsed trade numbers may be integers or floats. Preserve both representations.
+message Number {
+  oneof kind {
+    sint64 integer = 1;
+    uint64 unsigned = 2;
+    double real = 3;
+    bool null = 4;
+  }
+}
+
+// A present, empty list must not become a missing argument/default selection.
+message StringList { repeated string values = 1; }
+message NumberList { repeated Number values = 1; }
+
+message Process {
+  optional uint32 pid = 1;
+  optional uint64 started = 2;
+  optional string executable = 3;
+  optional uint64 image_base = 4;
+}
+message ProcessIdentity { optional uint32 pid = 1; optional uint64 started = 2; }
+message NullableProcess { oneof kind { Process value = 1; bool null = 2; } }
+
+message Player {
+  optional string name = 1;
+  NullableString class = 2;
+  optional uint32 level = 3;
+  optional uint32 experience = 4;
+  NullableSint32 gold = 5;
+  NullableSint32 life = 6;
+}
+message NullablePlayer { oneof kind { Player value = 1; bool null = 2; } }
+message Area {
+  optional string name = 1;
+  optional bool in_town = 2;
+  optional uint32 change_key = 3;
+}
+message NullableArea { oneof kind { Area value = 1; bool null = 2; } }
+message Panels {
+  NullableBool passive_tree = 1;
+  NullableBool stash = 2;
+  NullableBool inventory = 3;
+  NullableBool character_sheet = 4;
+  NullableBool market = 5;
+}
+message Identity {
+  optional string character = 1;
+  optional string account = 2;
+  optional string league = 3;
+}
+message NullableIdentity { oneof kind { Identity value = 1; bool null = 2; } }
+message PartyMember {
+  optional string character = 1;
+  optional string account = 2;
+  NullableString league = 3;
+  NullableUint32 class_id = 4;
+  NullableUint32 level = 5;
+}
+message PartyMemberList { repeated PartyMember values = 1; }
+message Social { NullableIdentity local = 1; PartyMemberList party = 2; }
+message NullableSocial { oneof kind { Social value = 1; bool null = 2; } }
+message UniqueMonster {
+  optional uint32 id = 1;
+  optional uint64 address = 2;
+  optional string name = 3;
+  optional sint32 life = 4;
+}
+message UniqueMonsterList { repeated UniqueMonster values = 1; }
+message Entities {
+  optional uint64 tree = 1;
+  optional uint32 area_key = 2;
+  optional uint32 count = 3;
+  UniqueMonsterList unique_monsters = 4;
+}
+message NullableEntities { oneof kind { Entities value = 1; bool null = 2; } }
+message Issue { optional string field = 1; optional string reason = 2; }
+message IssueList { repeated Issue values = 1; }
+message Snapshot {
+  optional string scene = 1;
+  StringList states = 2;
+  NullablePlayer player = 3;
+  NullableArea area = 4;
+  Panels panels = 5;
+  IssueList issues = 6;
+  NullableSocial social = 7;
+  NullableEntities entities = 8;
+}
+message NullableSnapshot { oneof kind { Snapshot value = 1; bool null = 2; } }
+message Sample {
+  optional string stream = 1;
+  optional uint64 sequence = 2;
+  optional uint64 observed_at = 3;
+  optional string status = 4;
+  NullableProcess process = 5;
+  NullableSnapshot snapshot = 6;
+  NullableString error = 7;
+}
+message SceneState { optional string scene = 1; StringList states = 2; }
+message Character { optional string name = 1; NullableString class = 2; }
+message EventValue {
+  oneof kind {
+    bool null = 1;
+    sint64 integer = 2;
+    bool boolean = 3;
+    SceneState state = 4;
+    Area area = 5;
+    Character character = 6;
+  }
+}
+message SessionEvent {
+  optional string stream = 1;
+  optional uint64 sequence = 2;
+  optional uint64 observed_at = 3;
+  ProcessIdentity process = 4;
+  optional string kind = 5;
+  EventValue from = 6;
+  EventValue to = 7;
+  optional string character = 8;
+  optional string panel = 9;
+  optional uint32 id = 10;
+  optional uint64 address = 11;
+  optional string name = 12;
+  optional uint64 tree = 13;
+  optional uint32 area_key = 14;
+}
+message SessionEventList { repeated SessionEvent values = 1; }
+message Receipt { optional bool connected = 1; optional uint64 received_at = 2; }
+message Session {
+  optional uint32 schema = 1;
+  optional string game = 2;
+  optional uint64 revision = 3;
+  NullableUint64 updated_at = 4;
+  NullableString stream = 5;
+  NullableUint64 sequence = 6;
+  NullableUint64 observed_at = 7;
+  optional string status = 8;
+  NullableProcess process = 9;
+  NullableSnapshot current = 10;
+  NullableString error = 11;
+  SessionEventList events = 12;
+  Receipt receipt = 13;
+}
+message SessionPublished { optional uint64 revision = 1; optional bool unchanged = 2; }
+
+message Filter {
+  optional string id = 1;
+  Number min = 2;
+  Number max = 3;
+}
+message FilterList { repeated Filter values = 1; }
+message LevelRange { NullableUint32 min = 1; NullableUint32 max = 2; }
+message NullableLevelRange { oneof kind { LevelRange value = 1; bool null = 2; } }
+message Range { Number min = 1; Number max = 2; }
+message ProfileRanges { Range allmods = 1; Range fuzzy = 2; }
+message Property { optional string text = 1; }
+message PropertyList { repeated Property values = 1; }
+message Magnitude { Number value = 1; Number min = 2; Number max = 3; }
+message MagnitudeList { repeated Magnitude values = 1; }
+message Decorator {
+  optional string raw = 1;
+  optional uint32 group = 2;
+  optional string name = 3;
+  optional string affix = 4;
+  optional uint32 tier = 5;
+  StringList tags = 6;
+}
+message TierInfo { optional uint32 current = 1; optional uint32 count = 2; optional uint32 max = 3; }
+message Modifier {
+  optional string key = 1;
+  optional string text = 2;
+  optional string section = 3;
+  NullableString id = 4;
+  Number min = 5;
+  Number max = 6;
+  optional bool supported = 7;
+  optional string resolution = 8;
+  optional bool selected = 9;
+  optional bool quick_selected = 10;
+  optional bool exact_selected = 11;
+  optional bool base_selected = 12;
+  ProfileRanges ranges = 13;
+  MagnitudeList magnitudes = 14;
+  Decorator decorator = 15;
+  optional string display_template = 16;
+  NumberList display_values = 17;
+  optional bool negated = 18;
+  Number ranking_score = 19;
+  StringList internal_ids = 20;
+  TierInfo tier_info = 21;
+}
+message ModifierList { repeated Modifier values = 1; }
+message ConditionFilters {
+  optional bool identified = 1;
+  optional bool mirrored = 2;
+  optional bool split = 3;
+  optional bool sanctified = 4;
+  optional bool corrupted = 5;
+  optional bool twice_corrupted = 6;
+}
+message Condition {
+  NullableString id = 1;
+  optional string text = 2;
+  ConditionFilters filters = 3;
+}
+message ConditionList { repeated Condition values = 1; }
+message TradeItem {
+  optional string name = 1;
+  optional string base = 2;
+  optional string rarity = 3;
+  NullableString item_class = 4;
+  NullableString category = 5;
+  optional string ranking_status = 6;
+  optional bool base_required = 7;
+  optional bool auto_search = 8;
+  StringList profiles = 9;
+  optional string default_profile = 10;
+  optional string trade_unavailable = 11;
+  NullableUint32 item_level = 12;
+  PropertyList properties = 13;
+  ModifierList modifiers = 14;
+  ConditionList conditions = 15;
+  optional bool corrupted = 16;
+  optional bool unidentified = 17;
+}
+message NullableTradeItem { oneof kind { TradeItem value = 1; bool null = 2; } }
+message Choice { NullableString id = 1; optional string text = 2; }
+message ChoiceList { repeated Choice values = 1; }
+message League { optional string id = 1; optional string text = 2; }
+message LeagueList { repeated League values = 1; }
+message SearchOptions {
+  ChoiceList status = 1;
+  ChoiceList rarity = 2;
+  ChoiceList currency = 3;
+  ChoiceList indexed = 4;
+}
+message RateWindow { optional double usage = 1; optional uint64 expires_in_ms = 2; }
+message RateWindowList { repeated RateWindow values = 1; }
+message RateBudget {
+  optional uint64 observed_at_ms = 1;
+  RateWindowList windows = 2;
+  optional uint64 retry_after_ms = 3;
+}
+message TradeLeagues {
+  LeagueList leagues = 1;
+  optional string league = 2;
+  RateBudget rate_budget = 3;
+}
+message TradeEvaluation {
+  TradeItem item = 1;
+  LeagueList leagues = 2;
+  optional string league = 3;
+  SearchOptions search_options = 4;
+  optional bool prediction_available = 5;
+  RateBudget rate_budget = 6;
+}
+message Listing {
+  optional string id = 1;
+  optional string name = 2;
+  optional string base = 3;
+  NullableUint32 item_level = 4;
+  NullableUint32 gem_level = 5;
+  NullableUint32 required_level = 6;
+  NullableUint32 gem_sockets = 7;
+  NullableTradeItem item = 8;
+  optional string type = 9;
+  optional uint32 quality = 10;
+  NullableSint64 indexed_at = 11;
+  Number amount = 12;
+  optional string currency = 13;
+  optional string account = 14;
+  optional bool online = 15;
+  optional string indexed = 16;
+}
+message ListingList { repeated Listing values = 1; }
+message TradeResults {
+  optional string search_id = 1;
+  optional string url = 2;
+  optional uint64 total = 3;
+  optional uint64 returned = 4;
+  NullableUint32 next_offset = 5;
+  ListingList listings = 6;
+  RateBudget rate_budget = 7;
+}
+message NullableTradeResults { oneof kind { TradeResults value = 1; bool null = 2; } }
+message TradePage {
+  optional string search_id = 1;
+  optional uint32 offset = 2;
+  NullableUint32 next_offset = 3;
+  ListingList listings = 4;
+  RateBudget rate_budget = 5;
+}
+message TradeRestoration {
+  NullableTradeResults results = 1;
+  optional bool auto_search_allowed = 2;
+  RateBudget rate_budget = 3;
+}
+message Uncertainty { Number low = 1; Number high = 2; Number confidence = 3; }
+message Estimate { Number amount = 1; optional string currency = 2; Uncertainty uncertainty = 3; }
+message NullableEstimate { oneof kind { Estimate value = 1; bool null = 2; } }
+message TradePrediction {
+  NullableEstimate estimate = 1;
+  optional string reason = 2;
+  RateBudget rate_budget = 3;
+}
+message TradeError {
+  optional string reason = 1;
+  optional uint64 retry_after_seconds = 2;
+  RateBudget rate_budget = 3;
+}
+message CurrencyAsset {
+  optional string id = 1;
+  optional string text = 2;
+  optional string image = 3;
+  NullableString tier = 4;
+  optional string digest = 5;
+  optional string media_type = 6;
+  optional uint64 byte_size = 7;
+  optional string path = 8;
+}
+
+// The packet id is authoritative. op/id are optional compatibility fields;
+// decode_request restores the operation and the fixed session dataset.
+message GetSessionRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string dataset = 3;
+}
+message SubscribeSessionRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string dataset = 3;
+}
+message UnsubscribeSessionRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional uint64 subscription = 3;
+}
+message PublishSessionRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string dataset = 3;
+  Sample data = 4;
+}
+// Shared diagnostics have an intentionally extensible, lossless document API.
+message PublishChecksRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string dataset = 3;
+  retinue.wire.v1.Document data = 4;
+}
+message TradeLeaguesRequest {
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string game = 15;
+}
+message TradeFetchRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string search_id = 3;
+  optional uint32 offset = 4;
+}
+message CurrencyAssetRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string currency = 3;
+}
+
+// All four text operations accept this argument surface in the existing API.
+// Fields stay flat so each request decodes to the existing handler map.
+message TradeItemRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string text = 3;
+  optional string league = 4;
+  NullableString status = 5;
+  NullableString rarity = 6;
+  NullableString currency = 7;
+  NullableString indexed = 8;
+  NullableLevelRange item_level = 9;
+  optional string sort = 10;
+  optional bool base = 11;
+  FilterList filters = 12;
+  StringList conditions = 13;
+  optional bool refresh = 14;
+}
+message TradeSearchRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string text = 3;
+  optional string league = 4;
+  NullableString status = 5;
+  NullableString rarity = 6;
+  NullableString currency = 7;
+  NullableString indexed = 8;
+  NullableLevelRange item_level = 9;
+  optional string sort = 10;
+  optional bool base = 11;
+  FilterList filters = 12;
+  StringList conditions = 13;
+  optional bool refresh = 14;
+}
+message TradeRestoreRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string text = 3;
+  optional string league = 4;
+  NullableString status = 5;
+  NullableString rarity = 6;
+  NullableString currency = 7;
+  NullableString indexed = 8;
+  NullableLevelRange item_level = 9;
+  optional string sort = 10;
+  optional bool base = 11;
+  FilterList filters = 12;
+  StringList conditions = 13;
+  optional bool refresh = 14;
+}
+message TradePredictRequest {
+  optional string game = 15;
+  optional string op = 1;
+  optional uint64 id = 2;
+  optional string text = 3;
+  optional string league = 4;
+  NullableString status = 5;
+  NullableString rarity = 6;
+  NullableString currency = 7;
+  NullableString indexed = 8;
+  NullableLevelRange item_level = 9;
+  optional string sort = 10;
+  optional bool base = 11;
+  FilterList filters = 12;
+  StringList conditions = 13;
+  optional bool refresh = 14;
+}

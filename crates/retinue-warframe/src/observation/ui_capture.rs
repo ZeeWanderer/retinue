@@ -7,9 +7,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::game_observer::ProcessIdentity;
-use crate::game_observer::adapter::{self, AdapterSupport, ScaleformLayout};
 use crate::game_observer::memory::{CaptureBlock, ProcessMemory, Region};
-use crate::game_observer::ui::{self, Movie, ScanMetrics, Snapshot, TextScan};
+use crate::game_observer::{
+    adapter,
+    adapter::{AdapterSupport, ScaleformLayout},
+};
+use crate::game_observer::{
+    ui,
+    ui::{Movie, ScanMetrics, Snapshot, TextScan},
+};
 use retinue_native::recording::Directory;
 use retinue_native::work::{Budget, Limits};
 

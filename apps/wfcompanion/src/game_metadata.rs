@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use retinue_warframe::game_observer::metadata;
 use serde_json::Value;
 
-use crate::daemon::{self, OutboundSender};
 use crate::runtime::{inbox, session::Session};
+use crate::{daemon, daemon::OutboundSender};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(250);

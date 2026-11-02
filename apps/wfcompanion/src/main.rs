@@ -2,19 +2,19 @@ mod assets;
 mod capture;
 mod daemon;
 mod desktop;
+mod domain;
 mod ducats;
 mod external;
 mod game_metadata;
 mod incident;
 mod inventory;
 mod observer;
-mod overlay;
 mod paths;
+mod presentation;
 mod preview;
 mod relic;
 mod runtime;
 mod shortcut;
-mod ui;
 
 #[cfg(test)]
 #[path = "../../../tools/render-bench/support.rs"]

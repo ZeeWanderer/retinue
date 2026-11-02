@@ -12,10 +12,15 @@
 -define(SERVER, ?MODULE).
 -define(SCHEMA, 2).
 -define(PERSIST_DELAY_MS, 250).
+-define(DEFAULT_AUDIT_TIMEOUT_MS, 60000).
+-define(REFRESH_TIMEOUT_MS, 120000).
+-define(HIBERNATE_AFTER_MS, 30000).
 
 -doc "Start current resolution-issue registry.".
 -spec start_link() -> {ok, pid()} | ignore | {error, term()}.
-start_link() -> gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [],
+                          [{hibernate_after, ?HIBERNATE_AFTER_MS}]).
 
 -doc "Replace all current issues reported by one complete projection scope.".
 -spec reconcile(binary(), [map()]) -> ok.
@@ -24,7 +29,7 @@ reconcile(Scope, Issues) when is_binary(Scope), is_list(Issues) ->
 
 -doc "Re-audit current player equipment against current metadata sources.".
 -spec refresh() -> ok | {error, term()}.
-refresh() -> gen_server:call(?SERVER, refresh, 120000).
+refresh() -> gen_server:call(?SERVER, refresh, ?REFRESH_TIMEOUT_MS).
 
 -doc "Return sorted current resolution issues.".
 -spec list() -> [map()].
@@ -40,17 +45,17 @@ init([]) ->
     {Subscription, Snapshot} = subscribe_player(),
     self() ! {refresh, Snapshot},
     {ok, #{schema => ?SCHEMA, path => Path, issues => Issues,
-           subscription => Subscription,
+           subscription => Subscription, subscription_view => metadata,
+           audit_worker => undefined, audit_pending => false, audit_waiters => #{},
            dirty => false, persist_timer => undefined, refresh_error => undefined}}.
 
 handle_call({reconcile, Scope, Issues}, _From, State) ->
     {reply, ok, apply_reconcile(Scope, Issues, State)};
-handle_call(refresh, _From, State) ->
-    case audit(wf_player_service:snapshot()) of
-        {ok, Issues} -> {reply, ok, apply_reconcile(<<"player_metadata">>, Issues,
-                                                   State#{refresh_error => undefined})};
-        {error, Reason} -> {reply, {error, Reason}, State#{refresh_error => Reason}}
-    end;
+handle_call(refresh, From = {Client, _Tag}, State) ->
+    Monitor = erlang:monitor(process, Client),
+    Timer = erlang:send_after(?REFRESH_TIMEOUT_MS - 1000, self(), {audit_waiter_timeout, Monitor}),
+    Waiters = (maps:get(audit_waiters, State))#{Monitor => #{from => From, timer => Timer}},
+    {noreply, request_audit(State#{audit_waiters => Waiters})};
 handle_call(list, _From, State) ->
     {reply, sorted(maps:values(maps:get(issues, State))), State};
 handle_call(status, _From, State) ->
@@ -63,49 +68,150 @@ handle_call(Request, _From, State) ->
 
 handle_cast(_Message, State) -> {noreply, State}.
 
-handle_info({refresh, Snapshot}, State) ->
-    {noreply, refresh_snapshot(Snapshot, State)};
-handle_info({wf_player, Ref, _Source, Snapshot},
+handle_info({refresh, _Snapshot}, State) ->
+    {noreply, request_audit(State)};
+handle_info({wf_player, Ref, _Source, _Snapshot},
             State = #{subscription := Ref}) ->
-    {noreply, refresh_snapshot(Snapshot, State)};
+    {noreply, request_audit(State)};
 handle_info(refresh_current, State) ->
-    {noreply, refresh_snapshot(wf_player_service:snapshot(), State)};
+    {noreply, request_audit(ensure_metadata_subscription(State))};
+handle_info({audit_result, Token, Result},
+            State = #{audit_worker := #{token := Token} = Worker}) ->
+    {noreply, State#{audit_worker => Worker#{result => Result}}};
+handle_info({audit_timeout, Token},
+            State = #{audit_worker := #{token := Token, pid := Pid} = Worker}) ->
+    exit(Pid, kill),
+    {noreply, State#{audit_worker => Worker#{timed_out => true}}};
+handle_info({'DOWN', Monitor, process, _Pid, Reason},
+            State = #{audit_worker := #{monitor := Monitor} = Worker}) ->
+    cancel_timer(maps:get(timer, Worker)),
+    Result = case maps:get(timed_out, Worker, false) of
+        true -> {error, resolution_audit_timeout};
+        false -> maps:get(result, Worker, {error, {resolution_audit_worker_down, Reason}})
+    end,
+    {noreply, finish_audit(Result, State#{audit_worker => undefined})};
+handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
+    case maps:take(Monitor, maps:get(audit_waiters, State)) of
+        error -> {noreply, State};
+        {#{timer := Timer}, Waiters} ->
+            cancel_timer(Timer),
+            {noreply, State#{audit_waiters => Waiters}}
+    end;
+handle_info({audit_waiter_timeout, Monitor}, State) ->
+    case maps:take(Monitor, maps:get(audit_waiters, State)) of
+        error -> {noreply, State};
+        {#{from := From, timer := Timer}, Waiters} ->
+            cancel_timer(Timer),
+            erlang:demonitor(Monitor, [flush]),
+            gen_server:reply(From, {error, resolution_audit_timeout}),
+            {noreply, State#{audit_waiters => Waiters}}
+    end;
 handle_info(persist, State) ->
     {noreply, persist(State#{persist_timer => undefined})};
 handle_info(_Message, State) -> {noreply, State}.
 
 terminate(_Reason, State) ->
+    stop_audit(State),
+    maps:foreach(fun(Monitor, #{timer := Timer}) ->
+                     cancel_timer(Timer),
+                     erlang:demonitor(Monitor, [flush])
+                 end,
+                 maps:get(audit_waiters, State, #{})),
     cancel_timer(maps:get(persist_timer, State, undefined)),
     _ = persist(State#{persist_timer => undefined}),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
+    stop_audit(State),
     Current = #{schema => ?SCHEMA,
                 path => maps:get(path, State, path()),
                 issues => maps:get(issues, State, #{}),
                 subscription => maps:get(subscription, State, undefined),
+                subscription_view => maps:get(subscription_view, State, full),
+                audit_worker => undefined, audit_pending => false,
+                audit_waiters => maps:get(audit_waiters, State, #{}),
                 dirty => maps:get(dirty, State, false),
                 persist_timer => maps:get(persist_timer, State, undefined),
                 refresh_error => maps:get(refresh_error, State, undefined)},
+    self() ! refresh_current,
     case maps:get(schema, State, undefined) of
         ?SCHEMA -> {ok, Current};
         _OldSchema ->
-            self() ! refresh_current,
             {ok, mark_dirty(Current#{issues => #{}})}
     end.
 
 subscribe_player() ->
-    case wf_player_service:subscribe(self()) of
+    case wf_player_service:subscribe(self(), metadata) of
         {ok, Ref, Snapshot} -> {Ref, Snapshot};
         {error, Reason} -> {undefined, #{revision => 0, updated_at => undefined,
                                         data => #{<<"resolution_error">> => Reason}}}
     end.
 
-refresh_snapshot(Snapshot, State) ->
-    case audit(Snapshot) of
-        {ok, Issues} -> apply_reconcile(<<"player_metadata">>, Issues,
-                                       State#{refresh_error => undefined});
-        {error, Reason} -> State#{refresh_error => Reason}
+ensure_metadata_subscription(State = #{subscription_view := metadata}) -> State;
+ensure_metadata_subscription(State) ->
+    case maps:get(subscription, State, undefined) of
+        Ref when is_reference(Ref) -> wf_player_service:unsubscribe(Ref);
+        _ -> ok
+    end,
+    {Subscription, _Snapshot} = subscribe_player(),
+    State#{subscription => Subscription, subscription_view => metadata}.
+
+request_audit(State = #{audit_worker := undefined}) ->
+    Parent = self(),
+    Token = make_ref(),
+    {Pid, Monitor} = spawn_monitor(fun() ->
+        Result = try audit_current()
+                 catch Class:Reason:Stack ->
+                     {error, {resolution_audit_crash, Class, Reason, Stack}}
+                 end,
+        Parent ! {audit_result, Token, Result}
+    end),
+    Timer = erlang:send_after(audit_timeout(), self(), {audit_timeout, Token}),
+    State#{audit_worker => #{pid => Pid, monitor => Monitor, token => Token, timer => Timer},
+           audit_pending => false};
+request_audit(State) ->
+    State#{audit_pending => true}.
+
+audit_current() ->
+    case application:get_env(retinue_daemon, resolution_audit_fun) of
+        {ok, Fun} when is_function(Fun, 0) -> Fun();
+        _ -> audit(wf_player_service:snapshot())
+    end.
+
+%% A newer refresh invalidates the in-flight result, not the last good registry.
+finish_audit({error, Reason}, State = #{audit_pending := true}) ->
+    request_audit(State#{refresh_error => Reason});
+finish_audit(_Result, State = #{audit_pending := true}) ->
+    request_audit(State);
+finish_audit(Result, State) ->
+    {Reply, State1} = case Result of
+        {ok, Issues} ->
+            {ok, apply_reconcile(<<"player_metadata">>, Issues,
+                                  State#{refresh_error => undefined})};
+        {error, Reason} -> {{error, Reason}, State#{refresh_error => Reason}}
+    end,
+    maps:foreach(fun(Monitor, #{from := From, timer := Timer}) ->
+                     cancel_timer(Timer),
+                     erlang:demonitor(Monitor, [flush]),
+                     gen_server:reply(From, Reply)
+                 end, maps:get(audit_waiters, State1)),
+    State1#{audit_waiters => #{}}.
+
+stop_audit(State) ->
+    case maps:get(audit_worker, State, undefined) of
+        undefined -> ok;
+        #{pid := Pid, monitor := Monitor, timer := Timer} ->
+            cancel_timer(Timer),
+            exit(Pid, kill),
+            erlang:demonitor(Monitor, [flush]),
+            ok
+    end.
+
+audit_timeout() ->
+    case application:get_env(retinue_daemon, resolution_audit_timeout_ms,
+                             ?DEFAULT_AUDIT_TIMEOUT_MS) of
+        Timeout when is_integer(Timeout), Timeout > 0 -> Timeout;
+        _ -> ?DEFAULT_AUDIT_TIMEOUT_MS
     end.
 
 audit(Snapshot) ->

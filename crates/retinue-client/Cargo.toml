@@ -6,6 +6,8 @@ license = "Apache-2.0"
 description = "Shared Retinue native-client transport, paths and lifecycle"
 
 [dependencies]
+bytes = "1"
+retinue-protocol = { path = "../retinue-protocol" }
 libc = "0.2"
 rustix = { version = "1", features = ["fs", "process"] }
 serde = { version = "1", features = ["derive"] }

@@ -1,4 +1,5 @@
-const qt = "apps/wfgui/qt/src/";
+const qtRevision = "eaae51a";
+const qt = `https://github.com/ZeeWanderer/retinue/blob/${qtRevision}/apps/wfgui/qt/src/`;
 
 // Qt values describe source geometry, not measurements of a running Qt window.
 export const contracts = {
@@ -37,7 +38,7 @@ export function compareLayout(page, native, reference) {
     units: "logical_pixels", page, scale: layout?.scale,
     caveat: "Different data and intentional UI changes are not automatic parity failures. Qt is source-derived; native and Aleca are measured.",
     components: (contracts[page] ?? []).map(([name, region, selector, file, geometry, occurrence]) => ({
-      name, qt: { source: qt + file, ...geometry },
+      name, qt: { source: qt + file, revision: qtRevision, historical: true, ...geometry },
       native: region ? { region, bounds: layout?.regions?.[region] ?? null,
         elements: (layout?.elements ?? []).filter(e => {
           const r = layout.regions?.[region], b = e.bounds;

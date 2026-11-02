@@ -92,7 +92,7 @@ pub fn measure<T>(
     let thread_cpu_ns = cpu_ns(ClockId::ThreadCPUTime).saturating_sub(cpu_before);
     let process_cpu_ns = cpu_ns(ClockId::ProcessCPUTime).saturating_sub(process_before);
     let process_cpu_percent = cpu_percent(process_cpu_ns, elapsed_ns);
-    let native_images = retinue_ui::painter::image_memory();
+    let native_images = retinue_render::painter::image_memory();
     let mut sorted = samples.clone();
     sorted.sort_unstable();
     let percentile = |percent: usize| sorted[(sorted.len() * percent).div_ceil(100) - 1];

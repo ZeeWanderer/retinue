@@ -56,6 +56,10 @@ persists_group_members_and_publishes_changes_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(_State) -> fun group_exercise/0 end}.
 
+cached_plan_refreshes_card_text_without_recalculation_test_() ->
+    {setup, fun setup/0, fun cleanup/1,
+     fun(_) -> fun cached_plan_card_text/0 end}.
+
 group_write_failure_is_not_acknowledged_test_() ->
     {setup, fun setup/0, fun cleanup/1,
      fun(_State) -> fun group_write_failure/0 end}.
@@ -208,6 +212,47 @@ group_exercise() ->
     {ok, #{<<"groups">> := [Summary]}} = wf_build_service:groups(),
     ?assertEqual(2, maps:get(<<"member_count">>, Summary)),
     ?assertEqual(ok, wf_build_service:unsubscribe(Subscription)).
+
+cached_plan_card_text() ->
+    {ok, Group} = wf_build_service:create_group(
+                    #{<<"definition_id">> => <<"/item">>,
+                      <<"instance_id">> => <<"copy-1">>}, equipment()),
+    Id = maps:get(<<"id">>, Group),
+    {ok, _} = wf_build_service:add_config_member(Id, 1, <<"copy-1">>, 0, equipment()),
+    {ok, Ref} = wf_build_service:plan_group(self(), Id, 2),
+    Plan = receive {retinue_build, Ref, {ok, Result}} -> Result
+           after 5000 -> error(plan_timeout)
+           end,
+    [Build] = maps:get(<<"builds">>, Plan),
+    Upgrade = #{<<"item_type">> => <<"/Lotus/Mods/Test">>, <<"rank">> => 0,
+                <<"topology_slot">> => <<"mod-7">>, <<"effective_drain">> => 6},
+    Cached = Plan#{<<"builds">> => [Build#{<<"upgrade_slots">> => [Upgrade]}]},
+    _ = sys:replace_state(wf_build_service, fun(State) ->
+        Store = maps:get(store, State),
+        State#{store => Store#{results => #{Id => Cached}}}
+    end),
+    Before = maps:get(store, sys:get_state(wf_build_service)),
+    Key = {wfcli, mod_map, 2},
+    Previous = persistent_term:get(Key, undefined),
+    persistent_term:put(Key, #{<<"/Lotus/Mods/Test">> =>
+        #{compat => <<"Shotgun">>, level_stats => [#{<<"stats">> => [<<"+10% Damage">>]}]}}),
+    try
+        {ok, PresentedGroup} = wf_build_service:group(Id),
+        Presented = maps:get(<<"plan_result">>, PresentedGroup),
+        [PresentedBuild] = maps:get(<<"builds">>, Presented),
+        [PresentedMod] = maps:get(<<"upgrade_slots">>, PresentedBuild),
+        ?assertEqual(Upgrade#{<<"effects">> => [<<"+10% Damage">>],
+                              <<"compat_name">> => <<"Shotgun">>}, PresentedMod),
+        ?assertEqual(maps:remove(<<"builds">>, Cached), maps:remove(<<"builds">>, Presented)),
+        After = maps:get(store, sys:get_state(wf_build_service)),
+        ?assertEqual(maps:with([goals, revisions, results], Before),
+                     maps:with([goals, revisions, results], After))
+    after
+        case Previous of
+            undefined -> persistent_term:erase(Key);
+            _ -> persistent_term:put(Key, Previous)
+        end
+    end.
 
 refresh_catalog_version(Version) ->
     State = sys:get_state(wf_build_service),

@@ -10,11 +10,7 @@ use retinue_native::inspect::{
 use retinue_native::work::{Budget, Limits, Usage};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    layout::Layout,
-    process::Process,
-    reader::{self, Snapshot},
-};
+use crate::{layout::Layout, process::Process, reader, reader::Snapshot};
 
 #[derive(Serialize)]
 pub struct Report {

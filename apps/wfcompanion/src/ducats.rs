@@ -9,8 +9,11 @@ use retinue_warframe::game_observer::ui::{DucatHover, DucatReader};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::daemon::{self, OutboundSender, PendingRequest};
 use crate::runtime::{Worker, presentation, session::Session};
+use crate::{
+    daemon,
+    daemon::{OutboundSender, PendingRequest},
+};
 
 const ACTIVE_INTERVAL: Duration = Duration::from_millis(100);
 const IDLE_INTERVAL: Duration = Duration::from_secs(1);

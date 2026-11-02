@@ -4,7 +4,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use retinue_client::transport::JsonChannel;
+use retinue_client::transport::Channel;
 use serde_json::{Value, json};
 use tokio::net::UnixStream;
 
@@ -13,7 +13,7 @@ use crate::Sample;
 const MAX_FRAME: usize = 128 * 1024;
 
 pub struct Connection {
-    channel: JsonChannel,
+    channel: Channel,
     prediction: bool,
 }
 
@@ -26,11 +26,12 @@ impl Connection {
         let stream =
             tokio::time::timeout(Duration::from_secs(2), UnixStream::connect(path)).await??;
         let mut connection = Self {
-            channel: JsonChannel::new(stream, MAX_FRAME),
+            channel: Channel::new(stream, MAX_FRAME),
             prediction: false,
         };
         let mut hello = json!({"op":"hello", "id":1, "game":"poe2", "envelope":2,
-            "interfaces":{"session":2}, "features":[], "client":"poe2companion",
+            "transport":"protobuf",
+            "interfaces":{"session":2,"native":1}, "features":[], "client":"poe2companion",
             "version":env!("CARGO_PKG_VERSION"), "pid":std::process::id(), "mode":mode});
         if trade {
             hello["interfaces"]["trade"] = json!(5);
@@ -42,33 +43,37 @@ impl Connection {
             || reply["compatible"] != true
             || reply["envelope"] != 2
             || reply["interfaces"]["session"] != 2
+            || reply["interfaces"]["native"] != 1
+            || reply["transport"] != "protobuf"
             || reply["game"] != "poe2"
             || (trade && reply["interfaces"]["trade"] != 5)
         {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 if trade {
-                    "daemon contract mismatch: need envelope 2, poe2 session 2 and trade 5"
+                    "daemon contract mismatch: need envelope 2, native 1, poe2 session 2 and trade 5"
                 } else {
-                    "daemon contract mismatch: need envelope 2, poe2 session 2"
+                    "daemon contract mismatch: need envelope 2, native 1 and poe2 session 2"
                 },
             ));
         }
         connection.prediction = reply["features"]
             .as_array()
             .is_some_and(|features| features.iter().any(|f| f == "trade.prediction"));
+        connection.channel.enable_protobuf("poe2")?;
         Ok(connection)
     }
 
     pub async fn trade(path: &Path, mut request: Value) -> io::Result<Value> {
+        let dataset = trade_dataset(&request)?.to_owned();
         let mut connection = Self::connect_interfaces(path, "overlay", true).await?;
         if request["op"] == "trade_predict" && !connection.prediction {
-            return Ok(json!({"ok":true,"dataset":"trade","data":{"estimate":null}}));
+            return Ok(json!({"ok":true,"dataset":"trade_predict","data":{"estimate":null}}));
         }
         request["id"] = json!(2);
         let reply =
             tokio::time::timeout(Duration::from_secs(45), connection.request(&request)).await??;
-        if reply["ok"] == true && reply["dataset"] != "trade" {
+        if reply["ok"] == true && reply["dataset"] != dataset {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "invalid trade dataset",
@@ -112,13 +117,26 @@ impl Connection {
                 "daemon rejected native session observation",
             ));
         }
-        if reply["dataset"] != "session" || reply["data"]["revision"].as_u64().is_none() {
+        if reply["dataset"] != "session_published" || reply["data"]["revision"].as_u64().is_none() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "invalid session acknowledgement",
             ));
         }
         Ok(())
+    }
+}
+
+fn trade_dataset(request: &Value) -> io::Result<&str> {
+    match request["op"].as_str() {
+        Some(
+            op @ ("trade_item" | "trade_search" | "trade_fetch" | "trade_restore" | "trade_leagues"
+            | "trade_predict" | "currency_asset"),
+        ) => Ok(op),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid trade operation",
+        )),
     }
 }
 
@@ -244,5 +262,127 @@ async fn ensure_daemon(stop: &AtomicBool) -> io::Result<()> {
         Err(io::Error::other(format!(
             "retinue daemon ensure exited with {status}"
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::UnixListener;
+
+    async fn bootstrap(listener: UnixListener, native: bool) -> Channel {
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut channel = Channel::new(socket, MAX_FRAME);
+        let hello = channel.receive_request().await.unwrap();
+        assert_eq!(hello["interfaces"]["native"], 1);
+        assert_eq!(hello["game"], "poe2");
+        assert_eq!(hello["transport"], "protobuf");
+        let mut interfaces = json!({"session":2,"trade":5});
+        if native {
+            interfaces["native"] = 1.into();
+        }
+        channel
+            .send(&json!({"id":1,"ok":true,"compatible":true,"envelope":2,
+                "game":"poe2","transport":"protobuf","interfaces":interfaces,"features":[]}))
+            .await
+            .unwrap();
+        if native {
+            channel.enable_protobuf("poe2").unwrap();
+        }
+        channel
+    }
+
+    #[tokio::test]
+    async fn native_interface_is_mandatory() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("daemon.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = tokio::spawn(async move { bootstrap(listener, false).await });
+        let result = Connection::connect(&path, "watch").await;
+        assert!(matches!(result, Err(error) if error.kind() == io::ErrorKind::Unsupported));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn json_transport_downgrade_is_rejected() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("daemon.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut channel = Channel::new(socket, MAX_FRAME);
+            channel.receive_request().await.unwrap();
+            channel
+                .send(&json!({"id":1,"ok":true,"compatible":true,"envelope":2,
+                "game":"poe2","transport":"json","interfaces":{"session":2,"native":1}}))
+                .await
+                .unwrap();
+        });
+        let result = Connection::connect(&path, "watch").await;
+        assert!(matches!(result, Err(error) if error.kind() == io::ErrorKind::Unsupported));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn hello_switches_to_typed_publication_and_failure() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("daemon.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = tokio::spawn(async move {
+            let mut channel = bootstrap(listener, true).await;
+            let request = tokio::time::timeout(Duration::from_secs(3), channel.receive_request())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(request["op"], "publish");
+            assert_eq!(request["dataset"], "session");
+            assert_eq!(request["id"], 2);
+            assert_eq!(request["data"]["snapshot"], Value::Null);
+            assert_eq!(request["data"]["error"], Value::Null);
+            channel
+                .send(&json!({"id":2,"ok":false,"error":"invalid_session_sample"}))
+                .await
+                .unwrap();
+        });
+        let mut connection = Connection::connect(&path, "watch").await.unwrap();
+        let sample = Sample {
+            stream: "test".into(),
+            sequence: 1,
+            observed_at: 1000,
+            observation: crate::Observation::default(),
+        };
+        let error = connection.publish(&sample).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn unnegotiated_prediction_keeps_typed_dataset() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("daemon.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = tokio::spawn(async move { bootstrap(listener, true).await });
+        let reply = Connection::trade(&path, json!({"op":"trade_predict"}))
+            .await
+            .unwrap();
+        assert_eq!(reply["dataset"], "trade_predict");
+        assert_eq!(reply["data"]["estimate"], Value::Null);
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn trade_dataset_matches_operation() {
+        for op in [
+            "trade_item",
+            "trade_search",
+            "trade_fetch",
+            "trade_restore",
+            "trade_leagues",
+            "trade_predict",
+            "currency_asset",
+        ] {
+            assert_eq!(trade_dataset(&json!({"op":op})).unwrap(), op);
+        }
+        assert!(trade_dataset(&json!({"op":"get"})).is_err());
     }
 }
