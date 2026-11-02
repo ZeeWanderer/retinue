@@ -656,7 +656,7 @@ production renderer.
 
 ## Verification
 
-Extend existing [render benchmarks](../../tools/render-bench/README.md) and GUI
+Extend existing [render benchmarks](../../tools/benchmarks/README.md) and GUI
 captures. Add IR/plan inspection to those tools: explain a cache choice, changed
 dependency, repair region, demotion and resource lifetime, with stable UI keys.
 Keep normal-build instrumentation opt-in and bounded.

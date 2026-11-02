@@ -23,7 +23,7 @@ direct_updates_do_not_stop_at_set_test() ->
         [{set, 0.75}, {multiply, 2}, {set_base, 3}, {set_min, 4}])).
 
 native_weakness_updates_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_weakness_updates.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_weakness_updates.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     [{lists:flatten(io_lib:format("weakness ~p ~p", [Base, Entries])),
       ?_assertEqual(float32(Expected), wf_stat_math:scalar_updates(Base,
@@ -31,7 +31,7 @@ native_weakness_updates_test_() ->
      || #{<<"base">> := Base, <<"entries">> := Entries, <<"expected">> := Expected} <- Cases].
 
 native_scalar_boundaries_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_scalar_boundaries.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_scalar_boundaries.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     [{binary_to_list(Name), ?_assertEqual(float32(Expected),
         wf_stat_math:scalar_updates(Base, lists:map(fun
@@ -61,7 +61,7 @@ native_minimum_clamp_initial_value_test() ->
     ?assertEqual(0.0, wf_stat_math:scalar(0, [{set_min, 0}, {set_max, 0}])).
 
 native_critical_multiplier_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_multiplier.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_multiplier.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     lists:map(fun(#{<<"name">> := Name, <<"base">> := Base, <<"entries">> := Entries,
                     <<"policy">> := Policy, <<"expected">> := Expected}) ->
@@ -78,7 +78,7 @@ critical_quantization_precedes_percent_bonuses_test() ->
     ?assert(wf_stat_math:critical_multiplier(2.4, [{stacking_multiply, 20}], quantized) > 32).
 
 native_critical_factor_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_factor.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_factor.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     lists:map(fun(#{<<"factor">> := Factor, <<"multiplier">> := Multiplier,
                     <<"tier">> := Tier, <<"expected">> := Expected}) ->
@@ -96,7 +96,7 @@ critical_factor_preserves_existing_contribution_test() ->
     ?assertError(function_clause, wf_stat_math:critical_factor(1, 1.5, 1.5)).
 
 native_critical_selection_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_selection.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_selection.json")),
     #{<<"cases">> := Cases, <<"roll_bins">> := Bins} = jsone:decode(Json),
     [{float_to_list(float(Chance), [short]), ?_test(begin
         Expected = [#{tier => T, probability => Count / Bins}
@@ -183,7 +183,7 @@ npc_armor_test() ->
     near(0.95, wf_stat_math:armor_reduction(5700)).
 
 native_armor_test() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_armor.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_armor.json")),
     #{<<"range">> := #{<<"start">> := Start, <<"end">> := End,
                          <<"float32_le_sha256">> := Digest}, <<"cases">> := Cases} = jsone:decode(Json),
     Results = << <<(wf_stat_math:armor_reduction(A)):32/float-little>>
@@ -193,7 +193,7 @@ native_armor_test() ->
      || #{<<"armor">> := A, <<"reduction">> := R} <- Cases].
 
 native_source_packet_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_source_packet.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_source_packet.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     [{binary_to_list(Name), ?_test(begin
         Packet = #{scalar => Scalar,
@@ -366,7 +366,7 @@ health_hit_armor_floor_test() ->
     ?assertEqual(#{impact => 0.0, puncture => 1.0, slash => 0.5}, maps:get(applied_channels, Resistant)).
 
 native_health_hit_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_health_hit.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_health_hit.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     [{binary_to_list(Policy) ++ " " ++ float_to_list(float(Scalar), [short]), ?_test(begin
         Packet = #{scalar => Scalar,

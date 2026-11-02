@@ -310,7 +310,7 @@ fn profile_is_not_inferred_from_manually_selected_filters() {
 fn profile_bounds_are_supplied_by_daemon_for_every_row() {
     let cases: Vec<Value> = serde_json::from_slice(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../retinue_cli/test/fixtures/poe2_trade_profiles.json"
+        "/../../test/fixtures/poe2_trade_profiles.json"
     )))
     .unwrap();
     for case in cases {

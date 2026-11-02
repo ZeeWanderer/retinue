@@ -102,4 +102,5 @@ rotation tests together. There is no runtime WFCD dependency.
 1. Add the index/projector behavior under `apps/retinue_daemon/src/games/warframe/`.
 2. Add shared result columns in `wf_worldstate_schema` when needed.
 3. Add the terminal block layout and command wiring under `apps/retinue_cli/src/`.
-4. Add tests and fixture updates in `apps/retinue_cli/test/`.
+4. Test daemon projection in `apps/retinue_daemon/test/` and CLI output in
+   `apps/retinue_cli/test/`; shared fixtures live in `test/fixtures/`.

@@ -30,9 +30,9 @@ zero_error_code_is_success_test() ->
             predict(Server, <<"A">>)) end).
 
 payload_preserves_hybrid_affixes_and_reduced_values_test() ->
-    {ok, Bytes} = file:read_file("apps/retinue_cli/test/fixtures/poe2_modifier_stats.json"),
+    {ok, Bytes} = file:read_file(retinue_test:fixture("poe2_modifier_stats.json")),
     {ok, Catalog} = retinue_poe2_trade_item:catalog(json:decode(Bytes)),
-    {ok, ArmourText} = file:read_file("apps/retinue_cli/test/fixtures/poe2_rare_body_armour.txt"),
+    {ok, ArmourText} = file:read_file(retinue_test:fixture("poe2_rare_body_armour.txt")),
     {ok, Armour} = retinue_poe2_trade_item:parse(ArmourText, Catalog),
     Payload = retinue_poe2_prediction_item:build(Armour),
     Id = <<"explicit.stat_124859000,explicit.stat_2106365538">>,
@@ -42,7 +42,7 @@ payload_preserves_hybrid_affixes_and_reduced_values_test() ->
     ?assertMatch([#{<<"magnitudes">> := [#{<<"value">> := 86}]}, _,
         #{<<"magnitudes">> := [#{<<"value">> := 15}, #{<<"value">> := 18}]} | _],
         maps:get(<<"explicit">>, Mods)),
-    {ok, SpearText} = file:read_file("apps/retinue_cli/test/fixtures/poe2_unique_spear.txt"),
+    {ok, SpearText} = file:read_file(retinue_test:fixture("poe2_unique_spear.txt")),
     {ok, Spear} = retinue_poe2_trade_item:parse(SpearText, Catalog),
     ?assertMatch(#{<<"extended">> := #{<<"mods">> := #{<<"explicit">> := [
         #{<<"magnitudes">> := [#{<<"value">> := 10, <<"mod">> := <<"negate">>}]} | _]}}},

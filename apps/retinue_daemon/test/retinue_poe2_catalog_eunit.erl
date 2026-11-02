@@ -2,7 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 source_ranking_test_() ->
-    {ok, Bytes} = file:read_file("apps/retinue_cli/test/fixtures/poe2_trade_ranking.json"),
+    {ok, Bytes} = file:read_file(retinue_test:fixture("poe2_trade_ranking.json")),
     [{binary_to_list(maps:get(<<"name">>, Case)), fun() ->
         Rows = [maps:merge((row())#{<<"id">> => <<"explicit.", (maps:get(<<"key">>, R))/binary>>}, R)
                 || R <- maps:get(<<"rows">>, Case)],
@@ -157,7 +157,7 @@ worker_timeout_and_shutdown_test() ->
 
 category_query_test() ->
     Item = retinue_poe2_trade_profiles:prepare(item()),
-    {ok, Fixture} = file:read_file("apps/retinue_cli/test/fixtures/poe2_trade_filters.json"),
+    {ok, Fixture} = file:read_file(retinue_test:fixture("poe2_trade_filters.json")),
     {ok, Options} = retinue_poe2_trade_query:options(json:decode(Fixture)),
     Request = #{<<"league">> => <<"Standard">>, <<"base">> => false},
     {ok, #{<<"query">> := Query}} = retinue_poe2_trade_query:build(Request, Item,

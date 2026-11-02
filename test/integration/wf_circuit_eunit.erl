@@ -3,7 +3,7 @@
 -include_lib("retinue_daemon/include/wf_worldstate.hrl").
 
 active_week_is_selected_at_query_time_test() ->
-    {ok, Bin} = file:read_file("apps/retinue_cli/test/fixtures/circuit_schedule.json"),
+    {ok, Bin} = file:read_file(retinue_test:fixture("circuit_schedule.json")),
     Raw = jsone:decode(Bin),
     Start = maps:get(<<"Time">>, Raw),
     End = Start + 7 * 24 * 60 * 60,

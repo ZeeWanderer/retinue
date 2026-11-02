@@ -282,10 +282,10 @@ catalog_request(Command, Args) ->
     #{source => exports, command => Command, query => Query, cwd => filename:absname(".")}.
 
 fixture_exports() ->
-    filename:join(["apps", "retinue_cli", "test", "fixtures", "exports"]).
+    filename:join([retinue_test:fixtures(), "exports"]).
 
 fixture_knowledge() ->
-    filename:join(["apps", "retinue_cli", "test", "fixtures", "knowledge"]).
+    filename:join([retinue_test:fixtures(), "knowledge"]).
 
 setup_stores() ->
     application:set_env(retinue_daemon, daemon_idle_shutdown, false),

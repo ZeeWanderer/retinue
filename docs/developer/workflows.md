@@ -73,17 +73,22 @@ installation, or set `CC` and `CXX` explicitly.
 
 ## Tests
 
+See [testing](testing.md) for ownership, fixture rules and performance methodology.
+
 - `./scripts/test-quiet eunit`: EUnit with passing output suppressed.
 - `./scripts/test-quiet ct`: Common Test with passing output suppressed.
 - `./scripts/test-quiet gui`: native desktop model tests with build output suppressed.
 - `make test-staging`: failed/interrupted installs, concurrent writers, and prefix activation.
 - `make test-build`: compiler changes, incremental builds, tool overrides and build ordering.
-- `make test-companion`: shared native libraries, inspector, and all companion tests.
+- `make test-native`: shared protocol, client, native/game libraries and inspector tests.
+- `make test-ui`: renderer/SDK tests across headless, overlay and desktop features.
+- `make test-companion`: the three companion applications.
+- `make test-tools`: benchmark, integration-helper and documentation-tool tests.
 - `make test-protocol`: generated native schemas and client framing tests.
-- `make test-poe2`: staged observer, daemon and CLI integration in isolated storage and networking; requires Python 3.
+- `make test-integration` (or `test-poe2`): staged observer, daemon and CLI integration in isolated storage and networking; requires Python 3.
   Reports remain under `research/retinue/tests/poe2/`; temporary runtime files are removed.
 - `make test-gui`: native desktop model tests.
-- `make test-gui-app GUI_TEST=presentation::foundry::`: focused app tests without repeating the shared SDK suite.
+- `make test-gui GUI_TEST=presentation::foundry::`: focused app tests.
 - `make test-ui-sdk UI_TEST='--test modifiers'`: one SDK integration suite.
 - `make test-composition`: shared authoring, layout, paint retention and damage-repair tests.
 - `make test-ui-macros`: authoring diagnostics and generated-code integration tests.
@@ -102,7 +107,7 @@ installation, or set `CC` and `CXX` explicitly.
 
 Normal GUI builds compile the app only; `make test-gui` also builds its test executables.
 
-`make bench-gui GUI_BENCH_PROFILE=release GUI_BENCH_CASE=foundry_scroll_benchmark
+`make bench-gui GUI_BENCH_CASE=foundry_scroll_benchmark
 GUI_BENCH_OUTPUT=research/gui-scroll.json` measures scrolling at 100/125/200%.
 Use `rail_animation_benchmark` for rail motion and `GUI_BENCH_THREADS=1..8` to compare
 thread budgets. Scroll reports separate tree update, submission, native completion,
@@ -111,14 +116,15 @@ alternate baseline/candidate runs and retain raw samples. They exclude presentat
 and game performance.
 
 `make bench-overlays` runs opt-in release-mode render/resource measurements for
-both companions. Reports and comparison commands: [overlay benchmarks](../../tools/render-bench/README.md).
+both companions. `make bench-list` lists maintained workloads and experiments;
+`make bench BENCH_SUITE=gui-rails` records independent release runs with provenance.
+Reports and comparison commands: [benchmarks](../../tools/benchmarks/README.md).
 `make bench-overlay-scheduling` compares polling and event-driven scheduling on
 a real Wayland surface using a click-through Evaluate fixture. It does not reload
 companions or interact with the game.
 
 The quiet wrapper prints one line on success. On failure it prints a bounded tail and retains the
-full log under `/tmp`. Use direct `rebar3` only while debugging a failure.
-Move logs needed as lasting evidence to ignored `research/` before referencing them in notes.
+full log under `research/retinue/tests/`. Use direct `rebar3` only while debugging a failure.
 
 Run tests after code, fixture, build, or behavior changes. Documentation-only changes do not need
 tests. Manually exercise changed CLI commands after automated tests pass.
@@ -155,7 +161,7 @@ into `libexec/`.
 
 ## Fixtures
 
-- Worldstate and query fixtures: `apps/retinue_cli/test/fixtures/`
+- Shared worldstate, query and trade fixtures: `test/fixtures/`
 - Companion image fixtures: `apps/wfcompanion/tests/fixtures/`
 
 Fixtures are read-only inputs. Writable caches and generated output belong under Common Test

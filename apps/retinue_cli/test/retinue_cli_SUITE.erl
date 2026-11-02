@@ -49,7 +49,7 @@ help_scopes(Config) ->
     contains(maps:get(<<"help">>, jsone:decode(Query)), <<"retinue warframe query">>).
 
 warframe_alias(Config) ->
-    Exports = filename:join([code:lib_dir(retinue_cli), "test", "fixtures", "exports"]),
+    Exports = filename:join([retinue_test:fixtures(), "exports"]),
     Args = ["mods", "--exports-dir", Exports, "--name", "help", "--json"],
     {0, Output} = run("wfcli", Args, Config),
     {0, Output} = run("retinue", ["warframe" | Args], Config),

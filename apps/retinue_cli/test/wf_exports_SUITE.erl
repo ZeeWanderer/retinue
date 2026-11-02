@@ -328,7 +328,7 @@ query_command(Command, Args) ->
     wf_exports_query:query(Command, Query).
 
 fixture_dir() ->
-    filename:join([code:lib_dir(retinue_cli), "test", "fixtures", "exports"]).
+    filename:join([retinue_test:fixtures(), "exports"]).
 
 capture_output(Fun) ->
     Capturer = spawn(fun() -> io_capture_loop([]) end),

@@ -479,7 +479,7 @@ assert_no_idle(Pid, Timeout) ->
     end.
 
 fixture(Name) ->
-    filename:join(["apps", "retinue_cli", "test", "fixtures", Name]).
+    filename:join([retinue_test:fixtures(), Name]).
 
 setup_service() ->
     application:set_env(retinue_daemon, daemon_idle_shutdown, false),

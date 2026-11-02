@@ -176,7 +176,8 @@ remains in Git history, not as a parallel implementation in the working tree.
 - Daemon release: `libexec/retinue_daemon/bin/retinue_daemon` inside each staged prefix
 - Package archives: `releases/`
 - Managed user data: inspect with `retinue paths`; game state uses `retinue/games/<game>`
-- Tests and fixtures: `apps/retinue_cli/test/`, `apps/wfcompanion/tests/`, `apps/poe2companion/`
+- Tests: owning app/crate; shared fixtures/support and cross-app scenarios in `test/`.
+  See [testing](testing.md).
 - Disposable upstream research: ignored `research/`
 
 ## Change Placement

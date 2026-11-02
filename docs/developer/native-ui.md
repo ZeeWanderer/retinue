@@ -386,7 +386,7 @@ retain scaled keyboard/pointer focus comparisons from the render tests.
 `GUI_INTERACTION_CAPTURES` retains search and component closeups at those scales.
 
 The opt-in animation benchmark measures layout and completed painting at
-1080p/100% and 1440p/100%/125%. It uses the dev profile,
+1080p/100% and 1440p/100%/125%/200%. It uses the release profile,
 deterministic fixtures and warm alternating left-rail transitions. Reports include
 raw samples and p50/p95/max; they exclude compositor presentation and input latency.
 No timing thresholds run in CI. Keep background load comparable between runs.
@@ -394,9 +394,9 @@ No timing thresholds run in CI. Keep background load comparable between runs.
 For scrolling, select `GUI_BENCH_CASE=foundry_scroll_benchmark`; add
 `GUI_BENCH_LIVE=1` to use cached player data and images. It compares whole-window
 and viewport repaint with the same warm assets, reporting image memory and frame
-timings. Fetching/preparation are outside the timed section. Set
-`GUI_BENCH_PROFILE=release` for optimized timings; the default remains `test`.
-Compare matching profiles and compiler flags.
+timings. Fetching/preparation are outside the timed section.
+Use [maintained benchmarks](../../tools/benchmarks/README.md) for independent
+repetitions and provenance; compare matching compiler flags.
 
 `GUI_BENCH_CASE=foundry_image_benchmark` measures cold preparation, restart disk
 hits and RAM hits using cached player data and an isolated temporary derivative

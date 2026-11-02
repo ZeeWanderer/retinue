@@ -1,5 +1,5 @@
 #[allow(dead_code)]
-#[path = "../../../../tools/render-bench/support.rs"]
+#[path = "../../../../tools/benchmarks/support.rs"]
 mod bench;
 mod model;
 

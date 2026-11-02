@@ -755,7 +755,7 @@ load_fixture_bin(Cache, Bin, Opts) ->
     Ws.
 
 sample_cache() ->
-    File = filename:join([code:lib_dir(retinue_cli), "test", "fixtures", "worldstate_sample.json"]),
+    File = filename:join([retinue_test:fixtures(), "worldstate_sample.json"]),
     {ok, Bin} = file:read_file(File),
     BaseTmp = case os:getenv("TMPDIR") of false -> "/tmp"; undefined -> "/tmp"; V -> V end,
     Tmp = filename:join([BaseTmp, "wf_worldstate_cache.json"]),

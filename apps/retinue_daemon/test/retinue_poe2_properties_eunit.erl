@@ -2,7 +2,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 source_properties_test_() ->
-    {ok, Bytes} = file:read_file("apps/retinue_cli/test/fixtures/poe2_trade_properties.json"),
+    {ok, Bytes} = file:read_file(retinue_test:fixture("poe2_trade_properties.json")),
     [{binary_to_list(maps:get(<<"name">>, Case)), fun() ->
         Item = prepare(Case),
         Rows = maps:get(<<"modifiers">>, Item),
@@ -46,7 +46,7 @@ property_queries_test() ->
         query(Request#{<<"filters">> => [#{<<"id">> => <<"property.edps">>, <<"min">> => 1}]}, Item)).
 
 clipboard_properties_test() ->
-    {ok, Text} = file:read_file("apps/retinue_cli/test/fixtures/poe2_property_weapon.txt"),
+    {ok, Text} = file:read_file(retinue_test:fixture("poe2_property_weapon.txt")),
     {ok, Catalog} = retinue_poe2_trade_item:catalog(retinue_poe2_trade_eunit:fixture()),
     {ok, Parsed} = retinue_poe2_trade_item:parse(Text, Catalog),
     #{<<"modifiers">> := Rows} = retinue_poe2_trade_profiles:prepare(Parsed),
@@ -96,6 +96,6 @@ item() -> #{<<"rarity">> => <<"Rare">>, <<"name">> => <<"Test Bow">>, <<"base">>
 properties(Texts) -> [#{<<"text">> => Text} || Text <- Texts].
 
 query(Request, Item) ->
-    {ok, Bytes} = file:read_file("apps/retinue_cli/test/fixtures/poe2_trade_filters.json"),
+    {ok, Bytes} = file:read_file(retinue_test:fixture("poe2_trade_filters.json")),
     {ok, Options} = retinue_poe2_trade_query:options(json:decode(Bytes)),
     retinue_poe2_trade_query:build(Request, Item, [#{<<"id">> => <<"Standard">>}], Options).

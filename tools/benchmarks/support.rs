@@ -153,9 +153,12 @@ pub fn report_with_scope(game: &str, cases: Vec<Value>, scope: &str) {
     });
     let report = json!({
         "schema": 1, "game": game, "version": env!("CARGO_PKG_VERSION"),
-        "profile": "release", "git": command("git", &["rev-parse", "HEAD"]),
-        "dirty": command("git", &["status", "--porcelain"]).map(|value| !value.is_empty()),
-        "rustc": command("rustc", &["-Vv"]), "cpu": cpu,
+        "profile": "release", "git": std::env::var("RETINUE_BENCH_REVISION").ok()
+            .or_else(|| command("git", &["rev-parse", "HEAD"])),
+        "dirty": std::env::var("RETINUE_BENCH_DIRTY").ok().map(|value| value == "true")
+            .or_else(|| command("git", &["status", "--porcelain"]).map(|value| !value.is_empty())),
+        "rustc": std::env::var("RETINUE_BENCH_RUSTC").ok()
+            .or_else(|| command("rustc", &["-Vv"])), "cpu": cpu,
         "kernel": fs::read_to_string("/proc/sys/kernel/osrelease").ok().map(|s| s.trim().to_owned()),
         "render_mode": "queued", "requested_threads": render_threads().get(),
         "cadence_hz": cadence_hz(),

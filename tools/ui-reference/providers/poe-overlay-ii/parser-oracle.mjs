@@ -11,7 +11,7 @@ export default async function exercise(page) {
   const samples = [];
   for (const name of ["unique_spear", "rare_body_armour", "magic_charm"]) {
     samples.push({name, text: await readFile(path.join(repositoryRoot,
-      `apps/retinue_cli/test/fixtures/poe2_${name}.txt`), "utf8")});
+      `test/fixtures/poe2_${name}.txt`), "utf8")});
   }
   const result = await page.evaluate(async samples => {
     const {require} = window.reference;
@@ -55,7 +55,7 @@ export default async function exercise(page) {
       lookup: "Local data adapters; partial-name lookup uses longest match", results};
   }, samples);
   const expected = JSON.parse(await readFile(path.join(repositoryRoot,
-    "apps/retinue_cli/test/fixtures/poe2_modifier_cases.json"), "utf8"));
+    "test/fixtures/poe2_modifier_cases.json"), "utf8"));
   for (const row of result.results) {
     const golden = expected.cases.find(test => test.name === row.name);
     assert.equal(row.item.category, golden.category, row.name);

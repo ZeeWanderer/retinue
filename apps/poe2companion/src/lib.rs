@@ -5,7 +5,7 @@ pub mod runtime;
 mod transport;
 
 #[cfg(test)]
-#[path = "../../../tools/render-bench/support.rs"]
+#[path = "../../../tools/benchmarks/support.rs"]
 mod render_bench;
 
 pub use transport::{Connection, Publisher};

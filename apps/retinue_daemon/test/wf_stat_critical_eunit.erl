@@ -3,7 +3,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 native_sequence_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_sequence.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_sequence.json")),
     Fixture = jsone:decode(Json),
     [{binary_to_list(maps:get(<<"name">>, Case)), ?_test(begin
         Hit = fields(maps:get(<<"hit">>, Case)),

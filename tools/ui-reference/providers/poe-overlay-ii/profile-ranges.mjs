@@ -3,7 +3,7 @@ import {readFile} from "node:fs/promises";
 
 export default async function exercise(page) {
   const cases = JSON.parse(await readFile(new URL(
-    "../../../../apps/retinue_cli/test/fixtures/poe2_trade_profiles.json", import.meta.url), "utf8"));
+    "../../../../test/fixtures/poe2_trade_profiles.json", import.meta.url), "utf8"));
   const actual = await page.evaluate(cases => {
     const {require, store} = window.reference;
     const build = require(71116).gQ;

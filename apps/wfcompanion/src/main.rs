@@ -17,7 +17,7 @@ mod runtime;
 mod shortcut;
 
 #[cfg(test)]
-#[path = "../../../tools/render-bench/support.rs"]
+#[path = "../../../tools/benchmarks/support.rs"]
 mod render_bench;
 
 use runtime::presentation::Event as UiEvent;

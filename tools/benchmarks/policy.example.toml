@@ -1,0 +1,11 @@
+# Syntax example only. Calibrate and review tolerances before using as a gate.
+schema = 1
+minimum_runs = 7
+
+[[rule]]
+suite = "gui-rails"
+case = "*"
+metric = "frame_p95_ms"
+relative = 0.05
+absolute = 0.1
+minimum_frames = 60

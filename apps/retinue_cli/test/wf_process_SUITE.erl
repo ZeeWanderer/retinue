@@ -133,7 +133,7 @@ cache_args(Config) ->
 shift_date(#{<<"$date">> := #{<<"$numberLong">> := Value}}, Delta) ->
     #{<<"$date">> => #{<<"$numberLong">> => integer_to_binary(binary_to_integer(Value) + Delta)}}.
 
-fixture(Name) -> filename:join([code:lib_dir(retinue_cli), "test", "fixtures", Name]).
+fixture(Name) -> filename:join([retinue_test:fixtures(), Name]).
 
 contains(Text, Expected) -> ?assertNotEqual(nomatch, binary:match(Text, Expected)).
 

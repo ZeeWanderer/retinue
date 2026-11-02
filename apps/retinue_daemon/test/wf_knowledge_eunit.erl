@@ -31,5 +31,5 @@ find_name(Name, Entries) ->
 find_item(Name, Entries) ->
     hd([E || E <- Entries, maps:get(item, E) =:= Name]).
 
-fixture_exports() -> filename:join(["apps", "retinue_cli", "test", "fixtures", "exports"]).
-fixture_knowledge() -> filename:join(["apps", "retinue_cli", "test", "fixtures", "knowledge"]).
+fixture_exports() -> filename:join([retinue_test:fixtures(), "exports"]).
+fixture_knowledge() -> filename:join([retinue_test:fixtures(), "knowledge"]).

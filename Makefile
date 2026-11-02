@@ -34,11 +34,13 @@ PREVIEW_SCENES ?= all
 PREVIEW_RESOLUTIONS ?= 1920x1080 2560x1440
 PREVIEW_DEPS = $(if $(findstring companion,$(PREVIEW_SETS)),dev-companion)
 BENCH_SAMPLES ?= 60
+BENCH_RUNS ?= 7
+BENCH_SUITE ?= poe2-overlay
 BENCH_THREADS ?= 1
 BENCH_HZ ?= 0
 BENCH_CASES ?=
 BENCH_SCALES ?= 1,1.25,1.5
-BENCH_OUTPUT ?= $(CURDIR)/research/retinue/benchmarks/overlays/$(shell date -u +%Y%m%dT%H%M%SZ)
+BENCH_OUTPUT ?= $(CURDIR)/research/retinue/benchmarks/$(shell date -u +%Y%m%dT%H%M%SZ)
 
 export REBAR3 REBAR_CACHE_DIR
 export CARGO CARGO_TARGET_DIR
@@ -71,9 +73,22 @@ gui-prod: sccache-setup
 	+RUSTFLAGS="$(RUSTFLAGS) $(if $(WFCLI_CPU_BASELINE),-Ctarget-cpu=$(WFCLI_CPU_BASELINE) -Clink-arg=-march=$(WFCLI_CPU_BASELINE))" $(CARGO) build --locked --release -p wfgui
 	./scripts/stage-gui prod
 
-test-gui: sccache-setup
-	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features --features retinue-ui/desktop --all-targets
-	+$(MAKE) test-gui-app
+test-gui: test-gui-app
+
+.PHONY: test-ui test-native test-tools test-integration test-live bench bench-list bench-compare
+test-ui: sccache-setup
+	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features
+	+$(CARGO) test --locked -p retinue-render -p retinue-ui --features retinue-ui/benchmark
+	+$(CARGO) test --locked -p retinue-render -p retinue-ui --no-default-features --features retinue-ui/desktop --all-targets
+
+test-native: sccache-setup
+	+$(CARGO) test --locked --quiet -p retinue-protocol -p retinue-client -p retinue-native -p retinue-poe2 -p retinue-warframe -p retinue-inspect $(NATIVE_TEST)
+
+test-tools:
+	python3 -m unittest discover -s tools/benchmarks
+	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+	python3 -m unittest discover -s test/integration -p 'test_*.py'
+	+$(MAKE) test-docs
 
 .PHONY: test-gui-app
 test-gui-app: sccache-setup
@@ -112,7 +127,7 @@ test-gui-live: sccache-setup
 .PHONY: bench-gui
 bench-gui: sccache-setup
 	@test -n "$(GUI_BENCH_OUTPUT)" || { printf '%s\n' 'Set GUI_BENCH_OUTPUT to a JSON report path'; exit 2; }
-	+GUI_BENCH_OUTPUT="$(abspath $(GUI_BENCH_OUTPUT))" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --profile $(or $(GUI_BENCH_PROFILE),test) -p wfgui $(if $(GUI_BENCH_FEATURES),--features $(GUI_BENCH_FEATURES)) --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
+	+GUI_BENCH_OUTPUT="$(abspath $(GUI_BENCH_OUTPUT))" GUI_BENCH_LIVE="$(GUI_BENCH_LIVE)" $(CARGO) test --locked --release -p wfgui $(if $(GUI_BENCH_FEATURES),--features $(GUI_BENCH_FEATURES)) --bin wfgui $(or $(GUI_BENCH_CASE),rail_animation_benchmark) -- --ignored --test-threads=1
 
 all: dev
 build: dev prod
@@ -221,7 +236,7 @@ ui-reference-setup:
 fix-executables:
 	bash ./scripts/fix-executables
 
-test: test-erlang test-companion test-gui test-staging test-build test-poe2
+test: test-erlang test-native test-ui test-companion test-gui test-tools test-staging test-build test-integration
 
 test-erlang:
 	./scripts/test-quiet eunit
@@ -232,8 +247,7 @@ test-protocol: sccache-setup
 	+$(CARGO) test --locked -p retinue-protocol -p retinue-client
 
 test-companion: native-bridges
-	python3 -m unittest discover -s tools/render-bench
-	+$(CARGO) test --locked --quiet -p retinue-protocol -p retinue-client -p retinue-native -p retinue-render -p retinue-ui -p retinue-poe2 -p retinue-warframe -p retinue-inspect -p arccompanion --features retinue-ui/benchmark
+	+$(CARGO) test --locked --quiet -p arccompanion
 	+$(CARGO) test --locked --quiet --manifest-path $(COMPANION_MANIFEST)
 	+$(CARGO) test --locked --quiet --manifest-path $(POE2_COMPANION_MANIFEST)
 
@@ -264,8 +278,23 @@ bench-overlay-scheduling: native-bridges
 
 test-poe2: dev-erlang dev-companion
 	+$(CARGO) build --locked -p retinue-protocol --example fixture-codec
-	python3 ./scripts/tests/poe2_reports.py
-	python3 ./scripts/tests/poe2.py --stage dev --codec "$(CARGO_TARGET_DIR)/debug/examples/fixture-codec"
+	python3 ./test/integration/poe2.py --stage dev --codec "$(CARGO_TARGET_DIR)/debug/examples/fixture-codec"
+
+test-integration: test-poe2
+
+test-live:
+	@test "$(LIVE_TEST)" = gui-session || { printf '%s\n' 'Select explicitly: make test-live LIVE_TEST=gui-session (needs a running daemon)'; exit 2; }
+	+$(MAKE) test-gui-live
+
+bench-list:
+	python3 tools/benchmarks/run.py list
+
+bench: sccache-setup
+	+python3 tools/benchmarks/run.py record $(BENCH_SUITE) --output "$(BENCH_OUTPUT)" --repeats $(BENCH_RUNS) --samples $(BENCH_SAMPLES) --threads $(BENCH_THREADS) --hz $(BENCH_HZ) --cases "$(BENCH_CASES)"
+
+bench-compare:
+	@test -n "$(BENCH_BEFORE)" -a -n "$(BENCH_AFTER)" -a -n "$(BENCH_POLICY)" || { printf '%s\n' 'Set BENCH_BEFORE, BENCH_AFTER and BENCH_POLICY'; exit 2; }
+	python3 tools/benchmarks/compare.py "$(BENCH_BEFORE)" "$(BENCH_AFTER)" --policy "$(BENCH_POLICY)"
 
 test-staging:
 	./scripts/test-storage-migration
@@ -295,7 +324,9 @@ clean:
 	rm -rf _build dev prod
 
 .PHONY: docs docs-setup docs-api-rust docs-api-erlang docs-site docs-check docs-serve test-docs
-docs-setup:
+docs-setup: tools/docs/node_modules/.package-lock.json
+
+tools/docs/node_modules/.package-lock.json: tools/docs/package.json tools/docs/package-lock.json
 	npm ci --prefix tools/docs --no-audit --no-fund
 
 docs-api-rust: sccache-setup
@@ -322,5 +353,5 @@ docs-check:
 docs-serve:
 	npm --prefix tools/docs run preview -- --port 4321
 
-test-docs:
+test-docs: docs-setup
 	npm --prefix tools/docs test

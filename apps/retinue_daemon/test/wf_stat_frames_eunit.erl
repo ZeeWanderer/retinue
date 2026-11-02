@@ -156,7 +156,7 @@ request(Name, Rank, Mods) ->
         <<"definition_id">> => maps:get(<<"uniqueName">>, Export), <<"class">> => <<"warframe">>,
         <<"rank">> => Rank, <<"config">> => #{<<"upgrade_slots">> => Mods}}}}}.
 exports() ->
-    {ok, Data} = file:read_file("apps/retinue_cli/test/fixtures/frame_stats_exports.json"),
+    {ok, Data} = file:read_file(retinue_test:fixture("frame_stats_exports.json")),
     jsone:decode(Data).
 mod(N, Key, Rank) -> #{<<"topology_slot">> => <<"mod-", (integer_to_binary(N))/binary>>,
     <<"item_type">> => <<"/Lotus/Upgrades/Mods/Warframe/", Key/binary>>, <<"rank">> => Rank}.

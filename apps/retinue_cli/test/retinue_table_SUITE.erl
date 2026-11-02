@@ -190,6 +190,6 @@ complex_tables_lines() ->
     {T1Lines, T2Lines, T3Lines}.
 
 read_fixture(Name) ->
-    Path = filename:join([filename:dirname(?FILE), "fixtures", "table", Name]),
+    Path = filename:join([retinue_test:fixtures(), "table", Name]),
     {ok, Bin} = file:read_file(Path),
     binary_to_list(Bin).

@@ -20,7 +20,7 @@ reviewed_profiles_use_per_projectile_packets_test() ->
     end, exports()).
 
 native_profile_packets_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_profile_packets.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_profile_packets.json")),
     #{<<"cases">> := Cases} = jsone:decode(Json),
     Catalog = [wf_build_stats_eunit:weapon() | exports()],
     [{binary_to_list(Type), ?_test(begin
@@ -299,7 +299,7 @@ export(Name) ->
     [Export] = [E || E <- exports(), maps:get(<<"name">>, E) =:= Name],
     Export.
 exports() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/ranged_stats_exports.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("ranged_stats_exports.json")),
     jsone:decode(Json).
 near(Expected, Actual) -> ?assert(abs(Expected - Actual) < 0.001).
 

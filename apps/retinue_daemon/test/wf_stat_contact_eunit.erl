@@ -22,7 +22,7 @@ native_contact_critical_pipeline_test_() ->
     end)} || {Index, Case} <- lists:enumerate(maps:get(<<"combined_cases">>, Fixture))].
 
 native_weakpoint_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_weakpoint_contact.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_weakpoint_contact.json")),
     Fixture = jsone:decode(Json),
     Fields = [binary_to_existing_atom(K) || K <- maps:get(<<"expected_fields">>, Fixture)],
     [{integer_to_list(Index), ?_test(begin
@@ -34,7 +34,7 @@ native_weakpoint_test_() ->
     end)} || {Index, Case} <- lists:enumerate(maps:get(<<"cases">>, Fixture))].
 
 native_critical_context_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_context.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_context.json")),
     Fixture = jsone:decode(Json),
     Fields = [binary_to_existing_atom(K) || K <- maps:get(<<"expected_fields">>, Fixture)],
     [{binary_to_list(maps:get(<<"name">>, Case)), ?_test(begin
@@ -46,7 +46,7 @@ native_critical_context_test_() ->
     end)} || Case <- maps:get(<<"cases">>, Fixture)].
 
 native_critical_links_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_critical_links.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_critical_links.json")),
     Fixture = jsone:decode(Json),
     [{integer_to_list(Index), ?_assertEqual(float32(maps:get(<<"expected">>, Case)),
                                           linked_chance(Case))}
@@ -104,7 +104,7 @@ critical_status_rejects_invalid_ids_and_counts_test() ->
      || {Id, Count} <- [{-1, 1}, {30, 1}, {0.0, 1}, {0, -1}, {0, 1.5}, {0, 1 bsl 64}]].
 
 native_post_critical_test_() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_post_critical.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_post_critical.json")),
     Fixture = jsone:decode(Json),
     [{binary_to_list(maps:get(<<"name">>, Case)), ?_test(begin
         Hit = post_critical_fields(maps:get(<<"hit">>, Case)),
@@ -223,7 +223,7 @@ suppression_preserves_channel_edits_test() ->
         maps:get(scalar, maps:get(pending_updates, Packet))), maps:get(scalar, Result)).
 
 fixture() ->
-    {ok, Json} = file:read_file("apps/retinue_cli/test/fixtures/native_contact_packet.json"),
+    {ok, Json} = file:read_file(retinue_test:fixture("native_contact_packet.json")),
     jsone:decode(Json).
 
 contact(Case, Fixture) ->

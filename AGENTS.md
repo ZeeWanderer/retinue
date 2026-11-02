@@ -20,6 +20,7 @@
 - Verify the running binary and reload completion. Preserve the user's running game and services.
 - Code, fixture and build changes require `./scripts/test-quiet ct` plus affected-layer tests.
   Documentation-only edits need no tests. Add regression coverage; keep fixtures read-only.
+- Follow [test organization](docs/developer/testing.md); keep timing experiments out of correctness gates.
 - Socket and Erlang distribution tests need host namespaces, not necessarily root.
 - Exercise changed CLI commands. Inspect UI details and scaling with [GUI captures](docs/gui.md)
   and [overlay previews](tools/ui-reference/README.md).

@@ -34,5 +34,5 @@ Use this checklist after choosing the owning application in [`structure.md`](str
 ## Tests
 
 - Add focused EUnit or Common Test coverage under the owning application's test directory.
-- Update `apps/retinue_cli/test/fixtures/worldstate_sample.json` only when the feature needs source data
+- Update `test/fixtures/worldstate_sample.json` only when the feature needs source data
   absent from the fixture.

@@ -1,0 +1,188 @@
+# Bump workload when scripted input, timing boundaries or case semantics change.
+[suite.wf-overlay]
+owner = "wfcompanion"
+package = "wfcompanion"
+target = ["--bin", "wfcompanion"]
+test = "presentation::renderer::tests::overlay_benchmark"
+source = "apps/wfcompanion/src/presentation/renderer.rs"
+adapter = "overlay"
+raw = "warframe.json"
+cases = ["loading-buffer-cycle", "static-frame-copy", "scene-change"]
+workload = 1
+fixtures = ["apps/wfcompanion/src/presentation/relic/fixture.rs", "assets/fonts/roboto/*"]
+
+[suite.poe2-overlay]
+owner = "poe2companion"
+package = "poe2companion"
+target = ["--lib"]
+test = "presentation::evaluate::panel::tests::overlay_benchmark"
+source = "apps/poe2companion/src/presentation/evaluate/panel.rs"
+adapter = "overlay"
+raw = "poe2.json"
+cases = ["warm-repaint", "hover", "hover-partial", "listing-scroll", "scale-change"]
+workload = 1
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+
+[suite.gui-rails]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::shell::benchmark::rail_animation_benchmark"
+source = "apps/wfgui/src/presentation/shell/benchmark/mod.rs"
+adapter = "gui"
+raw = "gui.json"
+workload = 1
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.gui-foundry]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::foundry::tests::foundry_scroll_benchmark"
+source = "apps/wfgui/src/presentation/foundry/tests.rs"
+adapter = "foundry"
+raw = "gui.json"
+workload = 1
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.gui-relics]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::benchmark::relic_scroll_benchmark"
+source = "apps/wfgui/src/presentation/benchmark/mod.rs"
+adapter = "gui"
+raw = "gui.json"
+workload = 1
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.gui-drag]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::shell::benchmark::drag::foundry_drag_benchmark"
+source = "apps/wfgui/src/presentation/shell/benchmark/drag.rs"
+adapter = "gui"
+raw = "gui.json"
+workload = 1
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[[manual]]
+id = "repair-strategies"
+source = "crates/retinue-render/src/frame/tests/repair.rs"
+test = "repair_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-repair REPAIR_REPORT=<report.jsonl>"
+
+[[manual]]
+id = "overlay-scheduling"
+source = "apps/poe2companion/src/presentation/evaluate/panel/scheduling_benchmark.rs"
+test = "overlay_scheduling_benchmark"
+purpose = "experiment"
+environment = "compositor"
+command = "make bench-overlay-scheduling"
+
+[[manual]]
+id = "wf-assets"
+source = "apps/wfcompanion/src/domain/media.rs"
+test = "benchmark_scene_assets"
+purpose = "experiment"
+environment = "cached-player-assets"
+command = "make test-wfcompanion COMPANION_TEST='--release benchmark_scene_assets -- --ignored --nocapture'"
+
+[[manual]]
+id = "gui-session"
+source = "apps/wfgui/src/domain/session.rs"
+test = "live_daemon_accepts_subscription_and_activity_query"
+purpose = "correctness"
+environment = "live-daemon"
+command = "make test-live LIVE_TEST=gui-session"
+
+[[manual]]
+id = "gui-images"
+source = "apps/wfgui/src/presentation/foundry/tests.rs"
+test = "foundry_image_benchmark"
+purpose = "experiment"
+environment = "cached-player-assets"
+command = "make bench-gui GUI_BENCH_CASE=foundry_image_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-replay"
+source = "apps/wfgui/src/presentation/benchmark/replay.rs"
+test = "paint_replay_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=paint_replay_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-subtree-motion"
+source = "apps/wfgui/src/presentation/benchmark/mod.rs"
+test = "subtree_motion_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=subtree_motion_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-adaptive-motion"
+source = "apps/wfgui/src/presentation/benchmark/mod.rs"
+test = "adaptive_motion_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=adaptive_motion_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-settings"
+source = "apps/wfgui/src/presentation/settings/mod.rs"
+test = "settings_phase_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=settings_phase_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-payload"
+source = "apps/wfgui/src/presentation/shell/benchmark/mod.rs"
+test = "client_payload_benchmark"
+purpose = "experiment"
+environment = "live-daemon"
+command = "make bench-gui GUI_BENCH_CASE=client_payload_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-interactions"
+source = "apps/wfgui/src/presentation/shell/benchmark/mod.rs"
+test = "interaction_residency_benchmark"
+purpose = "experiment"
+environment = "headless-or-live-opt-in"
+command = "make bench-gui GUI_BENCH_CASE=interaction_residency_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-pages"
+source = "apps/wfgui/src/presentation/shell/benchmark/mod.rs"
+test = "page_residency_benchmark"
+purpose = "experiment"
+environment = "headless-or-live-opt-in"
+command = "make bench-gui GUI_BENCH_CASE=page_residency_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "wf-inventory"
+source = "crates/retinue-warframe/src/game_observer/inventory.rs"
+test = "benchmark_live_inventory_refresh"
+purpose = "experiment"
+environment = "live-game-WF_GAME_PID"
+command = "make test-native NATIVE_TEST='--release benchmark_live_inventory_refresh -- --ignored --nocapture'"
+
+[[manual]]
+id = "wf-gep"
+source = "crates/retinue-warframe/src/game_observer/gep.rs"
+test = "benchmark_unchanged_response"
+purpose = "experiment"
+environment = "headless"
+command = "make test-native NATIVE_TEST='--release benchmark_unchanged_response -- --ignored --nocapture'"
+
+[[manual]]
+id = "wf-combat-pe"
+source = "crates/retinue-warframe/src/inspect/combat/layout/tests.rs"
+test = "offline_pe_report"
+purpose = "correctness"
+environment = "WF_COMBAT_PE-executable"
+command = "make test-native NATIVE_TEST='offline_pe_report -- --ignored --nocapture' (set WF_COMBAT_PE and WF_COMBAT_REPORT)"

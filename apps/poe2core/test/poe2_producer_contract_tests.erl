@@ -76,5 +76,5 @@ roundtrip(Dataset, Data) ->
 
 json_fixture(Name) -> json:decode(fixture(Name)).
 fixture(Name) ->
-    {ok, Bytes} = file:read_file(filename:join("apps/retinue_cli/test/fixtures", Name)),
+    {ok, Bytes} = file:read_file(filename:join(retinue_test:fixtures(), Name)),
     Bytes.

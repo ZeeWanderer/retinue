@@ -20,7 +20,7 @@ parser_test() ->
     ?assertEqual({ok, Item}, parse(item())).
 
 profile_ranges_test_() ->
-    {ok, Bytes} = file:read_file("apps/retinue_cli/test/fixtures/poe2_trade_profiles.json"),
+    {ok, Bytes} = file:read_file(retinue_test:fixture("poe2_trade_profiles.json")),
     [{binary_to_list(Name), ?_assertEqual(Expected,
         retinue_poe2_trade_profiles:ranges(Modifier#{<<"supported">> => true}))}
      || #{<<"name">> := Name, <<"modifier">> := Modifier, <<"expected">> := Expected}
@@ -32,7 +32,7 @@ original_parser_cases_test_() ->
 
 original_parser_case(Case) ->
     Name = maps:get(<<"name">>, Case),
-    {ok, Text} = file:read_file(filename:join([filename:dirname(?FILE), "fixtures", "poe2_" ++ binary_to_list(Name) ++ ".txt"])),
+    {ok, Text} = file:read_file(filename:join([retinue_test:fixtures(), "poe2_" ++ binary_to_list(Name) ++ ".txt"])),
     Http = fun
         (get, <<"/api/trade2/data/stats">>, _, _) ->
             {ok, 200, #{}, iolist_to_binary(json:encode(read_fixture("poe2_modifier_stats.json")))};
@@ -62,7 +62,7 @@ original_parser_case(Case) ->
     end, Http).
 
 read_fixture(Name) ->
-    {ok, Bytes} = file:read_file(filename:join([filename:dirname(?FILE), "fixtures", Name])),
+    {ok, Bytes} = file:read_file(filename:join([retinue_test:fixtures(), Name])),
     json:decode(Bytes).
 
 automatic_search_categories_test() ->
@@ -110,7 +110,7 @@ exact_property_filter_preserves_decimal_value_test() ->
             <<"supported">> => true, <<"min">> => 1.13})).
 
 gem_parser_and_filters_test() ->
-    {ok, Text} = file:read_file("apps/retinue_cli/test/fixtures/poe2_tame_beast.txt"),
+    {ok, Text} = file:read_file(retinue_test:fixture("poe2_tame_beast.txt")),
     {ok, Item} = parse(Text),
     ?assertMatch(#{<<"base">> := <<"Tame Beast">>, <<"rarity">> := <<"Gem">>}, Item),
     ?assertNot(maps:is_key(<<"item_level">>, Item)),
@@ -143,8 +143,8 @@ gem_parser_and_filters_test() ->
         build(QualityRequest, Item, leagues())).
 
 currency_and_quest_text_test() ->
-    {ok, OmenText} = file:read_file("apps/retinue_cli/test/fixtures/poe2_omen.txt"),
-    {ok, LogbookText} = file:read_file("apps/retinue_cli/test/fixtures/poe2_quest_logbook.txt"),
+    {ok, OmenText} = file:read_file(retinue_test:fixture("poe2_omen.txt")),
+    {ok, LogbookText} = file:read_file(retinue_test:fixture("poe2_quest_logbook.txt")),
     {ok, Omen} = parse(OmenText),
     {ok, Logbook} = parse(LogbookText),
     ?assertMatch(#{<<"rarity">> := <<"Currency">>, <<"base">> := <<"Omen of Amelioration">>,
@@ -194,7 +194,7 @@ decorated_sections_do_not_promote_flavour_or_affix_names_test() ->
                   #{<<"section">> := <<"implicit">>, <<"min">> := 10}], maps:get(<<"modifiers">>, Item)).
 
 advanced_metadata_test() ->
-    {ok, Text} = file:read_file("apps/retinue_cli/test/fixtures/poe2_advanced_item.txt"),
+    {ok, Text} = file:read_file(retinue_test:fixture("poe2_advanced_item.txt")),
     {ok, Item} = parse(Text),
     ?assertEqual(<<"Rings">>, maps:get(<<"item_class">>, Item)),
     [Life, Fire, Physical, Implicit, Future] = maps:get(<<"modifiers">>, Item),
@@ -860,7 +860,7 @@ http(get, <<"/api/trade2/fetch/", Tail/binary>>, [], <<>>) ->
             <<"account">> => #{<<"name">> => <<"fixture-account">>, <<"online">> => #{}}}}]}))}.
 
 fixture() ->
-    {ok, Bytes} = file:read_file(filename:join([filename:dirname(?FILE), "fixtures", "poe2_trade_stats.json"])),
+    {ok, Bytes} = file:read_file(filename:join([retinue_test:fixtures(), "poe2_trade_stats.json"])),
     json:decode(Bytes).
 parse(Text) ->
     {ok, Catalog} = retinue_poe2_trade_item:catalog(fixture()),
@@ -882,7 +882,7 @@ unique() -> <<"Item Class: Helmets\nRarity: Unique\nGoldrim\nFelt Cap\n--------\
     "Item Level: 77\n--------\n+31% to all Elemental Resistances">>.
 
 filter_fixture() ->
-    {ok, Bytes} = file:read_file(filename:join([filename:dirname(?FILE), "fixtures", "poe2_trade_filters.json"])),
+    {ok, Bytes} = file:read_file(filename:join([retinue_test:fixtures(), "poe2_trade_filters.json"])),
     json:decode(Bytes).
 
 build(Request, Item, Leagues) ->

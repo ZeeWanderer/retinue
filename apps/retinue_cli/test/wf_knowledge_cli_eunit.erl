@@ -82,5 +82,5 @@ with_local_backend(Fun) ->
 result_names(Results) ->
     [maps:get(name, E) || E <- maps:get(slice, Results)].
 
-fixture_exports() -> filename:join(["apps", "retinue_cli", "test", "fixtures", "exports"]).
-fixture_knowledge() -> filename:join(["apps", "retinue_cli", "test", "fixtures", "knowledge"]).
+fixture_exports() -> filename:join([retinue_test:fixtures(), "exports"]).
+fixture_knowledge() -> filename:join([retinue_test:fixtures(), "knowledge"]).

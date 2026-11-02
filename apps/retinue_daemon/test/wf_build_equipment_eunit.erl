@@ -225,7 +225,7 @@ unresolved_equipment_reports_name_and_asset_context_test() ->
 
 snapshot() ->
     {ok, Body} = file:read_file(
-                   "apps/retinue_cli/test/fixtures/player_inventory_sample.json"),
+                   retinue_test:fixture("player_inventory_sample.json")),
     Raw = jsone:decode(Body, [{object_format, map}]),
     #{revision => 7, updated_at => 1234,
       data => #{<<"inventory">> =>

@@ -91,7 +91,7 @@ daemon_backed_tools_test_() ->
 
          {ok, Catalog} = wf_mcp_tools:call(<<"query">>,
              #{<<"query">> => <<"dataset=items">>, <<"limit">> => 1,
-               <<"exports_dir">> => <<"apps/retinue_cli/test/fixtures/exports">>,
+               <<"exports_dir">> => list_to_binary(retinue_test:fixture("exports")),
                <<"cwd">> => unicode:characters_to_binary(Root)}),
          [#{reply := {ok, #{results := CatalogResult}}}] = maps:get(datasets, Catalog),
          ?assert(maps:get(total, CatalogResult) > 1),
@@ -100,7 +100,7 @@ daemon_backed_tools_test_() ->
          ?assertNot(maps:is_key(all, CatalogResult)),
 
          FormaArgs = #{<<"configs">> =>
-                           [<<"apps/retinue_cli/test/fixtures/simple_capacity.yml">>],
+                           [list_to_binary(retinue_test:fixture("simple_capacity.yml"))],
                        <<"cwd">> => unicode:characters_to_binary(Root)},
          {ok, FormaResult} = wf_mcp_tools:call(<<"forma_plan">>, FormaArgs),
          ?assertMatch([_], maps:get(results, FormaResult))
@@ -108,7 +108,7 @@ daemon_backed_tools_test_() ->
 
 setup_daemon_tools() ->
     ok = retinue_test_daemon:start(),
-    Fixture = "apps/retinue_cli/test/fixtures/worldstate_sample.json",
+    Fixture = retinue_test:fixture("worldstate_sample.json"),
     Cache = filename:join(
               "/tmp", "wfcli-mcp-worldstate-" ++
               integer_to_list(erlang:unique_integer([positive])) ++ ".json"),

@@ -307,7 +307,7 @@ config_for(Name) ->
     Config.
 
 fixture(Name) ->
-    filename:join([code:lib_dir(retinue_cli), "test", "fixtures", Name]).
+    filename:join([retinue_test:fixtures(), Name]).
 
 write_plan_yaml(Name, CtConfig, {Config, Plan, Cost}) ->
     Priv = proplists:get_value(priv_dir, CtConfig, "."),

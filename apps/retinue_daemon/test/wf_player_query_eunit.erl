@@ -184,7 +184,7 @@ query_types(Query) ->
 
 fixture_snapshot() ->
     {ok, Body} = file:read_file(
-                   "apps/retinue_cli/test/fixtures/player_inventory_sample.json"),
+                   retinue_test:fixture("player_inventory_sample.json")),
     Raw = jsone:decode(Body, [{object_format, map}]),
     #{revision => 9, updated_at => 6789,
       data => #{<<"inventory">> => #{

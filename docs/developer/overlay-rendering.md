@@ -400,7 +400,7 @@ time, with resolution, UI scale, build/toolchain identity and memory context.
 Keep benchmarks opt-in, outside normal runtime, with no timing-based CI failures
 until repeatability is established. Headless paint timing does not measure KWin
 upload cost, input latency or game frame pacing.
-The [benchmark harness](../../tools/render-bench/README.md) provides offscreen
+The [benchmark harness](../../tools/benchmarks/README.md) provides offscreen
 cases for both companions and a mapped Evaluate scheduling comparison. The latter
 restores the previous polling policy alongside current event-driven scheduling
 with identical rendering code; it is not a complete historical application build.

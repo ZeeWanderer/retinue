@@ -14,7 +14,9 @@ case "$command_name" in
         ;;
 esac
 
-log_file="$(mktemp "${TMPDIR:-/tmp}/wfcli-${command_name}.XXXXXX.log")"
+log_dir="${RETINUE_TEST_LOG_DIR:-research/retinue/tests}"
+mkdir -p "$log_dir" || exit 1
+log_file="$(mktemp "$log_dir/${command_name}.XXXXXX.log")"
 if [[ "$command_name" == "gui" ]]; then
     label="gui"
     make test-gui >"$log_file" 2>&1

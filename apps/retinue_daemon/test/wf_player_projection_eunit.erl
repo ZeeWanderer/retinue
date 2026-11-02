@@ -151,5 +151,5 @@ observation(Raw) ->
 
 fixture_raw() ->
     {ok, Body} = file:read_file(
-                   "apps/retinue_cli/test/fixtures/player_inventory_sample.json"),
+                   retinue_test:fixture("player_inventory_sample.json")),
     jsone:decode(Body, [{object_format, map}]).
