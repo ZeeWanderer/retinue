@@ -102,8 +102,8 @@ changing the renderer. Current tooling does not claim a calibrated timing gate.
 Keep selected compact measurement records in `tools/benchmarks/history/`, keyed by
 measurement ID and compatible workload/environment. Source commits are provenance,
 not a requirement to benchmark every commit. Baseline replacement needs an explicit
-reason; raw evidence remains ignored. Use external profiling to explain results,
-not as a substitute for unprofiled performance measurements.
+reason; raw evidence remains ignored. Use [external profiling](profiling.md) to
+explain results, not as a substitute for unprofiled performance measurements.
 
 Criterion is suitable for new isolated Rust microbenchmarks. Nextest can provide
 process isolation/resource groups if native Cargo scheduling becomes inadequate;

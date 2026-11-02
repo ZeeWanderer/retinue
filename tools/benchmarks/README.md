@@ -103,6 +103,13 @@ fixtures, build settings and machine, not source commit. A dirty run can be kept
 as evidence but cannot be an accepted baseline. Raw frames, traces, binaries and
 logs stay outside Git. No baseline is selected until a clean run is reviewed.
 
+## Profiling
+
+Use [external profilers and matching debug symbols](../../docs/developer/profiling.md)
+to explain regressions. There is no embedded capture service. Profiled runs are
+diagnostic evidence, not timing baselines; keep their outputs separate from the
+unprofiled reports above.
+
 ## Exploratory Native Reports
 
 The direct Make targets below retain the original detailed measurements and

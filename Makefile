@@ -41,6 +41,10 @@ BENCH_HZ ?= 0
 BENCH_CASES ?=
 BENCH_SCALES ?= 1,1.25,1.5
 BENCH_OUTPUT ?= $(CURDIR)/research/retinue/benchmarks/$(shell date -u +%Y%m%dT%H%M%SZ)
+PROFILE_APP ?= wfgui
+PROFILE_FLAVOR ?= prod
+PROFILE_OUTPUT ?= $(CURDIR)/research/retinue/profiles/$(shell date -u +%Y%m%dT%H%M%SZ)-$(PROFILE_APP)-$(PROFILE_FLAVOR)
+PROFILE_TARGET_DIR ?= $(CURDIR)/_build/profiling
 
 export REBAR3 REBAR_CACHE_DIR
 export CARGO CARGO_TARGET_DIR
@@ -86,9 +90,15 @@ test-native: sccache-setup
 
 test-tools:
 	python3 -m unittest discover -s tools/benchmarks
+	python3 -m unittest discover -s tools/profiling
 	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 	python3 -m unittest discover -s test/integration -p 'test_*.py'
 	+$(MAKE) test-docs
+
+.PHONY: profile-build
+profile-build: sccache-setup
+	+python3 tools/profiling/build.py --app "$(PROFILE_APP)" --flavor "$(PROFILE_FLAVOR)" \
+		--output "$(PROFILE_OUTPUT)" --target-dir "$(PROFILE_TARGET_DIR)"
 
 .PHONY: test-gui-app
 test-gui-app: sccache-setup

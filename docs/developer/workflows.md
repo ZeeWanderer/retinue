@@ -119,6 +119,8 @@ and game performance.
 both companions. `make bench-list` lists maintained workloads and experiments;
 `make bench BENCH_SUITE=gui-rails` records independent release runs with provenance.
 Reports and comparison commands: [benchmarks](../../tools/benchmarks/README.md).
+`make profile-build PROFILE_APP=wfgui PROFILE_FLAVOR=prod` creates an unstaged
+executable and matching debug symbols for [external profiling](profiling.md).
 `make bench-overlay-scheduling` compares polling and event-driven scheduling on
 a real Wayland surface using a click-through Evaluate fixture. It does not reload
 companions or interact with the game.
