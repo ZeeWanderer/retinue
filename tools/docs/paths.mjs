@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 
 export const root = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 export const work = path.join(root, '_build/documentation');
-export const content = path.join(work, 'content');
+export const content = path.join(root, 'tools/docs/src/content/docs');
 export const output = path.join(root, '_build/docs');
 export const repository = 'https://github.com/ZeeWanderer/retinue';
 export const base = '/' + (process.env.DOCS_BASE ?? '/retinue/').split('/').filter(Boolean).join('/') + '/';

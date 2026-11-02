@@ -1,8 +1,7 @@
 import {defineCollection} from 'astro:content';
-import {glob} from 'astro/loaders';
+import {docsLoader} from '@astrojs/starlight/loaders';
 import {docsSchema} from '@astrojs/starlight/schema';
-import {content} from '../paths.mjs';
 
 export const collections = {
-  docs: defineCollection({loader: glob({pattern: '**/*.md', base: content}), schema: docsSchema()}),
+  docs: defineCollection({loader: docsLoader(), schema: docsSchema()}),
 };

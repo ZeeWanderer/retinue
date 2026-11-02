@@ -7,7 +7,7 @@
 - `cli.escript`: read-only export of the actual CLI tree.
 - `protocol.mjs`: Protobuf reflection, not generated-code parsing.
 - `native.mjs`: shared navigation/search metadata; native API markup stays intact.
-- `check.mjs`: topic links, anchors and API entrypoints.
+- `check.mjs`: sidebar coverage, links, anchors and API entrypoints.
 
 No generated output is committed. Dependencies are pinned in `package-lock.json`;
 Erlang's ExDoc plugin is pinned in the docs profile.

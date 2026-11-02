@@ -14,7 +14,7 @@ make docs-serve
 ```
 
 Open `http://127.0.0.1:4321/retinue/`. `make docs` installs locked documentation
-dependencies, generates APIs and checks topic links. It does not start the daemon
+dependencies, generates APIs and checks navigation and topic links. It does not start the daemon
 or run CLI command handlers. ExDoc is a docs-profile plugin, not a runtime
 dependency. Erlang, Cargo and native build prerequisites are listed in
 [workflows](workflows.md).
@@ -25,9 +25,9 @@ tested with `make test-composition`; rendered examples are not a substitute for
 doctests. `DOCS_BASE=/` builds for a domain root instead of the project subpath.
 
 Source Markdown remains readable on GitHub. The builder adds site metadata and
-rewrites links into `_build/documentation/content`; it never rewrites source
-documents. Final HTML is `_build/docs`, not checked in. Never edit generated
-Markdown or HTML.
+rewrites links into the ignored `tools/docs/src/content/docs` collection, where
+Starlight discovers sidebar entries. It never rewrites source documents. Final
+HTML is `_build/docs`, not checked in. Never edit generated Markdown or HTML.
 
 ## What Goes Where
 

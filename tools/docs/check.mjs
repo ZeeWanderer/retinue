@@ -3,6 +3,24 @@ import path from 'node:path';
 import {load} from 'cheerio';
 import {basePath, output, work, rustCrates, erlangApps} from './paths.mjs';
 
+export function navigationErrors($, pages) {
+  const sidebar = $('#starlight__sidebar');
+  if (!sidebar.length) return ['Missing documentation sidebar'];
+  const errors = [];
+  for (const group of sidebar.find('details').toArray()) {
+    if (!$(group).find('a[href]').length) {
+      errors.push(`Empty sidebar group: ${$(group).children('summary').text().trim()}`);
+    }
+  }
+  const links = new Set(sidebar.find('a[href]').toArray().map(node => $(node).attr('href')));
+  for (const page of pages) {
+    if (page.route === 'search') continue;
+    const href = basePath + (page.route ? page.route + '/' : '');
+    if (!links.has(href)) errors.push(`Missing sidebar link: ${href}`);
+  }
+  return errors;
+}
+
 export async function check(directory) {
   const pages = JSON.parse(await fs.readFile(path.join(work, 'pages.json'), 'utf8'));
   const errors = [];
@@ -19,7 +37,8 @@ export async function check(directory) {
   for (const page of pages) {
     const file = path.join(directory, page.route, 'index.html');
     const $ = load(await fs.readFile(file, 'utf8'));
-    const refs = $('main a[href], main img[src]').toArray().map(node => $(node).attr(node.name === 'a' ? 'href' : 'src'));
+    if (!page.route) errors.push(...navigationErrors($, pages));
+    const refs = $('main a[href], main img[src], #starlight__sidebar a[href]').toArray().map(node => $(node).attr(node.name === 'a' ? 'href' : 'src'));
     for (const href of refs) {
       if (!href || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href)) continue;
       const location = new URL(href, 'https://docs.invalid' + basePath + (page.route ? page.route + '/' : ''));
@@ -46,7 +65,7 @@ export async function check(directory) {
   }
   await fs.writeFile(path.join(work, 'link-report.json'), JSON.stringify({pages: pages.length, errors}, null, 2));
   if (errors.length) throw new Error(`${errors.length} documentation errors; see _build/documentation/link-report.json\n${errors.slice(0, 8).join('\n')}`);
-  console.log(`Documentation verified: ${pages.length} topics, ${rustCrates.length + erlangApps.length} API roots, no broken topic links.`);
+  console.log(`Documentation verified: ${pages.length} topics, ${rustCrates.length + erlangApps.length} API roots, complete sidebar and no broken links.`);
 }
 
 if (process.argv[1]?.endsWith('/check.mjs')) await check(output);

@@ -6,6 +6,25 @@ import {protocolPages} from '../protocol.mjs';
 import {integrate} from '../native.mjs';
 import {root, basePath} from '../paths.mjs';
 import {route} from '../prepare.mjs';
+import {navigationErrors} from '../check.mjs';
+
+test('navigation validation rejects empty groups and unlinked topics', () => {
+  const $ = load(`<nav id="starlight__sidebar"><a href="${basePath}">Overview</a>
+    <details><summary>Development</summary><ul></ul></details></nav>`);
+  assert.deepEqual(navigationErrors($, [{route: ''}, {route: 'developer/testing'}]), [
+    'Empty sidebar group: Development',
+    `Missing sidebar link: ${basePath}developer/testing/`,
+  ]);
+  assert.deepEqual(navigationErrors(load('<main>Overview</main>'), []), ['Missing documentation sidebar']);
+});
+
+test('navigation validation accepts collapsed nested links and a separate search page', () => {
+  const $ = load(`<nav id="starlight__sidebar"><a href="${basePath}">Overview</a>
+    <details><summary>Reference</summary><ul><li><details><summary>CLI</summary>
+      <a href="${basePath}reference/cli/">Commands</a>
+    </details></li></ul></details></nav>`);
+  assert.deepEqual(navigationErrors($, [{route: ''}, {route: 'reference/cli'}, {route: 'search'}]), []);
+});
 
 test('topic index routes match the static site directory routes', () => {
   assert.equal(route('docs/index.md'), '');
