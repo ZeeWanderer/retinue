@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "series": {
+    "4213499a1fd232c6f25edd2435637af977ecc44538ba1bdbd95a0c8cf44e5438": {
+      "suite": "gui-drag",
+      "record": "c6d00fcf5ec44941a59db5dcdf77fe5e",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.857881+00:00"
+    },
+    "4e99ce1ab80a8e89d248c9f336b4aa5670ca03c17bcaf6a8ac69a18f0af43b31": {
+      "suite": "gui-foundry",
+      "record": "e76a8c75f523457abcab5965c573b0e7",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.863350+00:00"
+    },
+    "5668aa4b5cdb1553a8ed70bdd8f6ed31028382f1f1cd82d5cd79948b459ec00f": {
+      "suite": "gui-rails",
+      "record": "2ce8be93eaf54b648805092a139ed346",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.867889+00:00"
+    },
+    "c1ded0f7169bd2dce48890602f6166d774283f0dc785dd54e65c7b9069859663": {
+      "suite": "gui-relics",
+      "record": "bf6eac47ed024e999cca316e09f78616",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.872119+00:00"
+    },
+    "0f97ab57320c23aa31753198b201601e59f7e922148f2cd751a97be720877891": {
+      "suite": "poe2-overlay",
+      "record": "04504b566cfd4c169f6066ea19b0c2d4",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.887247+00:00"
+    },
+    "6e8a17370cc4f753dd07a6b3a768776a8bbf49d2991151ffeb1ebeb816752c63": {
+      "suite": "wf-overlay",
+      "record": "e7b5a19659114cf1aaa4e64f4cd5e69a",
+      "previous": null,
+      "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
+      "selected_at": "2026-11-02T23:20:46.901217+00:00"
+    }
+  }
+}

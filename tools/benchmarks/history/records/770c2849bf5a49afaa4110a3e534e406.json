@@ -1,0 +1,1401 @@
+{
+  "schema": 1,
+  "suite": "gui-foundry",
+  "purpose": "regression",
+  "id": "770c2849bf5a49afaa4110a3e534e406",
+  "created_at": "2026-11-04T13:52:15.000703+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 8,
+  "provenance": {
+    "revision": "cb0a0ce5a4ddbca88fb40a11184ece2693342447",
+    "patch_sha256": "8664d1b7a308807ede85ba9230fe72a56f2fd4836884a4e72281ae1131b44d47",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "f9173e79299c34e89500d1cf005ed165eddf48aaae8336c2fe355df394b3b933",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "fe24edc0ba6459e49a8e7ed17004ffae018da11b4a0722541e987f03b9b0092d"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.2.15-ogc1.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 1,
+    "adapter": "foundry",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4",
+      "WFCLI_CPU_BASELINE": "",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.4\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin",
+      "CXX_version": "Homebrew clang version 23.1.4\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 120,
+      "hz": 0,
+      "cases": "",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "f4f3bb51d8d379e9f852bff2b686c4d92bca67af554996d3f42eb2982d43e11e",
+      "elapsed_seconds": 2.0011483839989523,
+      "load_average": [
+        3.16015625,
+        7.1552734375,
+        11.689453125
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.6048180000000001,
+            "frame_p95_ms": 1.014361,
+            "frame_max_ms": 1.7558630000000002,
+            "frame_mean_ms": 0.670000175
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.77596,
+            "frame_p95_ms": 1.124345,
+            "frame_max_ms": 2.230026,
+            "frame_mean_ms": 0.837363425
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.389864,
+            "frame_p95_ms": 1.889487,
+            "frame_max_ms": 2.830562,
+            "frame_mean_ms": 1.466595475
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.744889,
+            "frame_p95_ms": 2.339789,
+            "frame_max_ms": 4.61515,
+            "frame_mean_ms": 1.853991025
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.175481,
+            "frame_p95_ms": 2.242295,
+            "frame_max_ms": 3.999806,
+            "frame_mean_ms": 1.3137956875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.501564,
+            "frame_p95_ms": 2.270706,
+            "frame_max_ms": 2.994609,
+            "frame_mean_ms": 1.6010722875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.598881,
+            "frame_p95_ms": 0.8061200000000001,
+            "frame_max_ms": 1.346053,
+            "frame_mean_ms": 0.6329032625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.254146,
+            "frame_p95_ms": 1.9684540000000001,
+            "frame_max_ms": 3.48972,
+            "frame_mean_ms": 1.3838259375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "10547bde32855ed069f170f72d521a7ff8d87281c068b3b336d3209b8bf519aa",
+      "elapsed_seconds": 2.2372578810009145,
+      "load_average": [
+        3.2275390625,
+        7.1025390625,
+        11.64794921875
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.623826,
+            "frame_p95_ms": 1.033488,
+            "frame_max_ms": 1.88335,
+            "frame_mean_ms": 0.70129779375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.8664379999999999,
+            "frame_p95_ms": 1.46009,
+            "frame_max_ms": 2.556449,
+            "frame_mean_ms": 0.97339244375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.590146,
+            "frame_p95_ms": 2.604457,
+            "frame_max_ms": 3.583894,
+            "frame_mean_ms": 1.72401405
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 2.0212670000000004,
+            "frame_p95_ms": 3.072357,
+            "frame_max_ms": 3.533043,
+            "frame_mean_ms": 2.08782389375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.204833,
+            "frame_p95_ms": 2.018886,
+            "frame_max_ms": 3.3578840000000003,
+            "frame_mean_ms": 1.28357855
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.764414,
+            "frame_p95_ms": 2.6577789999999997,
+            "frame_max_ms": 3.2690639999999997,
+            "frame_mean_ms": 1.82964080625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.633543,
+            "frame_p95_ms": 1.1750610000000001,
+            "frame_max_ms": 1.9826319999999997,
+            "frame_mean_ms": 0.73038456875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.50797,
+            "frame_p95_ms": 2.493786,
+            "frame_max_ms": 3.4776569999999998,
+            "frame_mean_ms": 1.57227166875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "ccacfff2a1a1deea3c76937a8616872f956f0d73e732ecbcf821b65c9897d8ff",
+      "elapsed_seconds": 2.235142507001001,
+      "load_average": [
+        3.2275390625,
+        7.1025390625,
+        11.64794921875
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.6863410000000001,
+            "frame_p95_ms": 1.346732,
+            "frame_max_ms": 2.12049,
+            "frame_mean_ms": 0.7859836
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.855663,
+            "frame_p95_ms": 1.3582869999999998,
+            "frame_max_ms": 2.479076,
+            "frame_mean_ms": 0.9517385125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.608042,
+            "frame_p95_ms": 2.428497,
+            "frame_max_ms": 3.680132,
+            "frame_mean_ms": 1.6636786875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.919354,
+            "frame_p95_ms": 2.748622,
+            "frame_max_ms": 3.5805469999999997,
+            "frame_mean_ms": 2.0147197875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.23035,
+            "frame_p95_ms": 2.000839,
+            "frame_max_ms": 3.1033340000000003,
+            "frame_mean_ms": 1.3157830125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.857118,
+            "frame_p95_ms": 2.746905,
+            "frame_max_ms": 4.790875,
+            "frame_mean_ms": 1.9226473625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.7528870000000001,
+            "frame_p95_ms": 1.1374829999999998,
+            "frame_max_ms": 2.162285,
+            "frame_mean_ms": 0.7622564375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.489104,
+            "frame_p95_ms": 2.363276,
+            "frame_max_ms": 3.197595,
+            "frame_mean_ms": 1.530483975
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "553b8dd8edee62d87e631d0dd4aded11a2118dcea33fb9d02e1e30ac8533d99e",
+      "elapsed_seconds": 2.033957106001253,
+      "load_average": [
+        3.56787109375,
+        7.048828125,
+        11.58154296875
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.60627,
+            "frame_p95_ms": 0.839619,
+            "frame_max_ms": 1.829526,
+            "frame_mean_ms": 0.64968354375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.852503,
+            "frame_p95_ms": 1.268389,
+            "frame_max_ms": 1.946068,
+            "frame_mean_ms": 0.917267825
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.404853,
+            "frame_p95_ms": 1.920941,
+            "frame_max_ms": 2.8927359999999998,
+            "frame_mean_ms": 1.48078565
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.775313,
+            "frame_p95_ms": 2.495467,
+            "frame_max_ms": 3.940623,
+            "frame_mean_ms": 1.88784935
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.153526,
+            "frame_p95_ms": 1.7671329999999998,
+            "frame_max_ms": 2.693277,
+            "frame_mean_ms": 1.2472943125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.587341,
+            "frame_p95_ms": 2.320687,
+            "frame_max_ms": 3.386016,
+            "frame_mean_ms": 1.69829724375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.592198,
+            "frame_p95_ms": 0.942969,
+            "frame_max_ms": 1.652228,
+            "frame_mean_ms": 0.6511598625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.355051,
+            "frame_p95_ms": 1.8801130000000001,
+            "frame_max_ms": 2.906642,
+            "frame_mean_ms": 1.41230365
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "6afe7929401a62bca33ad5e13926dcda1c7a07f19e2f6c10860eda0e9e5b8739",
+      "elapsed_seconds": 2.1252130450011464,
+      "load_average": [
+        3.56787109375,
+        7.048828125,
+        11.58154296875
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.623652,
+            "frame_p95_ms": 1.048869,
+            "frame_max_ms": 1.853647,
+            "frame_mean_ms": 0.6884030250000001
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.803841,
+            "frame_p95_ms": 1.43743,
+            "frame_max_ms": 2.453596,
+            "frame_mean_ms": 0.89270583125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.4061169999999998,
+            "frame_p95_ms": 2.023081,
+            "frame_max_ms": 2.94937,
+            "frame_mean_ms": 1.516747125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.782,
+            "frame_p95_ms": 2.5474819999999996,
+            "frame_max_ms": 3.222569,
+            "frame_mean_ms": 1.90035616875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.2305650000000001,
+            "frame_p95_ms": 1.9097739999999999,
+            "frame_max_ms": 3.400674,
+            "frame_mean_ms": 1.31518509375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.7877990000000001,
+            "frame_p95_ms": 2.625596,
+            "frame_max_ms": 3.733678,
+            "frame_mean_ms": 1.85198713125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.694822,
+            "frame_p95_ms": 0.952506,
+            "frame_max_ms": 1.6523830000000002,
+            "frame_mean_ms": 0.70470083125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.468008,
+            "frame_p95_ms": 2.49643,
+            "frame_max_ms": 3.75867,
+            "frame_mean_ms": 1.56634546875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "4d9e63a18dc5855d05908565894dc8fbfc07f2824537bd2ef3c47b967bcf54e0",
+      "elapsed_seconds": 2.084662388000652,
+      "load_average": [
+        3.7626953125,
+        7.03125,
+        11.55126953125
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.6030439999999999,
+            "frame_p95_ms": 0.904293,
+            "frame_max_ms": 2.369084,
+            "frame_mean_ms": 0.66251654375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.8224859999999999,
+            "frame_p95_ms": 1.223736,
+            "frame_max_ms": 2.069787,
+            "frame_mean_ms": 0.89289986875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.405442,
+            "frame_p95_ms": 2.0731740000000003,
+            "frame_max_ms": 2.7853779999999997,
+            "frame_mean_ms": 1.5067420875
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.750446,
+            "frame_p95_ms": 2.509091,
+            "frame_max_ms": 3.402238,
+            "frame_mean_ms": 1.8860138375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.208107,
+            "frame_p95_ms": 1.688634,
+            "frame_max_ms": 2.659243,
+            "frame_mean_ms": 1.26921779375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.669682,
+            "frame_p95_ms": 2.507354,
+            "frame_max_ms": 3.4308020000000004,
+            "frame_mean_ms": 1.77985973125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.631124,
+            "frame_p95_ms": 1.1750960000000001,
+            "frame_max_ms": 1.7990739999999998,
+            "frame_mean_ms": 0.6960146125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.399575,
+            "frame_p95_ms": 2.029913,
+            "frame_max_ms": 3.059002,
+            "frame_mean_ms": 1.48957948125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "873be8eee82fe0c816d2cc4d1c04bc93a57d323853fbfc7947a89711cb47ba5f",
+      "elapsed_seconds": 2.3058166849987174,
+      "load_average": [
+        3.78173828125,
+        6.98046875,
+        11.51025390625
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.6196170000000001,
+            "frame_p95_ms": 1.009541,
+            "frame_max_ms": 1.7847979999999999,
+            "frame_mean_ms": 0.67438789375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.850945,
+            "frame_p95_ms": 1.595408,
+            "frame_max_ms": 3.292372,
+            "frame_mean_ms": 0.9766539375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.481602,
+            "frame_p95_ms": 2.067061,
+            "frame_max_ms": 2.967846,
+            "frame_mean_ms": 1.5640215125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.846397,
+            "frame_p95_ms": 2.65746,
+            "frame_max_ms": 3.249564,
+            "frame_mean_ms": 1.945575675
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.144312,
+            "frame_p95_ms": 1.850613,
+            "frame_max_ms": 3.1165789999999998,
+            "frame_mean_ms": 1.23404735625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.86864,
+            "frame_p95_ms": 2.654253,
+            "frame_max_ms": 3.581145,
+            "frame_mean_ms": 1.9748304125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.906048,
+            "frame_p95_ms": 1.525862,
+            "frame_max_ms": 3.332053,
+            "frame_mean_ms": 1.00788799375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.8293929999999998,
+            "frame_p95_ms": 3.0591369999999998,
+            "frame_max_ms": 3.82549,
+            "frame_mean_ms": 1.97735939375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "2581786b4f8653359d12f83d743a606e0f6e1e4fe5784dbc7b77a80781707bd8",
+      "elapsed_seconds": 2.1549303170013445,
+      "load_average": [
+        3.638671875,
+        6.8974609375,
+        11.458984375
+      ],
+      "cases": {
+        "size=[1920,1080]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.5946089999999999,
+            "frame_p95_ms": 0.707172,
+            "frame_max_ms": 1.6743999999999999,
+            "frame_mean_ms": 0.62485445625
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[1920,1080]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.786624,
+            "frame_p95_ms": 1.1310230000000001,
+            "frame_max_ms": 2.7264860000000004,
+            "frame_mean_ms": 0.85391223125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 32,
+            "columns": 4,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.555683,
+            "frame_p95_ms": 2.48022,
+            "frame_max_ms": 2.7641459999999998,
+            "frame_mean_ms": 1.60457575
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=100/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 2.0537110000000003,
+            "frame_p95_ms": 3.147425,
+            "frame_max_ms": 4.553787,
+            "frame_mean_ms": 2.1438456375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 70,
+            "columns": 7,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.385583,
+            "frame_p95_ms": 2.020263,
+            "frame_max_ms": 3.5405990000000003,
+            "frame_mean_ms": 1.3849518125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=125/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.695755,
+            "frame_p95_ms": 2.827782,
+            "frame_max_ms": 3.58822,
+            "frame_mean_ms": 1.83157679375
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 40,
+            "columns": 5,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"viewport_repaint\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 0.635996,
+            "frame_p95_ms": 0.889411,
+            "frame_max_ms": 1.6864919999999999,
+            "frame_mean_ms": 0.7084531125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        },
+        "size=[2560,1440]/scale=200/mode=\"full_window\"": {
+          "frame_samples": 160,
+          "metrics": {
+            "frame_p50_ms": 1.401499,
+            "frame_p95_ms": 2.139395,
+            "frame_max_ms": 3.381004,
+            "frame_mean_ms": 1.48473998125
+          },
+          "actual_threads": [
+            4,
+            4
+          ],
+          "work": {
+            "total_cards": 240,
+            "visible_cards": 10,
+            "columns": 2,
+            "live": false
+          }
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-04T13:52:49.381722+00:00",
+  "history": {
+    "series": "ea152077e5c9962e576c107912a7b0f9f0048fb012c4352bc34b9c5b1bc71d08",
+    "note": "Identical-current-binary Foundry control, before; see 2026-11-04-checkpoint.md. Not baseline acceptance.",
+    "archived_at": "2026-11-04T13:55:21.511356+00:00",
+    "report_sha256": "8e9d2d3264824fe977ebb44f5cd7ae702b2b052f3cce0bfa0c5d2cb42d792279"
+  }
+}

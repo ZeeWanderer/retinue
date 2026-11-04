@@ -1,0 +1,853 @@
+{
+  "schema": 1,
+  "suite": "gui-rails",
+  "purpose": "regression",
+  "id": "2ce8be93eaf54b648805092a139ed346",
+  "created_at": "2026-11-02T23:13:11.748099+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 12,
+  "provenance": {
+    "revision": "cb0a0ce5a4ddbca88fb40a11184ece2693342447",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "81e766441f148f679a8c1c0c499a4b7fd85d8a5185ac12ea1f4ac3c281f572c1",
+    "dirty": false,
+    "external_assets": {},
+    "untracked_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.2.11-ogc4.1.fc44.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 1,
+    "adapter": "gui",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4",
+      "WFCLI_CPU_BASELINE": "",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.4\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin",
+      "CXX_version": "Homebrew clang version 23.1.4\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.4/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 120,
+      "hz": 0,
+      "cases": "",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "03749e0d2bd12d2b11968283739ef7e450c0c075387e70c6039505b2850e4ac5",
+      "elapsed_seconds": 0.46509651400265284,
+      "load_average": [
+        0.90380859375,
+        1.84765625,
+        3.130859375
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.32149099999999997,
+            "paint_ms_p95": 0.49080100000000004,
+            "frame_p50_ms": 0.5291509999999999,
+            "frame_p95_ms": 0.7949930000000001,
+            "frame_max_ms": 0.971117,
+            "frame_mean_ms": 0.5430449324324325
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.364707,
+            "paint_ms_p95": 0.763726,
+            "frame_p50_ms": 0.712455,
+            "frame_p95_ms": 1.117712,
+            "frame_max_ms": 1.222444,
+            "frame_mean_ms": 0.7196464285714286
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.34339400000000003,
+            "paint_ms_p95": 0.797092,
+            "frame_p50_ms": 0.675687,
+            "frame_p95_ms": 1.108785,
+            "frame_max_ms": 1.365511,
+            "frame_mean_ms": 0.6871241139240506
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 72,
+          "metrics": {
+            "layout_ms_p95": 0.449335,
+            "paint_ms_p95": 0.913387,
+            "frame_p50_ms": 0.7706189999999999,
+            "frame_p95_ms": 1.347466,
+            "frame_max_ms": 1.4687560000000002,
+            "frame_mean_ms": 0.8592474722222222
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "7dc61b446df2a4632b47c1cecf611fdf38bff91bb5cf581e07430dc1852746c3",
+      "elapsed_seconds": 0.46483174699824303,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 82,
+          "metrics": {
+            "layout_ms_p95": 0.30557700000000004,
+            "paint_ms_p95": 0.449733,
+            "frame_p50_ms": 0.500134,
+            "frame_p95_ms": 0.7460439999999999,
+            "frame_max_ms": 0.891123,
+            "frame_mean_ms": 0.49076476829268295
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.35500400000000004,
+            "paint_ms_p95": 0.736993,
+            "frame_p50_ms": 0.686495,
+            "frame_p95_ms": 1.0505849999999999,
+            "frame_max_ms": 1.354521,
+            "frame_mean_ms": 0.6849365844155845
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.34874,
+            "paint_ms_p95": 0.841031,
+            "frame_p50_ms": 0.704555,
+            "frame_p95_ms": 1.177483,
+            "frame_max_ms": 1.371942,
+            "frame_mean_ms": 0.722054782051282
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.409674,
+            "paint_ms_p95": 0.780801,
+            "frame_p50_ms": 0.771928,
+            "frame_p95_ms": 1.1831019999999999,
+            "frame_max_ms": 1.36412,
+            "frame_mean_ms": 0.7858537341772152
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "ec60b93fcdaa715d54b1ea32dace20d2893c0d990978b3c453c9045e6df43eb5",
+      "elapsed_seconds": 0.46567908999713836,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.311731,
+            "paint_ms_p95": 0.480777,
+            "frame_p50_ms": 0.520155,
+            "frame_p95_ms": 0.78863,
+            "frame_max_ms": 0.836731,
+            "frame_mean_ms": 0.52737484
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.358922,
+            "paint_ms_p95": 0.773455,
+            "frame_p50_ms": 0.6992809999999999,
+            "frame_p95_ms": 1.052208,
+            "frame_max_ms": 1.199246,
+            "frame_mean_ms": 0.6975557012987013
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.337934,
+            "paint_ms_p95": 0.66893,
+            "frame_p50_ms": 0.683722,
+            "frame_p95_ms": 1.009477,
+            "frame_max_ms": 1.1209099999999999,
+            "frame_mean_ms": 0.6823311282051282
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.422243,
+            "paint_ms_p95": 0.757305,
+            "frame_p50_ms": 0.774239,
+            "frame_p95_ms": 1.164511,
+            "frame_max_ms": 1.370954,
+            "frame_mean_ms": 0.8009872894736842
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "92e8538f13e92bec82ce9489c76feb2a4b503ef3d970e70a8ca546127bd7a369",
+      "elapsed_seconds": 0.4648313670040807,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.338093,
+            "paint_ms_p95": 0.505227,
+            "frame_p50_ms": 0.541487,
+            "frame_p95_ms": 0.846334,
+            "frame_max_ms": 1.0716949999999998,
+            "frame_mean_ms": 0.564575945945946
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.378751,
+            "paint_ms_p95": 0.906461,
+            "frame_p50_ms": 0.8826590000000001,
+            "frame_p95_ms": 1.25255,
+            "frame_max_ms": 1.603312,
+            "frame_mean_ms": 0.862262302631579
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.33265,
+            "paint_ms_p95": 0.764614,
+            "frame_p50_ms": 0.679354,
+            "frame_p95_ms": 1.0917050000000001,
+            "frame_max_ms": 1.240707,
+            "frame_mean_ms": 0.6873043580246914
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.44278900000000004,
+            "paint_ms_p95": 0.733742,
+            "frame_p50_ms": 0.751295,
+            "frame_p95_ms": 1.1792930000000001,
+            "frame_max_ms": 1.509386,
+            "frame_mean_ms": 0.7837125512820513
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "91ad2ecdb42e2984558d181bcff18bf386bc6deef46b0919c4c7fdca2a3900aa",
+      "elapsed_seconds": 0.46520461300679017,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 80,
+          "metrics": {
+            "layout_ms_p95": 0.316899,
+            "paint_ms_p95": 0.48785700000000004,
+            "frame_p50_ms": 0.487835,
+            "frame_p95_ms": 0.7899419999999999,
+            "frame_max_ms": 0.974175,
+            "frame_mean_ms": 0.5036232875
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.33454999999999996,
+            "paint_ms_p95": 0.758715,
+            "frame_p50_ms": 0.7065020000000001,
+            "frame_p95_ms": 1.014611,
+            "frame_max_ms": 1.265885,
+            "frame_mean_ms": 0.6904221975308642
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.341964,
+            "paint_ms_p95": 0.767889,
+            "frame_p50_ms": 0.710694,
+            "frame_p95_ms": 1.0882349999999998,
+            "frame_max_ms": 1.203519,
+            "frame_mean_ms": 0.7266673466666667
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.42071,
+            "paint_ms_p95": 0.793735,
+            "frame_p50_ms": 0.7504970000000001,
+            "frame_p95_ms": 1.21265,
+            "frame_max_ms": 1.281393,
+            "frame_mean_ms": 0.7719915194805195
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "bba36ede3d98db93b05e8629c1ec8d2f0651afd3bb21ef4e0d595933c8d95974",
+      "elapsed_seconds": 0.46479726300458424,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.315278,
+            "paint_ms_p95": 0.49959600000000004,
+            "frame_p50_ms": 0.515176,
+            "frame_p95_ms": 0.796445,
+            "frame_max_ms": 0.818714,
+            "frame_mean_ms": 0.5233641558441559
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.334447,
+            "paint_ms_p95": 0.6819559999999999,
+            "frame_p50_ms": 0.7112489999999999,
+            "frame_p95_ms": 0.985293,
+            "frame_max_ms": 1.050905,
+            "frame_mean_ms": 0.6856081139240506
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.356724,
+            "paint_ms_p95": 0.791264,
+            "frame_p50_ms": 0.673207,
+            "frame_p95_ms": 1.138042,
+            "frame_max_ms": 1.5612219999999999,
+            "frame_mean_ms": 0.6958286753246753
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.469504,
+            "paint_ms_p95": 0.7555850000000001,
+            "frame_p50_ms": 0.768131,
+            "frame_p95_ms": 1.191999,
+            "frame_max_ms": 1.694933,
+            "frame_mean_ms": 0.8084426756756756
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "f1dd017119d6c1c405ecd1cae20ec2a3341aca591b3fbb87e783f50a8054922d",
+      "elapsed_seconds": 0.465450805000728,
+      "load_average": [
+        0.99169921875,
+        1.8505859375,
+        3.12451171875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.314101,
+            "paint_ms_p95": 0.49001700000000004,
+            "frame_p50_ms": 0.511989,
+            "frame_p95_ms": 0.7934030000000001,
+            "frame_max_ms": 0.901413,
+            "frame_mean_ms": 0.5194627721518987
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.368927,
+            "paint_ms_p95": 0.76076,
+            "frame_p50_ms": 0.709923,
+            "frame_p95_ms": 1.087062,
+            "frame_max_ms": 1.252473,
+            "frame_mean_ms": 0.7247734533333333
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.347339,
+            "paint_ms_p95": 0.896007,
+            "frame_p50_ms": 0.692912,
+            "frame_p95_ms": 1.246917,
+            "frame_max_ms": 1.314352,
+            "frame_mean_ms": 0.7234816172839507
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.523647,
+            "paint_ms_p95": 0.849879,
+            "frame_p50_ms": 0.788821,
+            "frame_p95_ms": 1.392275,
+            "frame_max_ms": 1.470273,
+            "frame_mean_ms": 0.8254897763157895
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "c55f2979da0312c7952db232e7f69971128ccaea14a549fb607cea2bde56f2bc",
+      "elapsed_seconds": 0.46475941599783255,
+      "load_average": [
+        0.99267578125,
+        1.83642578125,
+        3.11279296875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 82,
+          "metrics": {
+            "layout_ms_p95": 0.318342,
+            "paint_ms_p95": 0.451879,
+            "frame_p50_ms": 0.491733,
+            "frame_p95_ms": 0.761781,
+            "frame_max_ms": 0.945016,
+            "frame_mean_ms": 0.48643123170731706
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.339876,
+            "paint_ms_p95": 0.764895,
+            "frame_p50_ms": 0.719409,
+            "frame_p95_ms": 1.069812,
+            "frame_max_ms": 1.355838,
+            "frame_mean_ms": 0.7319085657894737
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 80,
+          "metrics": {
+            "layout_ms_p95": 0.339358,
+            "paint_ms_p95": 0.741294,
+            "frame_p50_ms": 0.684325,
+            "frame_p95_ms": 1.0979379999999999,
+            "frame_max_ms": 1.256184,
+            "frame_mean_ms": 0.702796975
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.443235,
+            "paint_ms_p95": 0.8601610000000001,
+            "frame_p50_ms": 0.751663,
+            "frame_p95_ms": 1.309962,
+            "frame_max_ms": 1.4836630000000002,
+            "frame_mean_ms": 0.7865338717948718
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "7302d531e762829aa6365cbcc0019463569d5afdc88e37ef75443c8ab67d5d55",
+      "elapsed_seconds": 0.46520416700514033,
+      "load_average": [
+        0.99267578125,
+        1.83642578125,
+        3.11279296875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.352465,
+            "paint_ms_p95": 0.527524,
+            "frame_p50_ms": 0.531524,
+            "frame_p95_ms": 0.879989,
+            "frame_max_ms": 1.057146,
+            "frame_mean_ms": 0.5591803513513514
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.38127799999999995,
+            "paint_ms_p95": 0.884615,
+            "frame_p50_ms": 0.847611,
+            "frame_p95_ms": 1.262135,
+            "frame_max_ms": 1.481401,
+            "frame_mean_ms": 0.8246793116883117
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.344689,
+            "paint_ms_p95": 0.717773,
+            "frame_p50_ms": 0.673294,
+            "frame_p95_ms": 1.051274,
+            "frame_max_ms": 1.2998109999999998,
+            "frame_mean_ms": 0.6856528441558442
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.424653,
+            "paint_ms_p95": 0.883656,
+            "frame_p50_ms": 0.784587,
+            "frame_p95_ms": 1.23139,
+            "frame_max_ms": 1.821977,
+            "frame_mean_ms": 0.8275741600000001
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "f76b232f374d08328c476063cde67c1560ad8b0ced2c79816579d71b88e1e0d1",
+      "elapsed_seconds": 0.46469204100139905,
+      "load_average": [
+        0.99267578125,
+        1.83642578125,
+        3.11279296875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 71,
+          "metrics": {
+            "layout_ms_p95": 0.397589,
+            "paint_ms_p95": 0.528342,
+            "frame_p50_ms": 0.560016,
+            "frame_p95_ms": 0.9238500000000001,
+            "frame_max_ms": 1.218458,
+            "frame_mean_ms": 0.582641985915493
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.351658,
+            "paint_ms_p95": 0.861808,
+            "frame_p50_ms": 0.7454500000000001,
+            "frame_p95_ms": 1.167805,
+            "frame_max_ms": 1.4799550000000001,
+            "frame_mean_ms": 0.7585224533333333
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.34883800000000004,
+            "paint_ms_p95": 0.7545810000000001,
+            "frame_p50_ms": 0.7259950000000001,
+            "frame_p95_ms": 1.113759,
+            "frame_max_ms": 1.3712469999999999,
+            "frame_mean_ms": 0.7486541756756757
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.5045409999999999,
+            "paint_ms_p95": 1.002995,
+            "frame_p50_ms": 0.776795,
+            "frame_p95_ms": 1.5107840000000001,
+            "frame_max_ms": 1.91821,
+            "frame_mean_ms": 0.8578092467532468
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "c3aa0db81c33a5b91c952094da839be8437dc46dfdb65b34f439a3db175ca223",
+      "elapsed_seconds": 0.4652380679981434,
+      "load_average": [
+        0.99267578125,
+        1.83642578125,
+        3.11279296875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.320013,
+            "paint_ms_p95": 0.46928200000000003,
+            "frame_p50_ms": 0.48713,
+            "frame_p95_ms": 0.795113,
+            "frame_max_ms": 0.879021,
+            "frame_mean_ms": 0.5054058333333333
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 80,
+          "metrics": {
+            "layout_ms_p95": 0.34291699999999997,
+            "paint_ms_p95": 0.814958,
+            "frame_p50_ms": 0.702288,
+            "frame_p95_ms": 1.09443,
+            "frame_max_ms": 1.326112,
+            "frame_mean_ms": 0.6893478375
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.35042999999999996,
+            "paint_ms_p95": 0.7810640000000001,
+            "frame_p50_ms": 0.680229,
+            "frame_p95_ms": 1.153756,
+            "frame_max_ms": 1.552961,
+            "frame_mean_ms": 0.7390336891891892
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.42168,
+            "paint_ms_p95": 0.7375590000000001,
+            "frame_p50_ms": 0.759591,
+            "frame_p95_ms": 1.150288,
+            "frame_max_ms": 1.3424610000000001,
+            "frame_mean_ms": 0.7855217792207793
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "a6b08482f2cfa0854d1b29106a7a840d0b90782aedb052dbe4470d6edfa82d32",
+      "elapsed_seconds": 0.4650238009999157,
+      "load_average": [
+        0.99365234375,
+        1.822265625,
+        3.10107421875
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 72,
+          "metrics": {
+            "layout_ms_p95": 0.340945,
+            "paint_ms_p95": 0.505192,
+            "frame_p50_ms": 0.5384479999999999,
+            "frame_p95_ms": 0.829438,
+            "frame_max_ms": 1.148255,
+            "frame_mean_ms": 0.5657955694444444
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 85,
+          "metrics": {
+            "layout_ms_p95": 0.31756599999999996,
+            "paint_ms_p95": 0.660418,
+            "frame_p50_ms": 0.6961390000000001,
+            "frame_p95_ms": 0.914837,
+            "frame_max_ms": 1.128826,
+            "frame_mean_ms": 0.6427961882352942
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 73,
+          "metrics": {
+            "layout_ms_p95": 0.35055,
+            "paint_ms_p95": 0.786341,
+            "frame_p50_ms": 0.692747,
+            "frame_p95_ms": 1.115603,
+            "frame_max_ms": 1.397866,
+            "frame_mean_ms": 0.7310342328767123
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.417844,
+            "paint_ms_p95": 0.7472139999999999,
+            "frame_p50_ms": 0.7514909999999999,
+            "frame_p95_ms": 1.1711639999999999,
+            "frame_max_ms": 1.3004710000000002,
+            "frame_mean_ms": 0.7773180921052631
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-02T23:13:23.019057+00:00",
+  "history": {
+    "series": "5668aa4b5cdb1553a8ed70bdd8f6ed31028382f1f1cd82d5cd79948b459ec00f",
+    "note": "2026-11-03 post-migration clean cb0a0ce reference; 12 independent ABBA runs, four physical benchmark cores. See 2026-11-03-rendering.md for scope and same-binary noise checks; advisory, not a CI timing gate.",
+    "archived_at": "2026-11-02T23:20:46.866871+00:00",
+    "report_sha256": "cc4a7cad86cb524c7894e35d62235e20ce8cc7bdc324967dd5d1a6c53eca967a"
+  }
+}
