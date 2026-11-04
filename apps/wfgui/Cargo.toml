@@ -29,5 +29,6 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 
 [dev-dependencies]
 bytemuck = "1"
+retinue-render = { path = "../../crates/retinue-render", features = ["benchmark"] }
 rustix = { version = "1", features = ["time"] }
 x11rb = { version = "0.13", features = ["xtest"] }

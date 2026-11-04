@@ -200,6 +200,7 @@ fn indexed_fragments_preserve_external_callback_order_and_raw_escape_path() {
                 p.fill_rounded_rect(25, 31, 35, 40, 0, [20, 80, 30, 100]);
             },
             optimized,
+            optimized,
             &mut stats,
             &mut |_, _| None,
         );

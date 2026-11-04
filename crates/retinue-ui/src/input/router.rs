@@ -14,18 +14,29 @@ pub struct Dispatch {
     pub activated: Option<ViewId>,
 }
 
+#[derive(Clone, Copy)]
+struct Pointer {
+    position: (f32, f32),
+    hit: Option<ViewId>,
+}
+
 pub struct Router {
     targets: Vec<Target>,
     index: HashMap<ViewId, usize>,
     focus: Option<ViewId>,
     capture: HashMap<PointerId, ViewId>,
-    positions: HashMap<PointerId, (f32, f32)>,
+    pointers: HashMap<PointerId, Pointer>,
     outside: HashSet<PointerId>,
     buttons: HashMap<PointerId, Vec<Button>>,
     pressed: HashMap<(PointerId, Button), ViewId>,
     hovered: HashSet<ViewId>,
+    status_dirty: HashSet<ViewId>,
     modality: FocusVisible,
     active: bool,
+    #[cfg(test)]
+    scans: std::cell::Cell<usize>,
+    #[cfg(test)]
+    publications: std::cell::Cell<usize>,
 }
 
 impl Default for Router {
@@ -35,13 +46,18 @@ impl Default for Router {
             index: HashMap::default(),
             focus: None,
             capture: HashMap::default(),
-            positions: HashMap::default(),
+            pointers: HashMap::default(),
             outside: HashSet::default(),
             buttons: HashMap::default(),
             pressed: HashMap::default(),
             hovered: HashSet::default(),
+            status_dirty: HashSet::default(),
             modality: FocusVisible::default(),
             active: true,
+            #[cfg(test)]
+            scans: Default::default(),
+            #[cfg(test)]
+            publications: Default::default(),
         }
     }
 }
@@ -61,7 +77,16 @@ impl Router {
     }
 
     pub fn hit_test(&self, position: (f32, f32)) -> Option<ViewId> {
-        self.targets
+        if let Some(pointer) = self.pointers.values().find(|p| p.position == position) {
+            return pointer.hit;
+        }
+        #[cfg(test)]
+        self.scans.set(self.scans.get() + 1);
+        Self::scan(&self.targets, position)
+    }
+
+    fn scan(targets: &[Target], position: (f32, f32)) -> Option<ViewId> {
+        targets
             .iter()
             .rev()
             .find(|target| target.contains(position))
@@ -124,7 +149,10 @@ impl Router {
         self.targets = targets;
         self.index = index;
         self.refresh_hover();
-        self.publish_status();
+        for target in &self.targets {
+            self.publish_target(target);
+        }
+        self.status_dirty.clear();
     }
 
     pub fn focus(&mut self, id: Option<ViewId>) -> bool {
@@ -136,7 +164,9 @@ impl Router {
 
     pub fn dispatch(&mut self, event: &Event) -> Dispatch {
         let old_focus = self.focus;
-        let old_capture = self.capture.clone();
+        // Handlers can capture only their event pointer; focus loss clears all.
+        let old_capture = event.pointer().and_then(|pointer| self.captured(pointer));
+        let old_capture_count = self.capture.len();
         let mut delivered = None;
         let mut activated = None;
         let handled = match event {
@@ -162,23 +192,37 @@ impl Router {
                     }
                     _ => {}
                 }
-                let previous = (!self.outside.contains(id))
+                let hit = (!self.outside.contains(id))
                     .then(|| self.hit_test(*position))
                     .flatten();
-                if matches!(phase, PointerPhase::Cancel | PointerPhase::Leave) {
-                    self.positions.remove(id);
+                let changed = if matches!(phase, PointerPhase::Cancel | PointerPhase::Leave) {
+                    self.pointers.remove(id).is_some_and(|p| p.hit.is_some())
                 } else if !self.outside.contains(id) {
-                    self.positions.insert(*id, *position);
+                    self.pointers
+                        .insert(
+                            *id,
+                            Pointer {
+                                position: *position,
+                                hit,
+                            },
+                        )
+                        .and_then(|p| p.hit)
+                        != hit
+                } else {
+                    false
+                };
+                if changed {
+                    self.update_hover();
                 }
-                self.refresh_hover();
                 if let PointerPhase::Down(button) = phase {
                     self.modality.pointer_down();
+                    self.status_dirty.extend(self.focus);
                     let buttons = self.buttons.entry(*id).or_default();
                     if !buttons.contains(button) {
                         buttons.push(*button);
                     }
                 }
-                let target = self.captured(*id).or(previous);
+                let target = self.captured(*id).or(hit);
                 delivered = target;
                 let handled = self.route(target, event);
                 if let PointerPhase::Down(Button::Primary) = phase {
@@ -188,6 +232,7 @@ impl Router {
                     }) {
                         self.pressed.insert((*id, Button::Primary), target);
                         self.capture.entry(*id).or_insert(target);
+                        self.status_dirty.insert(target);
                         if self.target(target).unwrap().input.activation == Activation::Press {
                             activated = Some(target);
                         }
@@ -205,7 +250,7 @@ impl Router {
                 match phase {
                     PointerPhase::Up(button) => {
                         if let Some(pressed) = self.pressed.remove(&(*id, *button)) {
-                            if previous == Some(pressed)
+                            if hit == Some(pressed)
                                 && self.target(pressed).is_some_and(|t| {
                                     t.enabled && t.input.activation == Activation::Release
                                 })
@@ -242,6 +287,7 @@ impl Router {
             } if self.active => {
                 if *pressed {
                     self.modality.keyboard_input();
+                    self.status_dirty.extend(self.focus);
                 }
                 let handled = self.route(self.focus, event);
                 if !handled
@@ -263,7 +309,8 @@ impl Router {
         Dispatch {
             handled,
             focus_changed: old_focus != self.focus,
-            capture_changed: old_capture != self.capture,
+            capture_changed: old_capture_count != self.capture.len()
+                || old_capture != event.pointer().and_then(|pointer| self.captured(pointer)),
             target: delivered,
             activated,
         }
@@ -329,6 +376,7 @@ impl Router {
                     {
                         self.release(pointer);
                         self.capture.insert(pointer, id);
+                        self.status_dirty.insert(id);
                     }
                 } else if self.captured(pointer) == Some(id) {
                     self.release(pointer);
@@ -362,6 +410,7 @@ impl Router {
 
     fn release(&mut self, pointer: PointerId) {
         if let Some(id) = self.capture.remove(&pointer) {
+            self.status_dirty.insert(id);
             self.notify(id, Event::CaptureLost(pointer));
         }
     }
@@ -374,6 +423,8 @@ impl Router {
         if id == self.focus {
             return;
         }
+        self.status_dirty.extend(self.focus);
+        self.status_dirty.extend(id);
         if self.active {
             if let Some(old) = self.focus {
                 self.notify(old, Event::Focused(false));
@@ -416,11 +467,16 @@ impl Router {
         }
         self.active = active;
         self.modality.set_active(active);
+        self.status_dirty.extend(self.focus);
         if !active {
             let captured: Vec<_> = self.capture.keys().copied().collect();
             for pointer in captured {
                 let id = self.capture[&pointer];
-                let position = self.positions.get(&pointer).copied().unwrap_or_default();
+                let position = self
+                    .pointers
+                    .get(&pointer)
+                    .map(|p| p.position)
+                    .unwrap_or_default();
                 self.notify(
                     id,
                     Event::Pointer {
@@ -434,7 +490,7 @@ impl Router {
             }
             self.buttons.clear();
             self.pressed.clear();
-            self.positions.clear();
+            self.pointers.clear();
             self.outside.clear();
             self.refresh_hover();
         }
@@ -444,38 +500,61 @@ impl Router {
     }
 
     fn refresh_hover(&mut self) {
+        #[cfg(test)]
+        self.scans.set(self.scans.get() + self.pointers.len());
+        for pointer in self.pointers.values_mut() {
+            pointer.hit = Self::scan(&self.targets, pointer.position);
+        }
+        self.update_hover();
+    }
+
+    fn update_hover(&mut self) {
         let hovered: HashSet<_> = self
-            .positions
+            .pointers
             .values()
-            .filter_map(|&position| self.hit_test(position))
+            .filter_map(|pointer| pointer.hit)
             .flat_map(|id| self.path(id))
             .collect();
         for &id in self.hovered.difference(&hovered) {
             self.notify(id, Event::Hovered(false));
+            self.status_dirty.insert(id);
         }
         for &id in hovered.difference(&self.hovered) {
             self.notify(id, Event::Hovered(true));
+            self.status_dirty.insert(id);
         }
         self.hovered = hovered;
     }
 
-    fn publish_status(&self) {
-        for target in &self.targets {
-            if let Some(status) = &target.input.interaction {
-                let focused = self.focus == Some(target.id);
-                status.hovered.set(self.hovered.contains(&target.id));
-                status.focused.set(focused && self.active);
-                status.focus_visible.set(
-                    self.modality
-                        .shows(focused, target.input.focus == FocusPolicy::Text),
-                );
-                status
-                    .captured
-                    .set(self.capture.values().any(|id| *id == target.id));
+    fn publish_status(&mut self) {
+        for &id in &self.status_dirty {
+            if let Some(target) = self.target(id) {
+                self.publish_target(target);
             }
+        }
+        self.status_dirty.clear();
+    }
+
+    fn publish_target(&self, target: &Target) {
+        if let Some(status) = &target.input.interaction {
+            #[cfg(test)]
+            self.publications.set(self.publications.get() + 1);
+            let focused = self.focus == Some(target.id);
+            status.hovered.set(self.hovered.contains(&target.id));
+            status.focused.set(focused && self.active);
+            status.focus_visible.set(
+                self.modality
+                    .shows(focused, target.input.focus == FocusPolicy::Text),
+            );
+            status
+                .captured
+                .set(self.capture.values().any(|id| *id == target.id));
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 impl Drop for Router {
     fn drop(&mut self) {

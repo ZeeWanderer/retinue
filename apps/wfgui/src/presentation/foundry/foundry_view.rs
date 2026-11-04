@@ -13,6 +13,7 @@ impl View for FoundryView {
         let area = self.0.area.get();
         ui! {
             ZStack() {
+                Canvas(self.0.background_paint.get())
                 ToolbarView { model: self.0.clone() }.id(TOOLBAR).hit_testing(!self.0.modal.get())
                 GridView { model: self.0.clone() }.id(GRID).hit_testing(!self.0.modal.get())
                 OverlaysView { model: self.0.clone() }.id(OVERLAYS)

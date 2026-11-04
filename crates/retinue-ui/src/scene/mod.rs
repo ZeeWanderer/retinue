@@ -10,6 +10,7 @@ mod motion;
 mod paint;
 mod projection;
 mod rendering;
+mod retention;
 mod window;
 
 pub use layout::Algorithm;
@@ -310,8 +311,10 @@ impl Scene {
         {
             self.profile.layout += started.elapsed();
         }
-        self.tree.topology_changed |= std::mem::take(&mut self.layout_failed);
-        Ok(self.project(mode, size, scale))
+        self.tree.topology_changed |= self.layout_failed;
+        let damage = self.project(mode, size, scale);
+        self.layout_failed = false;
+        Ok(damage)
     }
 
     pub fn update_subtree(&mut self, root: Element) -> Result<Damage, &'static str> {
@@ -377,6 +380,13 @@ impl Scene {
         self.input_revision = self.input_revision.wrapping_add(1);
         #[cfg(feature = "profiling")]
         let started = std::time::Instant::now();
+        let retained = (mode == RecordingMode::Retained
+            && self.frame.size() == size
+            && self.frame.scale() == scale
+            && !self.layout_failed
+            && !self.geometry.is_empty())
+        .then(|| retention::Snapshot::take(self))
+        .flatten();
         let mut draft = FrameDraft {
             scale,
             instances: Vec::new(),
@@ -387,7 +397,7 @@ impl Scene {
         self.projection.clear();
         self.collect(
             self.root.unwrap(),
-            (0.0, 0.0),
+            None,
             Rect {
                 width: size.0,
                 height: size.1,
@@ -395,6 +405,7 @@ impl Scene {
             },
             Bounds::new(0.0, 0.0, size.0 as f32 / scale, size.1 as f32 / scale),
             mode,
+            retained.as_ref(),
             &mut draft,
         );
         #[cfg(feature = "profiling")]
@@ -417,19 +428,24 @@ impl Scene {
     fn collect(
         &mut self,
         slot: usize,
-        parent: (f32, f32),
+        parent_index: Option<usize>,
         clip: Rect,
         input_clip: Bounds,
         mode: RecordingMode,
+        retained: Option<&retention::Snapshot>,
         draft: &mut FrameDraft,
     ) -> Rect {
+        if let Some(retained) = retained
+            && let Some(index) = retained.clean(self.tree.nodes[slot].as_ref().unwrap().element.key)
+        {
+            return self.restore_projection(retained, index, parent_index, draft);
+        }
         self.stats.nodes += 1;
-        let parent_key = self.tree.nodes[slot]
-            .as_ref()
-            .unwrap()
-            .parent
-            .map(|slot| self.tree.nodes[slot].as_ref().unwrap().element.key);
-        let parent_index = parent_key.and_then(|key| self.geometry_index.get(&key).copied());
+        let parent_key = parent_index.map(|index| self.geometry[index].key);
+        let parent = parent_index.map_or((0.0, 0.0), |index| {
+            let bounds = self.geometry[index].layout;
+            (bounds.x, bounds.y)
+        });
         let node = self.tree.nodes[slot].as_mut().unwrap();
         if node.element.style.display == taffy::Display::None {
             return Rect::default();
@@ -541,7 +557,15 @@ impl Scene {
         let child_count = node.children.len();
         for index in 0..child_count {
             let child = self.tree.nodes[slot].as_ref().unwrap().children[index];
-            let child_paint = self.collect(child, origin, clip, input_clip, mode, draft);
+            let child_paint = self.collect(
+                child,
+                Some(geometry_index),
+                clip,
+                input_clip,
+                mode,
+                retained,
+                draft,
+            );
             self.geometry[geometry_index].paint =
                 self.geometry[geometry_index].paint.union(child_paint);
         }

@@ -22,6 +22,7 @@ use crate::{
     presentation::style::focus_ring,
 };
 use icons::{Icon, Icons};
+use input::PressOwner;
 use retinue_render::{
     ImageFit, damage::Damage, painter::Painter, painter::TextLine, painter::text_width,
 };
@@ -148,9 +149,7 @@ pub struct Shell {
     pointer: (f64, f64),
     modifiers: ModifiersState,
     hover: Option<Control>,
-    pressed: Option<Control>,
-    page_pressed: bool,
-    rail_pressed: bool,
+    press: Option<PressOwner>,
     rail_focus: bool,
     focus: Option<Focus>,
     focus_visible: FocusVisible,
@@ -206,9 +205,7 @@ impl Shell {
             pointer: (0.0, 0.0),
             modifiers: ModifiersState::empty(),
             hover: None,
-            pressed: None,
-            page_pressed: false,
-            rail_pressed: false,
+            press: None,
             rail_focus: false,
             focus: None,
             focus_visible: FocusVisible::default(),
@@ -320,6 +317,7 @@ impl Shell {
     }
 
     pub fn set_page(&mut self, page: Page) {
+        self.cancel_pointer();
         self.foundry.close_popup();
         self.foundry.set_active(page == Page::Foundry);
         self.page = page;
@@ -327,9 +325,8 @@ impl Shell {
         self.rail_focus = false;
         self.settings.modal = None;
         self.set_focus(None);
-        self.settings.cancel_pointer();
-        self.foundry.cancel_pointer();
         self.reflow(Instant::now());
+        self.hover = self.hit(self.pointer);
     }
 
     pub fn show_market_rail(&mut self) {
@@ -690,9 +687,13 @@ impl Shell {
     }
 
     pub fn paint(&self, painter: &mut Painter<'_>) {
+        self.prepare_paint();
+        self.draw_prepared(painter);
+    }
+
+    pub fn prepare_paint(&self) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
-        let _pass = self.render_host.begin_pass(painter.thread_count());
         use composition::*;
         let mut paints = Vec::new();
         for key in [TITLE, LEFT, CENTER, RIGHT, TOOLTIP] {
@@ -739,11 +740,60 @@ impl Shell {
         #[cfg(all(test, feature = "profiling"))]
         let recorded = Instant::now();
         self.composition.record(paints);
+        match self.page {
+            Page::Settings => self.settings.prepare_paint(self.focus_visible),
+            Page::Foundry => self.foundry.prepare_paint(self.focus_visible),
+            _ => self.pages.prepare_paint(),
+        }
+        if !self.geometry.right.is_empty() {
+            self.pages.prepare_rail();
+        }
+        #[cfg(all(test, feature = "profiling"))]
+        self.paint_profile.set([
+            recorded - started,
+            recorded.elapsed(),
+            Duration::ZERO,
+            Duration::ZERO,
+        ]);
+    }
+
+    pub fn paint_scene(&self) -> retinue_render::surface::Snapshot {
+        use composition::*;
+        let mut scene = retinue_render::surface::Snapshot::new(
+            self.size,
+            retinue_render::Color::from_bgra(BACKGROUND),
+        );
+        scene.record_rendered(
+            self.composition.tree.borrow().frame(),
+            &self.composition.renderer.borrow(),
+            retinue_render::RasterMode::Replay,
+            |key, scene| {
+                match key {
+                    RIGHT => self.pages.record_rail(scene),
+                    _ => match page_for_key(key).expect("only page hosts use live shell paint") {
+                        Page::Settings => self.settings.record_surface(scene),
+                        Page::Foundry => self.foundry.record_surface(scene),
+                        _ => self.pages.record_surface(scene),
+                    },
+                }
+                true
+            },
+        );
+        scene
+    }
+
+    pub fn draw_prepared(&self, painter: &mut Painter<'_>) {
+        use composition::*;
+        let _pass = self.render_host.begin_pass(painter.thread_count());
         #[cfg(all(test, feature = "profiling"))]
         let updated = Instant::now();
         let tree = self.composition.tree.borrow();
         let mut renderer = self.composition.renderer.borrow_mut();
-        renderer.prepare(tree.frame(), retinue_render::RasterMode::Replay);
+        renderer.prepare_for(
+            tree.frame(),
+            retinue_render::RasterMode::Replay,
+            &painter.visible_regions(),
+        );
         #[cfg(all(test, feature = "profiling"))]
         let prepared = Instant::now();
         renderer.draw_with(
@@ -756,19 +806,19 @@ impl Shell {
             },
             |key, painter| match key {
                 RIGHT => {
-                    self.pages.paint_rail(painter);
+                    self.pages.draw_rail(painter);
                 }
                 _ => match page_for_key(key).expect("only page hosts use live shell paint") {
-                    Page::Settings => self.settings.paint(painter, self.focus_visible),
-                    Page::Foundry => self.foundry.paint(painter, self.focus_visible),
-                    _ => self.pages.paint(painter),
+                    Page::Settings => self.settings.draw_prepared(painter),
+                    Page::Foundry => self.foundry.draw_prepared(painter),
+                    _ => self.pages.draw_prepared(painter),
                 },
             },
         );
         #[cfg(all(test, feature = "profiling"))]
         self.paint_profile.set([
-            recorded - started,
-            updated - recorded,
+            self.paint_profile.get()[0],
+            self.paint_profile.get()[1],
             prepared - updated,
             prepared.elapsed(),
         ]);
@@ -824,7 +874,8 @@ impl Shell {
     }
 
     fn paint_control(&self, painter: &mut Canvas, control: Control, rect: Rect, enabled: bool) {
-        if self.hover == Some(control) && enabled || self.pressed == Some(control) {
+        if self.hover == Some(control) && enabled || self.press == Some(PressOwner::Chrome(control))
+        {
             fill(
                 painter,
                 rect,

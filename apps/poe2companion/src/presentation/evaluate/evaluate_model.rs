@@ -36,6 +36,7 @@ pub struct EvaluateModel {
     pub level: Filter,
     pub base: bool,
     pub results: Option<Results>,
+    pub results_stale: bool,
     last_auto_attempt: Option<String>,
     pub error: Option<String>,
     pub fetching: bool,
@@ -139,8 +140,15 @@ impl EvaluateModel {
         self.loading = false;
         self.error = None;
         self.results = None;
+        self.results_stale = false;
         self.fetching = false;
         self.fetch_error = None;
+    }
+    pub fn refresh_results(&mut self) {
+        let results = self.results.take();
+        self.invalidate();
+        self.results_stale = results.is_some();
+        self.results = results;
     }
     pub fn dismiss(&mut self) {
         self.clear_prediction();
@@ -251,6 +259,7 @@ impl EvaluateModel {
             self.loading = false;
             self.error = None;
             self.results = Some(results);
+            self.results_stale = false;
             self.fetch_error = None;
             self.fetching = false;
         }
@@ -282,7 +291,12 @@ impl EvaluateModel {
         false
     }
     pub fn fetch(&mut self, scroll: usize, visible: usize) -> Option<Value> {
-        if self.loading || self.fetching || self.retry_after() > 0 || self.fetch_error.is_some() {
+        if self.loading
+            || self.fetching
+            || self.results_stale
+            || self.retry_after() > 0
+            || self.fetch_error.is_some()
+        {
             return None;
         }
         let results = self.results.as_ref()?;
@@ -460,6 +474,14 @@ impl EvaluateModel {
     }
 
     pub fn choice_label(&self, key: &str) -> &str {
+        if key == "league" {
+            return self
+                .evaluation
+                .as_ref()
+                .and_then(|e| e.leagues.iter().find(|l| l.id == self.league))
+                .map(|l| l.text.as_str())
+                .unwrap_or(&self.league);
+        }
         let value = match key {
             "status" => Some(self.status.as_str()),
             "rarity" => self.rarity.as_deref(),

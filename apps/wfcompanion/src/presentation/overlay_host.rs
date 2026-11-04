@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use retinue_ui::presentation_buffers::{Buffers, buffer_size};
 use serde_json::Value;
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState, Region};
 use smithay_client_toolkit::delegate_compositor;
@@ -25,7 +26,6 @@ use smithay_client_toolkit::shell::wlr_layer::{
     KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
     LayerSurfaceConfigure,
 };
-use smithay_client_toolkit::shm::slot::{Buffer, SlotPool};
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use wayland_client::globals::registry_queue_init;
 use wayland_client::protocol::{wl_output, wl_pointer, wl_seat, wl_shm, wl_surface};
@@ -38,7 +38,7 @@ use crate::UiEvent;
 use crate::incident;
 use crate::presentation::geometry::HitTarget;
 use crate::runtime::presentation;
-use retinue_render::damage::{Damage, RepaintTracker};
+use retinue_render::{damage::Damage, surface::Buffered};
 use retinue_ui::focus::FocusDetector;
 use retinue_ui::layer::OverlayLayerState;
 use retinue_ui::schedule::Deadlines;
@@ -46,18 +46,7 @@ use retinue_ui::schedule::Deadlines;
 const STATUS_SURFACE_WIDTH: u32 = STATUS_WIDTH + STATUS_INSET;
 const STATUS_SURFACE_HEIGHT: u32 = STATUS_HEIGHT + STATUS_INSET;
 const FOCUS_INTERVAL: Duration = Duration::from_millis(100);
-const MAX_SURFACE_BUFFERS: usize = 3;
 const DEBUG_HUD: bool = cfg!(debug_assertions);
-
-fn buffer_dimensions(width: u32, height: u32, scale: u32) -> Option<(u32, u32, i32)> {
-    let width = width.checked_mul(scale)?;
-    let height = height.checked_mul(scale)?;
-    let pixels = u64::from(width) * u64::from(height);
-    if pixels == 0 || pixels > 40_000_000 {
-        return None;
-    }
-    Some((width, height, i32::try_from(width.checked_mul(4)?).ok()?))
-}
 
 pub(crate) fn run(
     events: &presentation::Receiver,
@@ -93,10 +82,6 @@ pub(crate) fn run(
         .set_input_region(Some(empty_input_region.wl_region()));
     layer.commit();
 
-    let pool = SlotPool::new(
-        (STATUS_SURFACE_WIDTH * STATUS_SURFACE_HEIGHT * 4) as usize,
-        &shm,
-    )?;
     let renderer = Renderer::load()?;
     let loop_signal = event_loop.get_signal();
     let asset_signal = loop_signal.clone();
@@ -114,8 +99,7 @@ pub(crate) fn run(
         themed_pointer: None,
         renderer,
         asset_loader: crate::domain::media::Loader::spawn(move || asset_signal.wakeup())?,
-        pool,
-        buffers: Vec::new(),
+        buffers: Buffers::default(),
         width: STATUS_SURFACE_WIDTH,
         height: STATUS_SURFACE_HEIGHT,
         scale: 1,
@@ -123,7 +107,7 @@ pub(crate) fn run(
         closed: false,
         configure_pending: true,
         mapped: false,
-        repaint: RepaintTracker::default(),
+        repaint: Buffered::default(),
         overlay_enabled: true,
         hud: HudVisibility::for_build(DEBUG_HUD),
         contextual_surface: false,
@@ -184,8 +168,7 @@ struct Overlay {
     themed_pointer: Option<ThemedPointer>,
     renderer: Renderer,
     asset_loader: crate::domain::media::Loader,
-    pool: SlotPool,
-    buffers: Vec<Buffer>,
+    buffers: Buffers,
     width: u32,
     height: u32,
     scale: i32,
@@ -193,7 +176,7 @@ struct Overlay {
     closed: bool,
     configure_pending: bool,
     mapped: bool,
-    repaint: RepaintTracker,
+    repaint: Buffered,
     overlay_enabled: bool,
     hud: HudVisibility,
     contextual_surface: bool,
@@ -296,14 +279,7 @@ impl Overlay {
     }
 
     fn animation_drawable(&mut self) -> bool {
-        self.mapped
-            && self.configured
-            && !self.frame_pending
-            && (self.buffers.len() < MAX_SURFACE_BUFFERS
-                || self
-                    .buffers
-                    .iter()
-                    .any(|buffer| buffer.canvas(&mut self.pool).is_some()))
+        self.mapped && self.configured && !self.frame_pending && self.buffers.drawable()
     }
 
     fn loading_active(&self) -> bool {
@@ -722,31 +698,23 @@ impl Overlay {
         }
     }
 
-    fn acquire_surface_buffer(&mut self, width: u32, height: u32, stride: i32) -> Option<usize> {
-        for index in 0..self.buffers.len() {
-            if self.buffers[index].canvas(&mut self.pool).is_some() {
-                return Some(index);
-            }
+    fn acquire_surface_buffer(&mut self, width: u32, height: u32) -> Option<usize> {
+        let count = self.buffers.len();
+        let index =
+            match self
+                .buffers
+                .acquire(&self.shm, (width, height), wl_shm::Format::Argb8888, true)
+            {
+                Ok(index) => index?,
+                Err(error) => {
+                    incident::error("overlay.render_failed", error.to_string());
+                    return None;
+                }
+            };
+        if self.buffers.len() > count {
+            self.repaint.add_buffer();
         }
-        if self.buffers.len() >= MAX_SURFACE_BUFFERS {
-            return None;
-        }
-
-        let (buffer, _) = match self.pool.create_buffer(
-            width as i32,
-            height as i32,
-            stride,
-            wl_shm::Format::Argb8888,
-        ) {
-            Ok(buffer) => buffer,
-            Err(error) => {
-                incident::error("overlay.render_failed", error.to_string());
-                return None;
-            }
-        };
-        self.buffers.push(buffer);
-        self.repaint.add_buffer();
-        Some(self.buffers.len() - 1)
+        Some(index)
     }
 
     fn draw(&mut self, queue_handle: &QueueHandle<Self>) {
@@ -755,8 +723,7 @@ impl Overlay {
             self.request_full_redraw();
         }
         let scale = self.scale.max(1) as u32;
-        let Some((width, height, stride)) = buffer_dimensions(self.width, self.height, scale)
-        else {
+        let Ok((width, height)) = buffer_size((self.width, self.height), scale) else {
             incident::error("overlay.render_failed", "surface dimensions overflow");
             return;
         };
@@ -803,17 +770,9 @@ impl Overlay {
                 }
             }
         }
-        let Some(buffer_index) = self.acquire_surface_buffer(width, height, stride) else {
+        let Some(buffer_index) = self.acquire_surface_buffer(width, height) else {
             return;
         };
-        let Some(plan) = self.repaint.plan(buffer_index, (width, height)) else {
-            return;
-        };
-        let buffer = &mut self.buffers[buffer_index];
-        let Some(canvas) = buffer.canvas(&mut self.pool) else {
-            return;
-        };
-
         let animation_bounds = if scene_visible {
             self.renderer
                 .frame()
@@ -841,44 +800,58 @@ impl Overlay {
                 player,
                 detail,
             });
-        if let Err(error) =
-            self.renderer
-                .paint_surface(canvas, (width, height), plan.repair, scene, status)
+        let recorded = match self
+            .renderer
+            .prepare_surface((width, height), scene, status)
         {
-            self.repaint.failed(buffer_index);
-            incident::error("overlay.render_failed", error);
+            Ok(recorded) => recorded,
+            Err(error) => {
+                incident::error("overlay.render_failed", error);
+                return;
+            }
+        };
+        let frame = self.renderer.surface_frame();
+        let Some(pixels) = self.buffers.pixels(buffer_index) else {
             return;
-        }
+        };
+        let plan = match self.repaint.render_queued(
+            buffer_index,
+            (width, height),
+            Some(recorded),
+            pixels.target,
+            pixels.source,
+            frame.threads(),
+            |painter, repair| self.renderer.draw_surface(painter, repair, scene),
+        ) {
+            Ok(Some(plan)) => plan,
+            Ok(None) => return,
+            Err(error) => {
+                incident::error("overlay.render_failed", error);
+                return;
+            }
+        };
 
-        if let Err(error) = buffer.attach_to(self.layer.wl_surface()) {
-            self.repaint.failed(buffer_index);
+        let frame_callback = animation_bounds.is_some() && !self.frame_pending;
+        let surface = self.layer.wl_surface();
+        if let Err(error) = self
+            .buffers
+            .present(buffer_index, surface, &plan.damage, || {
+                if frame_callback {
+                    surface.frame(queue_handle, surface.clone());
+                }
+                surface.set_input_region(Some(if self.interaction_active {
+                    self.interactive_input_region.wl_region()
+                } else {
+                    self.empty_input_region.wl_region()
+                }));
+            })
+        {
             incident::error("overlay.render_failed", error.to_string());
             return;
         }
-        for rect in plan.damage.rects() {
-            self.layer.wl_surface().damage_buffer(
-                rect.x as i32,
-                rect.y as i32,
-                rect.width as i32,
-                rect.height as i32,
-            );
-        }
-        if animation_bounds.is_some() && !self.frame_pending {
-            self.layer
-                .wl_surface()
-                .frame(queue_handle, self.layer.wl_surface().clone());
-            self.frame_pending = true;
-        }
-        self.layer
-            .wl_surface()
-            .set_input_region(Some(if self.interaction_active {
-                self.interactive_input_region.wl_region()
-            } else {
-                self.empty_input_region.wl_region()
-            }));
-        self.layer.commit();
+        self.frame_pending |= frame_callback;
         self.mapped = true;
-        self.repaint.submitted(buffer_index);
+        self.repaint.submitted(plan);
         if !was_mapped {
             incident::info(
                 "overlay.mapped",
@@ -1281,16 +1254,6 @@ mod tests {
             assert!(!hud.observe_phase(phase));
             assert!(!hud.visible());
         }
-    }
-
-    #[test]
-    fn surface_dimensions_validate_scaled_buffer_size() {
-        assert_eq!(buffer_dimensions(1920, 1080, 2), Some((3840, 2160, 15360)));
-        assert_eq!(buffer_dimensions(0, 1080, 1), None);
-        assert_eq!(buffer_dimensions(1920, 1080, 0), None);
-        assert_eq!(buffer_dimensions(u32::MAX, 1080, 2), None);
-        assert_eq!(buffer_dimensions(1920, u32::MAX, 2), None);
-        assert_eq!(buffer_dimensions(8000, 8000, 1), None);
     }
 
     #[test]

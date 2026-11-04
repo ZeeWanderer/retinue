@@ -159,6 +159,9 @@ pub enum Command {
 
 impl Command {
     pub(super) fn cull_bounds(&self, scale: f32) -> Option<Pixels> {
+        if let Self::Fragment { program, .. } = self {
+            return (!program.analysis().effects.barrier).then(|| program.bounds());
+        }
         matches!(
             self,
             Self::Fill { .. }
@@ -252,11 +255,12 @@ impl Command {
         scale: f32,
         origin: (i32, i32),
         external: &mut impl FnMut(Key, &mut Painter<'_>),
-        optimized: bool,
+        compiled: bool,
+        cull: bool,
         stats: &mut PaintStats,
         fragments: &mut impl FnMut(&PaintProgram, &OptimizationContext) -> Option<Rc<RasterImage>>,
     ) {
-        if optimized {
+        if cull {
             let invisible = match self {
                 Self::Fill { color, .. }
                 | Self::Text { color, .. }
@@ -283,9 +287,7 @@ impl Command {
                     stats.blits += 1;
                     stats.fragment_blits += 1;
                 } else {
-                    program.replay(
-                        painter, origin, external, optimized, optimized, stats, fragments,
-                    );
+                    program.replay(painter, origin, external, compiled, cull, stats, fragments);
                 }
                 return;
             }
@@ -317,7 +319,7 @@ impl Command {
                 );
                 for command in commands.iter() {
                     command.paint(
-                        painter, scale, origin, external, optimized, stats, fragments,
+                        painter, scale, origin, external, compiled, cull, stats, fragments,
                     );
                 }
                 return;
@@ -328,7 +330,7 @@ impl Command {
                 painter.viewport(clip, (0, 0), |painter| {
                     for command in commands.iter() {
                         command.paint(
-                            painter, scale, origin, external, optimized, stats, fragments,
+                            painter, scale, origin, external, compiled, cull, stats, fragments,
                         );
                     }
                 });
@@ -593,6 +595,8 @@ pub struct PaintStats {
     pub inspected_regions: usize,
     pub rejected_rasters: usize,
     pub preparation_tasks: usize,
+    #[cfg(any(test, feature = "benchmark"))]
+    pub materialization_ns: u64,
     pub preparation_edges: usize,
     pub failed_preparations: usize,
     pub deferred_preparations: usize,

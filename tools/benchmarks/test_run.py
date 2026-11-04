@@ -1,7 +1,9 @@
 import argparse
+import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -11,6 +13,29 @@ from run import balanced_order, catalog, check_selector, clean_environment, exec
 
 
 class RunnerTests(unittest.TestCase):
+    def test_make_snapshot_preserves_compiler_and_cache_environment(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runner = root / "tools/benchmarks/run.py"
+            runner.parent.mkdir(parents=True)
+            runner.write_text('import json, os, sys\nprint(json.dumps({"args": sys.argv[1:], "env": dict(os.environ)}))\n')
+            (root / "VERSION").write_text("0.0.0\n")
+            cache = str(root / "sccache")
+            env = {k: v for k, v in os.environ.items() if k not in (
+                "RUSTC_WRAPPER", "CMAKE_C_COMPILER_LAUNCHER", "CMAKE_CXX_COMPILER_LAUNCHER", "MAKEFLAGS", "MFLAGS")}
+            result = subprocess.check_output([
+                "make", "--no-print-directory", "-s", "-f", str(ROOT / "Makefile"), "bench-prepare",
+                "BENCH_SUITE=gui-relics", "BENCH_OUTPUT=out", "LLVM_ROOT=",
+                "CC=/test/clang", "CXX=/test/clang++", f"SCCACHE={cache}",
+                f"SCCACHE_DIR={root / 'cache'}", f"SCCACHE_SERVER_UDS={root / 'cache.sock'}",
+            ], cwd=root, env=env, text=True)
+            data = json.loads(result)
+            self.assertEqual(data["args"], ["prepare", "gui-relics", "--output", "out"])
+            for key in ("RUSTC_WRAPPER", "CMAKE_C_COMPILER_LAUNCHER", "CMAKE_CXX_COMPILER_LAUNCHER"):
+                self.assertEqual(data["env"][key], cache)
+            self.assertEqual(data["env"]["CC"], "/test/clang")
+            self.assertEqual(data["env"]["CXX"], "/test/clang++")
+
     def test_balanced_order(self):
         self.assertEqual(balanced_order(4), [0, 1, 1, 0, 0, 1, 1, 0])
 
@@ -80,7 +105,9 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(len(entries), len(expected), "duplicate catalog entry")
         actual = set()
         for base in ("apps", "crates"):
-            for path in (ROOT / base).glob("*/src/**/*.rs"):
+            paths = [path for folder in ("src", "tests")
+                     for path in (ROOT / base).glob(f"*/{folder}/**/*.rs")]
+            for path in paths:
                 source = path.read_text()
                 for name in re.findall(r'#\[ignore[^\]]*\]\s*(?:async\s+)?fn\s+(\w+)', source):
                     actual.add((str(path.relative_to(ROOT)), name))

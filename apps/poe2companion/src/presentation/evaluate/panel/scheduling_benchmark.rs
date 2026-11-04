@@ -127,16 +127,9 @@ impl Application for Panel {
         dirty
     }
 
-    fn paint(
-        &mut self,
-        pixels: &mut [u8],
-        size: (u32, u32),
-        dpr: u32,
-        repair: &retinue_render::damage::Region,
-    ) -> Result<(), String> {
+    fn prepare(&mut self, size: (u32, u32), dpr: u32) -> Result<Damage, String> {
         *self.size.borrow_mut() = size;
-        self.view.paint_region(
-            pixels,
+        self.view.prepare(
             Frame {
                 size,
                 scale: self.scale * dpr as f32,
@@ -145,8 +138,24 @@ impl Application for Panel {
             },
             &self.model,
             &self.interaction,
-            repair,
-        )?;
+        )
+    }
+
+    fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
+        self.view.paint_scene()
+    }
+    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
+        Some(self.view.begin_frame())
+    }
+
+    fn paint(
+        &mut self,
+        painter: &mut retinue_render::painter::Painter<'_>,
+        _size: (u32, u32),
+        _dpr: u32,
+        repair: &retinue_render::damage::Region,
+    ) -> Result<(), String> {
+        self.view.draw_prepared(painter, repair)?;
         if let Some(send) = self.first_paint.take() {
             let start = Instant::now();
             self.started = Some(start);

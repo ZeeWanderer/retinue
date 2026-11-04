@@ -239,6 +239,20 @@ BLResult retinue_bl_blit_prgb32(
   return bl_context_blit_scaled_image_i(&painter->context, &target, image, NULL);
 }
 
+BLResult retinue_bl_copy_prgb32(
+    RetinueBlendPainter* painter, const BLImageCore* image,
+    int source_x, int source_y, int width, int height, int target_x, int target_y) {
+  BLRectI source = {source_x, source_y, width, height};
+  BLPointI target = {target_x, target_y};
+  BLCompOp previous = bl_context_get_comp_op(&painter->context);
+  BLResult result = bl_context_set_comp_op(&painter->context, BL_COMP_OP_SRC_COPY);
+  if (result == BL_SUCCESS) {
+    result = bl_context_blit_image_i(&painter->context, &target, image, &source);
+  }
+  BLResult restored = bl_context_set_comp_op(&painter->context, previous);
+  return result != BL_SUCCESS ? result : restored;
+}
+
 BLResult retinue_bl_fill_circle_prgb32(
     RetinueBlendPainter* painter,
     const BLImageCore* image,

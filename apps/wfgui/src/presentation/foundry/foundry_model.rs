@@ -18,6 +18,7 @@ pub(super) struct Model {
     pub filters: State<Option<filters::declaration::Geometry>>,
     pub filter_offset: State<(f32, f32)>,
     pub toolbar_paint: State<DrawList>,
+    pub background_paint: State<DrawList>,
     pub overlays_paint: State<DrawList>,
 }
 
@@ -47,6 +48,7 @@ impl Default for Model {
             filters: State::new(None),
             filter_offset: State::new((0.0, 0.0)),
             toolbar_paint: State::default(),
+            background_paint: State::default(),
             overlays_paint: State::default(),
         }
     }

@@ -2,7 +2,7 @@ use super::{
     CachePolicy, Color, DrawStep, Key, PaintFrame, PaintStats, RasterMode, RenderHost,
     ResidencyPolicy, ResidencyStats, ResourceRead, ScopeId,
     dependencies::Dependencies,
-    execution::{Input, Preparation},
+    execution::{Input, PaintDemand, Preparation},
     fragments::{self, Fragments},
     layers::{Layers, Prepared},
     materialization::Recipe,
@@ -15,6 +15,7 @@ use std::{
     time::Instant,
 };
 
+pub(crate) mod cost;
 mod coverage;
 use coverage::SpatialIndex;
 
@@ -32,6 +33,7 @@ pub struct Renderer {
     draw_plan: BTreeMap<DrawOrder, DrawStep>,
     coverage: SpatialIndex,
     retry_items: BTreeSet<usize>,
+    unrequested_items: BTreeSet<usize>,
     blocked_items: BTreeSet<usize>,
     analysis_retry: BTreeSet<usize>,
     reclaimed: u64,
@@ -58,6 +60,7 @@ impl Renderer {
             draw_plan: BTreeMap::new(),
             coverage: SpatialIndex::default(),
             retry_items: BTreeSet::new(),
+            unrequested_items: BTreeSet::new(),
             blocked_items: BTreeSet::new(),
             analysis_retry: BTreeSet::new(),
             reclaimed: 0,
@@ -117,6 +120,7 @@ impl Renderer {
         self.draw_plan.clear();
         self.coverage.clear();
         self.retry_items.clear();
+        self.unrequested_items.clear();
         self.blocked_items.clear();
         self.analysis_retry.clear();
         self.prepared_for = None;
@@ -183,6 +187,25 @@ impl Renderer {
     }
 
     pub fn prepare(&mut self, frame: &PaintFrame, mode: RasterMode) {
+        self.prepare_with_demand(frame, mode, PaintDemand::Full);
+    }
+
+    /// Limit optional preparation to repairs without removing retained consumers.
+    pub fn prepare_for(
+        &mut self,
+        frame: &PaintFrame,
+        mode: RasterMode,
+        repair: &crate::damage::Region,
+    ) {
+        self.prepare_with_demand(frame, mode, PaintDemand::Repair(repair));
+    }
+
+    fn prepare_with_demand(
+        &mut self,
+        frame: &PaintFrame,
+        mode: RasterMode,
+        demand: PaintDemand<'_>,
+    ) {
         let host = self.residency.host.clone();
         let _pass = host.begin_pass(0);
         self.stats = PaintStats::default();
@@ -219,6 +242,7 @@ impl Renderer {
         let full = self.dependencies.full || self.mode != mode || self.prepared_for.is_none();
         if full {
             self.blocked_items.clear();
+            self.unrequested_items.clear();
         }
         let unchanged = self.mode == mode
             && self.prepared_for.as_ref().is_some_and(|(id, revision)| {
@@ -251,6 +275,7 @@ impl Renderer {
         }
         let pending = if self.optimizations && self.materializations {
             self.layers.begin_preparations(
+                demand,
                 &mut self.residency,
                 &self.prepared,
                 now,
@@ -259,7 +284,20 @@ impl Renderer {
         } else {
             Vec::new()
         };
-        if unchanged && pending.is_empty() && self.retry_items.is_empty() && !self.deferred {
+        let requested: Vec<_> = self
+            .unrequested_items
+            .iter()
+            .copied()
+            .filter(|&index| demand.intersects(frame.chunks[index].visible))
+            .collect();
+        let awaiting_fragments = self.fragments.awaiting_demand && !demand.is_empty();
+        if unchanged
+            && pending.is_empty()
+            && self.retry_items.is_empty()
+            && requested.is_empty()
+            && !awaiting_fragments
+            && !self.deferred
+        {
             self.stats.layer_bytes = self.layers.bytes(&self.residency);
             return;
         }
@@ -281,6 +319,7 @@ impl Renderer {
             self.dependencies.changed.iter().copied().collect()
         };
         changed.append(&mut self.retry_items);
+        changed.extend(requested);
         if !unchanged {
             Self::coverage_changes(&before_layers, &current_layers, &mut changed);
         }
@@ -309,9 +348,14 @@ impl Renderer {
                 .collect::<Vec<_>>();
             self.fragments.prepare(
                 roots,
+                demand,
                 &mut self.residency,
                 &mut plan,
                 self.layers.policy.map_or(16, |p| p.min_work),
+                self.layers
+                    .policy
+                    .unwrap_or_else(super::LayerPolicy::desktop)
+                    .stable_repaints,
                 now,
                 &mut self.stats,
             )
@@ -321,6 +365,7 @@ impl Renderer {
         let mut tasks: HashMap<_, _> = fragment_tasks.iter().copied().collect();
         for &index in &changed {
             self.blocked_items.remove(&index);
+            self.unrequested_items.remove(&index);
             let chunk = &frame.chunks[index];
             let old = self.prepared[index];
             let eligible = self.optimizations
@@ -345,6 +390,10 @@ impl Renderer {
                 retired.push((id, retention));
             }
             if !eligible {
+                continue;
+            }
+            if !demand.intersects(chunk.visible) {
+                self.unrequested_items.insert(index);
                 continue;
             }
             let recipe = Recipe::item(&chunk.program);
@@ -579,7 +628,7 @@ impl Renderer {
         let mut playback = Playback {
             frame,
             prepared: &self.prepared,
-            fragments: &self.fragments,
+            fragments: &mut self.fragments,
             residency: &mut self.residency,
             stats: &mut self.stats,
             optimizations: self.optimizations,
@@ -637,7 +686,7 @@ impl Renderer {
 struct Playback<'a> {
     frame: &'a PaintFrame,
     prepared: &'a [Option<RasterId>],
-    fragments: &'a Fragments,
+    fragments: &'a mut Fragments,
     residency: &'a mut Residency,
     stats: &'a mut PaintStats,
     optimizations: bool,
@@ -687,7 +736,10 @@ impl Playback<'_> {
                         if !fragments::allowed(context) {
                             return None;
                         }
-                        let &id = self.fragments.selected.get(&program.id())?;
+                        let Some(&id) = self.fragments.selected.get(&program.id()) else {
+                            self.fragments.replayed(program);
+                            return None;
+                        };
                         self.residency.drawn(id);
                         Some(self.residency.image(id).clone())
                     },

@@ -163,3 +163,64 @@ fn adding_popup_does_not_rerecord_background() {
         assert!(surface.tree.scene().stats.recordings <= 1);
     }
 }
+
+#[test]
+fn partial_repair_preserves_other_live_caches_but_removal_releases_them() {
+    let record = |count| {
+        let mut recording = PixelLayers::new((160, 80));
+        for card in 0..count {
+            let x = 4 + card * 80;
+            recording.cached_section(
+                Key::new("card", u64::from(card)),
+                Rect {
+                    x,
+                    y: 4,
+                    width: 64,
+                    height: 64,
+                },
+                CacheHint::Stable,
+            );
+            for i in 0..64 {
+                recording.fill_rounded_rect(
+                    x + i % 8 * 8,
+                    4 + i / 8 * 8,
+                    6,
+                    6,
+                    2,
+                    [80, 120, 160, 255],
+                );
+            }
+        }
+        recording
+    };
+    let mut surface = ViewSurface::with_layers(ResidencyPolicy::overlay(0), LayerPolicy::overlay());
+    let mut pixels = Vec::new();
+    for _ in 0..16 {
+        pixels = render(&mut surface, record(2)).0;
+    }
+    let bytes = surface.residency_stats().selected_bytes;
+    assert!(bytes > 0);
+    let expected = pixels.clone();
+    let repair = retinue_render::damage::Region::new([Rect {
+        x: 4,
+        y: 4,
+        width: 64,
+        height: 64,
+    }]);
+    let mut painter = Painter::new(&mut pixels, 160, 80).unwrap();
+    painter.repair(&repair);
+    painter.clear();
+    surface.draw_prepared(&mut painter, repair.bounds(), |_, _| {});
+    painter.finish().unwrap();
+    assert_eq!(pixels, expected);
+    assert_eq!(surface.residency_stats().selected_bytes, bytes);
+    assert_eq!(surface.renderer.stats.preparation_tasks, 0);
+    surface.update(record(1).finish(), (160, 80)).unwrap();
+    let mut painter = Painter::new(&mut pixels, 160, 80).unwrap();
+    painter.repair(&retinue_render::damage::Region::default());
+    surface.draw_prepared(&mut painter, repair.bounds(), |_, _| {});
+    painter.finish().unwrap();
+    assert!(surface.residency_stats().selected_bytes < bytes);
+    assert_eq!(surface.renderer.stats.preparation_tasks, 0);
+    assert!(!surface.has_deferred());
+}

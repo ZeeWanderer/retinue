@@ -90,13 +90,17 @@ See the [overlay source map](companion-presentation.md) for view entry points.
 - `crates/retinue-protocol`: generated envelope and game-owned native view models. Edit the
   `.proto` files under the owning Erlang app, not generated Rust or Erlang code.
 - `crates/retinue-render`: paint programs, optimization, raster resources, damage
-  repair and Blend2D execution. Owns the native bridge and vendor submodules;
+  repair, acquired-buffer rendering and Blend2D execution. Owns the native bridge and vendor submodules;
   depends on neither UI authoring nor game policy.
 - `crates/retinue-ui`: UI authoring, observable state, environment, layout and input.
   `layout` defines custom layout contracts; `scene` adapts layout to renderer frames.
   `drawing` supplies typed custom drawing and pixel-layout helpers; `runtime`
   retains both authored views and custom drawings. Shared UI examples live here.
   Separate `overlay` and `desktop` features provide layer-shell and ordinary window hosts.
+  Hosts use the shared surface renderer for target history, repair planning and
+  failure handling, and `presentation_buffers` for Wayland storage and submission.
+  Views stay host-agnostic; custom game lifecycle hosts use those mechanisms
+  without adopting the SDK event loop.
   Screens, styling and game policy remain in clients.
 - `crates/retinue-ui-macros`: compile-time UI authoring. Generated models use the
   UI state runtime; the macro implementation has no runtime dependency on it.
@@ -165,6 +169,17 @@ the `domain` directory is not a requirement for global singletons. See the
 
 `make gui`, `make dev` and `make prod` build the Rust client. Historical Qt source
 remains in Git history, not as a parallel implementation in the working tree.
+
+## App-Local Foundations
+
+An optional `core/` holds cohesive app-local, SDK-adjacent value helpers or
+extensions that have no game or presentation-feature knowledge. It must not
+depend on the app's `data`, `domain` or `presentation` layers. Reusable mechanisms
+belong in the existing shared crates instead. Keep small feature-local helpers
+beside their consumer; do not create an empty `core` or a generic utilities bin.
+
+Current native apps need no such directory: drawing/input foundations already
+belong to the SDK, while media, preferences and session workers are domain services.
 
 ## Runtime Layout
 

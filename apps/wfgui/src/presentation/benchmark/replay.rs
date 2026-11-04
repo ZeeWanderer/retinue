@@ -1,6 +1,13 @@
 use super::*;
 use retinue_render::{Color, FrameSnapshot, LayerPolicy, PaintFrame, RasterMode, Renderer};
 
+mod reuse;
+
+struct TraceFrame {
+    snapshot: FrameSnapshot,
+    motion: retinue_render::relocate::Motion,
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Policy {
     Raw,
@@ -38,6 +45,13 @@ impl Policy {
 }
 
 fn trace(scale: f32, frames: usize) -> Vec<FrameSnapshot> {
+    trace_samples(scale, frames)
+        .into_iter()
+        .map(|f| f.snapshot)
+        .collect()
+}
+
+fn trace_samples(scale: f32, frames: usize) -> Vec<TraceFrame> {
     let mut pages = Pages::new(Default::default()).unwrap();
     pages.fixture();
     let source = serde_json::to_value(&pages.relics.items[0]).unwrap();
@@ -91,11 +105,14 @@ fn trace(scale: f32, frames: usize) -> Vec<FrameSnapshot> {
         .unwrap();
         pages.paint(&mut painter);
         painter.finish().unwrap();
-        frames_out.push(
-            pages
-                .ui
-                .paint_snapshot(&mut target, pages.ui.bounds("page.grid").unwrap()),
-        );
+        let viewport = pages.ui.bounds("page.grid").unwrap();
+        frames_out.push(TraceFrame {
+            snapshot: pages.ui.paint_snapshot(&mut target, viewport),
+            motion: retinue_render::relocate::Motion {
+                viewport,
+                origin: (0, -(pages.relics.offset as i32)),
+            },
+        });
     }
     frames_out
 }
@@ -176,16 +193,18 @@ fn glow_regions(frame: &PaintFrame) -> Vec<Rect> {
         for command in commands {
             match command {
                 Command::Fragment { program, .. } => {
-                    // Apply the separately tested glow-compositing tolerance only to its pixels.
-                    if program
-                        .commands()
-                        .iter()
-                        .all(|c| matches!(c, Command::InsetShadow { .. }))
-                    {
-                        out.push(program.analysis().effects.writes.visible(origin, clip));
-                    } else {
-                        walk(program.commands(), program.scale(), origin, clip, out);
-                    }
+                    walk(program.commands(), program.scale(), origin, clip, out);
+                }
+                Command::InsetShadow { bounds, color, .. }
+                    if color.bgra() == crate::presentation::style::COMPONENT_GLOW =>
+                {
+                    let bounds = PaintExtent {
+                        x: (bounds.x * scale).round() as i32,
+                        y: (bounds.y * scale).round() as i32,
+                        width: (bounds.width * scale).round() as u32,
+                        height: (bounds.height * scale).round() as u32,
+                    };
+                    out.push(bounds.visible(origin, clip));
                 }
                 Command::Translate { offset, commands } => walk(
                     commands,

@@ -79,19 +79,24 @@ fn tooltip_bounds(scene: &Scene, dimensions: (u32, u32)) -> Option<(Rect, f32)> 
     ))
 }
 
-pub(in crate::presentation) fn draw(
-    painter: &mut Painter<'_>,
+pub(in crate::presentation) fn prepare(
+    size: (u32, u32),
     font: &Rc<CachedFont>,
     assets: &Assets,
     scene: &Scene,
 ) {
-    let Some((row, s)) = tooltip_bounds(scene, (painter.width(), painter.height())) else {
+    let Some((row, s)) = tooltip_bounds(scene, size) else {
+        let mut composition = assets.composition.borrow_mut();
+        composition.state = None;
+        composition.view = None;
+        composition.tree.set_root(empty());
+        composition.tree.update(size, 1.0).expect("empty tooltip");
         return;
     };
     let state = TooltipState {
         row,
         scale: s,
-        size: (painter.width(), painter.height()),
+        size,
         price: price_text(scene),
         badges: scene
             .parent
@@ -100,9 +105,29 @@ pub(in crate::presentation) fn draw(
     };
     let mut composition = assets.composition.borrow_mut();
     composition.update(state, assets, font);
+}
+
+pub(in crate::presentation) fn record_surface(
+    assets: &Assets,
+    scene: &mut retinue_render::surface::Snapshot,
+) {
+    let composition = assets.composition.borrow();
+    scene.record_rendered(
+        composition.tree.frame(),
+        &composition.renderer,
+        RasterMode::Replay,
+        |_, _| false,
+    );
+}
+
+pub(in crate::presentation) fn draw_prepared(painter: &mut Painter<'_>, assets: &Assets) {
+    let mut composition = assets.composition.borrow_mut();
+    let Some(row) = composition.state.as_ref().map(|s| s.row) else {
+        return;
+    };
     let Composition { tree, renderer, .. } = &mut *composition;
     let _pass = renderer.host().begin_pass(painter.thread_count());
-    renderer.prepare(tree.frame(), RasterMode::Replay);
+    renderer.prepare_for(tree.frame(), RasterMode::Replay, &painter.visible_regions());
     renderer.draw_with(tree.frame(), painter, row, |_, _| unreachable!());
 }
 

@@ -121,6 +121,7 @@ pub fn preview(
     }
     interaction.menu = match data["menu"].as_str() {
         Some("settings") => Some(Menu::Settings),
+        Some("league") => Some(Menu::League),
         Some("rarity") => Some(Menu::Rarity),
         Some("status") => Some(Menu::Status),
         Some("currency") => Some(Menu::Currency),

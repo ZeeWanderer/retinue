@@ -819,8 +819,12 @@ impl Application for Gui {
     fn close_requested(&self) -> bool {
         self.view.close_requested
     }
+    fn prepare(&mut self) -> Result<Option<retinue_render::surface::Snapshot>, String> {
+        self.view.prepare_paint();
+        Ok(Some(self.view.paint_scene()))
+    }
     fn paint(&mut self, painter: &mut Painter<'_>) -> Result<(), String> {
-        self.view.paint(painter);
+        self.view.draw_prepared(painter);
         Ok(())
     }
     fn tick(&mut self, now: Instant) -> Damage {

@@ -86,6 +86,14 @@ the layout frontend migration.
 
 ## Decision
 
+Completed presentation-buffer pixels are another possible execution input, not a
+new raster cache. The [relocate design](render-relocate.md) places move/repair
+selection before cache preparation and defines surface-wide validity and host
+ownership. Its prototype is measured but not enabled in production.
+`Renderer::prepare_for` now separates current repair demand from retained plan
+consumers. Shared fragments survive a frame that does not sample them; unrequested
+optional preparations do not start work or schedule a repaint.
+
 Separate the persistent description of **what must be drawn** from the derived
 plan for **how to draw it**. Retain the existing composition/layout model,
 resource preparation, hosts and Blend2D backend. Replace the renderer's coupled
@@ -614,6 +622,13 @@ plan. Optional costly analysis and preparation may run on workers using immutabl
 snapshots. New UI state does not wait for optimization; replay current commands
 when a matching optional raster is unavailable. Do not display stale cache pixels
 as a substitute for current state.
+
+Use stable local-coordinate programs as the unit of deferred analysis, not a whole
+screen snapshot. Replay indexes, equivalent fragments and safe simplification can
+survive scrolling or placement-only animation; current damage and occlusion cannot.
+The existing background replay-index analysis is the starting point for further
+tiers, not a reason to introduce another optimizer. Admit additional analysis only
+when its expected reuse can repay the work, with source identity checked at publication.
 
 Freeze metadata and versioned resource references, not live `Rc` font caches or
 UI callbacks. Thread-safe ownership is an implementation requirement before worker

@@ -46,6 +46,28 @@ reads by parent tasks; publication releases redundant child consumers while
 preserving outside uses. A repeatedly used fragment may enter bounded warm storage
 after a parent takes over, rather than being permanently pinned by a style helper.
 
+Paint compilation also discovers expensive primitives and dense structural command
+blocks without cache annotations. Equivalent candidates share weakly interned
+programs across independent view IDs. Original commands remain available; discovery
+does not search arbitrary overlapping subsequences or rasterize during compilation.
+Cheap fills, images and sparse blocks stay direct. The work/covered-area estimate
+is deliberately coarse, not a native timing model. Text stays in its existing glyph
+mask path: caching another colored alpha raster changes rounding and is not yet
+eligible for automatic discovery. Explicitly authored raster policies are unchanged.
+
+Automatic candidates need repeated visible paint consumers or several actual
+repaints of an unchanged program. Idle preparation and relocation-only updates do
+not advance that observation. A paint split into repair regions counts once per
+preparation. Ready or scheduled child rasters reduce the parent's estimated replay
+cost before admission. Discovery uses the existing reservations, preparation graph,
+resource versions and warm retention, not another cache pool.
+
+`CachePolicy::Never` disables whole-instance materialization, not reusable drawing
+inside that instance. An authored fragment with `CacheHint::Dynamic` excludes its
+body from automatic discovery. `set_materializations(false)` disables raster
+preparation globally; `set_optimizations(false)` selects original source replay.
+The component glow is ordinary drawing and no longer names or hints its cache.
+
 Tiles retain independent selected consumers even when only part of a group fits.
 Unselected coverage replays; it does not evict an active tile to rotate through
 the same working set. A parent can consume several disjoint child regions and
@@ -96,6 +118,7 @@ uses. The planner must record those uses explicitly.
 | Selected UI rasters | Execution-plan consumers, repair inputs and explicit short-lived reuse scopes; not an asset LRU |
 | Unselected reusable UI rasters | Optional bounded warm storage with expiry and a reason to expect reuse |
 | Required intermediate targets | Semantic operation/task lifetime; cannot silently replace with incorrect direct drawing |
+| Presentation targets and validity history | Host-owned buffers plus bounded generation metadata; not optional raster-cache entries |
 | Scratch surfaces | Last native consumer completion; bounded pool of reusable empty allocations |
 | External GPU surfaces | Producer/host presentation leases and synchronization; separate accounting, no implicit RAM copy |
 
@@ -156,6 +179,11 @@ Use actual damaged coverage and expected presentation cadence. An idle visible
 card is not repainted at monitor refresh frequency. A moving overlay may repeatedly
 damage unchanged content beneath it; include that repair cost. Translation-only
 motion and changing card geometry have different validity and reuse patterns.
+For [relocate](render-relocate.md), admission must use the repair
+work left after validated pixel moves. A cache is not useful merely because its
+content moved; an existing cache may still beat copying and repairing target pixels.
+Conversely, skipping its draw this frame does not remove a retained replay/repair
+consumer. Validity, retention value and current execution demand are separate.
 
 Hints describe stable/conditional/dynamic content, motion intervals, scroll
 locality and likely return. They influence estimates, never correctness. Never

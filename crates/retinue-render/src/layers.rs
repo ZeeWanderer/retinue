@@ -1,6 +1,8 @@
 use super::{
     CollectionMotion, Key, PaintFrame, PaintStats, ScopeId, coverage,
-    execution::{Input, Materialization, Preparation, SourceRegion, Substitute, TaskId},
+    execution::{
+        Input, Materialization, PaintDemand, Preparation, SourceRegion, Substitute, TaskId,
+    },
     materialization::Recipe,
     residency::{Owner, RasterId, Reservation, Residency, Retention},
 };
@@ -126,6 +128,62 @@ impl Layers {
             .values()
             .map(|p| residency.image(p.raster).byte_len())
             .sum()
+    }
+
+    pub fn resident_coverage(&self, frame: &PaintFrame) -> Vec<(Range<usize>, Vec<Rect>)> {
+        if self.prepared.is_empty() {
+            return Vec::new();
+        }
+        let reordering: Vec<_> = frame
+            .groups
+            .iter()
+            .filter(|g| {
+                g.collection()
+                    .is_some_and(|c| c.motion == CollectionMotion::Reordering)
+            })
+            .map(|g| &g.instances)
+            .collect();
+        let mut regions = Vec::new();
+        for group in &frame.groups {
+            if group.cache_hint() == CacheHint::Dynamic
+                || !self.prepared.keys().any(|key| key.group == group.key)
+                || reordering.iter().any(|range| {
+                    range.start >= group.instances.start && range.end <= group.instances.end
+                })
+            {
+                continue;
+            }
+            for region in coverage::candidates(frame, group) {
+                let Some(prepared) = self.prepared.get(&region.id) else {
+                    continue;
+                };
+                let Some(entry) = self.entries.get(&region.id) else {
+                    continue;
+                };
+                if entry.raster == Some(prepared.raster)
+                    && !entry.dirty
+                    && entry.recipe.matches_region(
+                        frame,
+                        region.instances.clone(),
+                        region.origin,
+                        (region.content.width, region.content.height),
+                    )
+                {
+                    regions.push(region);
+                }
+            }
+        }
+        regions.sort_unstable_by_key(|r| (r.instances.start, Reverse(r.instances.end), r.id));
+        let mut covered = Vec::new();
+        let mut result = Vec::new();
+        for region in regions {
+            let remaining = remainder(&region.instances, region.visible, &covered);
+            if !remaining.is_empty() {
+                covered.push((region.instances.clone(), region.visible));
+                result.push((region.instances, remaining));
+            }
+        }
+        result
     }
 
     fn rebuild_index(&mut self, frame: &PaintFrame) {
@@ -332,6 +390,7 @@ impl Layers {
 
     pub fn begin_preparations(
         &mut self,
+        demand: PaintDemand<'_>,
         residency: &mut Residency,
         items: &[Option<RasterId>],
         now: Instant,
@@ -346,6 +405,9 @@ impl Layers {
         for repairing in [true, false] {
             let mut covered = reserved.clone();
             for (&group, candidate) in &self.candidates {
+                if !demand.intersects(candidate.bounds) {
+                    continue;
+                }
                 if remainder(&candidate.chunks, candidate.bounds, &covered).is_empty() {
                     continue;
                 }

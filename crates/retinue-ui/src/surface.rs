@@ -1,6 +1,9 @@
 use crate::Rect;
 use crate::schedule::{Deadlines, PingSource};
-use retinue_render::damage::{Damage, RepaintTracker};
+use retinue_render::{
+    damage::Damage,
+    surface::{Buffered, Snapshot},
+};
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
 mod clipboard;
@@ -30,10 +33,7 @@ use smithay_client_toolkit::{
             LayerSurfaceConfigure,
         },
     },
-    shm::{
-        Shm, ShmHandler,
-        slot::{Buffer, SlotPool},
-    },
+    shm::{Shm, ShmHandler},
 };
 use std::{
     os::fd::OwnedFd,
@@ -96,13 +96,23 @@ pub trait Application {
     fn deadlines(&self, now: Instant) -> Deadlines;
     fn tick(&mut self, drawable: bool) -> Damage;
     fn input(&mut self, event: Input) -> Damage;
-    fn prepare(&mut self, _size: (u32, u32), _scale: u32) -> Result<(), String> {
-        Ok(())
+    /// Publish geometry and include damage discovered by layout or scene diffing.
+    fn prepare(&mut self, _size: (u32, u32), _scale: u32) -> Result<Damage, String> {
+        Ok(Damage::None)
+    }
+    fn paint_scene(&self) -> Option<Snapshot> {
+        None
+    }
+    fn relocation(&self) -> retinue_render::surface::Relocation {
+        retinue_render::surface::Relocation::Auto
+    }
+    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
+        None
     }
     /// Clear and repaint every layer within repair, preserving pixels outside it.
     fn paint(
         &mut self,
-        pixels: &mut [u8],
+        painter: &mut retinue_render::painter::Painter<'_>,
         size: (u32, u32),
         scale: u32,
         repair: &retinue_render::damage::Region,
@@ -229,7 +239,6 @@ fn run_inner(
     layer
         .wl_surface()
         .set_input_region(Some(empty_region.wl_region()));
-    let pool = SlotPool::new(4, &shm)?;
     let mut state = Surface {
         registry: RegistryState::new(&globals),
         seats: SeatState::new(&globals, &qh),
@@ -240,8 +249,7 @@ fn run_inner(
         pointer: None,
         keyboard: None,
         modifiers: Modifiers::default(),
-        pool,
-        buffers: Vec::new(),
+        buffers: crate::presentation_buffers::Buffers::default(),
         size: (0, 0),
         scale: 1,
         configured: false,
@@ -249,7 +257,7 @@ fn run_inner(
         keyboard_interactive: false,
         pointer_regions: Vec::new(),
         frame_pending: false,
-        repaint: RepaintTracker::default(),
+        repaint: Buffered::default(),
         closed: false,
         app,
         clipboard: clipboard::Clipboard::new(&globals, &qh),
@@ -288,7 +296,6 @@ fn run_inner(
                 state.layer.commit();
                 state.buffers.clear();
                 state.repaint.reset();
-                state.pool = SlotPool::new(4, &state.shm)?;
             }
             state.repaint.invalidate(Damage::Full);
         }
@@ -342,8 +349,7 @@ struct Surface {
     pointer: Option<ThemedPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     modifiers: Modifiers,
-    pool: SlotPool,
-    buffers: Vec<Buffer>,
+    buffers: crate::presentation_buffers::Buffers,
     size: (u32, u32),
     scale: u32,
     configured: bool,
@@ -351,7 +357,7 @@ struct Surface {
     keyboard_interactive: bool,
     pointer_regions: Vec<Rect>,
     frame_pending: bool,
-    repaint: RepaintTracker,
+    repaint: Buffered,
     closed: bool,
     app: Box<dyn Application>,
     clipboard: clipboard::Clipboard,
@@ -362,14 +368,7 @@ struct Surface {
 
 impl Surface {
     fn drawable(&mut self) -> bool {
-        self.mapped
-            && self.configured
-            && !self.frame_pending
-            && (self.buffers.len() < 3
-                || self
-                    .buffers
-                    .iter()
-                    .any(|buffer| buffer.canvas(&mut self.pool).is_some()))
+        self.mapped && self.configured && !self.frame_pending && self.buffers.drawable()
     }
 
     fn keyboard_mode(&self) -> KeyboardInteractivity {
@@ -381,56 +380,48 @@ impl Surface {
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<(), Box<dyn std::error::Error>> {
-        let width = self
-            .size
-            .0
-            .checked_mul(self.scale)
-            .ok_or("overlay width overflow")?;
-        let height = self
-            .size
-            .1
-            .checked_mul(self.scale)
-            .ok_or("overlay height overflow")?;
-        if width == 0 || height == 0 || u64::from(width) * u64::from(height) > 40_000_000 {
-            return Err("unsupported overlay output size".into());
-        }
-        let index = match self
-            .buffers
-            .iter()
-            .position(|b| b.canvas(&mut self.pool).is_some())
-        {
-            Some(index) => index,
-            None if self.buffers.len() < 3 => {
-                let (buffer, _) = self.pool.create_buffer(
-                    width as i32,
-                    height as i32,
-                    width as i32 * 4,
-                    wl_shm::Format::Argb8888,
-                )?;
-                self.buffers.push(buffer);
-                self.repaint.add_buffer();
-                self.buffers.len() - 1
-            }
-            None => return Ok(()),
-        };
-        let Some(plan) = self.repaint.plan(index, (width, height)) else {
+        let (width, height) = crate::presentation_buffers::buffer_size(self.size, self.scale)?;
+        let count = self.buffers.len();
+        let Some(index) = self.buffers.acquire(
+            &self.shm,
+            (width, height),
+            wl_shm::Format::Argb8888,
+            self.app.relocation() != retinue_render::surface::Relocation::Disabled,
+        )?
+        else {
             return Ok(());
         };
+        if self.buffers.len() > count {
+            self.repaint.add_buffer();
+        }
         #[cfg(feature = "benchmark")]
         let paint_start = Instant::now();
         // Keep actionable geometry on the displayed frame while buffers are busy.
-        self.app.prepare((width, height), self.scale)?;
-        let buffer = &self.buffers[index];
-        let pixels = buffer
-            .canvas(&mut self.pool)
+        self.repaint
+            .invalidate(self.app.prepare((width, height), self.scale)?);
+        let scene = self.app.paint_scene();
+        self.repaint.set_relocation(self.app.relocation());
+        let frame = self.app.render_frame();
+        let threads = frame.as_ref().map_or(
+            std::num::NonZeroU32::MIN,
+            retinue_render::RenderPass::threads,
+        );
+        let pixels = self
+            .buffers
+            .pixels(index)
             .ok_or("overlay buffer unavailable")?;
-        if let Err(error) = self
-            .app
-            .paint(pixels, (width, height), self.scale, &plan.repair)
-        {
-            self.repaint.failed(index);
-            return Err(error.into());
-        }
+        let Some(plan) = self.repaint.render_queued(
+            index,
+            (width, height),
+            scene,
+            pixels.target,
+            pixels.source,
+            threads,
+            |painter, repair| self.app.paint(painter, (width, height), self.scale, repair),
+        )?
+        else {
+            return Ok(());
+        };
         #[cfg(feature = "benchmark")]
         let paint_end = Instant::now();
         let regions: Vec<_> = self
@@ -454,25 +445,18 @@ impl Surface {
                 .set_input_region(Some(region.wl_region()));
             self.pointer_regions = regions;
         }
-        buffer.attach_to(self.layer.wl_surface())?;
-        for rect in plan.damage.rects() {
-            self.layer.wl_surface().damage_buffer(
-                rect.x as i32,
-                rect.y as i32,
-                rect.width as i32,
-                rect.height as i32,
-            );
-        }
-        self.layer
-            .wl_surface()
-            .frame(qh, self.layer.wl_surface().clone());
-        #[cfg(feature = "benchmark")]
-        if let Some(measurement) = &mut self.measurement {
-            measurement.submit(self.layer.wl_surface(), qh, paint_start, paint_end);
-        }
-        self.layer.commit();
+        self.buffers
+            .present(index, self.layer.wl_surface(), &plan.damage, || {
+                self.layer
+                    .wl_surface()
+                    .frame(qh, self.layer.wl_surface().clone());
+                #[cfg(feature = "benchmark")]
+                if let Some(measurement) = &mut self.measurement {
+                    measurement.submit(self.layer.wl_surface(), qh, paint_start, paint_end);
+                }
+            })?;
         self.frame_pending = true;
-        self.repaint.submitted(index);
+        self.repaint.submitted(plan);
         Ok(())
     }
 }

@@ -10,7 +10,7 @@ use retinue_render::{
 };
 use retinue_ui::{
     Rect,
-    drawing::{LayeredDrawing, PixelCanvas as Canvas, PixelLayers as Recording},
+    drawing::{PixelCanvas as Canvas, PixelLayers as Recording},
     input::{Activation, ControlRegion, Controls, PointerPhase},
     line_edit::{Colors, LineEdit},
     runtime::ViewSurface as Surface,
@@ -19,6 +19,8 @@ use retinue_ui::{
 };
 use std::{cell::RefCell, rc::Rc};
 
+#[cfg(test)]
+mod movement_benchmark;
 mod plaques;
 mod prices;
 mod results;
@@ -43,8 +45,6 @@ const BLUE: [u8; 4] = rgba(136, 136, 255, 255);
 pub enum Target {
     Close,
     Drag,
-    League,
-    LeagueOption(usize),
     Menu(Menu),
     Option(Menu, usize),
     Popup,
@@ -79,6 +79,7 @@ pub enum Target {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Menu {
     Settings,
+    League,
     Rarity,
     Status,
     Currency,
@@ -89,11 +90,28 @@ impl Menu {
     pub fn key(self) -> &'static str {
         match self {
             Self::Settings => "",
+            Self::League => "league",
             Self::Rarity => "rarity",
             Self::Status => "status",
             Self::Currency => "currency",
             Self::Indexed => "indexed",
         }
+    }
+
+    pub fn choices(self, model: &EvaluateModel) -> impl Iterator<Item = (Option<&str>, &str)> {
+        let evaluation = model.evaluation.as_ref();
+        let leagues = evaluation
+            .filter(|_| self == Self::League)
+            .map(|e| e.leagues.as_slice())
+            .unwrap_or_default();
+        let options = evaluation
+            .and_then(|e| e.search_options.get(self.key()))
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        leagues
+            .iter()
+            .map(|l| (Some(l.id.as_str()), l.text.as_str()))
+            .chain(options.iter().map(|o| (o.id.as_deref(), o.text.as_str())))
     }
 }
 
@@ -117,7 +135,6 @@ pub struct Interaction {
     pub focus: Option<Target>,
     pub selecting: bool,
     pub tooltip: bool,
-    pub league_open: bool,
     pub menu: Option<Menu>,
     pub menu_anchor: Option<Rect>,
     pub menu_scroll: usize,
@@ -195,11 +212,10 @@ impl Layout {
 
 impl Interaction {
     pub fn close_popup(&mut self) -> bool {
-        let open = self.menu.is_some() || self.league_open;
+        let open = self.menu.is_some();
         self.menu = None;
         self.menu_anchor = None;
         self.menu_scroll = 0;
-        self.league_open = false;
         open
     }
 
@@ -249,7 +265,7 @@ pub struct EvaluatePanel {
     pub hits: Vec<Hit>,
     input: Controls<(Target, usize)>,
     pointer: (f64, f64),
-    prepared: Option<(Frame, LayeredDrawing)>,
+    prepared: Option<Frame>,
     pub bounds: Rect,
     pub panel: Rect,
     pub item_rows: usize,
@@ -551,7 +567,7 @@ impl EvaluatePanel {
         render: Frame,
         model: &EvaluateModel,
         interaction: &Interaction,
-    ) -> Result<(), String> {
+    ) -> Result<Damage, String> {
         #[cfg(test)]
         let profile_start = std::time::Instant::now();
         let Frame {
@@ -596,6 +612,7 @@ impl EvaluatePanel {
         let main = layout.bounds(Node::Main);
         self.panel = main;
         self.bounds = layout.bounds(Node::Root);
+        p.section(Key::new("evaluate.backdrop", 0), main);
         fill(&mut p, main, rgba(0, 0, 0, 217));
         let bar = layout.bounds(Node::Bar);
         p.section(Key::new("evaluate.title", 0), bar);
@@ -658,7 +675,7 @@ impl EvaluatePanel {
             ..title_area
         };
         self.hits.push(Hit {
-            target: Target::League,
+            target: Target::Menu(Menu::League),
             rect: league,
         });
         p.draw_text_vertically_centered(
@@ -666,7 +683,7 @@ impl EvaluatePanel {
             TextLine::new(league.x, league.y, league.height),
             title_size,
             &league_text,
-            if interaction.hover == Some(Target::League) {
+            if interaction.hover == Some(Target::Menu(Menu::League)) {
                 INK
             } else {
                 ACCENT
@@ -684,6 +701,7 @@ impl EvaluatePanel {
         );
 
         let card = layout.bounds(Node::Card);
+        p.section(Key::new("evaluate.item-frame", 0), card);
         let header = layout.bounds(Node::Header);
         let body = Rect {
             y: header.y + header.height,
@@ -974,33 +992,10 @@ impl EvaluatePanel {
         p.section(Key::new("evaluate.search", 0), layout.bounds(Node::Content));
         self.paint_search(&mut p, &layout, model, interaction, s, phase);
         p.section(Key::new("evaluate.popups", 0), self.bounds);
-        if interaction.tooltip && interaction.menu.is_none() && !interaction.league_open {
+        if interaction.tooltip && interaction.menu.is_none() {
             self.paint_listing_preview(&mut p, &layout, model, interaction, size, s);
         }
         self.paint_menu(&mut p, model, interaction, bar, size, s, zoom);
-        if interaction.league_open {
-            self.shield_popup();
-            if let Some(evaluation) = &model.evaluation {
-                for (i, l) in evaluation.leagues.iter().enumerate() {
-                    let rect = Rect {
-                        y: league.y + league.height + i as u32 * px(28, s),
-                        height: px(28, s),
-                        ..title_area
-                    };
-                    if rect.y + rect.height > size.1 {
-                        break;
-                    }
-                    self.button(
-                        &mut p,
-                        rect,
-                        Target::LeagueOption(i),
-                        &l.text,
-                        interaction,
-                        s,
-                    );
-                }
-            }
-        }
         if interaction.tooltip {
             if let Some(target) = interaction.hover {
                 let hint = match target {
@@ -1088,12 +1083,22 @@ impl EvaluatePanel {
             region.input.activation = Activation::Press;
             region
         }));
-        self.prepared = Some((render, p.finish()));
+        let drawing = p.finish();
         #[cfg(test)]
         {
             self.paint_profile[0] += profile_start.elapsed().as_nanos() as u64;
         }
-        Ok(())
+        let damage = self.composition.update(drawing, render.size)?;
+        self.prepared = Some(render);
+        Ok(damage)
+    }
+
+    pub fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
+        self.prepared.as_ref()?;
+        Some(
+            self.composition
+                .snapshot(retinue_render::Color::rgba(0, 0, 0, 0)),
+        )
     }
 
     pub fn paint_prepared(
@@ -1101,26 +1106,57 @@ impl EvaluatePanel {
         pixels: &mut [u8],
         repair: impl Into<retinue_render::damage::Region>,
     ) -> Result<(), String> {
-        let (render, drawing) = self
+        let size = self
             .prepared
-            .take()
-            .ok_or("Evaluate frame was not prepared")?;
-        let render_frame = self.composition.begin_frame(self.render_budget);
-        let mut painter =
-            Painter::with_threads(pixels, render.size.0, render.size.1, render_frame.threads())
-                .map_err(|e| e.to_string())?;
+            .as_ref()
+            .ok_or("Evaluate frame was not prepared")?
+            .size;
+        let render_frame = self.begin_frame();
+        let mut painter = Painter::with_threads(pixels, size.0, size.1, render_frame.threads())
+            .map_err(|e| e.to_string())?;
         #[cfg(test)]
         {
             self.render_threads = painter.thread_count();
         }
         let repair = repair.into();
         painter.repair(&repair);
+        self.draw_prepared(&mut painter, &repair)?;
+        #[cfg(test)]
+        let submitted = std::time::Instant::now();
+        let result = painter.finish().map_err(|e| e.to_string());
+        #[cfg(test)]
+        {
+            self.paint_profile[1] += submitted.elapsed().as_nanos() as u64;
+        }
+        result
+    }
+
+    pub fn begin_frame(&self) -> retinue_render::RenderPass {
+        self.composition.begin_frame(self.render_budget)
+    }
+
+    pub fn draw_prepared(
+        &mut self,
+        painter: &mut Painter<'_>,
+        repair: &retinue_render::damage::Region,
+    ) -> Result<(), String> {
+        #[cfg(test)]
+        {
+            self.render_threads = painter.thread_count();
+        }
+        let render = self
+            .prepared
+            .take()
+            .ok_or("Evaluate frame was not prepared")?;
+        if render.size != (painter.width(), painter.height()) {
+            return Err("Evaluate target size mismatch".into());
+        }
         painter.clear();
         let s = self.scale;
         let editor_bounds = self.editor_bounds;
         let editor = &mut self.editor;
         self.composition
-            .draw(drawing, &mut painter, repair.bounds(), |key, p| {
+            .draw_prepared(painter, repair.bounds(), |key, p| {
                 if key == Key::new("evaluate.editor", 0) {
                     if let Some(bounds) = editor_bounds {
                         editor.paint(
@@ -1138,18 +1174,11 @@ impl EvaluatePanel {
                         );
                     }
                 }
-            })?;
+            });
         if self.composition.has_deferred() {
             self.animation = std::mem::take(&mut self.animation).union(Damage::rect(self.bounds));
         }
-        #[cfg(test)]
-        let submitted = std::time::Instant::now();
-        let result = painter.finish().map_err(|e| e.to_string());
-        #[cfg(test)]
-        {
-            self.paint_profile[1] += submitted.elapsed().as_nanos() as u64;
-        }
-        result
+        Ok(())
     }
 
     fn paint_search(
@@ -1312,11 +1341,16 @@ impl EvaluatePanel {
                 &format!("{}/{}", results.listings.len(), results.returned),
                 rgba(115, 113, 94, 255),
             );
-            if model.loading || model.fetching || model.fetch_error.is_some() {
+            if model.loading || model.fetching || model.fetch_error.is_some() || model.results_stale
+            {
                 let message = if model.loading {
                     "Searching...".to_owned()
                 } else if model.fetching {
                     "Fetching...".to_owned()
+                } else if model.results_stale && model.fetch_error.is_none() {
+                    "Previous results; update pending".to_owned()
+                } else if model.results_stale {
+                    "Unable to update results".to_owned()
                 } else if cooldown > 0 {
                     format!("Unable to fetch data ({cooldown}s)")
                 } else {
@@ -1503,26 +1537,21 @@ impl EvaluatePanel {
             .map(|h| h.rect)
             .or(interaction.menu_anchor)
             .unwrap_or(bar);
-        let entries = model
-            .evaluation
-            .as_ref()
-            .and_then(|e| e.search_options.get(menu.key()));
         let width = if menu == Menu::Settings {
             px(280, s)
         } else {
-            entries
-                .into_iter()
-                .flatten()
-                .map(|o| text_width(&self.ui, &o.text, 12.0 * s).ceil() as u32 + px(28, s))
+            menu.choices(model)
+                .map(|(_, text)| text_width(&self.ui, text, 12.0 * s).ceil() as u32 + px(28, s))
                 .max()
                 .unwrap_or(0)
                 .max(anchor.width)
                 .min(px(360, s))
-        };
+        }
+        .min(size.0);
         let rows = if menu == Menu::Settings {
             6
         } else {
-            entries.map(Vec::len).unwrap_or(0)
+            menu.choices(model).count()
         };
         let height = px(rows as u32 * 30 + 8, s).min(size.1);
         let rect = Rect {
@@ -1620,16 +1649,18 @@ impl EvaluatePanel {
                 interaction,
                 s,
             );
-        } else if let Some(entries) = entries {
+        } else {
             self.visible_options = ((rect.height.saturating_sub(px(8, s)) as f32 / (30.0 * s))
                 + 0.01)
                 .floor()
                 .max(1.0) as usize;
-            let start = interaction
-                .menu_scroll
-                .min(entries.len().saturating_sub(self.visible_options));
-            for (offset, (i, option)) in entries
-                .iter()
+            let start = interaction.menu_scroll.min(
+                menu.choices(model)
+                    .count()
+                    .saturating_sub(self.visible_options),
+            );
+            for (offset, (i, (_, text))) in menu
+                .choices(model)
                 .enumerate()
                 .skip(start)
                 .take(self.visible_options)
@@ -1641,7 +1672,7 @@ impl EvaluatePanel {
                     width: rect.width - px(8, s),
                     height: px(4 + (offset as u32 + 1) * 30, s) - px(4 + offset as u32 * 30, s),
                 };
-                let selected = option.text == model.choice_label(menu.key());
+                let selected = text == model.choice_label(menu.key());
                 let target = Target::Option(menu, i);
                 self.hits.push(Hit { target, rect: row });
                 if selected || interaction.hover == Some(target) {
@@ -1650,7 +1681,7 @@ impl EvaluatePanel {
                 self.label(
                     p,
                     row,
-                    &option.text,
+                    text,
                     12.0 * s,
                     if selected { INK } else { MUTED },
                     true,
@@ -2173,6 +2204,74 @@ mod tests {
     }
 
     #[test]
+    fn acquired_surface_drag_and_hover_match_full_paint() {
+        check_acquired_surface(retinue_render::surface::experiment::Transfer::Previous);
+    }
+
+    #[test]
+    fn region_first_drag_and_hover_match_full_paint() {
+        check_acquired_surface(retinue_render::surface::experiment::Transfer::PreviousRegions);
+    }
+
+    fn check_acquired_surface(transfer: retinue_render::surface::experiment::Transfer) {
+        for scale in [1.0, 1.25, 2.0] {
+            let size = (2560, 1440);
+            let mut view = EvaluatePanel::new().unwrap();
+            let mut oracle = EvaluatePanel::new().unwrap();
+            let model = fixture();
+            let mut interaction = Interaction::default();
+            let mut surface = retinue_render::surface::experiment::Trial::new(size, 3, transfer);
+            let mut expected = vec![0; (size.0 * size.1 * 4) as usize];
+            let mut reduced = false;
+            let mut reused_panel = false;
+            for step in 0..12 {
+                interaction.position = Some((120 + step * 9, 50 + step * 2));
+                interaction.hover = (step % 3 == 1).then_some(Target::Close);
+                interaction.tooltip = (4..7).contains(&step);
+                let frame = || Frame {
+                    size,
+                    scale,
+                    zoom: scale,
+                    phase: 0.0,
+                };
+                view.prepare(frame(), &model, &interaction).unwrap();
+                surface.invalidate(Damage::Full);
+                let slot = step as usize % 3;
+                let pass = view.begin_frame();
+                let submission = surface
+                    .paint(
+                        slot,
+                        view.paint_scene().unwrap(),
+                        pass.threads(),
+                        |painter, repair| {
+                            view.prepared = Some(frame());
+                            reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
+                            view.draw_prepared(painter, repair)
+                        },
+                    )
+                    .unwrap()
+                    .unwrap();
+                reused_panel |= submission.copied_pixels
+                    > u64::from(view.panel.width) * u64::from(view.panel.height) / 2;
+                oracle
+                    .paint(&mut expected, frame(), &model, &interaction)
+                    .unwrap();
+                assert_same_pixels(
+                    surface.pixels(slot),
+                    &expected,
+                    size.0,
+                    &format!("drag scale={scale} step={step}"),
+                );
+            }
+            assert!(reduced, "surface must discover movement without app hints");
+            assert!(
+                reused_panel,
+                "panel backdrop must remain locally recorded at {scale}"
+            );
+        }
+    }
+
+    #[test]
     fn partial_hover_matches_full_paint_across_three_buffers() {
         use retinue_render::damage::{Damage, RepaintTracker};
         for (size, scale) in [
@@ -2588,6 +2687,7 @@ mod tests {
         ] {
             for menu in [
                 Menu::Settings,
+                Menu::League,
                 Menu::Rarity,
                 Menu::Status,
                 Menu::Currency,
@@ -2627,7 +2727,7 @@ mod tests {
                     Some(Target::DismissMenu)
                 );
                 if menu != Menu::Settings {
-                    let count = model.evaluation.as_ref().unwrap().search_options[menu.key()].len();
+                    let count = menu.choices(&model).count();
                     assert_eq!(
                         view.hits
                             .iter()
@@ -2936,6 +3036,97 @@ mod tests {
     }
 
     #[test]
+    fn league_menu_scrolls_and_keeps_options_inside_the_popup() {
+        let mut view = EvaluatePanel::new().unwrap();
+        let mut model = fixture();
+        let evaluation = model.evaluation.as_mut().unwrap();
+        evaluation.leagues = (0..60)
+            .map(|i| crate::data::evaluation::League {
+                id: format!("league-{i}"),
+                text: format!("League {i}"),
+            })
+            .collect();
+        model.league = "league-59".into();
+        assert_eq!(model.choice_label("league"), "League 59");
+        let size = (1280, 720);
+        let interaction = Interaction {
+            menu: Some(Menu::League),
+            menu_scroll: usize::MAX,
+            position: Some((1200, 700)),
+            ..Default::default()
+        };
+        view.prepare(
+            Frame {
+                size,
+                scale: 1.5,
+                zoom: 1.5,
+                phase: 0.0,
+            },
+            &model,
+            &interaction,
+        )
+        .unwrap();
+        let popup = view
+            .hits
+            .iter()
+            .find(|h| h.target == Target::Popup)
+            .unwrap()
+            .rect;
+        assert!(popup.x + popup.width <= size.0);
+        assert!(popup.y + popup.height <= size.1);
+        let options: Vec<_> = view
+            .hits
+            .iter()
+            .filter(|h| matches!(h.target, Target::Option(Menu::League, _)))
+            .collect();
+        assert_eq!(options.len(), view.visible_options);
+        assert_eq!(
+            options.last().unwrap().target,
+            Target::Option(Menu::League, 59)
+        );
+        for option in options {
+            assert_eq!(option.rect.intersection(popup), option.rect);
+        }
+    }
+
+    #[test]
+    fn refreshing_sort_keeps_the_results_geometry() {
+        let mut view = EvaluatePanel::new().unwrap();
+        let mut model = fixture();
+        model.results = Some(Default::default());
+        let render = Frame {
+            size: (1920, 1080),
+            scale: 1.0,
+            zoom: 1.0,
+            phase: 0.0,
+        };
+        let interaction = Interaction::default();
+        view.prepare(render, &model, &interaction).unwrap();
+        let previous = view.bounds;
+        let table = view
+            .hits
+            .iter()
+            .find(|h| h.target == Target::Results)
+            .unwrap()
+            .rect;
+        model.descending = true;
+        model.refresh_results();
+        for loading in [false, true] {
+            model.loading = loading;
+            view.prepare(render, &model, &interaction).unwrap();
+            assert_eq!(view.bounds, previous);
+            assert_eq!(
+                view.hits
+                    .iter()
+                    .find(|h| h.target == Target::Results)
+                    .unwrap()
+                    .rect,
+                table
+            );
+        }
+    }
+
+    #[test]
     #[ignore = "make bench-overlays"]
     fn overlay_benchmark() {
         let mut cases = Vec::new();
@@ -3073,6 +3264,75 @@ mod tests {
         crate::render_bench::report("poe2", cases);
     }
 
+    #[test]
+    fn dragging_repairs_old_and_new_content_across_buffer_ages() {
+        use retinue_render::damage::RepaintTracker;
+
+        let size = (1920, 1080);
+        for scale in [1.0, 1.25, 1.5] {
+            let mut view = EvaluatePanel::new().unwrap();
+            let mut reference = EvaluatePanel::new().unwrap();
+            let model = fixture();
+            let mut interaction = Interaction::default();
+            let mut repaint = RepaintTracker::default();
+            let mut buffers = vec![vec![0; (size.0 * size.1 * 4) as usize]; 3];
+            for _ in &buffers {
+                repaint.add_buffer();
+            }
+            let render = Frame {
+                size,
+                scale,
+                zoom: scale,
+                phase: 0.0,
+            };
+            for (frame, position) in [
+                (40, 20),
+                (56, 32),
+                (80, 40),
+                (70, 28),
+                (1400, 900),
+                (1000, 0),
+                (60, 60),
+                (80, 80),
+                (100, 100),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let previous = view.bounds;
+                interaction.position = Some(position);
+                interaction.menu = (frame == 2).then_some(Menu::Settings);
+                let damage = view
+                    .prepare(render, &model, &interaction)
+                    .unwrap()
+                    .union(Damage::rect(previous));
+                if frame == 1 {
+                    let area: u64 = damage
+                        .regions(size)
+                        .rects()
+                        .iter()
+                        .map(|r| u64::from(r.width) * u64::from(r.height))
+                        .sum();
+                    assert!(
+                        area < u64::from(size.0) * u64::from(size.1) / 2,
+                        "drag damaged too much at {scale}: {damage:?}"
+                    );
+                }
+                repaint.invalidate(damage);
+                let index = frame % buffers.len();
+                let plan = repaint.plan(index, size).unwrap();
+                view.paint_prepared(&mut buffers[index], plan.repair)
+                    .unwrap();
+                repaint.submitted(index);
+                let mut full = vec![0; buffers[index].len()];
+                reference
+                    .paint(&mut full, render, &model, &interaction)
+                    .unwrap();
+                assert_same_pixels(&buffers[index], &full, size.0, "drag repair");
+            }
+        }
+    }
+
     fn fixture() -> EvaluateModel {
         let data: serde_json::Value = serde_json::from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -3107,7 +3367,7 @@ mod tests {
             let league = view
                 .hits
                 .iter()
-                .find(|hit| hit.target == Target::League)
+                .find(|hit| hit.target == Target::Menu(Menu::League))
                 .unwrap()
                 .rect;
             let y = (league.y + league.height / 2) as f64;
@@ -3117,7 +3377,7 @@ mod tests {
             );
             assert_eq!(
                 view.hit((league.x + league.width / 2) as f64, y),
-                Some(Target::League)
+                Some(Target::Menu(Menu::League))
             );
             let regions = view.pointer_regions();
             assert!(!regions.iter().any(|rect| rect.contains(0.0, 0.0)));

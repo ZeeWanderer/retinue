@@ -5,7 +5,17 @@ use std::rc::Rc;
 pub(super) struct Summary {
     pub removed: usize,
     pub work: usize,
+    pub direct_work: usize,
     pub external: bool,
+}
+
+pub(super) fn leaf_work(command: &Command) -> usize {
+    match command {
+        Command::Text { text, .. } => text.chars().count().min(1024),
+        Command::InsetShadow { .. } => 16,
+        Command::Polygon { points, .. } => points.len(),
+        _ => 1,
+    }
 }
 
 pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Command>>, Summary) {
@@ -65,6 +75,7 @@ pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Comman
                 let (children, nested) = compile(commands, scale);
                 summary.removed += nested.removed;
                 summary.work += nested.work;
+                summary.direct_work += nested.direct_work;
                 summary.external |= nested.external;
                 if nested.external {
                     covers.clear();
@@ -96,12 +107,8 @@ pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Comman
                 if matches!(command, Command::External { .. }) {
                     covers.clear();
                 }
-                summary.work += match command {
-                    Command::Text { text, .. } => text.chars().count().min(1024),
-                    Command::InsetShadow { .. } => 16,
-                    Command::Polygon { points, .. } => points.len(),
-                    _ => 1,
-                };
+                summary.work += leaf_work(command);
+                summary.direct_work += leaf_work(command);
             }
         }
     }

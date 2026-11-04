@@ -1,4 +1,16 @@
 # Bump workload when scripted input, timing boundaries or case semantics change.
+[suite.render-quality]
+owner = "retinue-render"
+package = "retinue-render"
+target = ["--lib"]
+test = "quality::benchmark::optimizer_quality_benchmark"
+source = "crates/retinue-render/src/quality/benchmark.rs"
+adapter = "quality"
+raw = "quality.json"
+cases = ["decorated-scroll", "stable-rows", "solid-scroll", "few-columns", "larger-pixels", "translucent-overlap", "sparse-updates", "short-lived", "cache-pressure"]
+workload = 1
+fixtures = ["crates/retinue-render/src/quality/scenarios.rs", "assets/fonts/roboto/*"]
+
 [suite.wf-overlay]
 owner = "wfcompanion"
 package = "wfcompanion"
@@ -7,8 +19,8 @@ test = "presentation::renderer::tests::overlay_benchmark"
 source = "apps/wfcompanion/src/presentation/renderer.rs"
 adapter = "overlay"
 raw = "warframe.json"
-cases = ["loading-buffer-cycle", "static-frame-copy", "scene-change"]
-workload = 1
+cases = ["loading-buffer-cycle", "static-frame-copy", "static-frame-copy-cpu", "scene-change"]
+workload = 2
 fixtures = ["apps/wfcompanion/src/presentation/relic/fixture.rs", "assets/fonts/roboto/*"]
 
 [suite.poe2-overlay]
@@ -33,6 +45,18 @@ adapter = "gui"
 raw = "gui.json"
 workload = 1
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.poe2-drag]
+owner = "poe2companion"
+package = "poe2companion"
+target = ["--lib"]
+test = "presentation::evaluate::panel::movement_benchmark::window_drag_benchmark"
+source = "apps/poe2companion/src/presentation/evaluate/panel/movement_benchmark.rs"
+adapter = "overlay"
+raw = "poe2-drag.json"
+cases = ["window-drag-full", "window-drag", "window-drag-relocate", "window-drag-native", "window-drag-regions", "window-drag-cpu", "window-drag-cpu-parallel"]
+workload = 4
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
 
 [suite.gui-foundry]
 owner = "wfgui"
@@ -64,8 +88,43 @@ test = "presentation::shell::benchmark::drag::foundry_drag_benchmark"
 source = "apps/wfgui/src/presentation/shell/benchmark/drag.rs"
 adapter = "gui"
 raw = "gui.json"
-workload = 1
+workload = 2
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.gui-transfer]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::shell::benchmark::transfer::independent_source_benchmark"
+source = "apps/wfgui/src/presentation/shell/benchmark/transfer.rs"
+adapter = "gui"
+raw = "gui.json"
+workload = 6
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[[manual]]
+id = "native-capture-wire"
+source = "crates/retinue-protocol/tests/views.rs"
+test = "supplied_real_views_match_erlang_projection"
+purpose = "correctness"
+environment = "prepared-private-capture"
+command = "RETINUE_VIEW_FIXTURES=<working-capture-directory> make test-native NATIVE_TEST='--test views supplied_real_views_match_erlang_projection -- --ignored --test-threads=1'"
+
+[[manual]]
+id = "input-dispatch"
+source = "crates/retinue-ui/tests/input_benchmark.rs"
+test = "input_dispatch_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "INPUT_BENCH_OUTPUT=<report.json> make test-ui-sdk UI_TEST='--release --test input_benchmark -- --ignored --test-threads=1'"
+
+[[manual]]
+id = "automatic-reuse"
+source = "crates/retinue-render/src/frame/tests/fragments/discovery/benchmark.rs"
+test = "automatic_reuse_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-reuse REUSE_REPORT=<report.jsonl>"
 
 [[manual]]
 id = "repair-strategies"
@@ -74,6 +133,14 @@ test = "repair_benchmark"
 purpose = "experiment"
 environment = "headless"
 command = "make bench-repair REPAIR_REPORT=<report.jsonl>"
+
+[[manual]]
+id = "native-cost"
+source = "crates/retinue-render/src/renderer/cost/tests/benchmark.rs"
+test = "native_cost_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-cost COST_REPORT=<report.csv>"
 
 [[manual]]
 id = "overlay-scheduling"
@@ -122,6 +189,22 @@ test = "subtree_motion_benchmark"
 purpose = "experiment"
 environment = "headless"
 command = "make bench-gui GUI_BENCH_CASE=subtree_motion_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-target-reuse"
+source = "apps/wfgui/src/presentation/benchmark/replay/reuse.rs"
+test = "target_reuse_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=target_reuse_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-target-materialization"
+source = "apps/wfgui/src/presentation/benchmark/replay/reuse/materialized.rs"
+test = "target_materialization_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=target_materialization_benchmark GUI_BENCH_OUTPUT=<report.json>"
 
 [[manual]]
 id = "gui-adaptive-motion"

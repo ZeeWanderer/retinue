@@ -59,5 +59,10 @@ size and generation; the image worker does not import presentation state.
 - New companions need only the folders they use; a launch-only companion does
   not need an empty presentation hierarchy.
 
+Native hosts share SDK buffer submission and renderer repair history. Game-specific
+lifecycle and input policy stay in the companion; see [native hosts](ui-sdk.md#native-hosts).
+App-local foundation helpers follow the [Core guidance](structure.md#app-local-foundations),
+not a mandatory additional layer.
+
 Verify changes with [overlay previews](../../tools/ui-reference/README.md) and
 the companion test targets in [workflows](workflows.md).

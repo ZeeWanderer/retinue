@@ -773,12 +773,13 @@ impl Settings {
         })
     }
 
+    #[cfg(test)]
     pub fn paint(&self, target: &mut Painter<'_>, focus: FocusVisible) {
         self.prepare_paint(focus);
         self.draw_prepared(target);
     }
 
-    fn prepare_paint(&self, focus: FocusVisible) {
+    pub fn prepare_paint(&self, focus: FocusVisible) {
         let content = ContentPaintInputs {
             layout: self.layout_revision,
             focus: self.focus,
@@ -874,14 +875,26 @@ impl Settings {
         }
         host.prepare(self.size, 1.0);
         self.painted_content.set(Some(content));
-        self.renderer
-            .borrow_mut()
-            .prepare(host.tree.frame(), RasterMode::Replay);
     }
 
-    fn draw_prepared(&self, target: &mut Painter<'_>) {
+    pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
+        scene.record_rendered(
+            self.composition.borrow().tree.frame(),
+            &self.renderer.borrow(),
+            RasterMode::Replay,
+            |_, _| false,
+        );
+    }
+
+    pub fn draw_prepared(&self, target: &mut Painter<'_>) {
         let host = self.composition.borrow();
-        self.renderer.borrow_mut().draw_with(
+        let mut renderer = self.renderer.borrow_mut();
+        renderer.prepare_for(
+            host.tree.frame(),
+            RasterMode::Replay,
+            &target.visible_regions(),
+        );
+        renderer.draw_with(
             host.tree.frame(),
             target,
             Rect {

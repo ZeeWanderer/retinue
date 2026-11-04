@@ -34,6 +34,12 @@ impl Instance {
 }
 
 impl Dependencies {
+    pub fn has_program(&self, index: usize, program: ProgramId) -> bool {
+        self.programs
+            .get(index)
+            .is_some_and(|entry| entry.program == program)
+    }
+
     pub fn clear(&mut self) {
         *self = Self::default();
     }

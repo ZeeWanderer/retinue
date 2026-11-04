@@ -79,7 +79,7 @@ gui-prod: sccache-setup
 
 test-gui: test-gui-app
 
-.PHONY: test-ui test-native test-tools test-integration test-live bench bench-list bench-compare
+.PHONY: test-ui test-native test-tools test-integration test-live bench bench-list bench-prepare bench-compare
 test-ui: sccache-setup
 	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features
 	+$(CARGO) test --locked -p retinue-render -p retinue-ui --features retinue-ui/benchmark
@@ -104,7 +104,7 @@ profile-build: sccache-setup
 test-gui-app: sccache-setup
 	+$(CARGO) test --locked -p wfgui --all-targets $(GUI_TEST)
 
-.PHONY: test-composition test-ui-sdk test-ui-macros view-demo view-sdk-demo view-sdk-content bench-views bench-repair
+.PHONY: test-composition test-ui-sdk test-ui-macros view-demo view-sdk-demo view-sdk-content bench-views bench-repair bench-reuse bench-cost
 test-composition: sccache-setup
 	+$(CARGO) test --locked -p retinue-render -p retinue-ui -p retinue-ui-macros --no-default-features
 
@@ -117,6 +117,14 @@ test-ui-macros: sccache-setup
 bench-repair: sccache-setup
 	@test -n "$(REPAIR_REPORT)" || { printf '%s\n' 'Set REPAIR_REPORT to a JSONL report path'; exit 2; }
 	+RETINUE_REPAIR_REPORT="$(abspath $(REPAIR_REPORT))" $(CARGO) test --locked --release -p retinue-render --features benchmark repair_benchmark -- --ignored --test-threads=1
+
+bench-reuse: sccache-setup
+	@test -n "$(REUSE_REPORT)" || { printf '%s\n' 'Set REUSE_REPORT to a JSONL report path'; exit 2; }
+	+REUSE_REPORT="$(abspath $(REUSE_REPORT))" $(CARGO) test --locked --release -p retinue-render --features benchmark automatic_reuse_benchmark -- --ignored --test-threads=1
+
+bench-cost: sccache-setup
+	@test -n "$(COST_REPORT)" || { printf '%s\n' 'Set COST_REPORT to a CSV report path'; exit 2; }
+	+COST_REPORT="$(abspath $(COST_REPORT))" $(CARGO) test --locked --release -p retinue-render --features benchmark native_cost_benchmark -- --ignored --test-threads=1
 
 view-demo: sccache-setup
 	+$(CARGO) run --locked --release -p retinue-ui --no-default-features --features desktop --example views -- $(VIEW_ARGS)
@@ -301,6 +309,9 @@ bench-list:
 
 bench: sccache-setup
 	+python3 tools/benchmarks/run.py record $(BENCH_SUITE) --output "$(BENCH_OUTPUT)" --repeats $(BENCH_RUNS) --samples $(BENCH_SAMPLES) --threads $(BENCH_THREADS) --hz $(BENCH_HZ) --cases "$(BENCH_CASES)"
+
+bench-prepare: sccache-setup
+	+python3 tools/benchmarks/run.py prepare $(BENCH_SUITE) --output "$(BENCH_OUTPUT)"
 
 bench-compare:
 	@test -n "$(BENCH_BEFORE)" -a -n "$(BENCH_AFTER)" -a -n "$(BENCH_POLICY)" || { printf '%s\n' 'Set BENCH_BEFORE, BENCH_AFTER and BENCH_POLICY'; exit 2; }

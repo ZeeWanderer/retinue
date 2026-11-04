@@ -47,6 +47,22 @@ impl Default for ViewSurface {
 }
 
 impl ViewSurface {
+    pub fn snapshot(&self, background: retinue_render::Color) -> retinue_render::surface::Snapshot {
+        let mut snapshot =
+            retinue_render::surface::Snapshot::new(self.tree.frame().size(), background);
+        self.record_surface(&mut snapshot);
+        snapshot
+    }
+
+    pub fn record_surface(&self, snapshot: &mut retinue_render::surface::Snapshot) {
+        snapshot.record_rendered(
+            self.tree.frame(),
+            &self.renderer,
+            RasterMode::Replay,
+            |_, _| false,
+        );
+    }
+
     pub fn begin_frame(&self, threads: std::num::NonZeroU32) -> retinue_render::RenderPass {
         self.renderer.host().begin_frame(threads)
     }
@@ -75,14 +91,11 @@ impl ViewSurface {
         self.renderer.residency_stats()
     }
 
-    pub fn draw(
+    pub fn update(
         &mut self,
         view: impl IntoElement,
-        painter: &mut Painter<'_>,
-        repair: Rect,
-        external: impl FnMut(Key, &mut Painter<'_>),
+        size: (u32, u32),
     ) -> Result<Damage, &'static str> {
-        let _pass = self.renderer.host().begin_pass(painter.thread_count());
         #[cfg(feature = "benchmark")]
         let start = std::time::Instant::now();
         #[cfg(feature = "benchmark")]
@@ -90,10 +103,30 @@ impl ViewSurface {
             self.tree = ViewTree::new(empty(), || {});
         }
         self.tree.set_root(view);
-        let damage = self.tree.update((painter.width(), painter.height()), 1.0)?;
+        let damage = self.tree.update(size, 1.0)?;
+        #[cfg(feature = "benchmark")]
+        {
+            self.profile.layout_updates +=
+                u64::from(self.tree.scene().stats.layout_computations > 0);
+            self.profile.update_ns += start.elapsed().as_nanos() as u64;
+        }
+        Ok(damage)
+    }
+
+    pub fn draw_prepared(
+        &mut self,
+        painter: &mut Painter<'_>,
+        repair: Rect,
+        external: impl FnMut(Key, &mut Painter<'_>),
+    ) {
+        let _pass = self.renderer.host().begin_pass(painter.thread_count());
         #[cfg(feature = "benchmark")]
         let updated = std::time::Instant::now();
-        self.renderer.prepare(self.tree.frame(), RasterMode::Replay);
+        self.renderer.prepare_for(
+            self.tree.frame(),
+            RasterMode::Replay,
+            &painter.visible_regions().intersection(repair),
+        );
         #[cfg(feature = "benchmark")]
         let prepared = std::time::Instant::now();
         self.renderer
@@ -101,9 +134,6 @@ impl ViewSurface {
         #[cfg(feature = "benchmark")]
         {
             self.profile.frames += 1;
-            self.profile.layout_updates +=
-                u64::from(self.tree.scene().stats.layout_computations > 0);
-            self.profile.update_ns += (updated - start).as_nanos() as u64;
             self.profile.prepare_ns += (prepared - updated).as_nanos() as u64;
             self.profile.submit_ns += prepared.elapsed().as_nanos() as u64;
             self.profile.promoted_layers += self.renderer.stats.promoted_layers;
@@ -114,6 +144,17 @@ impl ViewSurface {
                 .max(self.renderer.stats.layer_bytes);
             self.profile.simplified_commands += self.renderer.stats.simplified_commands;
         }
+    }
+
+    pub fn draw(
+        &mut self,
+        view: impl IntoElement,
+        painter: &mut Painter<'_>,
+        repair: Rect,
+        external: impl FnMut(Key, &mut Painter<'_>),
+    ) -> Result<Damage, &'static str> {
+        let damage = self.update(view, (painter.width(), painter.height()))?;
+        self.draw_prepared(painter, repair, external);
         Ok(damage)
     }
 }

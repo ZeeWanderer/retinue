@@ -86,7 +86,7 @@ impl Foundry {
         }
     }
     pub fn item_controls(&self) -> Vec<(Action, Rect)> {
-        self.resolved_composition().controls(true)
+        self.input_composition().controls(true)
     }
 
     pub fn popup_open(&self) -> bool {

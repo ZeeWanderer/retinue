@@ -10,7 +10,16 @@ use std::{
     sync::Arc,
 };
 
+mod discovery;
 mod hash;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Compilation {
+    Source,
+    Authored,
+    Discovered,
+    Opaque,
+}
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct ProgramId(ResourceId);
@@ -38,6 +47,7 @@ pub struct PaintProgram {
 
 struct Program {
     id: ProgramId,
+    compilation: Compilation,
     fingerprint: u64,
     size: (f32, f32),
     scale: f32,
@@ -45,6 +55,7 @@ struct Program {
     optimized: Rc<Vec<Command>>,
     analysis: Analysis,
     summary: optimize::Summary,
+    cost: [crate::cost::Density; 2],
     calls: Vec<FragmentCall>,
     logical_bounds: Bounds,
     acceleration: RefCell<Acceleration>,
@@ -83,7 +94,7 @@ pub(super) struct FragmentCall {
 
 #[derive(Default)]
 pub struct ProgramStore {
-    entries: HashMap<u64, Vec<Weak<Program>>>,
+    entries: HashMap<(u64, Compilation), Vec<Weak<Program>>>,
     prune_at: usize,
     pub compiled: u64,
     pub reused: u64,
@@ -114,6 +125,17 @@ impl ProgramStore {
         scale: f32,
         commands: Rc<Vec<Command>>,
     ) -> PaintProgram {
+        self.intern(key, size, scale, commands, Compilation::Source)
+    }
+
+    fn intern(
+        &mut self,
+        key: PaintKey,
+        size: (f32, f32),
+        scale: f32,
+        commands: Rc<Vec<Command>>,
+        compilation: Compilation,
+    ) -> PaintProgram {
         let commands = self.canonicalize(&commands, scale);
         if self.entries.len() >= self.prune_at.max(64) {
             self.entries.retain(|_, versions| {
@@ -123,7 +145,7 @@ impl ProgramStore {
             self.prune_at = self.entries.len().saturating_mul(2).max(64);
         }
         let hash = hash::fingerprint(&commands, size, scale);
-        let versions = self.entries.entry(hash).or_default();
+        let versions = self.entries.entry((hash, compilation)).or_default();
         versions.retain(|p| p.strong_count() != 0);
         for data in versions.iter().filter_map(Weak::upgrade) {
             if data.size == size
@@ -134,10 +156,23 @@ impl ProgramStore {
                 return PaintProgram { key, data };
             }
         }
-        let (optimized, summary) = optimize::compile(&commands, scale);
+        let (optimized, mut summary) = optimize::compile(&commands, scale);
+        let optimized = if matches!(compilation, Compilation::Source | Compilation::Authored) {
+            let discovered = self.discover(&optimized, scale, compilation == Compilation::Source);
+            if !Rc::ptr_eq(&discovered, &optimized) {
+                let (_, discovered_summary) = optimize::compile(&discovered, scale);
+                summary.work = discovered_summary.work;
+                summary.direct_work = discovered_summary.direct_work;
+            }
+            discovered
+        } else {
+            optimized
+        };
         let analysis = Analysis::new(&commands, scale);
+        let area = crate::cost::area(analysis.effects.writes);
+        let cost = crate::cost::summarize(&optimized, scale).map(|work| work.density(area));
         let mut calls = Vec::new();
-        collect_calls(&commands, scale, (0, 0), None, &mut calls);
+        collect_calls(&optimized, scale, (0, 0), None, &mut calls);
         let logical_bounds = commands
             .iter()
             .map(Command::bounds)
@@ -145,6 +180,7 @@ impl ProgramStore {
             .unwrap_or_default();
         let data = Rc::new(Program {
             id: ProgramId(ResourceId::next()),
+            compilation,
             fingerprint: hash,
             size,
             scale,
@@ -152,11 +188,15 @@ impl ProgramStore {
             optimized,
             analysis,
             summary,
+            cost,
             calls,
             logical_bounds,
             acceleration: RefCell::default(),
         });
-        versions.push(Rc::downgrade(&data));
+        self.entries
+            .entry((hash, compilation))
+            .or_default()
+            .push(Rc::downgrade(&data));
         self.compiled += 1;
         PaintProgram { key, data }
     }
@@ -166,11 +206,18 @@ impl ProgramStore {
         for (index, command) in commands.iter().enumerate() {
             let replacement = match command {
                 Command::Fragment { program, context } => {
-                    let interned = self.compile(
+                    let interned = self.intern(
                         program.key,
                         program.data.size,
                         scale,
                         program.commands().clone(),
+                        if context.get::<super::CacheHint>() == Some(&super::CacheHint::Dynamic) {
+                            Compilation::Opaque
+                        } else if program.discovered() {
+                            Compilation::Discovered
+                        } else {
+                            Compilation::Authored
+                        },
                     );
                     (interned.id() != program.id()).then(|| Command::Fragment {
                         program: interned,
@@ -240,6 +287,7 @@ impl PaintProgram {
                     self.scale(),
                     origin,
                     external,
+                    compiled,
                     cull,
                     stats,
                     fragments,
@@ -328,6 +376,12 @@ impl PaintProgram {
     }
     pub(super) fn summary(&self) -> optimize::Summary {
         self.data.summary
+    }
+    pub(super) fn cost(&self, direct: bool) -> crate::cost::Density {
+        self.data.cost[usize::from(direct)]
+    }
+    pub(super) fn discovered(&self) -> bool {
+        self.data.compilation == Compilation::Discovered
     }
 }
 

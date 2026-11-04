@@ -51,19 +51,20 @@ def percentile(values, fraction):
 
 
 def identity(row):
-    fields = ("case", "size", "width", "height", "scale", "mode", "over_grid",
+    fields = ("case", "candidate", "size", "width", "height", "scale", "mode", "over_grid",
               "bounding_damage", "events_per_frame")
     return "/".join(f"{k}={json.dumps(row[k], separators=(',', ':'))}"
                     for k in fields if k in row)
 
 
 def normalize(raw, adapter):
-    rows = raw["cases"] if adapter == "overlay" else raw
+    rows = raw["cases"] if adapter in ("overlay", "quality") else raw
     if not isinstance(rows, list) or not rows:
         raise ValueError("benchmark emitted no cases")
     cases = {}
     for row in rows:
         metrics = {}
+        sample_unit = "frame"
         if adapter == "overlay":
             samples = numbers([n / 1e6 for n in row["warm"]["frame_ns"]])
             metrics["first_paint_ms"] = row["first_paint_ns"] / 1e6
@@ -77,17 +78,25 @@ def normalize(raw, adapter):
                           "process_cpu_ms", "update_ms"):
                 if row["samples"] and all(field in s for s in row["samples"]):
                     metrics[field + "_p95"] = percentile([s[field] for s in row["samples"]], .95)
+        elif adapter == "quality":
+            sample_unit = "trace"
+            samples = [s["total_ns"] / 1e6 for s in row["samples"]]
+            metrics["process_cpu_ms_per_trace"] = statistics.mean(numbers(s["cpu_ns"] / 1e6 for s in row["samples"]))
+            metrics["peak_raster_bytes"] = max(numbers(s["peak_raster_bytes"] for s in row["samples"]))
+            metrics["surface_bytes"] = max(numbers(s["surface_bytes"] for s in row["samples"]))
         else:
             raise ValueError(f"unknown report adapter: {adapter}")
         samples = numbers(samples)
-        metrics.update(frame_p50_ms=percentile(samples, .5),
-                       frame_p95_ms=percentile(samples, .95),
-                       frame_max_ms=max(samples), frame_mean_ms=statistics.mean(samples))
+        metrics.update({f"{sample_unit}_p50_ms": percentile(samples, .5),
+                        f"{sample_unit}_p95_ms": percentile(samples, .95),
+                        f"{sample_unit}_max_ms": max(samples),
+                        f"{sample_unit}_mean_ms": statistics.mean(samples)})
         numbers(metrics.values())
         key = identity(row)
         if not key or key in cases:
             raise ValueError(f"missing or duplicate case identity: {key}")
-        cases[key] = {"frame_samples": len(samples), "metrics": metrics,
+        frames = sum(len(s["frames"]) for s in row["samples"]) if adapter == "quality" else len(samples)
+        cases[key] = {"frame_samples": frames, "metrics": metrics,
                       "actual_threads": row.get("actual_threads", row.get("known_resources", {}).get("render_threads")),
                       "work": {k: row[k] for k in ("items", "total_cards", "visible_cards",
                                "columns", "live") if k in row}}

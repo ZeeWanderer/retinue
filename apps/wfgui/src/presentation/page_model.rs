@@ -401,11 +401,27 @@ impl Pages {
             }
         })
     }
+    #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>) {
         self.ui.paint(p, &self.media);
     }
-    pub fn paint_rail(&self, p: &mut Painter<'_>) {
-        self.rail.paint(p, &self.media);
+    pub fn prepare_paint(&self) {
+        self.ui.prepare_paint(&self.media);
+    }
+    pub fn prepare_rail(&self) {
+        self.rail.prepare_paint(&self.media);
+    }
+    pub fn draw_prepared(&self, p: &mut Painter<'_>) {
+        self.ui.draw_prepared(p);
+    }
+    pub fn draw_rail(&self, p: &mut Painter<'_>) {
+        self.rail.draw_prepared(p);
+    }
+    pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
+        self.ui.record_surface(scene);
+    }
+    pub fn record_rail(&self, scene: &mut retinue_render::surface::Snapshot) {
+        self.rail.record_surface(scene);
     }
     pub(super) fn layout(&mut self) {
         if !self.dirty {

@@ -100,6 +100,28 @@ impl Recipe {
                 })
     }
 
+    pub fn matches_region(
+        &self,
+        frame: &PaintFrame,
+        range: Range<usize>,
+        origin: (i32, i32),
+        size: (u32, u32),
+    ) -> bool {
+        self.size == size
+            && self.fragments.len() == range.len()
+            && self
+                .fragments
+                .iter()
+                .zip(&frame.chunks[range])
+                .all(|(a, b)| {
+                    a.key == b.key
+                        && a.program.id() == b.program.id()
+                        && i64::from(a.origin.0) == i64::from(b.origin.0) - i64::from(origin.0)
+                        && i64::from(a.origin.1) == i64::from(b.origin.1) - i64::from(origin.1)
+                        && a.clip == super::coverage::local_clip(b.clip, origin, size)
+                })
+    }
+
     pub fn canvas(&self) -> Rect {
         Rect {
             width: self.size.0,
@@ -200,31 +222,16 @@ impl Recipe {
         if fragment.bounds().intersection(repair).is_empty() {
             return;
         }
-        painter.viewport(fragment.clip, (0, 0), |painter| {
-            for (command, effect) in fragment
-                .program
-                .commands()
-                .iter()
-                .zip(&fragment.program.analysis().operations_effects)
-            {
-                if effect
-                    .writes
-                    .visible(fragment.origin, fragment.clip)
-                    .intersection(repair)
-                    .is_empty()
-                {
-                    continue;
-                }
-                command.paint(
-                    painter,
-                    fragment.program.scale(),
-                    fragment.origin,
-                    &mut |_, _| unreachable!("external paint cannot be materialized"),
-                    false,
-                    stats,
-                    fragments,
-                );
-            }
+        painter.viewport(fragment.clip.intersection(repair), (0, 0), |painter| {
+            fragment.program.replay(
+                painter,
+                fragment.origin,
+                &mut |_, _| unreachable!("external paint cannot be materialized"),
+                true,
+                true,
+                stats,
+                fragments,
+            );
         });
     }
 }

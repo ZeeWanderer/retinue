@@ -14,7 +14,7 @@ required-features = ["desktop"]
 profiling = []
 default = ["overlay"]
 overlay = ["dep:ashpd", "dep:futures-util", "dep:smithay-client-toolkit", "dep:tokio", "dep:wayland-client", "dep:x11rb"]
-desktop = ["dep:accesskit", "dep:accesskit_winit", "dep:arboard", "dep:bytemuck", "dep:softbuffer", "dep:winit"]
+desktop = ["dep:accesskit", "dep:accesskit_winit", "dep:arboard", "dep:bytemuck", "dep:softbuffer", "dep:winit", "dep:smithay-client-toolkit", "dep:wayland-client"]
 benchmark = ["overlay", "dep:rustix", "dep:serde", "dep:wayland-protocols", "retinue-render/benchmark"]
 
 [dependencies]

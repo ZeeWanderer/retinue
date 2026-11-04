@@ -22,6 +22,26 @@ pub(super) struct Materialization {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct TaskId(usize);
 
+#[derive(Clone, Copy)]
+pub(super) enum PaintDemand<'a> {
+    Full,
+    Repair(&'a crate::damage::Region),
+}
+
+impl PaintDemand<'_> {
+    pub fn intersects(self, bounds: Rect) -> bool {
+        !bounds.is_empty()
+            && match self {
+                Self::Full => true,
+                Self::Repair(region) => region.intersects(bounds),
+            }
+    }
+
+    pub fn is_empty(self) -> bool {
+        matches!(self, Self::Repair(region) if region.is_empty())
+    }
+}
+
 #[derive(Clone)]
 pub(super) enum Input {
     Ready(Rc<RasterImage>),
@@ -247,6 +267,10 @@ impl Preparation {
             stats.failed_preparations += usize::from(result.is_none());
             self.elapsed.push(started.elapsed().as_nanos() as u64);
             results.push(result);
+        }
+        #[cfg(any(test, feature = "benchmark"))]
+        {
+            stats.materialization_ns += self.elapsed.iter().sum::<u64>();
         }
         results
     }

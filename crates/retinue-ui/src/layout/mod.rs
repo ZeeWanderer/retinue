@@ -331,7 +331,11 @@ impl LayoutAlgorithm {
         if cache.dirty {
             self.0
                 .update_cache(cache.value.as_mut(), &mut Subviews { context })?;
-            cache.rendering = self.0.render_context(&Subviews { context });
+            let rendering = self.0.render_context(&Subviews { context });
+            if cache.rendering != rendering {
+                context.invalidate_projection();
+                cache.rendering = rendering;
+            }
             cache.dirty = false;
         }
         Ok(())

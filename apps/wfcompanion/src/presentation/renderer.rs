@@ -41,10 +41,12 @@ pub(super) struct Frame {
     pub(super) key: FrameKey,
     pub(super) pixels: Vec<u8>,
     pub(super) output: ScreenOutput,
+    content: Rect,
     #[cfg(test)]
     render_threads: u32,
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum SurfaceScene<'a> {
     Empty,
     Relic(Duration),
@@ -63,6 +65,7 @@ impl Frame {
             .contains(target, (position.0 * scale, position.1 * scale))
     }
 
+    #[cfg(test)]
     fn restore(&self, target: &mut [u8], bounds: Rect) {
         if bounds.width == self.key.width && bounds.height == self.key.height {
             target.copy_from_slice(&self.pixels);
@@ -195,7 +198,47 @@ impl Renderer {
         scene: SurfaceScene<'_>,
         status: Option<screens::StatusParams<'_>>,
     ) -> Result<(), String> {
-        let _frame = self.render_host.begin_frame(NonZeroU32::MIN);
+        self.prepare_surface(size, scene, status)?;
+        self.paint_prepared(pixels, size, repair, scene)
+    }
+
+    pub(super) fn prepare_surface(
+        &self,
+        size: (u32, u32),
+        surface: SurfaceScene<'_>,
+        status: Option<screens::StatusParams<'_>>,
+    ) -> Result<retinue_render::surface::Snapshot, String> {
+        let mut scene =
+            retinue_render::surface::Snapshot::new(size, retinue_render::Color::rgba(0, 0, 0, 0));
+        let animation = match surface {
+            SurfaceScene::Relic(elapsed) => {
+                let frame = self
+                    .frame()
+                    .filter(|f| (f.key.width, f.key.height) == size)
+                    .ok_or("surface has no matching relic frame")?;
+                self.static_paint.record_surface(&mut scene);
+                frame.output.animation_bounds.map(|_| elapsed)
+            }
+            SurfaceScene::Ducats(tooltip) => {
+                super::ducats::prepare(size, &self.font, &self.assets.ducats, tooltip);
+                super::ducats::record_surface(&self.assets.ducats, &mut scene);
+                None
+            }
+            SurfaceScene::Empty => None,
+        };
+        self.prepare_transients(size, animation, status)?;
+        self.transient_paint.borrow().record_surface(&mut scene);
+        Ok(scene)
+    }
+
+    pub(super) fn paint_prepared(
+        &self,
+        pixels: &mut [u8],
+        size: (u32, u32),
+        repair: impl Into<retinue_render::damage::Region>,
+        scene: SurfaceScene<'_>,
+    ) -> Result<(), String> {
+        let frame = self.surface_frame();
         let length = size
             .0
             .checked_mul(size.1)
@@ -213,48 +256,87 @@ impl Renderer {
         if repair.is_empty() {
             return Ok(());
         }
-        let animation = if let SurfaceScene::Relic(elapsed) = scene {
-            let cache = self
-                .frame()
-                .filter(|frame| (frame.key.width, frame.key.height) == size)
-                .ok_or_else(|| "surface has no matching relic frame".to_owned())?;
-            for &region in repair.rects() {
-                cache.restore(pixels, region);
-            }
-            cache
-                .output
-                .animation_bounds
-                .filter(|bounds| repair.intersects(*bounds))
-                .map(|_| elapsed)
-        } else {
-            None
-        };
-        if matches!(scene, SurfaceScene::Relic(_)) && animation.is_none() && status.is_none() {
-            return Ok(());
-        }
-
-        let mut painter =
-            Painter::new(pixels, size.0, size.1).map_err(|error| error.to_string())?;
+        let mut painter = Painter::with_threads(pixels, size.0, size.1, frame.threads())
+            .map_err(|error| error.to_string())?;
         painter.repair(&repair);
-        if !matches!(scene, SurfaceScene::Relic(_)) {
-            painter.clear();
-        }
-        if let SurfaceScene::Ducats(scene) = scene {
-            self.draw_ducats(&mut painter, scene);
-        }
-        if animation.is_some() || status.is_some() {
-            self.draw_transients(&mut painter, animation, status);
-        }
+        self.draw_surface(&mut painter, &repair, scene)?;
         painter.finish().map_err(|error| error.to_string())
     }
 
-    fn draw_transients(
+    pub(super) fn surface_frame(&self) -> retinue_render::RenderPass {
+        self.render_host.begin_frame(self.render_budget)
+    }
+
+    pub(super) fn draw_surface<'a>(
+        &'a self,
+        painter: &mut Painter<'a>,
+        repair: &retinue_render::damage::Region,
+        scene: SurfaceScene<'_>,
+    ) -> Result<(), String> {
+        if let SurfaceScene::Relic(_) = scene {
+            let cache = self
+                .frame()
+                .filter(|frame| {
+                    (frame.key.width, frame.key.height) == (painter.width(), painter.height())
+                })
+                .ok_or("surface has no matching relic frame")?;
+            let c = cache.content;
+            // Partition the restore: transparent exterior, exact cached interior.
+            for (x, y, width, height) in [
+                (0, 0, cache.key.width, c.y),
+                (
+                    0,
+                    c.y + c.height,
+                    cache.key.width,
+                    cache.key.height - c.y - c.height,
+                ),
+                (0, c.y, c.x, c.height),
+                (
+                    c.x + c.width,
+                    c.y,
+                    cache.key.width - c.x - c.width,
+                    c.height,
+                ),
+            ] {
+                painter.viewport(
+                    Rect {
+                        x,
+                        y,
+                        width,
+                        height,
+                    },
+                    (0, 0),
+                    |p| p.clear(),
+                );
+            }
+            let source = retinue_render::painter::PixelSource::new(
+                &cache.pixels,
+                cache.key.width,
+                cache.key.height,
+            )
+            .map_err(|e| e.to_string())?;
+            for &region in repair.intersection(cache.content).rects() {
+                painter.copy_source(&source, region, (region.x, region.y));
+            }
+        } else {
+            painter.clear();
+        }
+        if let SurfaceScene::Ducats(_) = scene {
+            super::ducats::draw_prepared(painter, &self.assets.ducats);
+        }
+        self.transient_paint
+            .borrow_mut()
+            .draw_prepared(painter, repair.bounds(), |_, _| {});
+        Ok(())
+    }
+
+    fn prepare_transients(
         &self,
-        painter: &mut Painter<'_>,
+        size: (u32, u32),
         animation: Option<Duration>,
         status: Option<screens::StatusParams<'_>>,
-    ) {
-        let mut recording = Recording::new((painter.width(), painter.height()));
+    ) -> Result<(), String> {
+        let mut recording = Recording::new(size);
         if let (Some(frame), Some(elapsed)) = (self.frame.as_ref(), animation) {
             screens::draw_animation(
                 &mut recording,
@@ -268,8 +350,8 @@ impl Renderer {
             recording.section(
                 Key::new("warframe.status", 0),
                 Rect {
-                    width: painter.width(),
-                    height: painter.height(),
+                    width: size.0,
+                    height: size.1,
                     ..Rect::default()
                 },
             );
@@ -277,17 +359,24 @@ impl Renderer {
         }
         self.transient_paint
             .borrow_mut()
-            .draw(
-                recording.finish(),
-                painter,
-                painter.visible_bounds(),
-                |_, _| {},
-            )
-            .expect("transient composition");
+            .update(recording.finish(), size)?;
+        Ok(())
     }
 
-    pub(super) fn draw_ducats(&self, painter: &mut Painter<'_>, scene: &crate::ducats::Scene) {
-        super::ducats::draw(painter, &self.font, &self.assets.ducats, scene);
+    #[cfg(test)]
+    fn draw_transients(
+        &self,
+        painter: &mut Painter<'_>,
+        animation: Option<Duration>,
+        status: Option<screens::StatusParams<'_>>,
+    ) {
+        self.prepare_transients((painter.width(), painter.height()), animation, status)
+            .unwrap();
+        self.transient_paint.borrow_mut().draw_prepared(
+            painter,
+            painter.visible_bounds(),
+            |_, _| {},
+        );
     }
 }
 
@@ -578,10 +667,23 @@ fn ensure_frame(
     painter
         .finish()
         .map_err(|error| format!("could not render relic frame: {error}"))?;
+    let content = composition
+        .tree
+        .frame()
+        .instances()
+        .iter()
+        .map(|instance| instance.visible_bounds())
+        .fold(Rect::default(), Rect::union)
+        .intersection(Rect {
+            width: key.width,
+            height: key.height,
+            ..Rect::default()
+        });
     *cache = Some(Frame {
         key,
         pixels,
         output,
+        content,
         #[cfg(test)]
         render_threads,
     });
@@ -625,6 +727,7 @@ mod tests {
             key: reading_key((8, 6), 1),
             pixels: vec![7; 8 * 6 * 4],
             output: ScreenOutput::default(),
+            content: Damage::Full.bounds((8, 6)).unwrap(),
             render_threads: 1,
         };
         let mut target = vec![3; frame.pixels.len()];
@@ -649,6 +752,73 @@ mod tests {
         }
         frame.restore(&mut target, Damage::Full.bounds((8, 6)).unwrap());
         assert_eq!(target, frame.pixels);
+    }
+
+    #[test]
+    fn shared_surface_tooltip_motion_and_removal_match_full_paint() {
+        let size = (1920, 1080);
+        let renderer = Renderer::load().unwrap();
+        let mut surface = retinue_render::surface::Buffered::default();
+        let mut buffers = vec![vec![0; (size.0 * size.1 * 4) as usize]; 3];
+        for _ in &buffers {
+            surface.add_buffer();
+        }
+        let mut expected = vec![0; (size.0 * size.1 * 4) as usize];
+        for step in 0..12 {
+            let mut tooltip = super::super::ducats::fixture(size);
+            for n in [0, 2] {
+                tooltip.hover.panel[n] += step as f32 * 9.0;
+                tooltip.hover.price_label[n] += step as f32 * 9.0;
+            }
+            if step >= 5 {
+                tooltip.listed = false;
+            }
+            let scene = if step == 10 {
+                SurfaceScene::Empty
+            } else {
+                SurfaceScene::Ducats(&tooltip)
+            };
+            let snapshot = renderer.prepare_surface(size, scene, None).unwrap();
+            surface.invalidate(Damage::Full);
+            let slot = step % 3;
+            let pass = renderer.surface_frame();
+            let (target, source) = if step == 0 {
+                (&mut buffers[slot], None)
+            } else {
+                let from = (step - 1) % 3;
+                let (target, source) = if slot < from {
+                    let (left, right) = buffers.split_at_mut(from);
+                    (&mut left[slot], &right[0])
+                } else {
+                    let (left, right) = buffers.split_at_mut(slot);
+                    (&mut right[0], &left[from])
+                };
+                (target, Some((from, source.as_slice())))
+            };
+            let submission = surface
+                .render_queued(
+                    slot,
+                    size,
+                    Some(snapshot),
+                    target,
+                    source,
+                    pass.threads(),
+                    |painter, repair| renderer.draw_surface(painter, repair, scene),
+                )
+                .unwrap()
+                .unwrap();
+            renderer
+                .paint_surface(&mut expected, size, Damage::Full.regions(size), scene, None)
+                .unwrap();
+            assert!(
+                buffers[slot]
+                    .iter()
+                    .zip(&expected)
+                    .all(|(a, b)| a.abs_diff(*b) <= 1),
+                "tooltip step {step}"
+            );
+            surface.submitted(submission);
+        }
     }
 
     #[test]
@@ -1093,6 +1263,7 @@ mod tests {
                             "canvas_bytes": buffers.iter().map(Vec::len).sum::<usize>(),
                             "buffer_count": buffers.len(),
                             "static_frame_bytes": renderer.frame().unwrap().pixels.len(),
+                            "content_bounds": format!("{:?}", renderer.frame().unwrap().content),
                             "render_threads": renderer.frame().unwrap().render_threads,
                             "assets": "embedded UI; no daemon assets",
                             "scale_kind": "buffer scale; layout uses output dimensions"
@@ -1100,7 +1271,15 @@ mod tests {
                     },
                 ));
             }
-            for (name, changing) in [("static-frame-copy", false), ("scene-change", true)] {
+            let mut policies = [
+                ("static-frame-copy", false),
+                ("static-frame-copy-cpu", false),
+                ("scene-change", true),
+            ];
+            if std::env::var_os("RETINUE_BENCH_REVERSE").is_some() {
+                policies.reverse();
+            }
+            for (name, changing) in policies {
                 if !crate::render_bench::selected(name) {
                     continue;
                 }
@@ -1133,22 +1312,41 @@ mod tests {
                                 },
                             })
                             .unwrap();
-                        renderer
-                            .paint_surface(
-                                pixels,
-                                size,
+                        if name == "static-frame-copy-cpu" {
+                            let _pass = renderer.render_host.begin_frame(NonZeroU32::MIN);
+                            renderer
+                                .prepare_surface(size, SurfaceScene::Relic(Duration::ZERO), None)
+                                .unwrap();
+                            renderer
+                                .frame()
+                                .unwrap()
+                                .restore(pixels, Damage::Full.bounds(size).unwrap());
+                            let mut painter = Painter::new(pixels, size.0, size.1).unwrap();
+                            renderer.transient_paint.borrow_mut().draw_prepared(
+                                &mut painter,
                                 Damage::Full.bounds(size).unwrap(),
-                                SurfaceScene::Relic(Duration::ZERO),
-                                None,
-                            )
-                            .unwrap();
+                                |_, _| {},
+                            );
+                            painter.finish().unwrap();
+                        } else {
+                            renderer
+                                .paint_surface(
+                                    pixels,
+                                    size,
+                                    Damage::Full.bounds(size).unwrap(),
+                                    SurfaceScene::Relic(Duration::ZERO),
+                                    None,
+                                )
+                                .unwrap();
+                        }
                     },
                     |(renderer, pixels, _)| {
                         let glyphs = renderer.font.cache_stats();
                         serde_json::json!({
                             "canvas_bytes": pixels.len(),
-                            "render_threads": renderer.frame().unwrap().render_threads,
+                            "render_threads": if name == "static-frame-copy-cpu" { 1 } else { renderer.frame().unwrap().render_threads },
                             "static_frame_bytes": renderer.frame().unwrap().pixels.len(),
+                            "content_bounds": format!("{:?}", renderer.frame().unwrap().content),
                             "glyph_cache": {
                                 "entries": glyphs.entries,
                                 "cached_bytes": glyphs.cached_bytes,

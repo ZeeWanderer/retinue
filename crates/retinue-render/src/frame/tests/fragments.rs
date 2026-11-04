@@ -1,6 +1,9 @@
 use super::*;
 use crate::{OptimizationContext, ProgramStore, ResidencyPolicy};
 
+mod demand;
+mod discovery;
+
 fn glow(color: Color) -> PaintProgram {
     PaintProgram::new(
         77,
@@ -237,7 +240,7 @@ fn rejected_fragments_replay_and_unknown_context_cannot_change_pixels() {
 }
 
 #[test]
-fn nested_fragments_keep_clips_and_outside_consumers_during_motion() {
+fn cached_child_avoids_redundant_parent_and_keeps_clips_during_motion() {
     for scale in [1.0, 1.25, 2.0] {
         let leaf = glow(Color::rgba(70, 210, 52, 255));
         let parent = PaintProgram::new(
@@ -288,8 +291,8 @@ fn nested_fragments_keep_clips_and_outside_consumers_during_motion() {
             .unwrap();
         let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
         check(&frame, &mut renderer);
-        assert_eq!(renderer.stats.prepared_fragments, 2);
-        assert_eq!(renderer.fragments.selected.len(), 2);
+        assert_eq!(renderer.stats.prepared_fragments, 1);
+        assert_eq!(renderer.fragments.selected.len(), 1);
         for delta in [-6, 0, 7, 24] {
             for (i, item) in instances.iter_mut().enumerate() {
                 item.set_pixels((-7 + delta + 70 * i as i32, 10), clip);

@@ -7,6 +7,13 @@ use retinue_ui::{
     desktop::winit::window::Window, input::Button, input::PointerPhase,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PressOwner {
+    Chrome(Control),
+    Page,
+    Rail,
+}
+
 impl Shell {
     pub(super) fn wheel_delta(&self, delta: MouseScrollDelta) -> (f32, bool) {
         match delta {
@@ -33,17 +40,20 @@ impl Shell {
         )
     }
 
-    fn dismiss_popup_press(&mut self) -> bool {
-        let rail = (
+    fn rail_position(&self) -> (f64, f64) {
+        (
             self.pointer.0 - self.geometry.right.x as f64,
             self.pointer.1 - self.geometry.right.y as f64,
-        );
-        if self.pages.dismiss_popups_at(self.page_position(), rail)
+        )
+    }
+
+    fn dismiss_popup_press(&mut self) -> bool {
+        if self
+            .pages
+            .dismiss_popups_at(self.page_position(), self.rail_position())
             || (self.page == Page::Foundry && self.foundry.dismiss_popup_at(self.page_position()))
         {
-            self.pressed = None;
-            self.page_pressed = false;
-            self.rail_pressed = false;
+            self.cancel_pointer();
             if self.page == Page::Foundry {
                 self.focus = self.foundry.focus.map(Focus::Foundry);
             }
@@ -206,11 +216,8 @@ impl Shell {
             Some(East | West) => CursorIcon::EwResize,
             Some(NorthEast | SouthWest) => CursorIcon::NeswResize,
             Some(NorthWest | SouthEast) => CursorIcon::NwseResize,
-            _ if self.hover.is_some_and(|hover| {
-                self.controls()
-                    .iter()
-                    .any(|(c, _, enabled)| *c == hover && *enabled)
-            }) || self.settings.hover.is_some() =>
+            _ if self.hover.is_some_and(|hover| self.control_enabled(hover))
+                || self.settings.hover.is_some() =>
             {
                 CursorIcon::Pointer
             }
@@ -237,16 +244,14 @@ impl Shell {
         }
     }
 
-    fn cancel_pointer(&mut self) {
+    pub(super) fn cancel_pointer(&mut self) {
         self.composition.pointer(self.pointer, PointerPhase::Cancel);
         self.hover = None;
-        self.pressed = None;
-        self.page_pressed = false;
+        self.press = None;
         self.tooltip = false;
         self.settings.cancel_pointer();
         self.foundry.cancel_pointer();
         self.pages.cancel_pointer();
-        self.rail_pressed = false;
     }
 
     pub(super) fn pointer_move(&mut self, position: (f64, f64)) -> Damage {
@@ -276,13 +281,7 @@ impl Shell {
                 }
             }
         };
-        let rail = self.pages.pointer(
-            true,
-            (
-                position.0 - self.geometry.right.x as f64,
-                position.1 - self.geometry.right.y as f64,
-            ),
-        );
+        let rail = self.pages.pointer(true, self.rail_position());
         if changed && was_tooltip {
             return Damage::Full;
         }
@@ -313,15 +312,41 @@ impl Shell {
     }
 
     pub(super) fn pointer_button(&mut self, down: bool, now: Instant) -> Damage {
-        if down {
-            self.focus_visible.pointer_down();
-            if self.dismiss_popup_press() {
-                self.composition.pointer(self.pointer, PointerPhase::Cancel);
-                return Damage::Full;
+        if !down {
+            match self.press.take() {
+                Some(PressOwner::Chrome(owner)) => {
+                    let (_, activated) = self
+                        .composition
+                        .pointer(self.pointer, PointerPhase::Up(Button::Primary));
+                    if activated == Some(owner) && self.hit(self.pointer) == Some(owner) {
+                        self.activate(owner, now);
+                    }
+                }
+                Some(PressOwner::Rail) => {
+                    if self.settings.modal.is_some()
+                        || self.pages.ui.modal_open()
+                        || self.foundry.popup_open()
+                    {
+                        self.pages.rail.cancel_pointer();
+                    } else {
+                        self.pages.pointer(true, self.rail_position());
+                        self.pages.button(true, false);
+                    }
+                }
+                Some(PressOwner::Page) => return self.page_button(false),
+                None => {
+                    self.composition
+                        .pointer(self.pointer, PointerPhase::Up(Button::Primary));
+                    return Damage::None;
+                }
             }
+            return Damage::Full;
+        }
+        self.focus_visible.pointer_down();
+        if self.dismiss_popup_press() {
+            return Damage::Full;
         }
         if (self.settings.modal.is_some() || self.pages.ui.modal_open())
-            && !self.page_pressed
             && !self
                 .geometry
                 .center
@@ -329,77 +354,58 @@ impl Shell {
         {
             return Damage::None;
         }
-        if !down && self.pressed.is_some() {
-            self.pressed = None;
-            let (_, activated) = self
-                .composition
-                .pointer(self.pointer, PointerPhase::Up(Button::Primary));
-            if let Some(control) = activated.filter(|c| Some(*c) == self.hit(self.pointer)) {
-                self.activate(control, now);
-            }
-            return Damage::Full;
-        }
-        if self.rail_pressed
-            || (!self.page_pressed && self.geometry.right.contains(self.pointer.0, self.pointer.1))
-        {
+        if self.geometry.right.contains(self.pointer.0, self.pointer.1) {
             self.rail_focus = true;
-            self.rail_pressed = down;
+            self.press = Some(PressOwner::Rail);
             self.focus = None;
             self.pages.ui.focus = None;
-            self.pages.button(true, down);
+            self.pages.pointer(true, self.rail_position());
+            self.pages.button(true, true);
             return Damage::Full;
         }
-        if self.page_pressed
-            || self.foundry.popup_open()
+        if self.foundry.popup_open()
             || self
                 .geometry
                 .center
                 .contains(self.pointer.0, self.pointer.1)
         {
-            if down {
-                self.page_pressed = true;
-                self.rail_focus = false;
-                self.pages.rail.focus = None;
-            }
-            let damage = match self.page {
-                Page::Settings => {
-                    let damage = self.settings.pointer_button(self.page_position(), down);
-                    self.focus = self.settings.focus.map(Focus::Page);
-                    damage
-                }
-                Page::Foundry => {
-                    let damage = self.foundry.pointer_button(self.page_position(), down);
-                    self.focus = self.foundry.focus.map(Focus::Foundry);
-                    damage
-                }
-                _ => {
-                    self.focus = None;
-                    self.pages.button(false, down);
-                    Damage::Full
-                }
-            };
-            if !down {
-                self.page_pressed = false;
-            }
-            return self.page_damage(damage);
+            self.press = Some(PressOwner::Page);
+            self.rail_focus = false;
+            self.pages.rail.focus = None;
+            return self.page_button(true);
         }
-        if down {
-            let (target, _) = self
-                .composition
-                .pointer(self.pointer, PointerPhase::Down(Button::Primary));
-            self.pressed = target.filter(|control| {
-                self.controls()
-                    .iter()
-                    .any(|(c, _, enabled)| c == control && *enabled)
-            });
-            if let Some(control) = self.pressed {
-                self.set_focus(Some(Focus::Chrome(control)));
-            }
-        } else {
-            self.composition
-                .pointer(self.pointer, PointerPhase::Up(Button::Primary));
+        let (target, _) = self
+            .composition
+            .pointer(self.pointer, PointerPhase::Down(Button::Primary));
+        self.press = target
+            .filter(|control| self.control_enabled(*control))
+            .map(PressOwner::Chrome);
+        if let Some(PressOwner::Chrome(control)) = self.press {
+            self.set_focus(Some(Focus::Chrome(control)));
         }
         Damage::Full
+    }
+
+    fn page_button(&mut self, down: bool) -> Damage {
+        let damage = match self.page {
+            Page::Settings => {
+                let damage = self.settings.pointer_button(self.page_position(), down);
+                self.focus = self.settings.focus.map(Focus::Page);
+                damage
+            }
+            Page::Foundry => {
+                let damage = self.foundry.pointer_button(self.page_position(), down);
+                self.focus = self.foundry.focus.map(Focus::Foundry);
+                damage
+            }
+            _ => {
+                self.focus = None;
+                self.pages.pointer(false, self.page_position());
+                self.pages.button(false, down);
+                Damage::Full
+            }
+        };
+        self.page_damage(damage)
     }
 
     pub fn apply_window_action(&mut self, window: &Window) {

@@ -26,6 +26,21 @@ fn hit_testing_does_not_materialize_rasters() {
 }
 
 #[test]
+fn hover_queries_defer_paint_only_updates() {
+    let mut view = view();
+    let before = view.resolved_composition().tree.frame().generation();
+    for index in 0..3 {
+        let card = view.screen_card(index);
+        view.pointer_move(((card.x + card.width / 2) as f64, (card.y + 30) as f64));
+        view.cursor();
+        assert_eq!(view.hovered_card(), Some(index));
+        assert_eq!(view.composition.borrow().tree.frame().generation(), before);
+    }
+    view.prepare_paint(Default::default());
+    assert_ne!(view.composition.borrow().tree.frame().generation(), before);
+}
+
+#[test]
 fn scrollbar_drag_keeps_hover_damage_but_defers_scene_updates_until_paint() {
     let mut view = view();
     let thumb = view.scrollbar();
@@ -220,6 +235,65 @@ fn scrolling_within_visible_rows_reuses_layout_and_recording() {
 }
 
 #[test]
+fn crossing_virtual_rows_matches_a_fresh_projection() {
+    for scale in [1.0, 1.25, 2.0] {
+        let mut view = view();
+        view.resize((1000, 760), scale);
+        let descriptor = Descriptor {
+            id: "test.retained-artwork".into(),
+            path: "unused.png".into(),
+            digest: "07".repeat(32),
+        };
+        for item in &mut view.snapshot.items {
+            item.asset = Some(Asset {
+                id: descriptor.id.clone(),
+                ..Default::default()
+            });
+        }
+        let size = view.px(105.0);
+        let key = descriptor.key(size).unwrap();
+        view.descriptors.insert(descriptor.id.clone(), descriptor);
+        drop(view.resolved_composition());
+        let stride = view.grid.height + view.grid.gap;
+        for row in [1, 2, 1, 3, 0] {
+            view.offset = (row * stride + 9).min(view.scroll.maximum() as u32);
+            let index = view.visible(0).start;
+            let rect = view.screen_card(index);
+            view.pointer = ((rect.x + 20) as f64, (rect.y + 40) as f64);
+            if row == 2 {
+                let mut snapshot = view.snapshot.clone();
+                let item = &mut snapshot.items[view.filtered[index]];
+                item.pending = !item.pending;
+                view.update(snapshot);
+            }
+            if row == 3 {
+                let mut cache = retinue_render::resources::ResourceCache::new(1024 * 1024);
+                let image = cache.insert(
+                    key,
+                    RasterImage::from_rgba(retinue_render::image::RgbaImage::from_pixel(
+                        size,
+                        size,
+                        retinue_render::image::Rgba([12, 75, 90, 255]),
+                    ))
+                    .unwrap(),
+                );
+                view.images.insert(key, image);
+                view.image_revision += 1;
+            }
+            let actual = render(&view);
+            let retained = view.composition.replace(Default::default());
+            let expected = render(&view);
+            view.composition.replace(retained);
+            assert_eq!(
+                actual.iter().zip(&expected).position(|(a, b)| a != b),
+                None,
+                "scale={scale}, row={row}"
+            );
+        }
+    }
+}
+
+#[test]
 fn hover_changes_only_background_recordings_without_rebuilding_items() {
     let mut view = view();
     drop(view.resolved_composition());
@@ -237,6 +311,79 @@ fn hover_changes_only_background_recordings_without_rebuilding_items() {
     assert_eq!(composition.view_stats().mounted, 0);
     assert_eq!(composition.tree.scene().stats.layout_computations, 0);
     assert_eq!(composition.tree.scene().stats.recordings, 2);
+}
+
+#[test]
+fn materialized_cards_match_direct_rendering_through_scroll_and_artwork_updates() {
+    for scale in [0.9, 1.0, 1.2, 1.3, 1.5, 2.0] {
+        let mut views = [view(), view()];
+        for view in &mut views {
+            view.resize((1000, 760), scale);
+            let descriptor = Descriptor {
+                id: "test.automatic-artwork".into(),
+                path: "unused.png".into(),
+                digest: "09".repeat(32),
+            };
+            for card in &mut view.snapshot.items {
+                card.asset = Some(Asset {
+                    id: descriptor.id.clone(),
+                    ..Default::default()
+                });
+            }
+            view.descriptors.insert(descriptor.id.clone(), descriptor);
+        }
+        views[1].benchmark_materializations("none");
+        for row in [0, 1, 2, 1, 0] {
+            for view in &mut views {
+                let stride = view.grid.height + view.grid.gap;
+                view.offset = (row * stride + 7).min(view.scroll.maximum() as u32);
+                let index = view.visible(0).start;
+                let rect = view.screen_card(index);
+                view.pointer = ((rect.x + 20) as f64, (rect.y + 40) as f64);
+                if row == 2 {
+                    let size = view.px(105.0);
+                    let key = view.descriptors["test.automatic-artwork"]
+                        .key(size)
+                        .unwrap();
+                    let mut cache = retinue_render::resources::ResourceCache::new(1024 * 1024);
+                    let image = cache.insert(
+                        key,
+                        RasterImage::from_rgba(retinue_render::image::RgbaImage::from_pixel(
+                            size,
+                            size,
+                            retinue_render::image::Rgba([12, 75, 90, 255]),
+                        ))
+                        .unwrap(),
+                    );
+                    view.images.insert(key, image);
+                    view.image_revision += 1;
+                }
+            }
+            let cached = render(&views[0]);
+            let stats = views[0].paint_stats();
+            assert!(stats.blits > 0);
+            let direct = render(&views[1]);
+            assert_eq!(views[1].paint_stats().preparation_tasks, 0);
+            assert_eq!(views[1].raster_stats().live_bytes, 0);
+            for (actual, expected) in cached.chunks_exact(4).zip(direct.chunks_exact(4)) {
+                assert_eq!(actual[3], expected[3], "alpha at scale={scale}, row={row}");
+                assert!(
+                    actual[..3]
+                        .iter()
+                        .zip(&expected[..3])
+                        .all(|(a, b)| a.abs_diff(*b) <= 3),
+                    "compositing at scale={scale}, row={row}: {actual:?} != {expected:?}"
+                );
+            }
+            let repeated = render(&views[0]);
+            assert_eq!(
+                repeated.iter().zip(&cached).position(|(a, b)| a != b),
+                None,
+                "unchanged paint at scale={scale}, row={row}"
+            );
+            assert_eq!(views[0].paint_stats().preparation_tasks, 0);
+        }
+    }
 }
 
 #[test]
@@ -414,6 +561,12 @@ fn shared_component_glow_matches_vector_paint_at_all_scales() {
                 ..retinue_render::LayerPolicy::desktop()
             },
         );
+        for _ in 0..3 {
+            renderer.prepare(&frame, RasterMode::Replay);
+            let mut warm = Painter::new(&mut pixels[0], size.0, size.1).unwrap();
+            renderer.paint(&frame, &mut warm, clip, retinue_render::Color::rgb(0));
+            warm.finish().unwrap();
+        }
         renderer.prepare(&frame, RasterMode::Replay);
         assert_eq!(renderer.stats.prepared_fragments, 1);
         for (i, buffer) in pixels.iter_mut().enumerate() {
@@ -984,7 +1137,24 @@ fn recycled_buffers_repair_scroll_and_changed_card_pixels_like_full_paint() {
         let mut painter =
             Painter::with_threads(&mut expected, size.0, size.1, render_thread_budget(4)).unwrap();
         painter.fill_rounded_rect(0, 0, size.0, size.1, 0, PANEL);
-        view.paint(&mut painter, Default::default());
+        {
+            // Compare repairs against the same execution plan, not a new cache
+            // decision caused by requesting a full repaint for the oracle.
+            let composition = view.composition.borrow();
+            composition.renderer.borrow_mut().draw_with(
+                composition.tree.frame(),
+                &mut painter,
+                Rect {
+                    width: size.0,
+                    height: size.1,
+                    ..Rect::default()
+                },
+                |_, p| {
+                    let r = view.search_bounds();
+                    p.translated((-(r.x as i32), -(r.y as i32)), |p| view.paint_search(p, r));
+                },
+            );
+        }
         painter.finish().unwrap();
         let mismatch = buffer.iter().zip(&expected).position(|(a, b)| a != b);
         assert_eq!(

@@ -3,15 +3,17 @@ pub use winit;
 pub mod clipboard;
 
 mod frame_clock;
+mod presentation;
 use frame_clock::FrameClock;
 
 use accesskit::{ActionRequest, TreeUpdate};
 use accesskit_winit::{Adapter, WindowEvent as AccessEvent};
+use presentation::Surface;
 use retinue_render::{
-    damage::{AgeRepaintTracker, Damage},
+    damage::Damage,
     painter::{Painter, render_thread_budget},
+    surface::{Aged, Snapshot},
 };
-use softbuffer::{Context, Surface};
 use std::{num::NonZeroU32, path::PathBuf, sync::Arc, time::Instant};
 use winit::{
     application::ApplicationHandler,
@@ -27,6 +29,9 @@ pub trait Application {
     fn resize(&mut self, size: (u32, u32), display_scale: f64);
     fn event(&mut self, event: &WindowEvent, window: &Window) -> Damage;
     fn message(&mut self, message: Self::Message) -> Damage;
+    fn prepare(&mut self) -> Result<Option<Snapshot>, String> {
+        Ok(None)
+    }
     fn paint(&mut self, painter: &mut Painter<'_>) -> Result<(), String>;
     fn background(&self) -> [u8; 4];
     fn accessibility(&self) -> TreeUpdate;
@@ -45,6 +50,9 @@ pub trait Application {
     fn maintain(&mut self, _now: Instant) {}
     fn render_host(&self) -> Option<retinue_render::RenderHost> {
         None
+    }
+    fn relocation(&self) -> retinue_render::surface::Relocation {
+        retinue_render::surface::Relocation::Auto
     }
     fn ready(&self) -> bool {
         true
@@ -115,7 +123,7 @@ pub fn run<A: Application>(
 
 struct NativeWindow {
     adapter: Adapter,
-    surface: Surface<Arc<Window>, Arc<Window>>,
+    surface: Surface,
     window: Arc<Window>,
     size: winit::dpi::PhysicalSize<u32>,
 }
@@ -124,7 +132,7 @@ struct Host<A: Application> {
     app: A,
     proxy: EventLoopProxy<Event<A::Message>>,
     native: Option<NativeWindow>,
-    damage: AgeRepaintTracker,
+    damage: Aged,
     options: Options,
     failure: Option<String>,
     occluded: bool,
@@ -177,68 +185,66 @@ impl<A: Application> Host<A> {
         if size.width == 0 || size.height == 0 || !self.damage.is_dirty() {
             return Ok(());
         }
-        let mut buffer = native.surface.buffer_mut().map_err(|e| e.to_string())?;
-        let Some(plan) = self.damage.plan(buffer.age(), (size.width, size.height)) else {
-            return Ok(());
-        };
-        {
-            let pixels = bytemuck::cast_slice_mut(&mut buffer);
-            let frame = self
-                .app
-                .render_host()
-                .map(|host| host.begin_frame(self.threads));
-            let threads = frame
-                .as_ref()
-                .map_or(self.threads, retinue_render::RenderPass::threads);
-            let mut painter = Painter::with_threads(pixels, size.width, size.height, threads)
-                .map_err(|e| e.to_string())?;
-            painter.repair(&plan.repair);
-            let background = self.app.background();
-            if background[3] != 255 {
-                return Err("desktop background must be opaque".into());
-            }
-            let repair = plan.repair.bounds();
-            painter.fill_rounded_rect(
-                repair.x,
-                repair.y,
-                repair.width,
-                repair.height,
-                0,
-                background,
-            );
-            self.app.paint(&mut painter)?;
-            painter.finish().map_err(|e| e.to_string())?;
-        }
-        // Wayland/X11 present XRGB; keeping FF also preserves valid opaque PRGB32 for reuse.
+        let scene = self.app.prepare()?;
+        self.damage.set_relocation(self.app.relocation());
+        let frame = self
+            .app
+            .render_host()
+            .map(|host| host.begin_frame(self.threads));
+        let threads = frame
+            .as_ref()
+            .map_or(self.threads, retinue_render::RenderPass::threads);
         let capture = self
             .options
             .capture
             .as_ref()
             .filter(|_| self.app.ready())
             .cloned();
-        if let Some(path) = &capture {
-            let image = image::RgbImage::from_fn(size.width, size.height, |x, y| {
-                let pixel = buffer[(y * size.width + x) as usize];
-                image::Rgb([(pixel >> 16) as u8, (pixel >> 8) as u8, pixel as u8])
-            });
-            image.save(path).map_err(|e| e.to_string())?;
-        }
-        native.window.pre_present_notify();
-        let damage: Vec<_> = plan
-            .damage
-            .rects()
-            .iter()
-            .map(|r| softbuffer::Rect {
-                x: r.x,
-                y: r.y,
-                width: NonZeroU32::new(r.width).unwrap(),
-                height: NonZeroU32::new(r.height).unwrap(),
-            })
-            .collect();
-        buffer
-            .present_with_damage(&damage)
-            .map_err(|e| e.to_string())?;
-        self.damage.submitted();
+        let Some(plan) = native.surface.draw(
+            self.app.relocation() != retinue_render::surface::Relocation::Disabled,
+            |age, pixels, source| {
+                let Some(plan) = self.damage.render_queued(
+                    age,
+                    (size.width, size.height),
+                    scene,
+                    pixels,
+                    source,
+                    threads,
+                    |painter, repair| {
+                        let background = self.app.background();
+                        if background[3] != 255 {
+                            return Err("desktop background must be opaque".into());
+                        }
+                        let repair = repair.bounds();
+                        painter.fill_rounded_rect(
+                            repair.x,
+                            repair.y,
+                            repair.width,
+                            repair.height,
+                            0,
+                            background,
+                        );
+                        self.app.paint(painter)
+                    },
+                )?
+                else {
+                    return Ok(None);
+                };
+                if let Some(path) = &capture {
+                    let image = image::RgbImage::from_fn(size.width, size.height, |x, y| {
+                        let n = ((y * size.width + x) * 4) as usize;
+                        image::Rgb([pixels[n + 2], pixels[n + 1], pixels[n]])
+                    });
+                    image.save(path).map_err(|e| e.to_string())?;
+                }
+                native.window.pre_present_notify();
+                Ok(Some(plan))
+            },
+        )?
+        else {
+            return Ok(());
+        };
+        self.damage.submitted(plan);
         if capture.is_some() {
             self.options.capture = None;
             if self.options.exit_after_capture {
@@ -267,8 +273,7 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
                 | RawDisplayHandle::Xcb(_) => {}
                 _ => return Err("desktop presentation requires Wayland or X11".into()),
             }
-            let context = Context::new(window.clone()).map_err(|e| e.to_string())?;
-            let surface = Surface::new(&context, window.clone()).map_err(|e| e.to_string())?;
+            let surface = Surface::new(window.clone())?;
             self.native = Some(NativeWindow {
                 adapter,
                 surface,

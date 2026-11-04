@@ -48,6 +48,53 @@ pub(super) struct Image {
     alive: std::sync::Weak<Pixels>,
 }
 
+/// An immutable lease of native PRGB32 pixels; creation does not copy their storage.
+pub struct PixelSource<'a> {
+    handle: NonNull<NativeImage>,
+    width: u32,
+    height: u32,
+    _pixels: PhantomData<&'a [u8]>,
+}
+
+impl<'a> PixelSource<'a> {
+    pub fn new(pixels: &'a [u8], width: u32, height: u32) -> Result<Self, Error> {
+        let data = image_data(
+            pixels.len(),
+            width as usize,
+            height as usize,
+            4,
+            "pixel source",
+        )?;
+        let mut result = BL_SUCCESS;
+        let handle = unsafe {
+            retinue_bl_image_create(
+                pixels.as_ptr().cast_mut(),
+                data.width,
+                data.height,
+                data.stride,
+                0,
+                None,
+                std::ptr::null_mut(),
+                &mut result,
+            )
+        };
+        let handle =
+            NonNull::new(handle).ok_or_else(|| Error::blend2d("pixel source creation", result))?;
+        Ok(Self {
+            handle,
+            width,
+            height,
+            _pixels: PhantomData,
+        })
+    }
+}
+
+impl Drop for PixelSource<'_> {
+    fn drop(&mut self) {
+        unsafe { retinue_bl_image_destroy(self.handle.as_ptr()) };
+    }
+}
+
 // Sources are immutable; Blend2D retains/releases their data atomically.
 unsafe impl Send for Image {}
 unsafe impl Sync for Image {}
@@ -164,7 +211,7 @@ impl Image {
                 data.height,
                 data.stride,
                 c_int::from(mask),
-                release_pixels,
+                Some(release_pixels),
                 owner.cast_mut().cast(),
                 &mut result,
             )
@@ -241,11 +288,21 @@ unsafe extern "C" {
         height: c_int,
         stride: isize,
         mask: c_int,
-        destroy: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void),
+        destroy: Option<unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void)>,
         user_data: *mut c_void,
         result_out: *mut u32,
     ) -> *mut NativeImage;
     fn retinue_bl_image_destroy(image: *mut NativeImage);
+    fn retinue_bl_copy_prgb32(
+        painter: *mut RetinueBlendPainter,
+        source: *const NativeImage,
+        x: c_int,
+        y: c_int,
+        width: c_int,
+        height: c_int,
+        target_x: c_int,
+        target_y: c_int,
+    ) -> u32;
     fn retinue_bl_clear(painter: *mut RetinueBlendPainter) -> u32;
     #[cfg(test)]
     fn retinue_bl_save(painter: *mut RetinueBlendPainter) -> u32;
@@ -782,6 +839,58 @@ impl<'a> Context<'a> {
                     target_y,
                     target_width,
                     target_height,
+                )
+            },
+        );
+    }
+
+    pub(super) fn copy_source(
+        &mut self,
+        source: &PixelSource<'a>,
+        area: crate::Rect,
+        target: (u32, u32),
+    ) {
+        if area.is_empty() || self.failed() {
+            return;
+        }
+        if area
+            .x
+            .checked_add(area.width)
+            .is_none_or(|x| x > source.width)
+            || area
+                .y
+                .checked_add(area.height)
+                .is_none_or(|y| y > source.height)
+            || target
+                .0
+                .checked_add(area.width)
+                .is_none_or(|x| x > self.width)
+            || target
+                .1
+                .checked_add(area.height)
+                .is_none_or(|y| y > self.height)
+        {
+            self.record_invalid("pixel copy bounds");
+            return;
+        }
+        self.draw(
+            "pixel copy",
+            Some([
+                target.0 as f64,
+                target.1 as f64,
+                (target.0 + area.width) as f64,
+                (target.1 + area.height) as f64,
+            ]),
+            |raw| unsafe {
+                retinue_bl_copy_prgb32(
+                    raw,
+                    source.handle.as_ptr(),
+                    area.x as c_int,
+                    area.y as c_int,
+                    area.width as c_int,
+                    area.height as c_int,
+                    target.0 as c_int,
+                    target.1 as c_int,
                 )
             },
         );

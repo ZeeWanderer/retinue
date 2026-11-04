@@ -1343,8 +1343,28 @@ impl ControlHost {
             height: last.y + last.height - first.y + 2 * p,
         })
     }
+    #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>, media: &Media) {
-        self.composition.borrow_mut().paint(self, p, media);
+        self.prepare_paint(media);
+        self.draw_prepared(p);
+    }
+
+    pub fn prepare_paint(&self, media: &Media) {
+        self.composition.borrow_mut().prepare_paint(self, media);
+    }
+
+    pub fn draw_prepared(&self, p: &mut Painter<'_>) {
+        self.composition.borrow_mut().draw_prepared(self, p);
+    }
+
+    pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
+        let composition = self.composition.borrow();
+        scene.record_rendered(
+            composition.scene().frame(),
+            &composition.renderer.borrow(),
+            retinue_render::RasterMode::Explicit,
+            |_, _| false,
+        );
     }
 
     fn paint_live(&self, p: &mut Painter<'_>, draw: &Visual) {

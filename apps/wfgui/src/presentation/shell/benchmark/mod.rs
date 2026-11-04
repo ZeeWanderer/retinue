@@ -3,6 +3,7 @@ use retinue_render::damage::AgeRepaintTracker;
 use serde_json::json;
 mod drag;
 mod residency;
+mod transfer;
 
 #[test]
 #[ignore = "opt-in live daemon payload allocation and wire-size audit"]

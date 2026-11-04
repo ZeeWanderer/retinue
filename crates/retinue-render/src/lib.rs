@@ -18,10 +18,14 @@ pub mod painter;
 pub mod resources;
 pub mod thumbnails;
 
+pub mod relocate;
+pub mod surface;
+
 mod analysis;
 mod background;
 mod command;
 mod context;
+mod cost;
 mod coverage;
 mod dependencies;
 mod execution;
@@ -37,6 +41,9 @@ mod properties;
 mod renderer;
 mod replay_index;
 mod residency;
+
+#[cfg(test)]
+mod quality;
 
 pub use analysis::{Analysis, Effects, ResourceRead};
 pub use background::{AnalysisPolicy, AnalysisStats};

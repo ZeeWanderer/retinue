@@ -9,7 +9,7 @@ const OVERLAYS: ElementKey = super::view_host::OVERLAYS;
 const CHROME: ElementKey = super::view_host::CHROME;
 
 pub(super) struct Composition {
-    renderer: RefCell<Renderer>,
+    pub(super) renderer: RefCell<Renderer>,
     targets: HashMap<ElementKey, usize>,
     pub(super) host: super::view_host::Host,
     images: HashMap<ElementKey, Request>,
@@ -165,7 +165,7 @@ impl Composition {
         }
     }
 
-    pub fn paint(&mut self, ui: &ControlHost, p: &mut Painter<'_>, media: &Media) {
+    pub fn prepare_paint(&mut self, ui: &ControlHost, media: &Media) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
         self.targets.clear();
@@ -263,10 +263,19 @@ impl Composition {
         self.host.images.publish(media);
         self.host.prepare(ui.size, ui.scale);
         #[cfg(all(test, feature = "profiling"))]
+        {
+            self.paint_profile = (started.elapsed(), Duration::ZERO, Duration::ZERO);
+        }
+    }
+
+    pub fn draw_prepared(&mut self, ui: &ControlHost, p: &mut Painter<'_>) {
+        #[cfg(all(test, feature = "profiling"))]
         let prepared = Instant::now();
-        self.renderer
-            .borrow_mut()
-            .prepare(self.scene().frame(), RasterMode::Explicit);
+        self.renderer.borrow_mut().prepare_for(
+            self.scene().frame(),
+            RasterMode::Explicit,
+            &p.visible_regions(),
+        );
         #[cfg(all(test, feature = "profiling"))]
         let drawing = Instant::now();
         self.renderer.borrow_mut().draw_with(
@@ -291,7 +300,7 @@ impl Composition {
         );
         #[cfg(all(test, feature = "profiling"))]
         {
-            self.paint_profile = (prepared - started, drawing - prepared, drawing.elapsed());
+            self.paint_profile = (self.paint_profile.0, drawing - prepared, drawing.elapsed());
         }
     }
 

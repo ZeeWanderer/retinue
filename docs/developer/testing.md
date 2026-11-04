@@ -78,6 +78,10 @@ scrollbar dragging. Exploratory cache/repair strategies and live probes remain
 separate. Share fixtures and scenario drivers where possible, not assertions in
 timed sections.
 
+Use the [optimizer-quality harness](optimizer-quality.md) to compare
+complete traces against measured legal execution alternatives. Its deterministic
+pixel/pass tests run with the renderer suite; its timing experiments remain opt-in.
+
 - Build optimized binaries before measuring; include native completion, not just
   queued submission. Keep setup, validation and cold/warm samples distinguishable.
 - Preserve raw samples, workload/fixture identity, source/binary provenance,

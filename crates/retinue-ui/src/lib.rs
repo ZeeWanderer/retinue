@@ -25,6 +25,7 @@ pub use view::ViewProperties;
 pub mod clipboard;
 #[cfg(feature = "desktop")]
 pub mod desktop;
+
 pub mod drawing;
 pub mod environment;
 #[cfg(feature = "overlay")]
@@ -41,6 +42,8 @@ pub mod motion;
 pub mod popover;
 pub mod prelude;
 pub mod preparation;
+#[cfg(any(feature = "desktop", feature = "overlay"))]
+pub mod presentation_buffers;
 pub mod runtime;
 pub mod scene;
 pub mod schedule;

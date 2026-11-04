@@ -14,7 +14,10 @@ make bench BENCH_SUITE=poe2-overlay BENCH_THREADS=4 BENCH_SAMPLES=120 \
   BENCH_OUTPUT=research/retinue/benchmarks/poe2-candidate
 ```
 
-Also available: `wf-overlay`, `gui-foundry`, `gui-relics`, `gui-drag`.
+Also available: `wf-overlay`, `poe2-drag`, `gui-foundry`, `gui-relics`, `gui-drag`,
+`gui-transfer`, and [optimizer quality](../../docs/developer/optimizer-quality.md) (`render-quality`).
+`poe2-drag` compares full repaint, damage repair and automatic relocation through
+the shared acquired-buffer renderer; it does not measure compositor or game FPS.
 The runner builds one release test binary, verifies an exact ignored-test selector,
 saves it with source/binary/toolchain/fixture provenance, then runs independent
 processes. It does not stage or reload applications. Each run gets fresh XDG
@@ -24,7 +27,7 @@ GUI traces do not represent a fully populated live artwork cache.
 The output contains `snapshot/`, `measurements/report.json`, per-run native JSON
 and process/build logs. Direct collection defaults to seven runs; fewer are useful
 smoke checks, not enough for a performance verdict. GUI traces have fixed lengths;
-`BENCH_SAMPLES` controls overlay warm frames only.
+`BENCH_SAMPLES` controls overlay warm frames or complete optimizer-quality traces.
 
 Raw reports live in ignored `research/`. Selected compact measurements can be
 archived in [history/](history/README.md). Each session has an ID, UTC timestamps
@@ -37,9 +40,9 @@ For stronger A/B evidence, prepare each revision separately, then interleave the
 saved executables without compiling during measurement:
 
 ```bash
-python3 tools/benchmarks/run.py prepare gui-rails --output research/bench/before
+make bench-prepare BENCH_SUITE=gui-rails BENCH_OUTPUT=research/bench/before
 # After implementing the candidate:
-python3 tools/benchmarks/run.py prepare gui-rails --output research/bench/after
+make bench-prepare BENCH_SUITE=gui-rails BENCH_OUTPUT=research/bench/after
 python3 tools/benchmarks/run.py pair research/bench/before research/bench/after \
   --output research/bench/paired --repeats 8 --threads 4
 python3 tools/benchmarks/compare.py research/bench/paired/before/report.json \
@@ -48,12 +51,27 @@ python3 tools/benchmarks/compare.py research/bench/paired/before/report.json \
 ```
 
 Each round measures both builds; alternating order gives ABBA blocks. Use the
-same build environment for both preparations. All-else-equal is still the
+same build environment for both preparations. `bench-prepare` shares compiler and
+sccache settings with normal Make builds; invoking the Python preparer directly
+requires supplying that environment yourself. All-else-equal is still the
 operator's responsibility: stop unrelated builds, keep power mode stable and
 record whether the machine is busy. Load averages are evidence, not a noise filter.
 Copied binaries are local snapshots, not portable packages; keep their dynamic
 runtime libraries installed. Native dependency revisions are recorded, not
 assumed equivalent.
+
+Check repeatability before interpreting small differences: use the same snapshot
+for both arguments to `pair`. Inconclusive identical-binary comparisons indicate
+that the run cannot reliably resolve the chosen tolerance. Keep that evidence;
+do not enlarge tolerances simply to pass a candidate.
+
+On Linux, `taskset --cpu-list <CPUs> python3 tools/benchmarks/run.py pair ...` can
+reduce migration and SMT variability. Use `lscpu -e=CPU,CORE,SOCKET` to choose
+distinct physical cores, with enough CPUs for the requested thread budget. Apply
+the same mask to both builds and repeat the identical-binary check. This affects
+only benchmark processes; it neither isolates those cores from desktop activity
+nor recommends an application scheduling policy. Affinity is recorded and forms
+part of the comparison/history identity.
 
 Use a reviewed policy based on repeatability and a practical latency/resource
 budget. [policy.example.toml](policy.example.toml) is syntax, **not an approved
@@ -116,6 +134,32 @@ The direct Make targets below retain the original detailed measurements and
 experiment knobs. They are not accepted as regression reports without the
 independent-run envelope above.
 
+`gui-transfer` compares repair, in-place relocation, independent previous buffers,
+full/partial scratch snapshots and an offscreen pair with final presentation copies.
+It rotates model buffers at 2560x1440 with desktop scale 1.0. GUI scale defaults
+to 90-130% in 5% steps, plus 150% as a higher-scale reference; 100% and 120% are
+the primary tuning cases. Each report records these dimensions separately.
+It does not measure compositor waits or present latency. The native test accepts
+`GUI_BENCH_SCALES=1,1.2,1.5` to select scale ratios (75-200%, rounded to whole
+percentages like the GUI),
+`GUI_BENCH_ARTWORK=<json>` with `{id,path,digest}` asset descriptors and
+`GUI_BENCH_REVERSE=1` to reverse candidate order. These extra experiment variables
+are not forwarded by the standard runner; use `make bench-gui` or a saved benchmark
+binary directly and retain its source manifest, exact environment and per-process output. Artwork
+is reused on synthetic cards and components, not presented as a live player dataset.
+All art must be warmed before timing; the test asserts this throughout the trace.
+`previous-3`, `previous-cpu` and `previous-cpu-parallel` compare queued native,
+serial and persistent row-parallel copies using the same source and plan. Workload
+3 uses a loaded static rail and rejects unequal per-frame copy/repair coverage.
+`GUI_BENCH_CASES` filters these experiment cases. The copy workers and overrides
+are test/benchmark-only; see the [executor results](history/2026-11-03-copy-executors.md).
+`GUI_BENCH_MATERIALIZATIONS=explicit|fragments|none` compares Foundry's authored
+instance rasters, automatic fragments only, or no optional rasters. Asset and glyph
+caches stay enabled. Reports include preparation work and raster residency;
+diagnostic collection occurs after the frame timer stops. These are experimental
+overrides, not application settings. `GUI_BENCH_FEATURES=profiling` on `make bench-gui`
+adds test phase attribution; keep those runs separate from unprofiled comparisons.
+
 For shared target repair, run `make bench-repair REPAIR_REPORT=research/repair.jsonl`.
 It alternates command-first regions (strategy 0), region-first replay (1),
 128x32-pixel coverage tiles (2), bounding rectangles (3) and full repaint (4).
@@ -124,6 +168,14 @@ continuous region and 192 small rectangles. Reports retain raw nanosecond sample
 pixel coverage, logical commands/blits and requested/actual native thread counts.
 Preparation runs once per frame in every strategy. These are headless renderer
 measurements, not window presentation or game-impact measurements.
+
+`make bench-reuse REUSE_REPORT=research/reuse.jsonl` compares automatic discovery
+against direct replay of the same unhinted drawing. Cases cover one moving instance
+and 72 independent consumers at 100/125/200% scale with two/four rendering threads.
+It records preparation, submission, completion, process CPU, fragment blits and
+selected pixel bytes. Modes alternate within each process; repeat in independent
+processes before drawing conclusions. Pair the production `gui-transfer` snapshots
+separately to detect overhead outside this intentionally reuse-heavy experiment.
 
 For the actual GUI rail animation, compare `make bench-gui
 GUI_BENCH_CASE=rail_animation_benchmark
@@ -280,9 +332,68 @@ best cache policy for fully populated grids.
 Reports include the first cycle plus two subsequent cycles, preparation/submission/
 native completion, caller/process CPU, cache work/bytes and pixel error. Raw versus
 compiled must be exact; cached paths permit at most one channel step from existing
-premultiplied intermediate-image rounding. A mismatch fails the run.
+premultiplied intermediate-image rounding, or three only inside known glow regions.
+A mismatch outside those bounds fails the run.
 The captured region must not depend on live callbacks. Reports exclude layout,
 presentation and game impact; use the end-to-end scroll benchmarks alongside them.
+
+### Completed-Target Reuse
+
+```bash
+GUI_BENCH_THREADS=4 make bench-gui GUI_BENCH_CASE=target_reuse_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/target-reuse.json
+```
+
+Uses the same Relic trace to compare ordinary viewport repair with translating
+completed target pixels, then repairing exposed strips and changed-content holes.
+Runs compiled commands, item caches and layer caches at 100/125/200%, with one or
+three backing buffers. There is no additional pixel allocation for reuse; metadata
+and existing renderer caches are reported separately. Each buffer tracks its own
+source state. Incompatible content/order/target falls back to repaint.
+
+This is benchmark-only, not a production admission policy. The scope must be an
+isolated recorded viewport over a constant backdrop. Copying happens after native
+completion, before creating the next context; it does not queue a self-blit.
+Planning, copying, preparation, submission and completion are timed separately.
+Pixel checks precede timing, including same-clip repair checks and the existing
+glow-only rounding tolerance. Current-frame presentation damage is not reduced by
+target reuse. Repeat in fresh processes and alternate `GUI_BENCH_REVERSE=1` before
+drawing conclusions; this measures neither input/layout nor compositor/game cost.
+See the [recorded prototype results](history/2026-11-03-target-reuse.md) and their
+coverage limits before using them to choose a production policy.
+
+For a synthetic control with substantial admitted row/viewport rasters:
+
+```bash
+GUI_BENCH_THREADS=4 make bench-gui GUI_BENCH_CASE=target_materialization_benchmark \
+  GUI_BENCH_OUTPUT=research/retinue/benchmarks/target-materialization.json
+```
+
+This deliberately primes caches before scrolling at 100/200%, then reports both
+target-reuse and ordinary-repair paths, with and without materialization. Exclude
+the first three motion frames from warm statistics. It isolates representation
+costs, not production admission frequency. The normal GUI tests verify pixels
+while target copying and substantial cached rasters coexist.
+
+### Native Cost Ranking
+
+```bash
+make bench-cost COST_REPORT=research/retinue/benchmarks/native-cost.csv
+```
+
+Alternates warm native replay and independent-source copies for fills, rounded
+fills, text, images and mixed programs at six sizes and 1/2/4/8 threads. CSV rows
+include work descriptors, submission and completion times. Repeat in fresh
+processes; validate models on held-out sizes and mixtures. Compare selected-plan
+regret against the faster measured alternative, not predicted-time accuracy.
+This isolates native work. Whole-frame tests must still account for planning,
+remaining repairs, cache state and UI overhead. See the
+[calibration report](history/2026-11-04-cost-calibration.md).
+
+For opt-in recording-phase detail, `make bench-gui GUI_BENCH_FEATURES=profiling
+GUI_BENCH_CASE=independent_source_benchmark GUI_BENCH_OUTPUT=...` includes the
+existing SDK phase counters. Those results are diagnostic, not uninstrumented
+acceptance timings. Normal builds do not enable the profiling feature.
 
 ### Memory And Motion
 

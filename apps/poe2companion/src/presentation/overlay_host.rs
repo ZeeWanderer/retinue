@@ -279,35 +279,40 @@ impl Overlay {
                 self.interaction.close_popup();
             }
             Target::Option(menu, index) => {
-                let choice = self
-                    .model
-                    .evaluation
-                    .as_ref()
-                    .and_then(|e| e.search_options.get(menu.key()))
-                    .and_then(|options| options.get(index))
-                    .cloned();
+                let choice = menu
+                    .choices(&self.model)
+                    .nth(index)
+                    .map(|(id, _)| id.map(str::to_owned));
                 if let Some(choice) = choice {
                     let refresh = self.model.results.is_some();
                     match menu {
-                        Menu::Status => {
-                            self.model.status = choice.id.unwrap_or_else(|| "any".into())
-                        }
-                        Menu::Rarity => self.model.rarity = choice.id,
-                        Menu::Currency => self.model.currency = choice.id,
-                        Menu::Indexed => self.model.indexed = choice.id,
+                        Menu::Status => self.model.status = choice.unwrap_or_else(|| "any".into()),
+                        Menu::League => self.model.league = choice.unwrap_or_default(),
+                        Menu::Rarity => self.model.rarity = choice,
+                        Menu::Currency => self.model.currency = choice,
+                        Menu::Indexed => self.model.indexed = choice,
                         Menu::Settings => {}
                     }
-                    self.change();
-                    self.save_preferences();
-                    if refresh && menu != Menu::Rarity {
+                    if refresh && !matches!(menu, Menu::Rarity | Menu::League) {
+                        self.open_after_search = false;
+                        self.model.refresh_results();
+                        self.interaction.scroll = 0;
                         self.restore(true);
+                    } else {
+                        self.change();
+                    }
+                    self.save_preferences();
+                    if menu == Menu::League {
+                        self.predict();
                     }
                 }
                 self.interaction.menu = None;
             }
             Target::Sort => {
                 self.model.descending = !self.model.descending;
-                self.change();
+                self.open_after_search = false;
+                self.model.refresh_results();
+                self.interaction.scroll = 0;
                 self.restore(true);
             }
             Target::Level => {
@@ -319,25 +324,6 @@ impl Overlay {
                     *enabled = !*enabled;
                     self.change();
                 }
-            }
-            Target::League => {
-                let was_open = self.interaction.league_open;
-                self.interaction.close_popup();
-                self.interaction.league_open = !was_open;
-            }
-            Target::LeagueOption(index) => {
-                if let Some(league) = self
-                    .model
-                    .evaluation
-                    .as_ref()
-                    .and_then(|e| e.leagues.get(index))
-                {
-                    self.model.league = league.id.clone();
-                    self.change();
-                    self.save_preferences();
-                    self.predict();
-                }
-                self.interaction.league_open = false;
             }
             Target::Base => {
                 self.model.base = !self.model.base;
@@ -757,7 +743,6 @@ impl Application for Overlay {
                 self.interaction.focus = None;
                 self.interaction.selecting = false;
                 self.interaction.drag = None;
-                self.interaction.league_open = false;
                 self.interaction.close_popup();
                 self.interaction.tooltip = false;
             }
@@ -772,9 +757,7 @@ impl Application for Overlay {
                 self.view
                     .pointer(retinue_ui::input::PointerPhase::Move, Some((x, y)));
                 let previous = self.interaction.hover;
-                let popup = self.interaction.tooltip
-                    || self.interaction.menu.is_some()
-                    || self.interaction.league_open;
+                let popup = self.interaction.tooltip || self.interaction.menu.is_some();
                 self.interaction.hover = self.view.hit(x, y);
                 if previous != self.interaction.hover {
                     self.interaction.tooltip = false;
@@ -791,8 +774,11 @@ impl Application for Overlay {
                 {
                     self.view.edit_drag(target, x);
                 }
-                return if self.interaction.drag.is_some() || self.interaction.selecting {
-                    Damage::Full
+                return if self.interaction.drag.is_some() {
+                    // Preparation contributes the new scene's damage before buffer repair.
+                    Damage::rect(self.view.bounds)
+                } else if self.interaction.selecting {
+                    self.view.target_damage(self.interaction.focus)
                 } else if previous == self.interaction.hover {
                     Damage::None
                 } else if popup {
@@ -861,13 +847,7 @@ impl Application for Overlay {
                         let count = self
                             .interaction
                             .menu
-                            .and_then(|menu| {
-                                self.model
-                                    .evaluation
-                                    .as_ref()
-                                    .and_then(|e| e.search_options.get(menu.key()))
-                            })
-                            .map_or(0, Vec::len);
+                            .map_or(0, |menu| menu.choices(&self.model).count());
                         self.interaction.menu_scroll = (self.interaction.menu_scroll as i64
                             + amount.round() as i64)
                             .clamp(0, count.saturating_sub(self.view.visible_options) as i64)
@@ -941,15 +921,12 @@ impl Application for Overlay {
                 0x65 | 0x45 if alt && !control => self.activate_requested = true,
                 0xff1b => self.escape(),
                 0xff0d | 0xff8d => {
-                    if self.interaction.focus.is_none()
-                        && self.interaction.menu.is_none()
-                        && !self.interaction.league_open
-                    {
+                    if self.interaction.focus.is_none() && self.interaction.menu.is_none() {
                         self.search();
                     }
                 }
                 0xff09 | 0xfe20 => {
-                    if self.interaction.menu.is_some() || self.interaction.league_open {
+                    if self.interaction.menu.is_some() {
                         return Damage::None;
                     }
                     if let Some(next) = self.view.next_field(
@@ -981,7 +958,7 @@ impl Application for Overlay {
             .interaction(self.model.visible || self.model.copying);
         Damage::Full
     }
-    fn prepare(&mut self, size: (u32, u32), scale: u32) -> Result<(), String> {
+    fn prepare(&mut self, size: (u32, u32), scale: u32) -> Result<Damage, String> {
         self.dpr = scale;
         let phase = (self
             .last_animation
@@ -1001,13 +978,20 @@ impl Application for Overlay {
         )
     }
 
+    fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
+        self.view.paint_scene()
+    }
+    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
+        Some(self.view.begin_frame())
+    }
+
     fn paint(
         &mut self,
-        pixels: &mut [u8],
+        painter: &mut retinue_render::painter::Painter<'_>,
         _size: (u32, u32),
         _scale: u32,
         repair: &retinue_render::damage::Region,
     ) -> Result<(), String> {
-        self.view.paint_prepared(pixels, repair)
+        self.view.draw_prepared(painter, repair)
     }
 }

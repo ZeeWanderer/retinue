@@ -30,6 +30,23 @@ fn scene() -> Scene {
 }
 
 #[test]
+fn sparse_subtree_motion_preserves_damage_holes() {
+    let mut scene = scene();
+    let damage = scene.patch([Change::Offset(0.into(), (0.0, 5.0))]).unwrap();
+    let regions = damage.regions((200, 120));
+    assert_eq!(regions.area(), 2 * 20 * 25);
+    assert!(!regions.intersects(Rect {
+        x: 25,
+        y: 0,
+        width: 10,
+        height: 25,
+    }));
+    assert_eq!(scene.bounds(0.into()).unwrap().paint.height, 20);
+    assert_eq!(scene.bounds(1.into()).unwrap().parent, Some(0.into()));
+    assert_eq!(scene.bounds(1.into()).unwrap().layout.y, 5.0);
+}
+
+#[test]
 fn subtree_batch_validates_every_patch_before_changing_anything() {
     let mut scene = scene();
     let generation = scene.frame().generation();

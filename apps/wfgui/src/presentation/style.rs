@@ -1,7 +1,5 @@
 use crate::presentation::settings::rgb;
-use retinue_render::{
-    Bounds, CacheHint, Color, Command, Key, OptimizationContext, PaintKey, PaintProgram,
-};
+use retinue_render::{Bounds, Color, Command};
 use retinue_ui::{Rect, drawing::PixelCanvas as Canvas};
 use std::rc::Rc;
 
@@ -53,24 +51,14 @@ pub const fn alpha(color: u32, alpha: u8) -> [u8; 4] {
 }
 
 pub fn component_glow(bounds: Bounds, scale: f32) -> Command {
-    let program = PaintProgram::new(
-        PaintKey::new(Key::new("warframe.component.glow", 0), 0),
-        (bounds.width, bounds.height),
-        scale,
-        Rc::new(vec![Command::InsetShadow {
+    Command::Translate {
+        offset: (bounds.x, bounds.y),
+        commands: Rc::new(vec![Command::InsetShadow {
             bounds: Bounds::new(0.0, 0.0, bounds.width, bounds.height),
             radius: ((bounds.width * scale).round() as u32 / 2) as f32 / scale,
             blur: 4.0,
             spread: 1.0,
             color: Color::from_bgra(COMPONENT_GLOW),
-        }]),
-    )
-    .expect("finite component bounds");
-    Command::Translate {
-        offset: (bounds.x, bounds.y),
-        commands: Rc::new(vec![Command::Fragment {
-            program,
-            context: OptimizationContext::default().with(CacheHint::Stable),
         }]),
     }
 }

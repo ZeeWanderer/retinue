@@ -192,12 +192,14 @@ def measured_config(args, spec):
         raise ValueError("threads: 1..8; samples: 10..5000; repeats: at least 1")
     if not 0 <= args.hz <= 1000 or args.timeout < 1:
         raise ValueError("hz: 0..1000; timeout: positive seconds")
-    if spec["adapter"] != "overlay" and (args.hz or args.cases):
-        raise ValueError("cadence and case filters are supported only by overlay workloads")
+    if spec["adapter"] != "overlay" and args.hz:
+        raise ValueError("cadence is supported only by overlay workloads")
+    if spec["adapter"] not in ("overlay", "quality") and args.cases:
+        raise ValueError("case filters are supported only by overlay and optimizer-quality workloads")
     if args.cases:
         selected = args.cases.split(",")
         if len(selected) != len(set(selected)) or any(case not in spec["cases"] for case in selected):
-            raise ValueError("unknown or duplicate overlay case; see suites.toml")
+            raise ValueError("unknown or duplicate case; see suites.toml")
     return {"threads": args.threads, "samples": args.samples, "hz": args.hz,
             "cases": args.cases, "timeout": args.timeout, "cache": "fresh-process-and-xdg-per-run"}
 
@@ -219,9 +221,9 @@ def main():
         sub.add_argument("--output", type=Path, required=True)
         sub.add_argument("--repeats", type=int, default=7)
         sub.add_argument("--threads", type=int, default=4)
-        sub.add_argument("--samples", type=int, default=120, help="Warm frames per overlay case; GUI traces have fixed length")
+        sub.add_argument("--samples", type=int, default=120, help="Warm overlay frames or complete quality traces per policy; GUI traces have fixed length")
         sub.add_argument("--hz", type=int, default=0)
-        sub.add_argument("--cases", default="", help="Comma-separated overlay case names")
+        sub.add_argument("--cases", default="", help="Comma-separated overlay or optimizer-quality case names")
         sub.add_argument("--timeout", type=int, default=600, help="Seconds per independent process")
     args = parser.parse_args()
     try:

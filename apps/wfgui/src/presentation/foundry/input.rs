@@ -18,7 +18,7 @@ impl Foundry {
     }
 
     pub(super) fn hit(&self, p: (f64, f64)) -> Option<Action> {
-        self.resolved_composition()
+        self.input_composition()
             .hit(p)
             .filter(|action| self.filter_enabled(*action))
     }

@@ -97,9 +97,11 @@ impl Composition {
         self.time.set(self.time.get().at(now));
         let damage = self.flush();
         if damage != Damage::None {
-            self.renderer
-                .get_mut()
-                .prepare(self.tree.borrow().frame(), RasterMode::Replay);
+            self.renderer.get_mut().prepare_for(
+                self.tree.borrow().frame(),
+                RasterMode::Replay,
+                &Default::default(),
+            );
         }
         damage
     }

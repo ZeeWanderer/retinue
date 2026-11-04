@@ -44,11 +44,18 @@ impl Foundry {
             );
         }
     }
+    #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>, focus: retinue_ui::focus_visible::FocusVisible) {
+        self.prepare_paint(focus);
+        self.draw_prepared(p);
+    }
+
+    pub fn prepare_paint(&self, focus: retinue_ui::focus_visible::FocusVisible) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
-        p.fill_rounded_rect(0, 0, self.size.0, self.size.1, self.px(10.0), PANEL);
-        p.fill_rounded_rect(
+        let mut background = Canvas::new(self.scale);
+        background.fill_rounded_rect(0, 0, self.size.0, self.size.1, self.px(10.0), PANEL);
+        background.fill_rounded_rect(
             0,
             self.px(10.0),
             self.size.0,
@@ -56,7 +63,10 @@ impl Foundry {
             0,
             PANEL,
         );
-        drop(self.resolved_composition());
+        let composition = self.resolved_composition();
+        #[cfg(all(test, feature = "profiling"))]
+        let resolve_profile = (composition.tree.profile, composition.tree.scene().profile);
+        drop(composition);
         #[cfg(all(test, feature = "profiling"))]
         let resolved = Instant::now();
         let mut toolbar = Canvas::new(self.scale);
@@ -67,9 +77,63 @@ impl Foundry {
         #[cfg(all(test, feature = "profiling"))]
         {
             composition.record_profile = [resolved - started, resolved.elapsed()];
+            composition.resolve_profile = resolve_profile;
         }
-        composition.record_chrome(toolbar.commands, overlays.commands);
-        composition.paint(self, p);
+        composition.record_chrome(background.commands, toolbar.commands, overlays.commands);
+    }
+
+    #[cfg(all(test, feature = "profiling"))]
+    pub(crate) fn benchmark_profile(&self) -> serde_json::Value {
+        let composition = self.composition.borrow();
+        let view = composition.tree.profile;
+        let scene = composition.tree.scene().profile;
+        let (resolve, layout) = composition.resolve_profile;
+        serde_json::json!({
+            "record_ms": composition.record_profile.map(|d| d.as_secs_f64() * 1000.0),
+            "paint_ms": composition.paint_profile.get().map(|d| d.as_secs_f64() * 1000.0),
+            "update_ms": ([view.evaluation, view.lowering, view.scene, view.input].map(|d| d.as_secs_f64() * 1000.0)),
+            "scene_ms": ([scene.reconcile, scene.layout, scene.projection, scene.geometry, scene.frame].map(|d| d.as_secs_f64() * 1000.0)),
+            "resolve_ms": ([resolve.evaluation, resolve.lowering, resolve.scene, resolve.input].map(|d| d.as_secs_f64() * 1000.0)),
+            "resolve_scene_ms": ([layout.reconcile, layout.layout, layout.projection, layout.geometry, layout.frame].map(|d| d.as_secs_f64() * 1000.0)),
+        })
+    }
+
+    pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
+        let composition = self.composition.borrow();
+        scene.record_rendered(
+            composition.tree.frame(),
+            &composition.renderer.borrow(),
+            composition.raster_mode(),
+            |_, _| false,
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn paint_stats(&self) -> retinue_render::PaintStats {
+        self.composition.borrow().paint_stats()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn benchmark_materializations(&self, mode: &str) {
+        let mut composition = self.composition.borrow_mut();
+        composition.raster_mode = match mode {
+            "explicit" => retinue_render::RasterMode::Explicit,
+            "fragments" | "none" => retinue_render::RasterMode::Replay,
+            _ => panic!("unknown GUI_BENCH_MATERIALIZATIONS: {mode}"),
+        };
+        composition
+            .renderer
+            .get_mut()
+            .set_materializations(mode != "none");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn raster_stats(&self) -> retinue_render::ResidencyStats {
+        self.composition.borrow().cache_stats()
+    }
+
+    pub fn draw_prepared(&self, p: &mut Painter<'_>) {
+        self.composition.borrow().paint(self, p);
     }
 
     pub(super) fn paint_toolbar(

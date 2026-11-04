@@ -5,6 +5,116 @@ use crate::{
 };
 
 #[test]
+fn rounded_edge_clipping_has_only_native_colour_quantization() {
+    for threads in [1, 2, 4] {
+        let mut outputs = Vec::new();
+        for padding in [None, Some(0), Some(1)] {
+            let mut pixels = [25, 20, 18, 255].repeat(140 * 170);
+            let mut painter =
+                Painter::with_threads(&mut pixels, 140, 170, NonZeroU32::new(threads).unwrap())
+                    .unwrap();
+            if let Some(padding) = padding {
+                painter.repair(&Region::new([
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        width: 58 + padding,
+                        height: 62 + padding,
+                    },
+                    Rect {
+                        x: 0,
+                        y: 71 - padding,
+                        width: 58 + padding,
+                        height: 89 + padding,
+                    },
+                ]));
+            }
+            painter.translated((-4, 20), |p| {
+                p.fill_rounded_rect(0, 0, 62, 42, 5, [60, 90, 180, 255]);
+            });
+            painter.finish().unwrap();
+            outputs.push(pixels);
+        }
+        // Native curve flattening depends on clipping, even with no UI or draw optimizer.
+        for (index, (a, b)) in outputs[1].iter().zip(&outputs[0]).enumerate() {
+            assert!(
+                a.abs_diff(*b) <= u8::from(index % 4 != 3),
+                "threads={threads}, byte={index}"
+            );
+        }
+        assert_eq!(
+            outputs[2].iter().zip(&outputs[0]).position(|(a, b)| a != b),
+            None
+        );
+    }
+}
+
+#[test]
+fn borrowed_source_copy_is_exact_queued_and_restores_source_over() {
+    for threads in [1, 2, 4] {
+        let source: Vec<u8> = (0..64 * 64)
+            .flat_map(|i| {
+                let alpha = (i % 256) as u8;
+                [alpha / 2, alpha / 3, alpha / 4, alpha]
+            })
+            .collect();
+        let mut target = vec![80; source.len()];
+        let mut expected = target.clone();
+        let region = Rect {
+            x: 5,
+            y: 3,
+            width: 43,
+            height: 52,
+        };
+        for row in 0..region.height as usize {
+            let from = ((region.y as usize + row) * 64 + region.x as usize) * 4;
+            let to = ((8 + row) * 64 + 11) * 4;
+            expected[to..to + region.width as usize * 4]
+                .copy_from_slice(&source[from..from + region.width as usize * 4]);
+        }
+        let source = PixelSource::new(&source, 64, 64).unwrap();
+        let mut painter =
+            Painter::with_threads(&mut target, 64, 64, NonZeroU32::new(threads).unwrap()).unwrap();
+        painter.copy_source(&source, region, (11, 8));
+        painter.fill_rounded_rect(11, 8, 43, 52, 0, [0, 0, 0, 0]);
+        painter.finish().unwrap();
+        assert_eq!(target, expected);
+    }
+}
+
+#[test]
+fn borrowed_source_rejects_invalid_storage_and_copy_bounds() {
+    assert!(PixelSource::new(&[0; 16], 4, 4).is_err());
+    let pixels = vec![0; 16 * 16 * 4];
+    let source = PixelSource::new(&pixels, 16, 16).unwrap();
+    for (area, target) in [
+        (
+            Rect {
+                x: 15,
+                y: 0,
+                width: 2,
+                height: 2,
+            },
+            (0, 0),
+        ),
+        (
+            Rect {
+                x: 0,
+                y: 0,
+                width: 2,
+                height: 2,
+            },
+            (u32::MAX, 0),
+        ),
+    ] {
+        let mut pixels = vec![0; 16 * 16 * 4];
+        let mut painter = Painter::new(&mut pixels, 16, 16).unwrap();
+        painter.copy_source(&source, area, target);
+        assert!(painter.finish().is_err());
+    }
+}
+
+#[test]
 fn repair_uses_buffer_coordinates_inside_translated_viewports() {
     let mut pixels = vec![0; 100 * 100 * 4];
     let mut p = Painter::new(&mut pixels, 100, 100).unwrap();

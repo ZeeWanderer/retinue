@@ -195,6 +195,15 @@ impl Residency {
         self.entries[&id].owner == Owner::Item(program)
     }
 
+    pub fn has_item(&self, program: ProgramId) -> bool {
+        self.owners.get(&Owner::Item(program)).is_some_and(|ids| {
+            ids.iter().any(|id| {
+                let entry = &self.entries[id];
+                entry.image.is_some() || self.host.has_warm(*id)
+            })
+        })
+    }
+
     pub fn acquire(&mut self, owner: Owner, recipe: &Recipe) -> Option<RasterId> {
         let id = self
             .owners

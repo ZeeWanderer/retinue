@@ -1,6 +1,159 @@
 use super::*;
 
 #[test]
+fn acquired_surface_nested_page_scroll_matches_full_paint() {
+    check_nested_page_scroll(None);
+}
+
+#[test]
+fn independent_source_nested_page_scroll_matches_full_paint() {
+    use retinue_render::surface::experiment::Transfer;
+    for transfer in [
+        Transfer::Previous,
+        Transfer::PreviousRegions,
+        Transfer::PreviousCpu,
+        Transfer::PreviousCpuParallel,
+        Transfer::SnapshotRegions,
+    ] {
+        check_nested_page_scroll(Some(transfer));
+    }
+}
+
+fn check_nested_page_scroll(transfer: Option<retinue_render::surface::experiment::Transfer>) {
+    for scale in [1.0, 1.25] {
+        for page in [Page::Foundry, Page::Inventory, Page::Mastery, Page::Relics] {
+            let mut shell = view(scale, (1920, 1080));
+            shell.pages.fixture();
+            if page != Page::Foundry {
+                let listing = match page {
+                    Page::Inventory => &mut shell.pages.inventory,
+                    Page::Mastery => &mut shell.pages.mastery,
+                    Page::Relics => &mut shell.pages.relics,
+                    _ => unreachable!(),
+                };
+                let source = serde_json::to_value(&listing.items[0]).unwrap();
+                let rows: Vec<_> = (0..80)
+                    .map(|n| {
+                        let mut row = source.clone();
+                        row["id"] = serde_json::json!(format!("test-{n}"));
+                        row["name"] = serde_json::json!(format!(
+                            "{} {n:03}",
+                            source["name"].as_str().unwrap()
+                        ));
+                        row
+                    })
+                    .collect();
+                listing.replace_fixture(serde_json::json!({"items":rows}), &shell.pages.quotes);
+            }
+            shell.set_page(page);
+            shell.foundry.update(crate::data::foundry::fixture());
+            render_settled(&shell);
+            let size = shell.size;
+            let mut buffers = vec![vec![0; (size.0 * size.1 * 4) as usize]; 3];
+            let mut surface = retinue_render::surface::Buffered::default();
+            for _ in &buffers {
+                surface.add_buffer();
+            }
+            let mut trial =
+                transfer.map(|mode| retinue_render::surface::experiment::Trial::new(size, 3, mode));
+            let mut reduced = false;
+            for step in 0..12 {
+                if page == Page::Foundry {
+                    shell.foundry.jump(step as f32 * 9.0);
+                } else {
+                    let listing = match page {
+                        Page::Inventory => &mut shell.pages.inventory,
+                        Page::Mastery => &mut shell.pages.mastery,
+                        Page::Relics => &mut shell.pages.relics,
+                        _ => unreachable!(),
+                    };
+                    let now = Instant::now();
+                    listing.scroll.to(step as f32 * 9.0, false, now);
+                    listing.tick(now);
+                    shell.pages.dirty = true;
+                    shell.pages.layout();
+                }
+                let center = shell.geometry.center;
+                shell.pointer_move(((center.x + 130) as f64, (center.y + 180) as f64));
+                // Compare relocation, not a cold raster changing during the oracle paint.
+                render_settled(&shell);
+                shell.prepare_paint();
+                surface.invalidate(Damage::Full);
+                let slot = step % 3;
+                let submission = if let Some(trial) = &mut trial {
+                    trial.invalidate(Damage::Full);
+                    let frame = shell
+                        .render_host
+                        .begin_frame(std::num::NonZeroU32::new(4).unwrap());
+                    let sample = trial
+                        .paint(
+                            slot,
+                            shell.paint_scene(),
+                            frame.threads(),
+                            |painter, repair| {
+                                reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
+                                painter.fill_rounded_rect(0, 0, size.0, size.1, 0, BACKGROUND);
+                                shell.draw_prepared(painter);
+                                Ok(())
+                            },
+                        )
+                        .unwrap()
+                        .unwrap();
+                    assert!(sample.repaired_pixels > 0);
+                    None
+                } else {
+                    let submission = surface
+                        .render(
+                            slot,
+                            size,
+                            Some(shell.paint_scene()),
+                            &mut buffers[slot],
+                            |pixels, repair| {
+                                reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
+                                let frame =
+                                    shell.render_host.begin_frame(std::num::NonZeroU32::MIN);
+                                let mut painter =
+                                    Painter::with_threads(pixels, size.0, size.1, frame.threads())
+                                        .unwrap();
+                                painter.repair(repair);
+                                let r = repair.bounds();
+                                painter
+                                    .fill_rounded_rect(r.x, r.y, r.width, r.height, 0, BACKGROUND);
+                                shell.draw_prepared(&mut painter);
+                                painter.finish().map_err(|e| e.to_string())
+                            },
+                        )
+                        .unwrap()
+                        .unwrap();
+                    Some(submission)
+                };
+                let actual = trial
+                    .as_ref()
+                    .map_or(buffers[slot].as_slice(), |trial| trial.pixels(slot));
+                let expected = render(&shell);
+                if let Some(n) = actual
+                    .iter()
+                    .zip(&expected)
+                    .position(|(a, b)| a.abs_diff(*b) > 1)
+                {
+                    panic!(
+                        "transfer={transfer:?}, page={page:?}, scale={scale}, step={step}, pixel {},{}: {} != {}",
+                        (n / 4) % size.0 as usize,
+                        (n / 4) / size.0 as usize,
+                        actual[n],
+                        expected[n]
+                    );
+                }
+                if let Some(submission) = submission {
+                    surface.submitted(submission);
+                }
+            }
+            assert!(reduced, "nested page must participate without app hints");
+        }
+    }
+}
+
+#[test]
 fn chrome_layout_keeps_fractional_device_pixel_positions() {
     for scale in [1.1, 1.25, 1.5] {
         let shell = view(scale, (2560, 1440));
@@ -18,6 +171,108 @@ fn chrome_layout_keeps_fractional_device_pixel_positions() {
 }
 
 #[test]
+fn page_switch_preserves_stationary_chrome_hover_without_capture() {
+    let mut shell = view(1.0, (1920, 1080));
+    let (_, rect, _) = shell
+        .controls()
+        .into_iter()
+        .find(|(control, _, _)| *control == Control::Mastery)
+        .unwrap();
+    shell.pointer_move((
+        (rect.x + rect.width / 2) as f64,
+        (rect.y + rect.height / 2) as f64,
+    ));
+    assert_eq!(shell.hover, Some(Control::Mastery));
+    shell.pointer_button(true, Instant::now());
+    shell.pointer_button(false, Instant::now());
+    assert_eq!(shell.page, Page::Mastery);
+    assert_eq!(shell.press, None);
+    assert_eq!(shell.hover, Some(Control::Mastery));
+}
+
+#[test]
+fn page_switch_cancels_the_shell_press_owner() {
+    let mut shell = view(1.0, (1920, 1080));
+    shell.set_page(Page::Foundry);
+    shell.foundry.update(crate::data::foundry::fixture());
+    let grid = shell.foundry.capture_bounds("foundry.grid").unwrap();
+    let center = shell.geometry.center;
+    let point = (
+        (center.x + center.width - shell.px(9.0)) as f64,
+        (center.y + grid.y + shell.px(3.0)) as f64,
+    );
+    shell.pointer_move(point);
+    shell.pointer_button(true, Instant::now());
+    assert_eq!(shell.press, Some(PressOwner::Page));
+    shell.set_page(Page::Settings);
+    assert_eq!(shell.press, None);
+}
+
+#[test]
+fn modal_interrupts_a_rail_press_without_activating_it() {
+    let mut shell = view(1.0, (1920, 1080));
+    shell.set_page(Page::Settings);
+    let rect = shell
+        .pages
+        .rail
+        .buttons
+        .iter()
+        .find(|b| b.key == "rail:tab:market")
+        .unwrap()
+        .rect;
+    let right = shell.geometry.right;
+    shell.pointer_move((
+        (right.x + rect.x + rect.width / 2) as f64,
+        (right.y + rect.y + rect.height / 2) as f64,
+    ));
+    shell.pointer_button(true, Instant::now());
+    assert_eq!(shell.press, Some(PressOwner::Rail));
+    shell.settings.activate(settings::Action::ClearRendered);
+    shell.pointer_button(false, Instant::now());
+    assert_eq!(shell.press, None);
+    assert!(!shell.pages.rail_tab);
+    shell.settings.activate(settings::Action::Cancel);
+    shell.pages.button(true, false);
+    assert!(
+        !shell.pages.rail_tab,
+        "interrupted child capture must be canceled too"
+    );
+    shell.pointer_button(true, Instant::now());
+    shell.pointer_button(false, Instant::now());
+    assert!(
+        shell.pages.rail_tab,
+        "a new click needs no intervening motion"
+    );
+}
+
+#[test]
+fn page_switch_cancels_a_rail_press_but_allows_the_next_click_without_motion() {
+    let mut shell = view(1.0, (1920, 1080));
+    let rect = shell
+        .pages
+        .rail
+        .buttons
+        .iter()
+        .find(|b| b.key == "rail:tab:market")
+        .unwrap()
+        .rect;
+    let right = shell.geometry.right;
+    shell.pointer_move((
+        (right.x + rect.x + rect.width / 2) as f64,
+        (right.y + rect.y + rect.height / 2) as f64,
+    ));
+    shell.pointer_button(true, Instant::now());
+    assert_eq!(shell.press, Some(PressOwner::Rail));
+    shell.set_page(Page::Mastery);
+    shell.pointer_button(false, Instant::now());
+    assert_eq!(shell.press, None);
+    assert!(!shell.pages.rail_tab);
+    shell.pointer_button(true, Instant::now());
+    shell.pointer_button(false, Instant::now());
+    assert!(shell.pages.rail_tab);
+}
+
+#[test]
 fn page_drag_release_over_right_rail_reaches_its_owner() {
     for scale in [1.0, 1.25, 2.0] {
         let mut shell = view(scale, (2560, 1440));
@@ -30,7 +285,7 @@ fn page_drag_release_over_right_rail_reaches_its_owner() {
         let now = Instant::now();
         shell.pointer_move((x, y));
         shell.pointer_button(true, now);
-        assert!(shell.page_pressed);
+        assert_eq!(shell.press, Some(PressOwner::Page));
         for event in 0..1800 {
             let fraction = (event % 120).min(120 - event % 120) as f64 / 120.0;
             shell.pointer_move((x - 100.0, y + fraction * grid.height as f64));
@@ -40,8 +295,7 @@ fn page_drag_release_over_right_rail_reaches_its_owner() {
         assert!(right.width > 0);
         shell.pointer_move(((right.x + right.width / 2) as f64, y + 200.0));
         shell.pointer_button(false, now + Duration::from_secs(31));
-        assert!(!shell.page_pressed, "page capture retained at {scale}");
-        assert!(!shell.rail_pressed);
+        assert_eq!(shell.press, None, "page capture retained at {scale}");
         let offset = shell.foundry.offset;
         shell.pointer_move((x - 100.0, y + 400.0));
         assert_eq!(
@@ -773,7 +1027,7 @@ fn chrome_release_on_page_does_not_activate_and_disabled_controls_do_not_focus()
     shell.pointer_move((500.0, 300.0));
     shell.pointer_button(false, now);
     assert!(!shell.left_collapsed);
-    assert_eq!(shell.pressed, None);
+    assert_eq!(shell.press, None);
     let rect = shell
         .controls()
         .into_iter()

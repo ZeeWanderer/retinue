@@ -20,7 +20,8 @@ pub struct Painter<'a> {
 
 pub(crate) use blend2d::ImageStorage;
 pub use blend2d::{
-    Error as PainterError, ImageMemory, RuntimeResources, image_memory, runtime_resources,
+    Error as PainterError, ImageMemory, PixelSource, RuntimeResources, image_memory,
+    runtime_resources,
 };
 
 /// Total concurrency, including the caller; bounded to six and available CPUs.
@@ -86,6 +87,11 @@ impl<'a> Painter<'a> {
 
     pub fn thread_count(&self) -> u32 {
         self.context.thread_count()
+    }
+
+    /// Queue an exact pixel replacement in target coordinates. Both leases last through completion.
+    pub fn copy_source(&mut self, source: &PixelSource<'a>, area: crate::Rect, target: (u32, u32)) {
+        self.context.copy_source(source, area, target);
     }
 
     pub fn fail(&mut self, error: PainterError) {

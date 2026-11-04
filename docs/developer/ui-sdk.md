@@ -41,6 +41,26 @@ In wfgui, put each View and custom Layout in its own named file, grouped by page
 or reusable feature. Keep its model and actions alongside the views, and
 task/client integration outside presentation. See the [source map](gui-organization.md).
 
+## Native Hosts
+
+Views, layout and state are host-agnostic. The `desktop` feature supplies a winit
+window host; `overlay` supplies the layer-shell `surface::Application` host used
+by PoE2. Warframe keeps its custom lifecycle for compact/full-output surfaces,
+scene expiry and interaction policy. A custom loop need not reimplement rendering.
+
+`retinue-render::surface::{Buffered, Aged}` own repair history, relocation and failed
+submission invalidation. SDK `presentation_buffers::Buffers` owns Wayland storage,
+source/target leases and native submission. `present` queues attachment, damage,
+host-specific pre-commit requests and commit, then updates buffer age/source state.
+It preserves physical damage rectangles on modern surfaces and uses full surface
+damage when buffer-coordinate damage is unavailable. All three Wayland hosts use
+this path; it does not add a pixel copy or another buffer.
+
+Publish the renderer's `Submission` only after native presentation succeeds.
+Native adapters own flushing, frame callbacks and platform events; applications
+retain visibility, focus, input and work-budget policy. Do not move these policies
+into Views or make a universal game event-loop trait to share protocol plumbing.
+
 ## Retained Views
 
 `View::body` returns a description. Composites implement `View`; structural and
@@ -100,6 +120,12 @@ update. Equal inputs skip body evaluation, while observed changes invalidate the
 consumer independently. Resize alone does not reevaluate bodies. Changed source
 descriptions and changed primitive output are distinct: a child's new color does
 not require projecting its enclosing layout again.
+
+Structural edits reuse clean projected subtree ranges and rebase their compact
+indices. Changed ancestor placement, clipping and input gates still apply. This
+avoids traversing unchanged layout nodes, not all linear metadata work. Resizing,
+scale changes and recovery after a layout failure use full projection; no second
+persistent scene or raster cache is retained.
 
 Identity is type plus structural slot, or an explicit sibling `id`. Keyed
 reordering preserves owned fields; removal or a type/key change releases them.
@@ -229,6 +255,10 @@ requires the original pressed region to remain under the pointer. Disabled
 opaque controls block underlying targets without activating them.
 Geometry-only changes retain identity indexes; paint-only updates retain the
 whole input snapshot. `UpdateStats::input_updates` exposes actual publications.
+Pointer dispatch and same-position queries share the current hit result. Layout
+publication rechecks it, including stationary pointers and changed ancestry.
+Motion publishes only changed interaction states; replacing the target topology
+or its observed state still performs full reconciliation.
 
 Native coordinate conversion, modal scopes, editing and game/window focus policy
 remain in hosts. Convert coordinates once and route motion, press, release and
@@ -237,6 +267,10 @@ Recompute hover after layout changes even without pointer motion. Prepare input
 geometry independently of rasterization; caching or partial repair must not omit
 targets. PoE's surface host prepares layout before painting, once a presentation
 buffer is available, so buffer backpressure cannot advance actionable geometry.
+Hosts with separate page/rail trees retain the pressed pane until release or
+cancellation; the current pointer position must not redirect its release. Navigation
+and blocking modals cancel obsolete ownership. Hit/cursor queries may reconcile
+changed geometry, but should leave paint-only hover/artwork updates for painting.
 
 Useful precedents: [Flutter's layout-based hit testing](https://api.flutter.dev/flutter/rendering/RenderBox-class.html),
 [stationary hover refresh](https://api.flutter.dev/flutter/rendering/MouseTracker/updateAllDevices.html),
@@ -322,8 +356,11 @@ state: execution can happen multiple times or be skipped. Bounds describe possib
 writes, not proof that pixels changed or that the area is fully opaque.
 
 Canvas records typed commands and frame diffing derives damage at paint-instance
-granularity. Fine-grained changes within one custom drawing remain a separate
-optimization. Verify incremental
+granularity. Scene patches use that paint-frame damage directly; aggregate subtree
+bounds remain geometry metadata, not additional repaint requests. Otherwise even
+a paint-free container can erase holes between its children's damage before the
+repair planner sees them. Fine-grained changes within one custom drawing remain a
+separate optimization. Verify incremental
 output against independently constructed full renders, including movement,
 removal, resource updates, effects, scaling, overlap and aged buffers.
 

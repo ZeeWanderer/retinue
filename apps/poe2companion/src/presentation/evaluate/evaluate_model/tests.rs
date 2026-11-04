@@ -60,6 +60,37 @@ fn page(offset: u32, end: u32, next: Option<u32>) -> ListingPage {
 }
 
 #[test]
+fn query_refresh_keeps_rows_but_rejects_old_pages_and_searches() {
+    let mut model = paged_model();
+    model.fetch(0, 8).unwrap();
+    model.fetched(0, page(0, 10, Some(10)));
+    model.fetch(0, 8).unwrap();
+    model.refresh_results();
+    assert!(model.results_stale);
+    assert_eq!(model.results.as_ref().unwrap().listings.len(), 10);
+    assert!(model.fetch(0, 8).is_none());
+    model.fetched(0, page(10, 20, None));
+    model.searched(0, Results::default());
+    assert_eq!(model.results.as_ref().unwrap().listings.len(), 10);
+    model.failed(model.generation, "offline".into());
+    assert!(model.results_stale);
+    assert_eq!(model.results.as_ref().unwrap().listings.len(), 10);
+    model.searched(
+        model.generation,
+        Results {
+            search_id: "new-order".into(),
+            next_offset: Some(0),
+            ..Default::default()
+        },
+    );
+    assert!(!model.results_stale);
+    assert_eq!(model.fetch(0, 8).unwrap()["search_id"], "new-order");
+    model.invalidate();
+    assert!(model.results.is_none());
+    assert!(!model.results_stale);
+}
+
+#[test]
 fn pages_follow_visible_threshold_and_preserve_server_order() {
     let mut m = paged_model();
     assert_eq!(m.fetch(0, 8).unwrap()["offset"], 0);

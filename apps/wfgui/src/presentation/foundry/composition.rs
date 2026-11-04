@@ -17,6 +17,13 @@ pub(super) use super::card::CardLayout;
 
 #[derive(Clone, PartialEq)]
 struct State {
+    layout: LayoutState,
+    images: u64,
+    hovered: Option<usize>,
+}
+
+#[derive(Clone, PartialEq)]
+struct LayoutState {
     size: (u32, u32),
     scale: f32,
     viewport: Rect,
@@ -24,20 +31,43 @@ struct State {
     offset: u32,
     visible: std::ops::Range<usize>,
     revision: u64,
-    images: u64,
     categories: [f32; 8],
     search_width: f32,
     search_empty: bool,
-    hovered: Option<usize>,
     filters: Option<filters::declaration::Geometry>,
     filter_offset: u32,
     component_bounds: Option<Rect>,
     component_controls: Vec<(Action, Rect)>,
 }
 
+impl LayoutState {
+    fn new(view: &Foundry) -> Self {
+        Self {
+            size: view.size,
+            scale: view.scale,
+            viewport: view.viewport,
+            grid: view.grid,
+            offset: view.offset,
+            visible: view.visible(0),
+            revision: view.layout_revision,
+            categories: view.category_motion.weights,
+            search_width: view.search_motion.width,
+            search_empty: view.search.borrow().text().is_empty(),
+            filters: filters::declaration::Geometry::new(view),
+            filter_offset: view.filter_panel.offset,
+            component_bounds: view
+                .component_open()
+                .then_some(view.component_panel.popup.bounds),
+            component_controls: view.component_controls(),
+        }
+    }
+}
+
 pub(super) struct Composition {
     pub tree: ViewTree,
-    renderer: RefCell<Renderer>,
+    pub(super) renderer: RefCell<Renderer>,
+    #[cfg(test)]
+    pub raster_mode: RasterMode,
     inputs: Model,
     state: Option<State>,
     identities: HashMap<String, u64>,
@@ -48,6 +78,11 @@ pub(super) struct Composition {
     pub paint_profile: std::cell::Cell<[Duration; 3]>,
     #[cfg(all(test, feature = "profiling"))]
     pub record_profile: [Duration; 2],
+    #[cfg(all(test, feature = "profiling"))]
+    pub resolve_profile: (
+        retinue_ui::runtime::UpdateProfile,
+        retinue_ui::scene::UpdateProfile,
+    ),
 }
 
 impl Default for Composition {
@@ -58,6 +93,8 @@ impl Default for Composition {
             renderer: RefCell::new(Renderer::new(retinue_render::ResidencyPolicy::desktop(
                 32 * 1024 * 1024,
             ))),
+            #[cfg(test)]
+            raster_mode: RasterMode::Explicit,
             inputs,
             state: None,
             identities: HashMap::new(),
@@ -68,6 +105,8 @@ impl Default for Composition {
             paint_profile: Default::default(),
             #[cfg(all(test, feature = "profiling"))]
             record_profile: Default::default(),
+            #[cfg(all(test, feature = "profiling"))]
+            resolve_profile: Default::default(),
         }
     }
 }
@@ -96,6 +135,13 @@ impl Composition {
         self.renderer.borrow().residency_stats()
     }
 
+    pub fn raster_mode(&self) -> RasterMode {
+        #[cfg(test)]
+        return self.raster_mode;
+        #[cfg(not(test))]
+        RasterMode::Explicit
+    }
+
     #[cfg(test)]
     pub fn paint_stats(&self) -> retinue_render::PaintStats {
         self.renderer.borrow().stats
@@ -117,24 +163,9 @@ impl Composition {
 
     fn state(view: &Foundry) -> State {
         State {
-            size: view.size,
-            scale: view.scale,
-            viewport: view.viewport,
-            grid: view.grid,
-            offset: view.offset,
-            visible: view.visible(0),
-            revision: view.layout_revision,
+            layout: LayoutState::new(view),
             images: view.image_revision,
-            categories: view.category_motion.weights,
-            search_width: view.search_motion.width,
-            search_empty: view.search.borrow().text().is_empty(),
             hovered: view.hovered_card(),
-            filters: filters::declaration::Geometry::new(view),
-            filter_offset: view.filter_panel.offset,
-            component_bounds: view
-                .component_open()
-                .then_some(view.component_panel.popup.bounds),
-            component_controls: view.component_controls(),
         }
     }
 
@@ -143,16 +174,17 @@ impl Composition {
         if self.state.as_ref() == Some(&state) || view.scale <= 0.0 {
             return;
         }
+        let layout = &state.layout;
         self.inputs.offset.set(content_offset(view));
-        self.inputs.filters.set(state.filters);
+        self.inputs.filters.set(layout.filters);
         self.inputs.modal.set(view.popup_open());
         self.inputs.component_bounds.set(
-            state
+            layout
                 .component_bounds
                 .map(|rect| card::bounds(rect, view.scale)),
         );
         let overlay_controls = if view.component_open() {
-            state.component_controls.clone()
+            layout.component_controls.clone()
         } else if view.filters_open() {
             Vec::new()
         } else if view.scroll.maximum() > 0.0 {
@@ -188,25 +220,23 @@ impl Composition {
             .expect("unique overlay controls");
         self.inputs
             .filter_offset
-            .set((0.0, -(state.filter_offset as f32) / view.scale));
+            .set((0.0, -(layout.filter_offset as f32) / view.scale));
         let content_only = self.state.as_ref().is_some_and(|old| {
-            let mut layout = state.clone();
-            layout.offset = old.offset;
-            layout.visible = old.visible.clone();
-            layout.hovered = old.hovered;
-            layout.images = old.images;
-            layout.filters = old.filters;
-            layout.filter_offset = old.filter_offset;
-            &layout == old
+            let mut layout = layout.clone();
+            layout.offset = old.layout.offset;
+            layout.visible = old.layout.visible.clone();
+            layout.filters = old.layout.filters;
+            layout.filter_offset = old.layout.filter_offset;
+            layout == old.layout
         });
         if !content_only {
             self.sync_chrome(view);
         }
         let retained_window = self.state.as_ref().is_some_and(|old| {
-            old.scale == state.scale
-                && old.grid == state.grid
-                && old.revision == state.revision
-                && old.visible == state.visible
+            old.layout.scale == layout.scale
+                && old.layout.grid == layout.grid
+                && old.layout.revision == layout.revision
+                && old.layout.visible == layout.visible
         });
         if retained_window {
             for index in [self.state.as_ref().and_then(|s| s.hovered), state.hovered]
@@ -230,7 +260,7 @@ impl Composition {
                 self.sync_artwork(view);
             }
         } else {
-            self.sync_cards(view, &state);
+            self.sync_cards(view, layout);
         }
         self.tree
             .update(view.size, view.scale)
@@ -273,11 +303,11 @@ impl Composition {
             .expect("unique Foundry controls");
     }
 
-    fn sync_cards(&mut self, view: &Foundry, state: &State) {
+    fn sync_cards(&mut self, view: &Foundry, layout: &LayoutState) {
         if self
             .state
             .as_ref()
-            .is_none_or(|old| old.revision != state.revision)
+            .is_none_or(|old| old.layout.revision != layout.revision)
         {
             let ids: HashSet<_> = view
                 .snapshot
@@ -287,9 +317,12 @@ impl Composition {
                 .collect();
             self.identities.retain(|id, _| ids.contains(id.as_str()));
         }
-        if self.state.as_ref().is_none_or(|old| {
-            old.revision != state.revision || old.grid != state.grid || old.scale != state.scale
-        }) {
+        let retained_content = self.state.as_ref().is_some_and(|old| {
+            old.layout.revision == layout.revision
+                && old.layout.grid == layout.grid
+                && old.layout.scale == layout.scale
+        });
+        if !retained_content {
             let order = view.filtered.iter().map(|&row| {
                 let id = *self
                     .identities
@@ -328,19 +361,36 @@ impl Composition {
             let id = self.identities[&card.id];
             let key = ElementKey::new("foundry.card", id);
             let content_key = ElementKey::new("foundry.card.content", id);
-            let layout = card::CardLayout::new(view, card);
-            let mut canvas = Canvas::new(view.scale);
-            view.record_card_content(&mut canvas, card, &layout);
-            let artwork = self.artwork(content_key, canvas.commands);
-            visible_artwork.insert(content_key);
             let title_key = ElementKey::new("foundry.title", id);
-            let title = self.artwork(title_key, card::title(view, card, &layout));
-            visible_artwork.insert(title_key);
+            let mut content = if let Some(mut content) = retained_content
+                .then(|| self.inputs.cards.get(key))
+                .flatten()
+            {
+                if self
+                    .state
+                    .as_ref()
+                    .is_some_and(|old| old.images != view.image_revision)
+                {
+                    let mut canvas = Canvas::new(view.scale);
+                    view.record_card_content(&mut canvas, card, &content.layout);
+                    content.artwork = self.artwork(content_key, canvas.commands);
+                }
+                content
+            } else {
+                let layout = card::CardLayout::new(view, card);
+                let mut canvas = Canvas::new(view.scale);
+                view.record_card_content(&mut canvas, card, &layout);
+                let artwork = self.artwork(content_key, canvas.commands);
+                let title = self.artwork(title_key, card::title(view, card, &layout));
+                card::Content::new(view, card, index, layout, title, artwork)
+            };
+            content.hovered = view.hovered_card() == Some(index);
+            visible_artwork.extend([content_key, title_key]);
             self.actions.insert(
                 ElementKey::new("foundry.favorite", id),
                 Action::Favorite(row),
             );
-            for part in 0..layout.parts.len() {
+            for part in 0..content.layout.parts.len() {
                 let part_id = id * 8 + part as u64;
                 self.actions.insert(
                     ElementKey::new("foundry.component", part_id),
@@ -353,10 +403,7 @@ impl Composition {
                     );
                 }
             }
-            cards.push((
-                key,
-                card::Content::new(view, card, index, layout, title, artwork),
-            ));
+            cards.push((key, content));
         }
         self.inputs
             .cards
@@ -455,29 +502,36 @@ impl Composition {
         })
     }
 
-    pub fn record_chrome(&mut self, toolbar: Vec<Command>, overlays: Vec<Command>) {
+    pub fn record_chrome(
+        &mut self,
+        background: Vec<Command>,
+        toolbar: Vec<Command>,
+        overlays: Vec<Command>,
+    ) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
+        self.inputs.background_paint.set(DrawList::from(background));
         self.inputs.toolbar_paint.set(DrawList::from(toolbar));
         self.inputs.overlays_paint.set(DrawList::from(overlays));
         let state = self.state.as_ref().expect("resolved Foundry geometry");
         self.tree
-            .update(state.size, state.scale)
+            .update(state.layout.size, state.layout.scale)
             .expect("Foundry chrome");
         #[cfg(all(test, feature = "profiling"))]
         let updated = Instant::now();
-        self.renderer
-            .get_mut()
-            .prepare(self.tree.frame(), RasterMode::Explicit);
         #[cfg(all(test, feature = "profiling"))]
         self.paint_profile
-            .set([updated - started, updated.elapsed(), Duration::ZERO]);
+            .set([updated - started, Duration::ZERO, Duration::ZERO]);
     }
 
     pub fn paint(&self, view: &Foundry, p: &mut Painter<'_>) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
-        self.renderer.borrow_mut().draw_with(
+        let mut renderer = self.renderer.borrow_mut();
+        renderer.prepare_for(self.tree.frame(), self.raster_mode(), &p.visible_regions());
+        #[cfg(all(test, feature = "profiling"))]
+        let prepared = Instant::now();
+        renderer.draw_with(
             self.tree.frame(),
             p,
             Rect {
@@ -496,7 +550,8 @@ impl Composition {
         #[cfg(all(test, feature = "profiling"))]
         {
             let mut profile = self.paint_profile.get();
-            profile[2] = started.elapsed();
+            profile[1] = prepared - started;
+            profile[2] = prepared.elapsed();
             self.paint_profile.set(profile);
         }
     }
@@ -520,6 +575,20 @@ pub(super) fn position(view: impl IntoElement, bounds: Bounds) -> Element {
 }
 
 impl Foundry {
+    pub(super) fn input_composition(&self) -> std::cell::Ref<'_, Composition> {
+        let layout = LayoutState::new(self);
+        let stale = self
+            .composition
+            .borrow()
+            .state
+            .as_ref()
+            .is_none_or(|state| state.layout != layout);
+        if stale && self.active {
+            self.composition.borrow_mut().update(self);
+        }
+        self.composition.borrow()
+    }
+
     pub(super) fn resolved_composition(&self) -> std::cell::Ref<'_, Composition> {
         let stale = self.composition.borrow().state.as_ref() != Some(&Composition::state(self));
         if stale && self.active {
@@ -532,6 +601,6 @@ impl Foundry {
         if self.scale <= 0.0 {
             return self.layout_controls();
         }
-        self.resolved_composition().controls(false)
+        self.input_composition().controls(false)
     }
 }

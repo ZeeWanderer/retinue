@@ -981,6 +981,7 @@ fn presentation_patches_match_relayout_with_recycled_buffers() {
             let repair = tracker.plan(if frame < 3 { 0 } else { 3 }, size).unwrap();
             renderer.prepare(retained.frame(), RasterMode::Replay);
             direct.prepare(oracle.frame(), RasterMode::Replay);
+            let repair_region = repair.repair.clone();
             render(
                 &retained,
                 &mut renderer,
@@ -995,7 +996,18 @@ fn presentation_patches_match_relayout_with_recycled_buffers() {
                 size,
                 Damage::Full.bounds(size).unwrap(),
             );
-            assert_eq!(buffers[frame % 3], expected, "scale={scale}, frame={frame}");
+            let mismatch = buffers[frame % 3]
+                .chunks_exact(4)
+                .zip(expected.chunks_exact(4))
+                .enumerate()
+                .find(|(_, (a, b))| {
+                    // See rounded_edge_clipping_has_only_native_colour_quantization.
+                    a[3] != b[3] || a[..3].iter().zip(&b[..3]).any(|(a, b)| a.abs_diff(*b) > 1)
+                });
+            assert!(
+                mismatch.is_none(),
+                "scale={scale}, frame={frame}, pixel={mismatch:?}, repair={repair_region:?}"
+            );
             tracker.submitted();
         }
     }

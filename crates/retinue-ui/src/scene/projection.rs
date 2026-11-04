@@ -1,6 +1,7 @@
 use super::*;
 use std::ops::Range;
 
+#[derive(Clone)]
 pub(super) struct Placement {
     pub node: usize,
     pub parent: Option<usize>,
@@ -72,7 +73,6 @@ impl Scene {
         let mut ranges = Vec::new();
         let mut input_ranges = Vec::new();
         let mut input_changed = false;
-        let mut damage = Damage::None;
         let mut updates = Vec::new();
         let mut groups = HashSet::default();
         for i in 0..self.tree.changed.len() {
@@ -135,7 +135,6 @@ impl Scene {
                 }
             }
             if moved || painted {
-                damage = damage.union(Damage::rect(self.geometry[index].paint));
                 ranges.push(index..if moved { placement.end } else { index + 1 });
             }
         }
@@ -194,11 +193,10 @@ impl Scene {
                 context: self.render_context(index, self.frame.scale()),
             })
             .collect::<Vec<_>>();
-        damage = damage.union(
-            self.frame
-                .patch_resolved(updates, placements, groups)
-                .expect("valid scene patch"),
-        );
+        let damage = self
+            .frame
+            .patch_resolved(updates, placements, groups)
+            .expect("valid scene patch");
         for range in merged.iter().rev() {
             for index in range.clone().rev() {
                 self.aggregate(index);
@@ -211,13 +209,24 @@ impl Scene {
                 parent = self.projection[index].parent;
             }
         }
-        for range in merged {
-            damage = damage.union(Damage::rect(self.geometry[range.start].paint));
-        }
         damage
     }
 
     fn project_one(&mut self, index: usize) {
+        let placement = &self.projection[index];
+        let paint = placement.chunk.map(|_| {
+            self.tree.nodes[placement.node]
+                .as_ref()
+                .unwrap()
+                .recorded
+                .as_ref()
+                .unwrap()
+                .bounds()
+        });
+        self.project_geometry(index, paint);
+    }
+
+    pub(super) fn project_geometry(&mut self, index: usize, paint: Option<PaintExtent>) {
         let placement = &self.projection[index];
         let (parent, clip) = placement.parent.map_or(
             (
@@ -259,17 +268,9 @@ impl Scene {
         } else {
             clip
         };
-        let paint = if placement.chunk.is_some() {
-            let program = self.tree.nodes[placement.node]
-                .as_ref()
-                .unwrap()
-                .recorded
-                .as_ref()
-                .unwrap();
-            program.bounds().visible((pixels.x, pixels.y), clip)
-        } else {
-            Rect::default()
-        };
+        let paint = paint.map_or(Rect::default(), |paint| {
+            paint.visible((pixels.x, pixels.y), clip)
+        });
         self.projection[index].clip = clip;
         self.projection[index].own_paint = paint;
         self.geometry[index].layout = bounds;
@@ -278,7 +279,7 @@ impl Scene {
         self.stats.nodes += 1;
     }
 
-    fn aggregate(&mut self, index: usize) -> bool {
+    pub(super) fn aggregate(&mut self, index: usize) -> bool {
         let mut paint = self.projection[index].own_paint;
         let mut child = index + 1;
         while child < self.projection[index].end {

@@ -62,6 +62,10 @@ impl From<Element> for Subtree {
 }
 
 impl LayoutContext<'_> {
+    pub(crate) fn invalidate_projection(&mut self) {
+        self.tree.changed.push(self.node);
+    }
+
     pub fn child_count(&self) -> usize {
         self.tree.nodes[self.node].as_ref().unwrap().children.len()
     }
@@ -441,6 +445,7 @@ impl Tree {
                 if node.parent != parent {
                     node.parent = parent;
                     self.topology_changed = true;
+                    self.changed.push(slot);
                     self.invalidate(slot);
                 }
                 slot
@@ -483,13 +488,14 @@ impl Tree {
                     .map(|paint| (paint.key, paint.cache))
                     != element.paint.as_ref().map(|paint| (paint.key, paint.cache))
         });
-        self.topology_changed |= self.nodes[slot].as_ref().is_none_or(|old| {
+        let topology_changed = self.nodes[slot].as_ref().is_none_or(|old| {
             old.parent != parent
                 || old.element.cache_hint != element.cache_hint
                 || (old.element.style.display == taffy::Display::None)
                     != (element.style.display == taffy::Display::None)
         });
-        if projected {
+        self.topology_changed |= topology_changed;
+        if projected || topology_changed {
             self.changed.push(slot);
         }
         if let Some(node) = &mut self.nodes[slot] {
@@ -513,6 +519,9 @@ impl Tree {
         let node = self.nodes[slot].as_mut().unwrap();
         let reordered = node.children != children;
         self.topology_changed |= reordered;
+        if reordered {
+            self.changed.push(slot);
+        }
         let changed = changed || reordered;
         node.children = children;
         if changed {
