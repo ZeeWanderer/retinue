@@ -21,7 +21,7 @@ from reports import ROOT, SCHEMA, digest, fixture_digest, normalize, read_json, 
 
 CATALOG = Path(__file__).with_name("suites.toml")
 BUILD_ENV = ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CC", "CXX", "CFLAGS", "CXXFLAGS",
-             "LDFLAGS", "LLVM_ROOT", "WFCLI_CPU_BASELINE")
+             "LDFLAGS", "LLVM_ROOT", "RETINUE_CPU_BASELINE")
 MEASURE_ENV = ("LD_PRELOAD", "LD_LIBRARY_PATH", "MALLOC_CONF", "MALLOC_ARENA_MAX",
                "MIMALLOC_VERBOSE", "MIMALLOC_PURGE_DELAY")
 

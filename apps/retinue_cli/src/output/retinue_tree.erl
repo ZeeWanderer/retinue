@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%% Thin adapter from wfcli tree nodes to dirtree terminal output.
+%% Thin adapter from Retinue tree nodes to dirtree terminal output.
 %%%-------------------------------------------------------------------
 -module(retinue_tree).
 

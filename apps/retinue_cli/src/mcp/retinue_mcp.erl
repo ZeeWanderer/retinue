@@ -2,7 +2,7 @@
 -export([name/0, instructions/0, definitions/0, call/2, resources/0, read/1]).
 
 name() -> <<"retinue-mcp">>.
-instructions() -> <<"Select game-prefixed tools for game data. Read wfcli://query-language for Warframe queries.">>.
+instructions() -> <<"Select game-prefixed tools for game data. Read retinue://warframe/query-language for Warframe queries.">>.
 definitions() ->
     [#{<<"name">> => <<"daemon_status">>, <<"description">> => <<"Inspect Retinue daemon and game services">>,
        <<"inputSchema">> => #{<<"type">> => <<"object">>, <<"properties">> => #{}}},

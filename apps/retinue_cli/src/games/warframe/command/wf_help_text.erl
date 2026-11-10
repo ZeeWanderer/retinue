@@ -12,7 +12,7 @@ query_guide() ->
         "  - Sorting: sort=field or sort=-field (desc).\n"
     ].
 
-query_examples() -> query_examples("wfcli").
+query_examples() -> query_examples("retinue warframe").
 
 query_examples(Name) ->
     [

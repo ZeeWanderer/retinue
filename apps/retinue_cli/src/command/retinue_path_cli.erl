@@ -38,7 +38,7 @@ json_report({App, {error, Reason}}) ->
 owner_reports() ->
     [owner_report(Owner) || Owner <- owners()].
 
-owners() -> [retinue, retinue_daemon, wfcli, wfcompanion, wfgui, poe2companion, arccompanion].
+owners() -> [retinue, retinue_daemon, warframe, wfcompanion, wfgui, poe2companion, arccompanion].
 
 print_merged(Reports) ->
     {Paths, Errors} = collect_paths(Reports, [], []),
@@ -112,7 +112,7 @@ path_node(#{kind := Kind, path := Path, status := Status, links := Links}) ->
                  || {Link, Target} <- Links],
     {kind_label(Kind), [PathNode | LinkNodes]}.
 
-owner_report(Owner) when Owner =:= retinue; Owner =:= wfcli ->
+owner_report(Owner) when Owner =:= retinue; Owner =:= warframe ->
     {Owner, {ok, app_paths(Owner)}};
 owner_report(retinue_daemon) ->
     {retinue_daemon, daemon_paths()};

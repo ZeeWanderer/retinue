@@ -142,19 +142,19 @@ script() ->
     Options = [{Key ++ " " ++ Spelling, Arg}
                || {Key, Node} <- Contexts, Arg <- maps:get(arguments, Node, []),
                   Spelling <- retinue_cli_args:options(#{arguments => [Arg]})],
-    [bash_map("_WFCLI_COMPLETION_CONTEXTS",
+    [bash_map("_RETINUE_COMPLETION_CONTEXTS",
               [{Key, context_choices(Node,
                         maps:from_list([{maps:get(name, A), present}
                                         || A <- maps:get(arguments, Node, []), not is_option(A)]))}
                || {Key, Node} <- Contexts]),
-     bash_map("_WFCLI_COMPLETION_POSITIONAL",
+     bash_map("_RETINUE_COMPLETION_POSITIONAL",
               [{Key ++ " " ++ integer_to_list(Index), Choices}
                || {Key, Node} <- Contexts,
                   {Index, Choices} <- lists:enumerate(0, positional_choices(Node))]),
-     bash_map("_WFCLI_COMPLETION_ARITY", [{Key, [arity(Arg)]} || {Key, Arg} <- Options]),
-     bash_map("_WFCLI_COMPLETION_VALUES",
+     bash_map("_RETINUE_COMPLETION_ARITY", [{Key, [arity(Arg)]} || {Key, Arg} <- Options]),
+     bash_map("_RETINUE_COMPLETION_VALUES",
               [{Key, retinue_cli_args:choices(Arg)} || {Key, Arg} <- Options]),
-     bash_map("_WFCLI_COMPLETION_RAW",
+     bash_map("_RETINUE_COMPLETION_RAW",
               [{Key, ["1"]} || {Key, Node} <- Contexts,
                               lists:any(fun(Arg) -> not is_option(Arg) andalso
                                             maps:get(nargs, Arg, one) =:= all end,
@@ -183,16 +183,16 @@ bash_function() ->
     "    fi\n"
     "    if [[ $word == -- ]]; then literal=1; break; fi\n"
     "    option=\"$key \${word%%=*}\"\n"
-    "    case \"\${_WFCLI_COMPLETION_ARITY[$option]-}\" in\n"
+    "    case \"\${_RETINUE_COMPLETION_ARITY[$option]-}\" in\n"
     "      flag) continue ;;\n"
     "      all) literal=1; break ;;\n"
     "      value) [[ $word == *=* ]] || pending=$option; continue ;;\n"
     "    esac\n"
     "    if [[ $key == __root__ ]]; then child=$word; else child=\"$key $word\"; fi\n"
-    "    if ((position == 0)) && [[ $word == help && \${_WFCLI_COMPLETION_CONTEXTS[$child]+set} ]]; then continue; fi\n"
-    "    if ((position == 0)) && [[ \${_WFCLI_COMPLETION_CONTEXTS[$child]+set} ]]; then\n"
+    "    if ((position == 0)) && [[ $word == help && \${_RETINUE_COMPLETION_CONTEXTS[$child]+set} ]]; then continue; fi\n"
+    "    if ((position == 0)) && [[ \${_RETINUE_COMPLETION_CONTEXTS[$child]+set} ]]; then\n"
     "      key=$child\n"
-    "    elif [[ \${_WFCLI_COMPLETION_RAW[$key]-} ]]; then\n"
+    "    elif [[ \${_RETINUE_COMPLETION_RAW[$key]-} ]]; then\n"
     "      literal=1; break\n"
     "    else\n"
     "      ((position+=1))\n"
@@ -202,14 +202,14 @@ bash_function() ->
     "  if ((literal)); then compopt -o default; return; fi\n"
     "  if [[ -n $pending ]]; then\n"
     "    [[ $current != = ]] || current=''\n"
-    "    choices=\"\${_WFCLI_COMPLETION_VALUES[$pending]-}\"\n"
+    "    choices=\"\${_RETINUE_COMPLETION_VALUES[$pending]-}\"\n"
     "  elif [[ $current == --*=* ]]; then\n"
     "    option=\"$key \${current%%=*}\"\n"
     "    prefix=\"\${current%%=*}=\"; current=\"\${current#*=}\"\n"
-    "    choices=\"\${_WFCLI_COMPLETION_VALUES[$option]-}\"\n"
+    "    choices=\"\${_RETINUE_COMPLETION_VALUES[$option]-}\"\n"
     "  else\n"
     "    option=\"$key $position\"\n"
-    "    choices=\"\${_WFCLI_COMPLETION_CONTEXTS[$key]-} \${_WFCLI_COMPLETION_POSITIONAL[$option]-}\"\n"
+    "    choices=\"\${_RETINUE_COMPLETION_CONTEXTS[$key]-} \${_RETINUE_COMPLETION_POSITIONAL[$option]-}\"\n"
     "  fi\n"
     "  compgen -V COMPREPLY -W \"$choices\" -- \"$current\" || true\n"
     "  if [[ -n $prefix ]]; then\n"

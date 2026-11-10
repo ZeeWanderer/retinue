@@ -145,7 +145,7 @@ command_kind(_) -> undefined.
 -doc "Convert service failures into user-facing knowledge errors.".
 -spec format_error(term()) -> iodata().
 format_error({knowledge_missing, _Path}) ->
-    "WFCD knowledge is not cached; run: wfcli update --wfcd";
+    "WFCD knowledge is not cached; run: retinue warframe update --wfcd";
 format_error({bad_knowledge_cache, Path}) ->
     io_lib:format("invalid WFCD knowledge cache: ~s", [Path]);
 format_error({bad_knowledge_json, Path}) ->

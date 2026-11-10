@@ -348,7 +348,7 @@ atomic_write(Path, OriginalContent, Content) ->
 atomic_write_new(Path, Content) -> atomic_write(Path, Content, undefined, undefined).
 
 atomic_write(Path, Content, Mode, _OriginalContent) ->
-    Temp = Path ++ ".wfcli.tmp",
+    Temp = Path ++ ".retinue.tmp",
     case file:write_file(Temp, Content) of
         ok ->
             case Mode of undefined -> ok; _ -> file:change_mode(Temp, Mode) end,

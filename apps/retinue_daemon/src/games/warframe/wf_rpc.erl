@@ -78,4 +78,4 @@ paths(Status) ->
         #{cache_root := Cache} -> Cache;
         _ -> wf_paths:cache_file("assets")
     end,
-    wf_paths:directories(wfcli) ++ [{assets, Root}].
+    wf_paths:directories(warframe) ++ [{assets, Root}].

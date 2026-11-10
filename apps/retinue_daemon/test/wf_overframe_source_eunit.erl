@@ -110,7 +110,7 @@ pinned_revision_refreshes_derived_metadata_test() ->
     ?assertEqual(<<"galvanized">>, maps:get(<<"mod_variant">>, Presented)).
 
 pinned_revision_gets_current_ranked_card_text_test() ->
-    Key = {wfcli, mod_map, 2},
+    Key = {wf_resolve_registry, mod_map, 2},
     Previous = persistent_term:get(Key, undefined),
     persistent_term:put(Key, #{}),
     try

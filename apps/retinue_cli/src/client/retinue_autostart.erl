@@ -78,7 +78,7 @@ status_systemd() ->
         {error, _Reason} = Error -> Error
     end.
 
--doc "Return whether wfcli systemd user unit is installed.".
+-doc "Return whether the Retinue systemd user unit is installed.".
 -spec installed() -> boolean().
 installed() ->
     case retinue_build:homebrew_install() of

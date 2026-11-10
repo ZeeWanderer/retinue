@@ -29,7 +29,7 @@ use retinue_client::local_protocol::{
     INTERFACE_MARKET, INTERFACE_PLAYER, INTERFACE_RELICS,
 };
 
-const CLIENT_VERSION: &str = env!("WFCLI_VERSION");
+const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const RECONNECT_INTERVAL: Duration = Duration::from_secs(2);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);

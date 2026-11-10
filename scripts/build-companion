@@ -14,7 +14,7 @@ case "$mode" in
         cargo_profile=debug
         cargo_args=()
         cargo_targets=(--bins)
-        cpu_baseline="${WFCLI_CPU_BASELINE:-}"
+        cpu_baseline="${RETINUE_CPU_BASELINE:-}"
         ;;
     prod)
         cargo_profile=release
@@ -22,8 +22,8 @@ case "$mode" in
         cargo_targets=(--bins)
         # Warframe requires SSE4.2; v2 keeps release artifacts portable across supported CPUs.
         case "$(uname -m)" in
-            x86_64) cpu_baseline="${WFCLI_CPU_BASELINE:-x86-64-v2}" ;;
-            *) cpu_baseline="${WFCLI_CPU_BASELINE:-}" ;;
+            x86_64) cpu_baseline="${RETINUE_CPU_BASELINE:-x86-64-v2}" ;;
+            *) cpu_baseline="${RETINUE_CPU_BASELINE:-}" ;;
         esac
         ;;
     *)
@@ -33,7 +33,7 @@ case "$mode" in
 esac
 
 rustflags="${RUSTFLAGS:-}"
-export WFCLI_CPU_BASELINE="$cpu_baseline"
+export RETINUE_CPU_BASELINE="$cpu_baseline"
 if [[ -n "$cpu_baseline" ]]; then
     rustflags="${rustflags:+$rustflags }-Ctarget-cpu=$cpu_baseline -Clink-arg=-march=$cpu_baseline"
 fi
@@ -43,7 +43,7 @@ RUSTFLAGS="$rustflags" CARGO_TARGET_DIR="$target_dir" \
 "$root/scripts/build-debug-bridge" "$debug_bridge"
 WFCOMPANION_BUILD_DEBUG_BRIDGE="$root/$mode/libexec/wfcompanion-debug-output.exe" \
     WFCOMPANION_BUILD_TESSERACT="$tesseract_bin" \
-    WFCLI_CPU_BASELINE="$cpu_baseline" \
+    RETINUE_CPU_BASELINE="$cpu_baseline" \
     RUSTFLAGS="$rustflags" \
     CARGO_TARGET_DIR="$target_dir" \
     "${CARGO:-cargo}" build "${cargo_args[@]}" "${cargo_targets[@]}" --locked --manifest-path "$manifest"

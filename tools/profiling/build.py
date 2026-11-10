@@ -22,10 +22,10 @@ def environment(flavor, target_dir):
     env["CARGO_TARGET_DIR"] = str(target_dir)
     for name in ("CFLAGS", "CXXFLAGS"):
         env[name] = f"{env.get(name, '')} -g".strip()
-    baseline = env.get("WFCLI_CPU_BASELINE", "")
+    baseline = env.get("RETINUE_CPU_BASELINE", "")
     if not baseline and flavor == "prod" and platform.machine() == "x86_64":
         baseline = "x86-64-v2"
-    env["WFCLI_CPU_BASELINE"] = baseline
+    env["RETINUE_CPU_BASELINE"] = baseline
     if "CARGO_ENCODED_RUSTFLAGS" in env:
         flags = env["CARGO_ENCODED_RUSTFLAGS"].split("\x1f") if env["CARGO_ENCODED_RUSTFLAGS"] else []
     else:
@@ -70,7 +70,7 @@ def build(app, flavor, destination, target_dir):
         "profile": artifact["profile"], "features": artifact["features"],
         "environment": {name: env.get(name, "") for name in (
             "CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CARGO_ENCODED_RUSTFLAGS",
-            "CARGO_BUILD_TARGET", "WFCLI_CPU_BASELINE")},
+            "CARGO_BUILD_TARGET", "RETINUE_CPU_BASELINE")},
         "rustc": output(["rustc", "-Vv"]).strip(),
     }
     for name, fallback in (("CC", "cc"), ("CXX", "c++")):

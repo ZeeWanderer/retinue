@@ -15,7 +15,7 @@ state_file(Name) -> filename:join(state_dir(), Name).
 runtime_dir() -> retinue_paths:root(runtime).
 runtime_file(Name) -> filename:join(runtime_dir(), Name).
 
-directories(wfcli) ->
+directories(warframe) ->
     [{config, config_dir()}, {data, data_dir()},
      {cache, cache_dir()}, {state, state_dir()}];
 directories(retinue_daemon) ->

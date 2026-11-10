@@ -97,7 +97,7 @@ status() ->
             retinue_output:emit(#{managed_service => Managed, daemon => running,
                                 connection => Local, player => Player,
                                 game_metadata => maps:get(game_metadata, Info, unavailable)}, fun() ->
-            io:format("wfcompanion~n  wfcli-managed service: ~s~n",
+            io:format("wfcompanion~n  managed service: ~s~n",
                       [case Managed of true -> "active"; false -> "inactive" end]),
             print_local(Local),
             print_player(Player),
@@ -366,7 +366,7 @@ format_steam_error(Reason) -> io_lib:format("Steam setup failed: ~p", [Reason]).
 format_process_error(steam_launch_companion) ->
     "companion is Steam launch wrapper; stop it by exiting Warframe";
 format_process_error(unmanaged_companion) ->
-    "companion is connected but was not started by wfcli; refusing to kill it";
+    "connected companion is not managed by Retinue; stop it through its launcher";
 format_process_error({companion_binary_not_found, _Candidates}) ->
     "wfcompanion binary not found; run `make companion`";
 format_process_error({exit_status, Status, Output}) ->

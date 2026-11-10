@@ -78,7 +78,7 @@ ensure_dir(undefined) -> ok;
 ensure_dir(Dir) ->
     case filelib:is_dir(Dir) of
         true -> ok;
-        false -> filelib:ensure_dir(filename:join(Dir, "wfcli"))
+        false -> filelib:ensure_dir(filename:join(Dir, "placeholder"))
     end.
 
 with_lock(Cache, NowFun, LockTimeout, LockRetries, LockSleep, Fun) ->

@@ -122,7 +122,7 @@ query_raw_worldstate_paths(_Config) ->
 global_json_outputs(_Config) ->
     lists:foreach(fun(Args) -> ?assert(is_map(json_command(["--json" | Args]))) end,
         [["daemon", "status"], ["companion", "status"], ["companion", "capture", "status"],
-         ["player"], ["notifications"], ["paths", "wfcli"], ["completion", "status"],
+         ["player"], ["notifications"], ["paths", "warframe"], ["completion", "status"],
          ["diagnostics", "unresolved"]]).
 
 json_multiple_datasets(_Config) ->

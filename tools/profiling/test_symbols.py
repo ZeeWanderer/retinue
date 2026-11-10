@@ -28,7 +28,7 @@ class BuildSettingsTests(unittest.TestCase):
         self.assertEqual(env["CARGO_TARGET_DIR"], "/isolated")
         self.assertEqual(env["CXXFLAGS"], "-fPIC -g")
         self.assertEqual(env["CFLAGS"], "-g")
-        self.assertEqual(env["WFCLI_CPU_BASELINE"], "")
+        self.assertEqual(env["RETINUE_CPU_BASELINE"], "")
         self.assertIn("-Copt-level=2", env["CARGO_ENCODED_RUSTFLAGS"])
         self.assertNotIn("RUSTFLAGS", env)
 
@@ -41,12 +41,12 @@ class BuildSettingsTests(unittest.TestCase):
         self.assertEqual(flags[0], "-Clink-arg=path with spaces")
         self.assertNotIn("ignored", flags)
         self.assertIn("-Ctarget-cpu=x86-64-v2", flags)
-        self.assertEqual(env["WFCLI_CPU_BASELINE"], "x86-64-v2")
+        self.assertEqual(env["RETINUE_CPU_BASELINE"], "x86-64-v2")
 
     def test_explicit_baseline_is_respected(self):
-        with patch.dict(os.environ, {"WFCLI_CPU_BASELINE": "native"}, clear=True):
+        with patch.dict(os.environ, {"RETINUE_CPU_BASELINE": "native"}, clear=True):
             env = build.environment("prod", Path("/isolated"))
-        self.assertEqual(env["WFCLI_CPU_BASELINE"], "native")
+        self.assertEqual(env["RETINUE_CPU_BASELINE"], "native")
 
     def test_existing_output_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

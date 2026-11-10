@@ -7,33 +7,33 @@
          invalidate_mod_cache/0]).
 
 -define(ITEM_KEYS, [<<"displayName">>, <<"name">>, <<"locName">>, <<"ItemName">>]).
--define(MOD_MAP_KEY, {wfcli, mod_map, 2}).
--define(MOD_NAME_INDEX_KEY, {wfcli, mod_name_index, 2}).
+-define(MOD_MAP_KEY, {wf_resolve_registry, mod_map, 2}).
+-define(MOD_NAME_INDEX_KEY, {wf_resolve_registry, mod_name_index, 2}).
 
 language_map() ->
-    case persistent_term:get({wfcli, lang_map}, undefined) of
+    case persistent_term:get({wf_resolve_registry, lang_map}, undefined) of
         M when is_map(M) -> M;
         _ ->
             Map = lower_key_map(load_language_map()),
-            persistent_term:put({wfcli, lang_map}, Map),
+            persistent_term:put({wf_resolve_registry, lang_map}, Map),
             Map
     end.
 
 item_map() ->
-    case persistent_term:get({wfcli, item_map}, undefined) of
+    case persistent_term:get({wf_resolve_registry, item_map}, undefined) of
         M when is_map(M) -> M;
         _ ->
             Map = lower_key_map(load_item_map()),
-            persistent_term:put({wfcli, item_map}, Map),
+            persistent_term:put({wf_resolve_registry, item_map}, Map),
             Map
     end.
 
 node_map() ->
-    case persistent_term:get({wfcli, node_map}, undefined) of
+    case persistent_term:get({wf_resolve_registry, node_map}, undefined) of
         M when is_map(M) -> M;
         _ ->
             Map = lower_key_map(load_node_map()),
-            persistent_term:put({wfcli, node_map}, Map),
+            persistent_term:put({wf_resolve_registry, node_map}, Map),
             Map
     end.
 
@@ -62,8 +62,8 @@ mod_name_index() ->
 invalidate_mod_cache() ->
     persistent_term:erase(?MOD_MAP_KEY),
     persistent_term:erase(?MOD_NAME_INDEX_KEY),
-    persistent_term:erase({wfcli, mod_map}),
-    persistent_term:erase({wfcli, mod_name_index}),
+    persistent_term:erase({wf_resolve_registry, mod_map}),
+    persistent_term:erase({wf_resolve_registry, mod_name_index}),
     ok.
 
 load_language_map() ->
@@ -345,9 +345,9 @@ to_bin(V) ->
     retinue_text:to_binary(V).
 
 warn_once(Key) ->
-    case persistent_term:get({wfcli, warn, Key}, false) of
+    case persistent_term:get({wf_resolve_registry, warn, Key}, false) of
         true -> ok;
         false ->
-            persistent_term:put({wfcli, warn, Key}, true),
+            persistent_term:put({wf_resolve_registry, warn, Key}, true),
             logger:warning("~p cache unavailable; using raw identifiers", [Key])
     end.

@@ -9,7 +9,7 @@ fn main() {
     println!("cargo:rerun-if-changed=native");
     println!("cargo:rerun-if-changed={BLEND2D_SOURCE}");
     println!("cargo:rerun-if-changed={ASMJIT_SOURCE}");
-    println!("cargo:rerun-if-env-changed=WFCLI_CPU_BASELINE");
+    println!("cargo:rerun-if-env-changed=RETINUE_CPU_BASELINE");
     for variable in [
         "PATH",
         "CC",
@@ -54,7 +54,7 @@ fn main() {
         .arg("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
         .arg(format!("-DBLEND2D_DIR={}", blend2d_dir.display()))
         .arg(format!("-DASMJIT_DIR={}", asmjit_dir.display()));
-    let cpu = env::var_os("WFCLI_CPU_BASELINE").unwrap_or_default();
+    let cpu = env::var_os("RETINUE_CPU_BASELINE").unwrap_or_default();
     configure.arg(format!("-DRETINUE_CPU_BASELINE={}", cpu.to_string_lossy()));
     run(&mut configure, "configure native renderer");
     let mut build = Command::new("cmake");

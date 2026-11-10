@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%% Persistent wfcli service process.
+%% Persistent Retinue service process.
 %%%-------------------------------------------------------------------
 -module(retinue_daemon).
 

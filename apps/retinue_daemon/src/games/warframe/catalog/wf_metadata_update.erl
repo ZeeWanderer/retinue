@@ -57,14 +57,14 @@
 update_nodes() ->
     update_json(
         "https://raw.githubusercontent.com/WFCD/warframe-worldstate-data/master/data/solNodes.json",
-        "solNodes.json", {wfcli, node_map}).
+        "solNodes.json", {wf_resolve_registry, node_map}).
 
 -doc "Refresh localized strings used by item, node, and mission renderers.".
 -spec update_languages() -> update_result().
 update_languages() ->
     update_json(
         "https://raw.githubusercontent.com/WFCD/warframe-worldstate-data/master/data/languages.json",
-        "languages.json", {wfcli, lang_map}).
+        "languages.json", {wf_resolve_registry, lang_map}).
 
 update_json(Url, Name, TermKey) ->
     ensure_http(),
@@ -117,7 +117,7 @@ update_export(File, Index) ->
             case httpc:request(get, {Url, []}, [{timeout, 20000}],
                                [{body_format, binary}]) of
                 {ok, {{_, 200, _}, _Headers, Body}} ->
-                    write(File, {wfcli, export, File}, Body);
+                    write(File, {wf_metadata_update, export, File}, Body);
                 {ok, {{_, Code, _}, _Headers, Body}} ->
                     {error, {http_error, Url, Code, Body}};
                 {error, Reason} ->
@@ -214,7 +214,7 @@ update_all() ->
 -doc "Write validated metadata into retinue_daemon's preferred cache root.".
 -spec write_file(metadata_name(), binary()) -> update_result().
 write_file(Name, Body) when is_list(Name), is_binary(Body) ->
-    write(Name, {wfcli, metadata, Name}, Body).
+    write(Name, {wf_metadata_update, metadata, Name}, Body).
 
 write(Name, TermKey, Body) ->
     case paths(Name) of
@@ -255,7 +255,7 @@ write_atomic(Path, Body) ->
 
 clear_export_cache(Name) ->
     case lists:prefix("Export", Name) of
-        true -> persistent_term:erase({wfcli, item_map});
+        true -> persistent_term:erase({wf_resolve_registry, item_map});
         false -> ok
     end,
     case lists:prefix("ExportRecipes", Name) of
@@ -265,7 +265,7 @@ clear_export_cache(Name) ->
     case lists:prefix("ExportUpgrades", Name) of
         true ->
             wf_resolve_registry:invalidate_mod_cache(),
-            persistent_term:erase({wfcli, mod_db});
+            persistent_term:erase({wf_resolve_registry, mod_db});
         false ->
             ok
     end.

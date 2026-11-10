@@ -33,7 +33,7 @@ stop() ->
         Systemctl -> retinue_native_program:run_command(Systemctl, ["--user", "stop", ?UNIT], [])
     end.
 
--doc "Return whether wfcli-managed transient companion service is active.".
+-doc "Return whether Retinue's transient companion service is active.".
 -spec unit_active() -> boolean().
 unit_active() ->
     case os:find_executable("systemctl") of

@@ -61,7 +61,7 @@ query_definition() ->
     #{<<"name">> => <<"query">>,
       <<"title">> => <<"Query Warframe data">>,
       <<"description">> =>
-          <<"Run the shared wfcli query language in retinue-daemon and return canonical structured results.">>,
+          <<"Run the shared Warframe query language in retinue-daemon and return canonical structured results.">>,
       <<"inputSchema">> =>
           object_schema(
             #{<<"query">> => string_schema(<<"Query expression; adjacent terms imply AND and uppercase OR is explicit.">>),

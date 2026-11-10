@@ -743,7 +743,7 @@ impl Overlay {
             let detail = if DEBUG_HUD {
                 self.debug_summary()
             } else {
-                "wfcli companion hud hide".to_owned()
+                "retinue warframe companion hud hide".to_owned()
             };
             (origin, daemon, self.player_summary(), detail)
         });

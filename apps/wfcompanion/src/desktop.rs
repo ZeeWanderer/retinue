@@ -69,9 +69,9 @@ mod tests {
 
     #[test]
     fn desktop_identity_matches_portal_app_id() {
-        let entry = desktop_entry(Path::new("/opt/wfcli/bin/wfcompanion")).unwrap();
+        let entry = desktop_entry(Path::new("/opt/retinue/bin/wfcompanion")).unwrap();
         assert!(entry.contains("NoDisplay=true"));
-        assert!(entry.contains("Exec=\"/opt/wfcli/bin/wfcompanion\""));
+        assert!(entry.contains("Exec=\"/opt/retinue/bin/wfcompanion\""));
         assert!(entry.contains(&format!(
             "X-KDE-DBUS-Restricted-Interfaces={SCREENSHOT_INTERFACE}"
         )));

@@ -48,7 +48,7 @@ json_normalizes_erlang_service_terms_test() ->
     ?assertEqual([1, 2], maps:get(<<"numbers">>, Decoded)).
 
 dataset_resource_uses_protocol_contract_test() ->
-    {ok, <<"application/json">>, Text} = wf_mcp_resources:read(<<"wfcli://datasets">>),
+    {ok, <<"application/json">>, Text} = wf_mcp_resources:read(<<"retinue://warframe/datasets">>),
     {ok, Data} = retinue_json:decode(Text),
     ?assertEqual([<<"worldstate">>, <<"mods">>, <<"items">>, <<"codex">>,
                   <<"enemies">>, <<"drops">>],
@@ -61,7 +61,7 @@ dataset_resource_uses_protocol_contract_test() ->
 
 worldstate_schema_resource_is_packaged_test() ->
     {ok, <<"application/json">>, Text} =
-        wf_mcp_resources:read(<<"wfcli://schema/worldstate">>),
+        wf_mcp_resources:read(<<"retinue://warframe/schema/worldstate">>),
     {ok, Data} = retinue_json:decode(Text),
     ?assert(length(maps:get(<<"columns">>, Data)) > 10),
     ?assert(maps:is_key(<<"fissure">>, maps:get(<<"types">>, Data))).

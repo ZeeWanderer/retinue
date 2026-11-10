@@ -72,9 +72,9 @@ gui-dev: sccache-setup
 	+$(CARGO) build --locked -p wfgui
 	./scripts/stage-gui dev
 
-gui-prod: export WFCLI_CPU_BASELINE := $(or $(WFCLI_CPU_BASELINE),$(if $(filter x86_64,$(shell uname -m)),x86-64-v2))
+gui-prod: export RETINUE_CPU_BASELINE := $(or $(RETINUE_CPU_BASELINE),$(if $(filter x86_64,$(shell uname -m)),x86-64-v2))
 gui-prod: sccache-setup
-	+RUSTFLAGS="$(RUSTFLAGS) $(if $(WFCLI_CPU_BASELINE),-Ctarget-cpu=$(WFCLI_CPU_BASELINE) -Clink-arg=-march=$(WFCLI_CPU_BASELINE))" $(CARGO) build --locked --release -p wfgui
+	+RUSTFLAGS="$(RUSTFLAGS) $(if $(RETINUE_CPU_BASELINE),-Ctarget-cpu=$(RETINUE_CPU_BASELINE) -Clink-arg=-march=$(RETINUE_CPU_BASELINE))" $(CARGO) build --locked --release -p wfgui
 	./scripts/stage-gui prod
 
 test-gui: test-gui-app

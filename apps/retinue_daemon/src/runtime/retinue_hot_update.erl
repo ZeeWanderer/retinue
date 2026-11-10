@@ -100,7 +100,7 @@ current_build_identity() ->
             {ok, Identity}
     end.
 
--doc "Load changed wfcli modules and run code_change/3 for daemon-owned gen_servers.".
+-doc "Load changed Retinue modules and run code_change/3 for daemon-owned gen_servers.".
 -spec apply([bundle()]) -> {ok, result()} | {error, term()}.
 apply(Bundles) when is_list(Bundles) ->
     case validate_bundles(Bundles) of

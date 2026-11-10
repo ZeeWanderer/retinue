@@ -232,7 +232,7 @@ cached_plan_card_text() ->
         State#{store => Store#{results => #{Id => Cached}}}
     end),
     Before = maps:get(store, sys:get_state(wf_build_service)),
-    Key = {wfcli, mod_map, 2},
+    Key = {wf_resolve_registry, mod_map, 2},
     Previous = persistent_term:get(Key, undefined),
     persistent_term:put(Key, #{<<"/Lotus/Mods/Test">> =>
         #{compat => <<"Shotgun">>, level_stats => [#{<<"stats">> => [<<"+10% Damage">>]}]}}),

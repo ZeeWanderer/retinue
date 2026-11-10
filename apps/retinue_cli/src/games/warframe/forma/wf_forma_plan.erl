@@ -178,7 +178,7 @@ default_output_file([#{file := File} | _]) ->
     Base = filename:rootname(filename:basename(ConfigPath)),
     filename:join(filename:dirname(ConfigPath), Base ++ ".plan.yml");
 default_output_file(_) ->
-    "wfcli.plan.yml".
+    "warframe.plan.yml".
 
 write_output(File, Results) ->
     Content = plans_to_yaml(Results),

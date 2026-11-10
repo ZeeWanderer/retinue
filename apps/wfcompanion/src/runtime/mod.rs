@@ -42,7 +42,7 @@ pub(crate) fn run(
     };
     incident::info(
         "process.start",
-        format!("mode={mode} version={}", env!("WFCLI_VERSION")),
+        format!("mode={mode} version={}", env!("CARGO_PKG_VERSION")),
     );
     let mut rejected = None;
     loop {

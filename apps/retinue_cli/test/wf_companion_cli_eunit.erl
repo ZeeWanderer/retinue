@@ -38,8 +38,8 @@ companion_status_formats_negotiated_socket_contract_test() ->
 preview_directory_tracks_repository_or_portable_root_test() ->
     ?assertEqual("/repo/previews",
                  wf_companion_cli:preview_directory("/repo/dev/bin/wfcompanion")),
-    ?assertEqual("/opt/wfcli/previews",
-                 wf_companion_cli:preview_directory("/opt/wfcli/bin/wfcompanion")).
+    ?assertEqual("/opt/retinue/previews",
+                 wf_companion_cli:preview_directory("/opt/retinue/bin/wfcompanion")).
 
 armed_capture_directory_is_unique_cache_child_test() ->
     Path = wf_companion_cli:capture_directory(1234),

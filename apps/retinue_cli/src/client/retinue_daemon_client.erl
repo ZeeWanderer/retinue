@@ -391,7 +391,7 @@ format_build(Build) -> lists:flatten(io_lib:format("~p", [Build])).
 daemon_node() ->
     'retinue_daemon@localhost'.
 
--doc "Candidate release-control scripts used by `wfcli daemon start`.".
+-doc "Candidate release-control scripts used by `retinue daemon start`.".
 -spec release_script_candidates() -> [file:filename_all()].
 release_script_candidates() ->
     Env =

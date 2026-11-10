@@ -698,25 +698,25 @@ fissure_fields_are_pretty(_Config) ->
     ?assert(string:find(Text, "Exterminate") =/= nomatch).
 
 caches_item_map_on_first_use(_Config) ->
-    Prev = persistent_term:get({wfcli, item_map}, undefined),
-    persistent_term:erase({wfcli, item_map}),
+    Prev = persistent_term:get({wf_resolve_registry, item_map}, undefined),
+    persistent_term:erase({wf_resolve_registry, item_map}),
     _ = format_projected(invasion_entry(<<"DummyItemPath">>), #{resolve_items => true}),
-    Map = persistent_term:get({wfcli, item_map}, undefined),
+    Map = persistent_term:get({wf_resolve_registry, item_map}, undefined),
     ?assert(is_map(Map)),
     restore_item_map(Prev).
 
 resolves_items_when_requested(_Config) ->
     %% Seed a minimal item map and ensure resolution occurs when enabled.
     ItemPath = <<"/Lotus/Types/Recipes/Weapons/WeaponParts/DeraVandalBarrel">>,
-    persistent_term:put({wfcli, item_map}, #{ItemPath => <<"Dera Vandal Barrel">>}),
+    persistent_term:put({wf_resolve_registry, item_map}, #{ItemPath => <<"Dera Vandal Barrel">>}),
     Entry = invasion_entry(ItemPath),
     Text = format_projected(Entry, #{resolve_items => true}),
     ?assert(string:find(Text, "Dera Vandal Barrel") =/= nomatch),
-    persistent_term:erase({wfcli, item_map}).
+    persistent_term:erase({wf_resolve_registry, item_map}).
 
 keeps_raw_ids_when_not_resolving(_Config) ->
     ItemPath = <<"/Lotus/Types/Recipes/Weapons/WeaponParts/DeraVandalBarrel">>,
-    persistent_term:erase({wfcli, item_map}),
+    persistent_term:erase({wf_resolve_registry, item_map}),
     Entry = invasion_entry(ItemPath),
     Text = format_projected(Entry, #{resolve_items => false}),
     ?assert(string:find(Text, "Dera Vandal Barrel") =:= nomatch),
@@ -811,9 +811,9 @@ fissure_entry(Tier, MissionType) ->
       }}.
 
 restore_item_map(undefined) ->
-    persistent_term:erase({wfcli, item_map});
+    persistent_term:erase({wf_resolve_registry, item_map});
 restore_item_map(Prev) ->
-    persistent_term:put({wfcli, item_map}, Prev).
+    persistent_term:put({wf_resolve_registry, item_map}, Prev).
 
 capture_output(Fun) ->
     Capturer = spawn(fun() -> io_capture_loop([]) end),

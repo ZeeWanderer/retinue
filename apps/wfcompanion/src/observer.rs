@@ -604,7 +604,7 @@ fn publish_collector(outbound: &OutboundSender, status: &CollectorStatus) {
 fn collector_snapshot(status: &CollectorStatus) -> serde_json::Value {
     json!({
             "companion_pid": std::process::id(),
-            "version": env!("WFCLI_VERSION"),
+            "version": env!("CARGO_PKG_VERSION"),
             "game_pid": status.game_pid,
             "session_generation": status.session_generation,
             "session_error": status.session_error,

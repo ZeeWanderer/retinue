@@ -11,7 +11,7 @@ application_paths_use_shared_xdg_roots_test() ->
         {data, wf_paths:data_dir()},
         {cache, wf_paths:cache_dir()},
         {state, wf_paths:state_dir()}],
-       retinue_path_cli:app_paths(wfcli)),
+       retinue_path_cli:app_paths(warframe)),
     ?assert(lists:member(
               {runtime, wf_paths:runtime_dir()},
               retinue_path_cli:app_paths(retinue_daemon))),
@@ -36,7 +36,7 @@ application_paths_use_shared_xdg_roots_test() ->
        retinue_path_cli:app_paths(wfgui)).
 
 aggregate_owners_are_selectable_from_retinue_test() ->
-    Owners = [retinue, retinue_daemon, wfcli, wfcompanion, wfgui, poe2companion, arccompanion],
+    Owners = [retinue, retinue_daemon, warframe, wfcompanion, wfgui, poe2companion, arccompanion],
     ?assertEqual(Owners, retinue_path_cli:owners()),
     lists:foreach(fun(Owner) ->
         Args = ["paths", atom_to_list(Owner)],

@@ -27,36 +27,36 @@ resolve_case_insensitive_tokens_test() ->
     ?assertEqual("Slash", wf_resolve:resolve("dt", "dt_slash", #{resolve_items => true, raw => false})).
 
 resolve_node_case_insensitive_test() ->
-    Prev = persistent_term:get({wfcli, node_map}, undefined),
-    persistent_term:put({wfcli, node_map}, #{<<"solnode">> => <<"Earth (Test)">>}),
+    Prev = persistent_term:get({wf_resolve_registry, node_map}, undefined),
+    persistent_term:put({wf_resolve_registry, node_map}, #{<<"solnode">> => <<"Earth (Test)">>}),
     try
         ?assertEqual("Earth (Test)", wf_resolve:resolve("node", "solnode", #{resolve_items => true}))
     after
-        restore_pt({wfcli, node_map}, Prev)
+        restore_pt({wf_resolve_registry, node_map}, Prev)
     end.
 
 resolve_node_loads_daemon_priv_map_test() ->
-    Prev = persistent_term:get({wfcli, node_map}, undefined),
-    persistent_term:erase({wfcli, node_map}),
+    Prev = persistent_term:get({wf_resolve_registry, node_map}, undefined),
+    persistent_term:erase({wf_resolve_registry, node_map}),
     try
         ?assertEqual("Stribog (Void)",
                      wf_resolve:resolve("node", "SolNode404", #{resolve_items => true})),
         ?assertEqual("Vesper Relay (Venus)",
                      wf_resolve:resolve("node", "SolNode239", #{resolve_items => true}))
     after
-        restore_pt({wfcli, node_map}, Prev)
+        restore_pt({wf_resolve_registry, node_map}, Prev)
     end.
 
 resolve_hidden_sanctuary_nodes_test() ->
-    Prev = persistent_term:get({wfcli, node_map}, undefined),
-    persistent_term:put({wfcli, node_map}, #{}),
+    Prev = persistent_term:get({wf_resolve_registry, node_map}, undefined),
+    persistent_term:put({wf_resolve_registry, node_map}, #{}),
     try
         ?assertEqual("Sanctuary Onslaught",
                      wf_resolve:resolve("node", "SolNode801", #{resolve_items => true})),
         ?assertEqual("Elite Sanctuary Onslaught",
                      wf_resolve:resolve("node", "SolNode802", #{resolve_items => true}))
     after
-        restore_pt({wfcli, node_map}, Prev)
+        restore_pt({wf_resolve_registry, node_map}, Prev)
     end.
 
 resolve_any_raw_test() ->
@@ -69,42 +69,42 @@ resolve_dt_raw_test() ->
     ?assertEqual("DT_SLASH", wf_resolve:resolve("dt", "DT_SLASH", #{resolve_items => true, raw => true})).
 
 resolve_language_map_overrides_test() ->
-    Prev = persistent_term:get({wfcli, lang_map}, undefined),
-    persistent_term:put({wfcli, lang_map}, #{<<"mt_defense">> => #{<<"value">> => <<"Defensa">>}}),
+    Prev = persistent_term:get({wf_resolve_registry, lang_map}, undefined),
+    persistent_term:put({wf_resolve_registry, lang_map}, #{<<"mt_defense">> => #{<<"value">> => <<"Defensa">>}}),
     try
         ?assertEqual("Defensa", wf_resolve:resolve("missiontype", "MT_DEFENSE", #{resolve_items => true}))
     after
-        restore_pt({wfcli, lang_map}, Prev)
+        restore_pt({wf_resolve_registry, lang_map}, Prev)
     end.
 
 resolve_item_name_fallback_rewrites_test() ->
-    Prev = persistent_term:get({wfcli, item_map}, undefined),
+    Prev = persistent_term:get({wf_resolve_registry, item_map}, undefined),
     ItemKey = <<"/lotus/types/test/item">>,
-    persistent_term:put({wfcli, item_map}, #{ItemKey => <<"Test Item">>}),
+    persistent_term:put({wf_resolve_registry, item_map}, #{ItemKey => <<"Test Item">>}),
     try
         StorePath = "/Lotus/StoreItems/Types/Test/Item",
         ?assertEqual("Test Item", wf_resolve:resolve("item", StorePath, #{resolve_items => true}))
     after
-        restore_pt({wfcli, item_map}, Prev)
+        restore_pt({wf_resolve_registry, item_map}, Prev)
     end.
 
 resolve_item_name_case_insensitive_test() ->
-    Prev = persistent_term:get({wfcli, item_map}, undefined),
-    persistent_term:put({wfcli, item_map}, #{<<"/lotus/types/test/item">> => <<"Case Item">>}),
+    Prev = persistent_term:get({wf_resolve_registry, item_map}, undefined),
+    persistent_term:put({wf_resolve_registry, item_map}, #{<<"/lotus/types/test/item">> => <<"Case Item">>}),
     try
         ?assertEqual("Case Item", wf_resolve:resolve("item", "/lotus/types/test/item", #{resolve_items => true}))
     after
-        restore_pt({wfcli, item_map}, Prev)
+        restore_pt({wf_resolve_registry, item_map}, Prev)
     end.
 
 resolve_item_name_language_lowercase_test() ->
-    PrevLang = persistent_term:get({wfcli, lang_map}, undefined),
-    persistent_term:put({wfcli, lang_map}, #{
+    PrevLang = persistent_term:get({wf_resolve_registry, lang_map}, undefined),
+    persistent_term:put({wf_resolve_registry, lang_map}, #{
         <<"/lotus/storeitems/upgrades/skins/meleedangles/firemeleedangle">> =>
             #{<<"value">> => <<"Fire Melee Dangle">>}
     }),
-    PrevItem = persistent_term:get({wfcli, item_map}, undefined),
-    persistent_term:put({wfcli, item_map}, #{}),
+    PrevItem = persistent_term:get({wf_resolve_registry, item_map}, undefined),
+    persistent_term:put({wf_resolve_registry, item_map}, #{}),
     try
         Name = wf_resolve:resolve(
             "item",
@@ -113,8 +113,8 @@ resolve_item_name_language_lowercase_test() ->
         ),
         ?assertEqual("Fire Melee Dangle", Name)
     after
-        restore_pt({wfcli, lang_map}, PrevLang),
-        restore_pt({wfcli, item_map}, PrevItem)
+        restore_pt({wf_resolve_registry, lang_map}, PrevLang),
+        restore_pt({wf_resolve_registry, item_map}, PrevItem)
     end.
 
 resolve_unicode_list_item_test() ->
@@ -122,8 +122,8 @@ resolve_unicode_list_item_test() ->
     ?assertEqual(Word, wf_resolve:resolve("item", Word, #{resolve_items => true})).
 
 invalidate_mod_cache_clears_current_and_legacy_keys_test() ->
-    Keys = [{wfcli, mod_map, 2}, {wfcli, mod_name_index, 2},
-            {wfcli, mod_map}, {wfcli, mod_name_index}],
+    Keys = [{wf_resolve_registry, mod_map, 2}, {wf_resolve_registry, mod_name_index, 2},
+            {wf_resolve_registry, mod_map}, {wf_resolve_registry, mod_name_index}],
     Previous = [{Key, persistent_term:get(Key, undefined)} || Key <- Keys],
     lists:foreach(fun(Key) -> persistent_term:put(Key, #{test => true}) end, Keys),
     try

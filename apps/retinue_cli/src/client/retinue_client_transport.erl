@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%% Request and subscription transport for the wfcli daemon client.
+%% Request and subscription transport for the Retinue daemon client.
 %%%-------------------------------------------------------------------
 -module(retinue_client_transport).
 

@@ -7,29 +7,29 @@
 
 -spec list() -> [map()].
 list() ->
-    [resource(<<"wfcli://datasets">>, <<"Warframe datasets">>,
+    [resource(<<"retinue://warframe/datasets">>, <<"Warframe datasets">>,
               <<"Dataset names, defaults, and ownership.">>, <<"application/json">>),
-     resource(<<"wfcli://query-language">>, <<"wfcli query language">>,
+     resource(<<"retinue://warframe/query-language">>, <<"Warframe query language">>,
               <<"Compact grammar and query examples.">>, <<"text/markdown">>),
-     resource(<<"wfcli://schema/worldstate">>, <<"Worldstate schema">>,
+     resource(<<"retinue://warframe/schema/worldstate">>, <<"Worldstate schema">>,
               <<"Normalized worldstate columns and type-specific views.">>, <<"application/json">>),
-     resource(<<"wfcli://daemon/status">>, <<"retinue_daemon status">>,
+     resource(<<"retinue://warframe/daemon/status">>, <<"retinue_daemon status">>,
               <<"Live daemon queues, caches, protocol, and uptime.">>, <<"application/json">>)].
 
 -spec read(binary()) -> {ok, binary(), binary()} | {error, term()}.
-read(<<"wfcli://datasets">>) ->
+read(<<"retinue://warframe/datasets">>) ->
     Data = #{default => wf_protocol:default_datasets(),
              all => wf_protocol:all_datasets(),
              descriptions => dataset_descriptions()},
     {ok, <<"application/json">>, retinue_json:encode(Data)};
-read(<<"wfcli://query-language">>) ->
+read(<<"retinue://warframe/query-language">>) ->
     {ok, <<"text/markdown">>, query_language()};
-read(<<"wfcli://schema/worldstate">>) ->
+read(<<"retinue://warframe/schema/worldstate">>) ->
     Data = #{columns => wf_worldstate_schema:columns_spec(),
              default_columns => wf_worldstate_schema:default_table_columns(),
              types => type_columns()},
     {ok, <<"application/json">>, retinue_json:encode(Data)};
-read(<<"wfcli://daemon/status">>) ->
+read(<<"retinue://warframe/daemon/status">>) ->
     case retinue_client:call(status) of
         {ok, Status} -> {ok, <<"application/json">>, retinue_json:encode(Status)};
         {error, Reason} -> {error, Reason}
@@ -61,7 +61,7 @@ type_columns() ->
     maps:from_list([{Type, wf_worldstate_schema:columns_for_type(Type)} || Type <- Types]).
 
 query_language() ->
-    <<"# wfcli query language\n\n"
+    <<"# Warframe query language\n\n"
       "Adjacent expressions are implicitly ANDed. Boolean operators are uppercase "
       "`NOT`, `AND`, and `OR`; precedence is NOT, AND, OR. Parentheses override it.\n\n"
       "Filters use `key=value`, `key!=value`, `key~value`, `key>=value`, `key<=value`, "
