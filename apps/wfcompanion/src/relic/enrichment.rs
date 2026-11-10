@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+pub(super) use retinue_protocol::{
+    warframe::Asset as AssetSpec, warframe_native::RelicContext as ContextReply,
+};
 
 use super::{
     Account, Asset, Candidate, OutboundSender, REWARD_IDENTIFICATION_FAILED, Reward, Rewards,
@@ -22,62 +24,6 @@ pub(super) struct Resolution {
     pub(super) score: f64,
     pub(super) geometry: super::Geometry,
     pub(super) count: usize,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct ContextReply {
-    #[serde(default)]
-    items: Vec<ContextItem>,
-    #[serde(default)]
-    account: ContextAccount,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct ContextAccount {
-    platinum: Option<u64>,
-    ducats: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ContextItem {
-    slug: String,
-    name: String,
-    game_ref: Option<String>,
-    ducats: Option<u64>,
-    lowest_sell: Option<u64>,
-    highest_buy: Option<u64>,
-    #[serde(default)]
-    count_owned: u64,
-    #[serde(default = "one")]
-    total_to_own: u64,
-    crafted: Option<bool>,
-    set_complete: Option<bool>,
-    #[serde(default)]
-    vaulted: bool,
-    set_price: Option<u64>,
-    asset: Option<AssetSpec>,
-    #[serde(default)]
-    parts: Vec<ContextPart>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ContextPart {
-    slug: String,
-    name: String,
-    #[serde(default)]
-    owned: u64,
-    #[serde(default = "one")]
-    required: u64,
-    #[serde(default)]
-    set_root: bool,
-    asset: Option<AssetSpec>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct AssetSpec {
-    pub(super) id: String,
-    pub(super) source: String,
-    pub(super) image_name: String,
 }
 
 pub(super) fn resolve_reward_candidates(
@@ -197,20 +143,26 @@ pub(super) fn contextual_rewards(
         let Some(slug) = reward.slug.as_deref() else {
             continue;
         };
-        let Some(item) = context.items.iter().find(|item| item.slug == slug) else {
+        let Some(item) = context
+            .items
+            .iter()
+            .find(|item| item.slug.as_deref() == Some(slug))
+        else {
             continue;
         };
-        reward.name.clone_from(&item.name);
+        if let Some(name) = &item.name {
+            reward.name.clone_from(name);
+        }
         reward.game_ref.clone_from(&item.game_ref);
-        reward.ducats = item.ducats.or(reward.ducats);
-        reward.lowest_sell = item.lowest_sell;
-        reward.highest_buy = item.highest_buy;
-        reward.count_owned = item.count_owned;
-        reward.total_to_own = item.total_to_own.max(1);
+        reward.ducats = item.ducats.map(u64::from).or(reward.ducats);
+        reward.lowest_sell = item.lowest_sell.map(u64::from);
+        reward.highest_buy = item.highest_buy.map(u64::from);
+        reward.count_owned = item.count_owned.unwrap_or_default();
+        reward.total_to_own = u64::from(item.total_to_own.unwrap_or(1).max(1));
         reward.crafted = item.crafted;
         reward.set_complete = item.set_complete;
-        reward.vaulted = item.vaulted;
-        reward.set_price = item.set_price;
+        reward.vaulted = item.vaulted.unwrap_or_default();
+        reward.set_price = item.set_price.map(u64::from);
         reward.asset = item
             .asset
             .as_ref()
@@ -218,12 +170,12 @@ pub(super) fn contextual_rewards(
         reward.parts = item
             .parts
             .iter()
-            .filter(|part| !part.set_root)
+            .filter(|part| !part.set_root.unwrap_or_default())
             .map(|part| SetPart {
-                name: part.name.clone(),
-                owned: part.owned,
-                required: part.required.max(1),
-                current: part.slug == slug,
+                name: part.name.clone().unwrap_or_default(),
+                owned: part.owned.unwrap_or_default(),
+                required: u64::from(part.required.unwrap_or(1).max(1)),
+                current: part.slug.as_deref() == Some(slug),
                 asset: part
                     .asset
                     .as_ref()
@@ -234,8 +186,11 @@ pub(super) fn contextual_rewards(
     Rewards {
         items: rewards,
         account: Account {
-            platinum: context.account.platinum,
-            ducats: context.account.ducats,
+            platinum: context
+                .account
+                .as_ref()
+                .and_then(|account| account.platinum),
+            ducats: context.account.as_ref().and_then(|account| account.ducats),
         },
     }
 }
@@ -311,10 +266,6 @@ pub(super) fn embedded_asset(spec: &AssetSpec) -> Option<Asset> {
         path: String::new(),
         digest: embedded.image.key.to_owned(),
     })
-}
-
-fn one() -> u64 {
-    1
 }
 
 pub(super) fn accepted_match(resolution: &serde_json::Value) -> Option<MarketMatch> {

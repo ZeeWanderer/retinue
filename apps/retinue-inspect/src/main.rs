@@ -76,6 +76,9 @@ enum Daemon {
     /// Stream dataset revision notifications as NDJSON.
     Subscribe {
         dataset: String,
+        /// Dataset projection, for example player hud or metadata.
+        #[arg(long)]
+        view: Option<String>,
         #[command(flatten)]
         watch: args::Watch,
     },
@@ -137,11 +140,19 @@ fn run_daemon(game: daemon::Game, command: Daemon) -> Result<(), String> {
             }
             Ok(())
         }
-        Daemon::Subscribe { dataset, watch } => {
-            let summary =
-                daemon::subscribe_stream(game, &dataset, watch.seconds, watch.limit, |record| {
-                    print_ndjson("daemon.subscription", "event", record)
-                })?;
+        Daemon::Subscribe {
+            dataset,
+            view,
+            watch,
+        } => {
+            let summary = daemon::subscribe_stream(
+                game,
+                &dataset,
+                view.as_deref(),
+                watch.seconds,
+                watch.limit,
+                |record| print_ndjson("daemon.subscription", "event", record),
+            )?;
             print_ndjson("daemon.subscription", "summary", &summary)
         }
     }

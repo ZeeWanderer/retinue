@@ -1,4 +1,4 @@
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum Scene {
     Relic {
         content: crate::relic::Scene,

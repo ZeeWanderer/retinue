@@ -28,9 +28,9 @@ inactive_is_not_healthy_test() ->
 connection_alone_does_not_verify_adapters_test() ->
     Report = report(warframe, info([client(warframe)]), {ok, #{<<"snapshot">> => snapshot()}}),
     ?assertEqual(incomplete, maps:get(status, Report)),
-    ?assertEqual(11, maps:get(unverified, Report)),
+    ?assertEqual(13, maps:get(unverified, Report)),
     ?assertNotEqual(nomatch, binary:match(iolist_to_binary(retinue_doctor:format(Report)),
-        <<"11 checks have not run or are waiting for the game.">>)).
+        <<"13 checks have not run or are waiting for the game.">>)).
 
 unresolved_incidents_survive_sessions_and_versions_test() ->
     Open = incident(<<"warframe.companion">>, <<"open">>),
@@ -57,6 +57,13 @@ unavailable_history_is_not_a_clean_bill_of_health_test() ->
             retinue_doctor:report(warframe, Info, Live, History, 100000))
     end, [{error, checks_unavailable}, {ok, #{checks => [], storage_error => invalid_check_store}}]).
 
+failure_output_is_factual_test() ->
+    Report = retinue_doctor:report(warframe, {stopped, node()}, not_requested, history([]), 100000),
+    Text = iolist_to_binary(retinue_doctor:format(Report)),
+    ?assertNotEqual(nomatch, binary:match(Text, <<"1 failed; 0 unverified.">>)),
+    ?assertEqual(nomatch, binary:match(Text, <<"Fix the reported">>)),
+    ?assertEqual(nomatch, binary:match(Text, <<"rerun doctor">>)).
+
 live_failure_and_recovery_test() ->
     Info = info([client(warframe)]),
     Snapshot = (snapshot())#{<<"adapters">> => adapters()},
@@ -69,6 +76,14 @@ live_failure_and_recovery_test() ->
     Stale = (adapters())#{<<"native_inventory">> => (evidence(<<"pass">>, null))#{<<"checked_at">> := 1}},
     ?assertEqual(failed, maps:get(status, report(warframe, Info, live(Snapshot#{<<"adapters">> := Stale})))),
     ?assertEqual(failed, maps:get(status, report(warframe, Info, {error, companion_diagnostic_timeout}))).
+
+memory_success_does_not_hide_presentation_data_failure_test() ->
+    Adapters = (adapters())#{<<"relic_recommendations">> => evidence(<<"fail">>, <<"malformed reply">>)},
+    Report = report(warframe, info([client(warframe)]), live((snapshot())#{<<"adapters">> => Adapters})),
+    ?assertEqual(failed, maps:get(status, Report)),
+    ?assertMatch([#{state := pass}], [C || #{label := <<"Relic selection memory">>} = C <- maps:get(checks, Report)]),
+    ?assertMatch([#{state := fail, message := <<"malformed reply">>}],
+                 [C || #{label := <<"Relic recommendations">>} = C <- maps:get(checks, Report)]).
 
 poe2_cached_and_live_sample_test() ->
     Current = #{<<"scene">> => <<"in_game">>, <<"area">> => #{<<"name">> => <<"Town">>},
@@ -112,6 +127,7 @@ snapshot() -> #{<<"companion_pid">> => 42, <<"game_pid">> => 84,
                 <<"game_metadata_updates_observed">> => 1}.
 adapters() -> maps:from_list([{K, evidence(<<"pass">>, null)} || K <-
     [<<"ui_bindings">>, <<"http_inventory">>, <<"native_inventory">>, <<"account">>,
-     <<"relic_selection">>, <<"relic_rewards">>, <<"ducat_bindings">>,
+     <<"relic_selection">>, <<"relic_recommendations">>, <<"relic_rewards">>,
+     <<"relic_reward_data">>, <<"ducat_bindings">>,
      <<"ducat_kiosk">>, <<"ducat_tooltip">>, <<"ducat_inventory">>, <<"ducat_market">>]]).
 evidence(State, Error) -> #{<<"state">> => State, <<"error">> => Error, <<"checked_at">> => 99999}.

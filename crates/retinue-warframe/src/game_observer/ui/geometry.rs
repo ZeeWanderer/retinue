@@ -24,7 +24,7 @@ pub struct DisplayTree {
     pub total_ms: u128,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DisplayNode {
     pub address: u64,
     pub kind: &'static str,

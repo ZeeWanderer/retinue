@@ -210,8 +210,8 @@ pub(super) fn draw(
         let label_width = text_width(font, "E. profits:", price_size).ceil() as u32;
         let platinum = suggestion
             .expected_platinum
-            .map_or_else(|| "--".to_owned(), |value| value.to_string());
-        let ducats = suggestion.expected_ducats.to_string();
+            .map_or_else(|| "--".to_owned(), |value| format!("{value:.0}"));
+        let ducats = format!("{:.0}", suggestion.expected_ducats);
         let platinum_width = text_width(font, &platinum, price_size).ceil() as u32 + 23 * scale;
         let ducat_width = text_width(font, &ducats, price_size).ceil() as u32 + 23 * scale;
         let row_width = label_width + 10 * scale + platinum_width + 14 * scale + ducat_width;

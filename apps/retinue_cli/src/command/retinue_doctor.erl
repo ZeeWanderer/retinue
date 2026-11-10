@@ -75,7 +75,7 @@ recorded_failure(Scope, C) ->
         ["Recorded failure: ", maps:get(<<"component">>, C), " / ", maps:get(<<"check">>, C)],
         [maps:get(<<"error">>, C), "; no successful rerun recorded (Retinue ",
          text(maps:get(<<"version">>, Context, null)), ")"],
-        "Run the affected feature, then rerun doctor. See diagnostics incidents for history."))#{
+        "History: retinue diagnostics incidents."))#{
             kind => incident, context => Context,
             observed_at => {timestamp, maps:get(<<"checked_at">>, C)}}.
 
@@ -108,7 +108,7 @@ game_checks(Game, Info, Live, Now) ->
             end,
             [check(Game, case Active of true -> fail; false -> waiting end, Name,
                    "no companion connected; adapters not checked",
-                   "Launch the game with " ++ companion(Game) ++ " and rerun doctor.")];
+                   "Launch the game with " ++ companion(Game) ++ ".")];
         [Client] ->
             version_check(Game, Client, Info) ++
             case Game of
@@ -144,14 +144,14 @@ version_check(Game, Client, Info) ->
 
 warframe({ok, #{<<"snapshot">> := Snapshot}}, Client, Now) ->
     case maps:get(<<"companion_pid">>, Snapshot, undefined) =:= maps:get(os_pid, Client, missing) of
-        false -> [check(warframe, fail, "Live diagnostics", "response belongs to a different companion", "Rerun doctor.")];
+        false -> [check(warframe, fail, "Live diagnostics", "response belongs to a different companion", "")];
         true -> warframe_snapshot(Snapshot, Now)
     end;
 warframe({error, Reason}, _Client, _Now) ->
     [check(warframe, fail, "Live diagnostics", error_text(Reason),
            "Run retinue warframe diagnostics status; restart the companion if it does not answer.")];
 warframe(_, _Client, _Now) ->
-    [check(warframe, fail, "Live diagnostics", "no valid runtime report", "Restart the companion and rerun doctor.")].
+    [check(warframe, fail, "Live diagnostics", "no valid runtime report", "Details: retinue warframe diagnostics status.")].
 
 warframe_snapshot(Snapshot, Now) ->
     case maps:get(<<"game_pid">>, Snapshot, null) of
@@ -168,7 +168,7 @@ warframe_snapshot(Snapshot, Now) ->
              || {Key, Label, Hint} <- adapter_checks()];
         _ -> case maps:get(<<"session_error">>, Snapshot, null) of
             null -> [check(warframe, waiting, "Game session", "companion is waiting for Warframe",
-                           "Enter the orbiter, then rerun doctor.")];
+                           "Enter the orbiter.")];
             Reason -> [check(warframe, fail, "Game session", text(Reason),
                              "Run retinue warframe diagnostics logs.")]
         end
@@ -195,7 +195,7 @@ metadata(Snapshot) ->
             case maps:get(<<"game_metadata_updates_observed">>, Snapshot, 0) of
                 N when N > 0 -> [check(warframe, pass, "Equipment pools", "captured in this session", "")];
                 _ -> [check(warframe, untested, "Equipment pools", "not captured in this session",
-                            "Open an Archimedea screen, then rerun doctor.")]
+                            "Open an Archimedea screen.")]
             end;
         {_, Reason} -> [check(warframe, fail, "Equipment pools", text(Reason), "Run retinue warframe diagnostics logs.")]
     end.
@@ -206,7 +206,9 @@ adapter_checks() ->
      {<<"native_inventory">>, "Native inventory memory", "Enter the orbiter and wait for an inventory observation."},
      {<<"account">>, "Account memory", "Enter the orbiter."},
      {<<"relic_selection">>, "Relic selection memory", "Open relic selection for a fissure."},
+     {<<"relic_recommendations">>, "Relic recommendations", "Open relic selection for a fissure."},
      {<<"relic_rewards">>, "Relic reward memory", "Complete a fissure and reach the reward screen."},
+     {<<"relic_reward_data">>, "Relic reward data", "Complete a fissure and reach the reward screen."},
      {<<"ducat_bindings">>, "Tooltip memory bindings", "Allow startup discovery to finish."},
      {<<"ducat_kiosk">>, "Ducat kiosk detection", "Open the ducat kiosk."},
      {<<"ducat_tooltip">>, "Ducat tooltip memory", "Hover a prime part in the ducat kiosk."},
@@ -222,8 +224,7 @@ adapter(Key, Label, Hint, Adapters, Now) ->
         #{<<"state">> := <<"pass">>, <<"checked_at">> := Time} ->
             (check(warframe, pass, Label, "last attempt succeeded this session", ""))#{observed_at => {timestamp, Time}};
         #{<<"state">> := <<"fail">>, <<"error">> := Error, <<"checked_at">> := Time} ->
-            (check(warframe, fail, Label, text(Error),
-                   Hint ++ " Then rerun doctor."))#{observed_at => {timestamp, Time}};
+            (check(warframe, fail, Label, text(Error), Hint))#{observed_at => {timestamp, Time}};
         _ -> check(warframe, untested, Label, "not exercised in this session", Hint)
     end.
 
@@ -234,7 +235,7 @@ poe2(Data, Now) ->
         {true, false} -> [check(poe2, fail, "Native observation", "connected producer stopped sending fresh samples",
                                "Run retinue poe2 diagnostics status.")];
         {false, _} -> [check(poe2, untested, "Native observation", "no fresh sample from a connected producer",
-                        "Enter town, wait up to 30 seconds, then rerun doctor.")];
+                        "Enter town and allow up to 30 seconds for observation.")];
         {true, true} -> poe2_observation(Data)
     end.
 
@@ -250,7 +251,7 @@ poe2_observation(#{<<"status">> := <<"observed">>, <<"current">> := Current}) wh
        not lists:keymember(maps:get(<<"field">>, I), 1, Fields)];
 poe2_observation(Data) ->
     case maps:get(<<"error">>, Data, null) of
-        null -> [check(poe2, waiting, "Native state", text(maps:get(<<"status">>, Data, <<"waiting">>)), "Enter town and rerun doctor.")];
+        null -> [check(poe2, waiting, "Native state", text(maps:get(<<"status">>, Data, <<"waiting">>)), "Enter town.")];
         Error -> [check(poe2, fail, "Native state", text(Error), "Run retinue poe2 diagnostics status.")]
     end.
 
@@ -259,11 +260,11 @@ poe2_field(Key, Label, Current, Issues) ->
               maps:get(<<"field">>, I, undefined) =:= Key],
     case {Errors, maps:get(Key, Current, null)} of
         {[_ | _], _} -> check(poe2, fail, Label, lists:join("; ", Errors), "Run retinue poe2 diagnostics status.");
-        {[], null} -> check(poe2, untested, Label, "not available in this scene", "Enter town and rerun doctor.");
+        {[], null} -> check(poe2, untested, Label, "not available in this scene", "Enter town.");
         {[], Map} when is_map(Map) ->
             case lists:any(fun(Value) -> Value =/= null end, maps:values(Map)) of
                 true -> check(poe2, pass, Label, "read in the latest sample", "");
-                false -> check(poe2, untested, Label, "no observation", "Enter town and rerun doctor.")
+                false -> check(poe2, untested, Label, "no observation", "Enter town.")
             end;
         _ -> check(poe2, pass, Label, "read in the latest sample", "")
     end.
@@ -277,12 +278,12 @@ game_data(Game, Info) ->
 check(Game, State, Label, Message, Hint) ->
     #{game => Game, state => State, label => bin(Label), message => bin(Message), hint => bin(Hint)}.
 
-format(#{checks := Checks, status := Status, unverified := Unverified}) ->
+format(#{checks := Checks, status := Status, failures := Failures, unverified := Unverified}) ->
     ["Retinue doctor\n",
      [[io_lib:format("  [~-8s] ~ts: ~ts~n", [tag(maps:get(state, C)), maps:get(label, C), maps:get(message, C)]),
        case maps:get(hint, C) of <<>> -> []; Hint -> ["             ", Hint, "\n"] end] || C <- Checks],
      case Status of
-         failed -> "Problems found. Fix the reported failures and rerun doctor.\n";
+         failed -> io_lib:format("~p failed; ~p unverified.\n", [Failures, Unverified]);
          incomplete -> io_lib:format("No failures found; ~p checks have not run or are waiting for the game.\n",
                                      [Unverified]);
          passed -> "All available checks passed.\n"

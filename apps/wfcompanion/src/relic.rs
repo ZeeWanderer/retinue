@@ -232,7 +232,9 @@ fn read_rewards(
                         extracted.scan.bytes_read,
                     ),
                 );
-                match resolve_memory_rewards(daemon, extracted.names) {
+                let resolved = resolve_memory_rewards(daemon, extracted.names);
+                context.record("relic_reward_data", &resolved);
+                match resolved {
                     Ok(candidates) => {
                         log_reward_names("memory", started, &candidates);
                         present_rewards(daemon, ui, context, candidates, scene_deadline, started);
@@ -315,6 +317,7 @@ fn read_rewards(
         }
         result => result,
     };
+    context.record("relic_reward_data", &scanned);
     match scanned {
         Ok(candidates) => {
             log_reward_names("ocr", started, &candidates);
@@ -449,10 +452,12 @@ fn show_suggestions(
     };
     let daemon_started = Instant::now();
     context.check()?;
-    let response = crate::daemon::relic_recommendations(daemon, era.clone(), false)?;
+    let result = crate::daemon::relic_recommendations(daemon, era.clone(), false)
+        .and_then(|response| parse_suggestions(&response));
+    context.record("relic_recommendations", &result);
     context.check()?;
     let daemon_ms = daemon_started.elapsed().as_millis();
-    let suggestions = parse_suggestions(&response)?;
+    let suggestions = result?;
     let priced = priced_suggestion_count(&suggestions);
     let total_ms = started.elapsed().as_millis();
     incident::info(
@@ -601,7 +606,9 @@ fn present_rewards(
         }),
         scene_deadline,
     );
-    match reward_context(daemon, &candidates) {
+    let result = reward_context(daemon, &candidates);
+    context.record("relic_reward_data", &result);
+    match result {
         Ok(Some(reply)) => {
             if !context.is_current() {
                 return;
@@ -681,6 +688,7 @@ fn show_suggestion_prices(
 ) {
     let result = crate::daemon::relic_recommendations(daemon, era.to_owned(), true)
         .and_then(|response| parse_suggestions(&response));
+    context.record("relic_recommendations", &result);
     if !context.is_current() {
         return;
     }
@@ -947,6 +955,11 @@ mod tests {
 
     #[test]
     fn context_and_assets_can_be_applied_in_separate_stages() {
+        use retinue_protocol::{
+            native,
+            prost::{Message, Name},
+            wire,
+        };
         let context: ContextReply = serde_json::from_value(serde_json::json!({
             "items": [{
                 "slug": "test_part",
@@ -967,6 +980,17 @@ mod tests {
             "account": {"platinum": 100, "ducats": 200}
         }))
         .unwrap();
+        let bytes = wire::Packet {
+            body: Some(wire::packet::Body::Reply(wire::DataReply {
+                id: 8,
+                dataset: "relic_context".into(),
+                type_name: ContextReply::full_name(),
+                payload: context.encode_to_vec().into(),
+            })),
+        }
+        .encode_to_vec();
+        let response = native::value(wire::Packet::decode(bytes.as_slice()).unwrap()).unwrap();
+        let context: ContextReply = serde_json::from_value(response["data"].clone()).unwrap();
         let base = vec![Reward::unresolved(
             "OCR name".to_owned(),
             Some("test_part".to_owned()),
@@ -976,6 +1000,16 @@ mod tests {
         let contextual =
             contextual_rewards(base.clone(), &context, &std::collections::BTreeMap::new());
         assert_eq!(contextual.items[0].lowest_sell, Some(12));
+        assert_eq!(contextual.items[0].ducats, Some(45));
+        assert_eq!(contextual.items[0].parts[0].owned, 2);
+        assert!(contextual.items[0].parts[0].current);
+        assert_eq!(
+            contextual.account,
+            Account {
+                platinum: Some(100),
+                ducats: Some(200)
+            }
+        );
         assert!(contextual.items[0].asset.is_none());
         assert!(contextual.items[0].parts[0].asset.is_none());
 
@@ -1068,8 +1102,8 @@ mod tests {
                     amount_owned: 1,
                     vaulted: false,
                     favorite: false,
-                    expected_platinum: Some(12),
-                    expected_ducats: 20,
+                    expected_platinum: Some(12.0),
+                    expected_ducats: 20.0,
                 },
                 Suggestion {
                     name: "Lith B1".to_owned(),
@@ -1077,12 +1111,44 @@ mod tests {
                     vaulted: false,
                     favorite: false,
                     expected_platinum: None,
-                    expected_ducats: 15,
+                    expected_ducats: 15.0,
                 },
             ],
         };
 
         assert_eq!(priced_suggestion_count(&suggestions), 1);
+    }
+
+    #[test]
+    fn recommendations_reach_scene_through_the_shared_wire_schema() {
+        use retinue_protocol::{
+            native,
+            prost::{Message, Name},
+            wire,
+        };
+        let expected = Suggestions {
+            trace_count: 1250,
+            items: vec![Suggestion {
+                name: "Neo A1 Radiant".into(),
+                amount_owned: 3,
+                favorite: true,
+                vaulted: true,
+                expected_ducats: 58.0,
+                expected_platinum: Some(13.5),
+            }],
+        };
+        let bytes = wire::Packet {
+            body: Some(wire::packet::Body::Reply(wire::DataReply {
+                id: 7,
+                dataset: "relic_recommendations".into(),
+                type_name: Suggestions::full_name(),
+                payload: expected.encode_to_vec().into(),
+            })),
+        }
+        .encode_to_vec();
+        let response = native::value(wire::Packet::decode(bytes.as_slice()).unwrap()).unwrap();
+        let scene = Scene::Suggestions(parse_suggestions(&response).unwrap());
+        assert_eq!(scene, Scene::Suggestions(expected));
     }
 
     #[test]

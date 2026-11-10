@@ -117,7 +117,138 @@ fn rejects_unavailable_outside_or_ambiguous_price_geometry() {
     assert!(hover(&tree).is_err());
     tree = popup();
     tree.nodes.last_mut().unwrap().text = Some("25 OWNED".into());
-    assert!(hover(&tree).unwrap().is_none());
+    assert!(hover(&tree).is_err());
+}
+
+#[test]
+fn currency_anchor_survives_icon_renumbering_and_tag_reordering() {
+    for icon in ['\u{e0b6}', '\u{e0a5}', '\u{f120}'] {
+        let mut tree = popup();
+        tree.nodes.last_mut().unwrap().text = Some(format!("<p>{icon} 45</p>"));
+        tree.nodes
+            .iter_mut()
+            .find(|n| n.name == "Tag1")
+            .unwrap()
+            .name = "Tag8".into();
+        assert_eq!(hover(&tree).unwrap().unwrap().ducats, 45);
+    }
+    for text in [
+        "100",
+        "MR 10",
+        "25 OWNED",
+        "\u{e0a5} -15",
+        "\u{e0a5} 10 20",
+        "\u{e0a5}",
+    ] {
+        assert_eq!(currency_amount(text), None);
+    }
+}
+
+#[test]
+fn ambiguous_or_missing_currency_is_not_a_closed_tooltip() {
+    let mut tree = popup();
+    let mut extra = tree.nodes.last().unwrap().clone();
+    extra.address += 1;
+    extra.text = Some("\u{e001} 100".into());
+    tree.nodes.push(extra);
+    assert!(
+        hover(&tree)
+            .unwrap_err()
+            .contains("2 currency price labels")
+    );
+    tree.nodes.last_mut().unwrap().visible = false;
+    assert!(hover(&tree).unwrap().is_some());
+    tree.nodes
+        .iter_mut()
+        .filter(|n| n.name == "Label")
+        .for_each(|n| n.text = None);
+    assert!(
+        hover(&tree)
+            .unwrap_err()
+            .contains("0 currency price labels")
+    );
+}
+
+#[test]
+fn semantic_roles_tolerate_wrappers_but_reject_ambiguous_titles() {
+    let mut popup = tree(&[
+        (
+            "Root.Popup.Header.Title",
+            Some("PHANTASMA PRIME BARREL"),
+            None,
+        ),
+        (
+            "Root.Popup.Backdrop.TitleBg.Shape",
+            None,
+            Some([100.0, 200.0, 600.0, 500.0]),
+        ),
+        (
+            "Root.Popup.Body.TagContainer.Tag7.Content.Label",
+            Some("\u{e0a5} 100"),
+            Some([120.0, 300.0, 220.0, 340.0]),
+        ),
+        (
+            "Root.Popup.Body.TagContainer.Tag2.Content.Label",
+            Some("Crafted"),
+            Some([240.0, 300.0, 340.0, 340.0]),
+        ),
+    ]);
+    let result = hover(&popup).unwrap().unwrap();
+    assert_eq!(result.title, "PHANTASMA PRIME BARREL");
+    assert_eq!(result.ducats, 100);
+    let selection = Selection::new(&popup, true).unwrap();
+    assert!(selection.matches(&popup));
+    for name in ["Title", "Shape", "Label"] {
+        assert!(
+            popup
+                .nodes
+                .iter()
+                .filter(|n| n.name == name)
+                .all(|n| selection.targets.contains(&n.address))
+        );
+    }
+    let mut title = popup
+        .nodes
+        .iter()
+        .find(|n| n.name == "Title")
+        .unwrap()
+        .clone();
+    title.address = 999;
+    popup.nodes.push(title);
+    assert!(hover(&popup).unwrap_err().contains("ambiguous"));
+    popup.nodes.last_mut().unwrap().visible = false;
+    assert!(hover(&popup).unwrap().is_some());
+
+    let gate = tree(&[(
+        "Root.TitleBar.Container.Title.Text.Label",
+        Some("INVENTORY/DUCAT KIOSK"),
+        None,
+    )]);
+    assert!(kiosk_open(&gate).unwrap());
+    assert_eq!(Selection::new(&gate, false).unwrap().targets.len(), 1);
+}
+
+#[test]
+fn role_names_are_exact_and_ordered() {
+    assert!(!has_roles(
+        "Popup.TagContainerish.Label",
+        &["Popup", "TagContainer", "Label"]
+    ));
+    assert!(!has_roles(
+        "TagContainer.Popup.Label",
+        &["Popup", "TagContainer", "Label"]
+    ));
+    let mut tree = popup();
+    tree.nodes
+        .iter_mut()
+        .find(|n| n.name == "TagContainer")
+        .unwrap()
+        .name = "NewTags".into();
+    assert!(
+        hover(&tree)
+            .unwrap_err()
+            .contains("0 currency price labels")
+    );
 }
 
 #[test]

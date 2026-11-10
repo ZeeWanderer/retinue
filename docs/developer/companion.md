@@ -178,6 +178,29 @@ drawing. Do not duplicate partial compositor setup in individual games.
 
 ## Relic Pipeline
 
+### UI Anchors
+
+Treat native discovery and UI interpretation as separate contracts:
+
+- Discover native types and fields through registrations, constructors and
+  accessors. Cross-check their relationships, not an executable-specific address.
+- Scope UI reads to a known movie and named semantic roles. Allow intervening
+  containers and reordered tags; never select by child index or private-use glyph ID.
+- Require unique matches, effective visibility, consistent parentage and valid
+  geometry. For kiosk prices, also match the title and ducat value to inventory.
+- Cache object identities only while their parent/child relationships remain valid.
+  Re-discover bounded subtrees when those identities change.
+- Distinguish closed/hidden UI from unsupported or ambiguous visible structure.
+  Report the latter through adapter health rather than treating it as empty state.
+
+Verify discovery across retained executables and UI semantics across recorded
+captures separately. Executables do not contain all externally loaded SWF layout.
+Regression cases should include relocation, wrappers, tag/glyph changes,
+ambiguity, hidden retained text and incomplete reads. These tests improve update
+resilience; they cannot guarantee compatibility with an unseen game update.
+
+### Execution
+
 The trigger owner handles close, dismissal and game-stop without waiting for
 capture, OCR or daemon requests. At most two scene workers run, with one latest
 pending job. Every result carries a cancellable context through UI acceptance;
@@ -233,6 +256,12 @@ Selection flow:
 3. If validation fails, capture and OCR the era at the 500 ms stabilization deadline.
 4. Ask the daemon to rank owned relics.
 5. Render immediately from cached data and refresh prices asynchronously.
+
+Recommendations and reward context use generated Protobuf types through their
+presentation boundary. Tests exercise encoded replies through the real scene
+consumer, not just JSON fixtures or the codec in isolation. Health reports data
+resolution separately from memory extraction: reading the screen successfully
+does not prove the overlay received usable data.
 
 `Forma Blueprint` is local because it is not tradable. Dynamic image behavior
 is documented in [`assets.md`](assets.md); inventory indexing is documented in

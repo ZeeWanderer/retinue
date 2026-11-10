@@ -29,7 +29,7 @@ pub(super) struct Renderer {
     input: Controls<crate::presentation::geometry::HitTarget>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct FrameKey {
     pub(super) width: u32,
     pub(super) height: u32,
@@ -573,9 +573,9 @@ fn render_notification_preview(dimensions: (u32, u32)) -> Result<image::RgbaImag
         Some(screens::StatusParams {
             scale: 1,
             origin: (0, 0),
-            daemon: concat!("retinue-daemon ", env!("WFCLI_VERSION"), " - connected"),
+            daemon: concat!("retinue-daemon ", env!("CARGO_PKG_VERSION"), " - connected"),
             player: "Warframe running (pid 12345)",
-            detail: "wfcli companion hud hide",
+            detail: "retinue warframe companion hud hide",
         }),
     )?;
 
@@ -1181,6 +1181,40 @@ mod tests {
         assert_eq!(pixel(&canvas, 600, 12, 12), [0, 0, 0, 0]);
         assert!(pixel(&canvas, 600, 40, 40)[3] > 0);
         assert_eq!(pixel(&canvas, 600, 580, 160), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn status_text_updates_without_recreating_renderer() {
+        let renderer = Renderer::load().unwrap();
+        let mut canvas = vec![0; 600 * 180 * 4];
+        let paint = |canvas: &mut [u8], detail| {
+            renderer
+                .paint_surface(
+                    canvas,
+                    (600, 180),
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        width: 600,
+                        height: 180,
+                    },
+                    SurfaceScene::Empty,
+                    Some(screens::StatusParams {
+                        scale: 1,
+                        origin: (24, 24),
+                        daemon: "DEV | retinue-daemon connected",
+                        player: "Warframe running (pid 12345)",
+                        detail,
+                    }),
+                )
+                .unwrap();
+        };
+        paint(&mut canvas, "DBWIN off | dbg 0 | relic none");
+        let stopped = canvas.clone();
+        paint(&mut canvas, "DBWIN on | dbg 4498 | relic suggestions");
+        assert_ne!(canvas, stopped);
+        paint(&mut canvas, "DBWIN off | dbg 0 | relic none");
+        assert_eq!(canvas, stopped);
     }
 
     #[test]

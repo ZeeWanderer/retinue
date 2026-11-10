@@ -1,6 +1,11 @@
+use retinue_protocol::{
+    native, poe2,
+    prost::{Message, Name},
+    wire,
+};
 use serde_json::{Value, json};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::os::unix::process::CommandExt;
@@ -182,14 +187,66 @@ fn daemon_output(
         .env("RETINUE_DAEMON_SOCKET", &socket)
         .output()
         .unwrap();
-    server.join().unwrap();
+    server.join().unwrap_or_else(|_| {
+        panic!(
+            "mock daemon failed; client stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
     output
 }
 
 fn receive(reader: &mut BufReader<UnixStream>) -> Value {
+    let mut header = [0; 4];
+    reader.read_exact(&mut header).unwrap();
+    let length = u32::from_be_bytes(header) as usize;
+    assert!(length > 0 && length <= 1_048_576);
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).unwrap();
+    let packet = wire::Packet::decode(body.as_slice()).unwrap();
+    let Some(wire::packet::Body::Request(request)) = packet.body else {
+        panic!("expected protobuf request");
+    };
+    native::request_value(request).unwrap()
+}
+
+fn receive_hello(reader: &mut BufReader<UnixStream>) -> Value {
     let mut line = String::new();
     assert!(reader.read_line(&mut line).unwrap() > 0);
     serde_json::from_str(&line).unwrap()
+}
+
+fn reply_packet(stream: &mut UnixStream, packet: wire::Packet) {
+    stream
+        .write_all(&native::frame(&packet, 1_048_576).unwrap())
+        .unwrap();
+}
+
+fn reply_session(stream: &mut UnixStream, revision: u64, event: bool) {
+    let session = poe2::Session {
+        revision: Some(revision),
+        ..Default::default()
+    };
+    let type_name = poe2::Session::full_name();
+    let payload = session.encode_to_vec().into();
+    let body = if event {
+        wire::packet::Body::Event(wire::Event {
+            event: "session".into(),
+            type_name,
+            payload,
+            subscription: Some(2),
+            game: Some("poe2".into()),
+            ..Default::default()
+        })
+    } else {
+        wire::packet::Body::Reply(wire::DataReply {
+            id: 2,
+            type_name,
+            payload,
+            dataset: "session".into(),
+        })
+    };
+    reply_packet(stream, wire::Packet { body: Some(body) });
 }
 
 fn reply(stream: &mut UnixStream, response: Value) {
@@ -198,20 +255,21 @@ fn reply(stream: &mut UnixStream, response: Value) {
 }
 
 fn hello_response(reader: &mut BufReader<UnixStream>, game: &str) -> Value {
-    let hello = receive(reader);
+    let hello = receive_hello(reader);
     assert_eq!(hello["op"], "hello");
     assert_eq!(hello["client"], "retinue-inspect");
     assert_eq!(hello["envelope"], 2);
+    assert_eq!(hello["transport"], "protobuf");
     assert_eq!(hello["game"], game);
     let interfaces = match game {
         "warframe" => json!(retinue_client::local_protocol::interfaces()),
-        "poe2" => json!({"session": 2}),
+        "poe2" => json!({"native": 1, "session": 2}),
         _ => panic!("unexpected game"),
     };
     assert_eq!(hello["interfaces"], interfaces);
     json!({
         "id": 1, "ok": true, "compatible": true,
-        "envelope": 2, "game": game, "interfaces": interfaces,
+        "envelope": 2, "game": game, "interfaces": interfaces, "transport": "protobuf",
     })
 }
 
@@ -382,7 +440,7 @@ fn native_report_is_game_independent_and_warframe_adds_adapter_metadata() {
 
 #[test]
 fn helper_prefix_survives_directory_exchange() {
-    if let Some(root) = std::env::var_os("WFCLI_TEST_MOVED_PREFIX") {
+    if let Some(root) = std::env::var_os("RETINUE_TEST_MOVED_PREFIX") {
         let root = PathBuf::from(root);
         let initial = retinue_client::executable_path().unwrap().to_owned();
         fs::write(root.join("ready"), "").unwrap();
@@ -403,7 +461,7 @@ fn helper_prefix_survives_directory_exchange() {
             "helper_prefix_survives_directory_exchange",
             "--nocapture",
         ])
-        .env("WFCLI_TEST_MOVED_PREFIX", &fixture.0)
+        .env("RETINUE_TEST_MOVED_PREFIX", &fixture.0)
         .spawn()
         .unwrap();
     await_path(&fixture.0.join("ready"));
@@ -698,9 +756,10 @@ fn rejected_daemon_request_exits_nonzero_and_preserves_reply() {
         let request = receive(&mut reader);
         assert_eq!(request["op"], "get");
         assert_eq!(request["game"], "warframe");
-        reply(
+        reply_packet(
             &mut stream,
-            json!({"id": 2, "ok": false, "error": "unsupported_dataset"}),
+            native::control(&json!({"id": 2, "ok": false, "error": "unsupported_dataset"}))
+                .unwrap(),
         );
     });
     assert!(!output.status.success());
@@ -723,18 +782,13 @@ fn poe2_daemon_get_and_subscribe_use_session_namespace() {
                 })
             );
             std::thread::sleep(Duration::from_millis(10));
-            reply(
-                &mut stream,
-                json!({
-                    "id": 2, "ok": true, "dataset": "session", "data": {"revision": 7},
-                }),
-            );
+            reply_session(&mut stream, 7, false);
         },
     ));
     assert_eq!(report["handshake"]["game"], "poe2");
     assert_eq!(
         report["handshake"]["required_interfaces"],
-        json!({"session": 2})
+        json!({"native": 1, "session": 2})
     );
     assert_eq!(report["response"]["data"]["revision"], 7);
 
@@ -756,17 +810,9 @@ fn poe2_daemon_get_and_subscribe_use_session_namespace() {
             assert_eq!(request["op"], "subscribe");
             assert_eq!(request["game"], "poe2");
             assert_eq!(request["dataset"], "session");
-            reply(
-                &mut stream,
-                json!({"id": 2, "ok": true, "data": {"revision": 7}}),
-            );
+            reply_session(&mut stream, 7, false);
             std::thread::sleep(Duration::from_millis(10));
-            reply(
-                &mut stream,
-                json!({
-                    "event": "session", "game": "poe2", "subscription": 2, "data": {"revision": 8},
-                }),
-            );
+            reply_session(&mut stream, 8, true);
             assert_eq!(
                 receive(&mut reader),
                 json!({

@@ -2724,9 +2724,11 @@ dependencies = [
  "retinue-client",
  "retinue-native",
  "retinue-poe2",
+ "retinue-protocol",
  "retinue-warframe",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

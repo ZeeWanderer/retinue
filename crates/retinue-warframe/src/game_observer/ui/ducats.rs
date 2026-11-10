@@ -115,13 +115,11 @@ impl Selection {
         for node in &tree.nodes {
             let path = path(tree, node)?;
             let selected = if popup {
-                path == "Popup.Title"
-                    || path == "Popup.TitleBg"
-                    || path.starts_with("Popup.TitleBg.")
-                    || path == "Popup.TagContainer"
-                    || path.starts_with("Popup.TagContainer.")
+                (node.name == "Title" && has_roles(&path, &["Popup", "Title"]))
+                    || has_roles(&path, &["Popup", "TitleBg"])
+                    || has_roles(&path, &["Popup", "TagContainer"])
             } else {
-                path == "TitleBar.Title.Label"
+                node.name == "Label" && has_roles(&path, &["TitleBar", "Title", "Label"])
             };
             if selected {
                 targets.push(node.address);
@@ -222,7 +220,10 @@ fn kiosk_open(tree: &DisplayTree) -> Result<bool, String> {
     let titles: Vec<_> = tree
         .nodes
         .iter()
-        .filter(|n| path(tree, n).as_deref() == Ok("TitleBar.Title.Label"))
+        .filter(|n| {
+            n.name == "Label"
+                && path(tree, n).is_ok_and(|p| has_roles(&p, &["TitleBar", "Title", "Label"]))
+        })
         .collect();
     let [title] = titles.as_slice() else {
         return Err("kiosk title path missing or ambiguous".into());
@@ -245,13 +246,20 @@ fn hover(tree: &DisplayTree) -> Result<Option<DucatHover>, String> {
         .iter()
         .map(|n| path(tree, n).map(|p| (p, n)))
         .collect::<Result<_, _>>()?;
-    let titles: Vec<_> = nodes.iter().filter(|(p, _)| p == "Popup.Title").collect();
-    let [(_, title)] = titles.as_slice() else {
-        return Err("tooltip title missing or ambiguous".into());
-    };
-    if !title.visible {
+    let titles: Vec<_> = nodes
+        .iter()
+        .filter(|(p, n)| n.name == "Title" && has_roles(p, &["Popup", "Title"]))
+        .collect();
+    if titles.is_empty() {
+        return Err("tooltip title missing".into());
+    }
+    let visible: Vec<_> = titles.into_iter().filter(|(_, n)| n.visible).collect();
+    if visible.is_empty() {
         return Ok(None);
     }
+    let [(_, title)] = visible.as_slice() else {
+        return Err("tooltip title missing or ambiguous".into());
+    };
     if title.unavailable.is_some() {
         return Err("tooltip title geometry unavailable".into());
     }
@@ -263,37 +271,28 @@ fn hover(tree: &DisplayTree) -> Result<Option<DucatHover>, String> {
         .ok_or("tooltip item name unavailable")?;
     let labels: Vec<_> = nodes
         .iter()
-        .filter(|(p, n)| {
-            p.starts_with("Popup.TagContainer.")
-                && p.ends_with(".Label")
-                && n.visible
-                && n.text.as_deref().is_some_and(|s| s.contains('\u{e0b6}'))
+        .filter_map(|(p, n)| {
+            if n.name != "Label" || !has_roles(p, &["Popup", "TagContainer", "Label"]) || !n.visible
+            {
+                return None;
+            }
+            let text = n.text.as_deref().and_then(plain_text)?;
+            currency_amount(&text).map(|amount| (*n, amount))
         })
         .collect();
-    let [(_, label)] = labels.as_slice() else {
-        return Ok(None);
+    let [(label, ducats)] = labels.as_slice() else {
+        return Err(format!(
+            "visible kiosk tooltip has {} currency price labels",
+            labels.len()
+        ));
     };
-    let text = label
-        .text
-        .as_deref()
-        .and_then(plain_text)
-        .ok_or("ducat label unavailable")?;
-    let ducats: u64 = text
-        .trim()
-        .strip_prefix('\u{e0b6}')
-        .ok_or("invalid ducat glyph")?
-        .trim()
-        .parse()
-        .map_err(|_| "invalid ducat price")?;
-    if !(1..=1000).contains(&ducats) {
+    if !(1..=1000).contains(ducats) {
         return Err("ducat price outside supported range".into());
     }
     let panels: Vec<_> = nodes
         .iter()
         .filter(|(p, n)| {
-            (p == "Popup.TitleBg" || p.starts_with("Popup.TitleBg."))
-                && n.visible
-                && n.screen_bounds.is_some()
+            has_roles(p, &["Popup", "TitleBg"]) && n.visible && n.screen_bounds.is_some()
         })
         .collect();
     let [(_, panel)] = panels.as_slice() else {
@@ -311,12 +310,35 @@ fn hover(tree: &DisplayTree) -> Result<Option<DucatHover>, String> {
     }
     Ok(Some(DucatHover {
         title,
-        ducats,
+        ducats: *ducats,
         viewport: [tree.movie.width, tree.movie.height],
         panel,
         price_label,
         scale: 1.0 / tree.movie.scale_y,
     }))
+}
+
+fn has_roles(path: &str, roles: &[&str]) -> bool {
+    let mut names = path.split('.');
+    roles.iter().all(|role| names.any(|name| name == *role))
+}
+
+fn currency_amount(text: &str) -> Option<u64> {
+    // Game updates can renumber private-use font icons. Kiosk scope and the
+    // inventory's exact name/value match identify the currency, not its glyph ID.
+    let mut chars = text.trim().chars();
+    if !matches!(chars.next()?, '\u{e000}'..='\u{f8ff}') {
+        return None;
+    }
+    let amount = chars.as_str();
+    if !amount.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let amount = amount.trim();
+    if amount.is_empty() || !amount.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    amount.parse().ok()
 }
 
 fn bounds(node: &DisplayNode) -> Result<[f32; 4], String> {

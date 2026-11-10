@@ -53,11 +53,29 @@ native_views_and_failures_test_() ->
                    {22, <<"mastery_view">>, 'ListingSnapshot'},
                    {23, <<"build_equipment">>, 'Equipment'},
                    {25, <<"relic_planner">>, 'ListingSnapshot'}]),
+             ok = socket:send(Client, native_request(26, #{<<"op">> => <<"relic_recommendations">>,
+                 <<"era">> => <<"neo">>, <<"include_market">> => false})),
+             #{<<"body">> := {reply, Recommendations}} = receive_native(Client, <<>>),
+             ?assertEqual(<<"relic_recommendations">>, maps:get(<<"dataset">>, Recommendations)),
+             ?assertEqual(wf_native_pb:msg_name_to_fqbin('RelicRecommendations'),
+                          maps:get(<<"type_name">>, Recommendations)),
+             ?assertMatch(#{<<"items">> := []}, wf_native_pb:decode_msg(
+                 maps:get(<<"payload">>, Recommendations), 'RelicRecommendations')),
              ok = socket:send(Client, native_request(24, #{<<"op">> => <<"unknown">>})),
              #{<<"body">> := {failure, Error}} = receive_native(Client, <<>>),
              ?assertMatch(#{<<"id">> := 24, <<"error">> := _}, Error)
          after socket:close(Client) end
      end end}.
+
+relic_recommendation_encoding_keeps_favorites_and_values_test() ->
+    Data = #{<<"trace_count">> => 1250, <<"items">> => [#{<<"name">> => <<"Neo A1 Radiant">>,
+        <<"amount_owned">> => 3, <<"favorite">> => true, <<"vaulted">> => true,
+        <<"expected_ducats">> => 58, <<"expected_platinum">> => 13.5}]},
+    {ok, Type, Bytes} = wf_native:encode(<<"relic_recommendations">>, Data),
+    ?assertEqual(wf_native_pb:msg_name_to_fqbin('RelicRecommendations'), Type),
+    ?assertMatch(#{<<"trace_count">> := 1250, <<"items">> := [#{
+        <<"favorite">> := true, <<"vaulted">> := true, <<"expected_ducats">> := 58.0,
+        <<"expected_platinum">> := 13.5}]}, wf_native_pb:decode_msg(Bytes, 'RelicRecommendations')).
 
 native_request(Id, Map) ->
     {ok, Type, Payload} = retinue_native:encode(wf_native_pb, 'WarframeRequest', Map),
@@ -514,7 +532,7 @@ contract_change_disconnects_native_clients_test() ->
 
 setup() ->
     Root = filename:join(
-             "/tmp", "wfcli-local-api-" ++ os:getpid() ++ "-" ++
+             "/tmp", "retinue-local-api-" ++ os:getpid() ++ "-" ++
                  integer_to_list(erlang:unique_integer([positive]))),
     SocketPath = filename:join(Root, "retinue_daemon.sock"),
     CachePath = filename:join(Root, "player.term"),

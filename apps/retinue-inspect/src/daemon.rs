@@ -1,17 +1,16 @@
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use retinue_client::local_protocol;
+use retinue_client::{local_protocol, transport::Channel};
+use tokio::{net::UnixStream, runtime::Runtime, time::timeout};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-const MAX_FRAME_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_FRAME_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -21,10 +20,17 @@ pub enum Game {
 }
 
 impl Game {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Warframe => "warframe",
+            Self::Poe2 => "poe2",
+        }
+    }
+
     fn interfaces(self) -> BTreeMap<&'static str, u32> {
         match self {
             Self::Warframe => local_protocol::interfaces(),
-            Self::Poe2 => BTreeMap::from([("session", 2)]),
+            Self::Poe2 => BTreeMap::from([("native", 1), ("session", 2)]),
         }
     }
 }
@@ -86,21 +92,30 @@ pub fn dataset(game: Game, name: &str) -> Result<DatasetReport, String> {
 pub fn subscribe_stream(
     game: Game,
     name: &str,
+    view: Option<&str>,
     duration: Duration,
     limit: usize,
     mut emit: impl FnMut(&SubscriptionItem) -> Result<(), String>,
 ) -> Result<SubscriptionSummary, String> {
     validate_bounds(duration, limit)?;
+    if game != Game::Warframe && view.is_some() {
+        return Err("dataset projections are only available for Warframe".into());
+    }
     let mut connection = Connection::connect()?;
     let handshake = connection.handshake(game)?;
     require_compatible(&handshake.response, game)?;
-    connection.send(&json!({
+    let mut request = json!({
         "op": "subscribe",
         "id": 2,
         "game": game,
         "dataset": name,
-        "include_data": false,
-    }))?;
+    });
+    if let Some(view) = view {
+        request["view"] = view.into();
+    } else if game == Game::Warframe {
+        request["include_data"] = false.into();
+    }
+    connection.send(&request)?;
     let initial = connection.receive(REQUEST_TIMEOUT)?;
     require_ok(&initial, "subscription")?;
     emit(&SubscriptionItem::Initial { message: initial })?;
@@ -138,26 +153,24 @@ pub fn subscribe_stream(
 
 struct Connection {
     socket: PathBuf,
-    writer: UnixStream,
-    reader: BufReader<UnixStream>,
+    channel: Channel,
+    runtime: Runtime,
 }
 
 impl Connection {
     fn connect() -> Result<Self, String> {
         let socket = local_protocol::socket_path();
-        let writer = UnixStream::connect(&socket)
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| error.to_string())?;
+        let stream = runtime
+            .block_on(UnixStream::connect(&socket))
             .map_err(|error| format!("could not connect to {}: {error}", socket.display()))?;
-        writer
-            .set_write_timeout(Some(REQUEST_TIMEOUT))
-            .map_err(|error| format!("could not configure daemon socket: {error}"))?;
-        let reader = writer
-            .try_clone()
-            .map(BufReader::new)
-            .map_err(|error| format!("could not clone daemon socket: {error}"))?;
         Ok(Self {
             socket,
-            writer,
-            reader,
+            channel: Channel::new(stream, MAX_FRAME_BYTES),
+            runtime,
         })
     }
 
@@ -167,6 +180,11 @@ impl Connection {
         let started = Instant::now();
         self.send(&request)?;
         let response = self.receive(HANDSHAKE_TIMEOUT)?;
+        if require_compatible(&response, game).is_ok() {
+            self.channel
+                .enable_protobuf(game.name())
+                .map_err(|error| error.to_string())?;
+        }
         Ok(HandshakeReport {
             game,
             socket: self.socket.clone(),
@@ -177,45 +195,17 @@ impl Connection {
     }
 
     fn send(&mut self, message: &Value) -> Result<(), String> {
-        serde_json::to_writer(&mut self.writer, message)
-            .map_err(|error| format!("could not encode daemon request: {error}"))?;
-        self.writer
-            .write_all(b"\n")
+        self.runtime
+            .block_on(async { timeout(REQUEST_TIMEOUT, self.channel.send(message)).await })
+            .map_err(|_| "daemon write timed out".to_owned())?
             .map_err(|error| format!("could not write daemon request: {error}"))
     }
 
-    fn receive(&mut self, timeout: Duration) -> Result<Value, String> {
-        self.reader
-            .get_ref()
-            .set_read_timeout(Some(timeout))
-            .map_err(|error| format!("could not configure daemon socket: {error}"))?;
-        let mut frame = Vec::new();
-        let read = self
-            .reader
-            .by_ref()
-            .take(MAX_FRAME_BYTES + 1)
-            .read_until(b'\n', &mut frame)
-            .map_err(|error| {
-                if matches!(
-                    error.kind(),
-                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                ) {
-                    "daemon read timed out".to_owned()
-                } else {
-                    format!("could not read daemon response: {error}")
-                }
-            })?;
-        if read == 0 {
-            return Err("daemon closed the connection".to_owned());
-        }
-        if read as u64 > MAX_FRAME_BYTES || !frame.ends_with(b"\n") {
-            return Err("daemon response exceeds 128 MiB frame limit".to_owned());
-        }
-        frame.pop();
-        if frame.ends_with(b"\r") {
-            frame.pop();
-        }
-        serde_json::from_slice(&frame).map_err(|error| format!("daemon sent invalid JSON: {error}"))
+    fn receive(&mut self, duration: Duration) -> Result<Value, String> {
+        self.runtime
+            .block_on(async { timeout(duration, self.channel.receive()).await })
+            .map_err(|_| "daemon read timed out".to_owned())?
+            .map_err(|error| format!("could not read daemon response: {error}"))
     }
 }
 
@@ -224,6 +214,7 @@ fn hello_request(game: Game) -> Value {
         "op": "hello",
         "id": 1,
         "envelope": local_protocol::ENVELOPE_VERSION,
+        "transport": "protobuf",
         "game": game,
         "interfaces": game.interfaces(),
         "features": [],
@@ -237,6 +228,7 @@ fn hello_request(game: Game) -> Value {
 fn require_compatible(response: &Value, game: Game) -> Result<(), String> {
     require_ok(response, "handshake")?;
     if response.get("compatible").and_then(Value::as_bool) == Some(true)
+        && response["transport"] == "protobuf"
         && response["envelope"] == local_protocol::ENVELOPE_VERSION
         && response["game"] == json!(game)
         && game.interfaces().iter().all(|(name, version)| {
@@ -283,12 +275,80 @@ mod tests {
     }
 
     #[test]
-    fn poe2_hello_requires_only_session_contract() {
+    fn poe2_hello_requires_native_session_contract() {
         let hello = hello_request(Game::Poe2);
         assert_eq!(hello["envelope"], 2);
         assert_eq!(hello["game"], "poe2");
-        assert_eq!(hello["interfaces"], json!({"session": 2}));
+        assert_eq!(hello["interfaces"], json!({"native": 1, "session": 2}));
         assert_eq!(hello["client"], "retinue-inspect");
+    }
+
+    #[test]
+    fn connection_switches_to_native_frames_after_hello() {
+        use retinue_protocol::warframe_native::{RelicRecommendations, RelicSuggestion};
+        let (client, server) = std::os::unix::net::UnixStream::pair().unwrap();
+        client.set_nonblocking(true).unwrap();
+        server.set_nonblocking(true).unwrap();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let mut channel =
+                    Channel::new(UnixStream::from_std(server).unwrap(), MAX_FRAME_BYTES);
+                let hello = channel.receive_request().await.unwrap();
+                assert_eq!(hello["transport"], "protobuf");
+                channel
+                    .send(&json!({"id": 1, "ok": true, "compatible": true,
+                    "envelope": local_protocol::ENVELOPE_VERSION, "game": "warframe",
+                    "interfaces": Game::Warframe.interfaces(), "transport": "protobuf"}))
+                    .await
+                    .unwrap();
+                channel.enable_protobuf("warframe").unwrap();
+                assert_eq!(
+                    channel.receive_request().await.unwrap()["op"],
+                    "relic_recommendations"
+                );
+                channel
+                    .send_data(
+                        2,
+                        &RelicRecommendations {
+                            trace_count: 10,
+                            items: vec![RelicSuggestion {
+                                name: "Neo A1".into(),
+                                favorite: true,
+                                expected_ducats: 58.0,
+                                ..Default::default()
+                            }],
+                        },
+                    )
+                    .await
+                    .unwrap();
+            });
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let channel = {
+            let _guard = runtime.enter();
+            Channel::new(UnixStream::from_std(client).unwrap(), MAX_FRAME_BYTES)
+        };
+        let mut connection = Connection {
+            socket: PathBuf::new(),
+            channel,
+            runtime,
+        };
+        let report = connection.handshake(Game::Warframe).unwrap();
+        require_compatible(&report.response, Game::Warframe).unwrap();
+        connection
+            .send(&json!({"id": 2, "op": "relic_recommendations", "era": "neo"}))
+            .unwrap();
+        let response = connection.receive(REQUEST_TIMEOUT).unwrap();
+        assert_eq!(response["data"]["items"][0]["expected_ducats"], 58.0);
+        assert_eq!(response["data"]["items"][0]["favorite"], true);
+        worker.join().unwrap();
     }
 
     #[test]
@@ -296,7 +356,7 @@ mod tests {
         for game in [Game::Warframe, Game::Poe2] {
             let response = json!({
                 "ok": true, "compatible": true, "envelope": 2,
-                "game": game, "interfaces": game.interfaces(),
+                "game": game, "interfaces": game.interfaces(), "transport": "protobuf",
             });
             assert!(require_compatible(&response, game).is_ok());
             for (field, value) in [
@@ -304,6 +364,7 @@ mod tests {
                 ("game", json!("arc")),
                 ("interfaces", json!({})),
                 ("compatible", json!(false)),
+                ("transport", json!("json")),
             ] {
                 let mut changed = response.clone();
                 changed[field] = value;

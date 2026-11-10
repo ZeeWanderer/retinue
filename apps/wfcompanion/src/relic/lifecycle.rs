@@ -44,6 +44,14 @@ impl Context {
             .then_some(())
             .ok_or_else(|| "relic context cancelled".to_owned())
     }
+
+    pub(super) fn record<T>(&self, check: &'static str, result: &Result<T, String>) {
+        if self.is_current()
+            && let Some(session) = &self.session
+        {
+            session.record(check, result);
+        }
+    }
 }
 
 #[derive(Default)]

@@ -478,7 +478,7 @@ request(#{<<"op">> := <<"relic_recommendations">>,
             case wf_market_service:submit(self(), MarketRequest) of
                 {ok, Ref} ->
                     Refs = maps:get(market_refs, State),
-                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"relics">>}}}};
+                    {ok, State#{market_refs => Refs#{Ref => {Id, <<"relic_recommendations">>}}}};
                 {error, Reason} ->
                     send_error(maps:get(socket, State), Id, Reason),
                     {ok, State}
@@ -747,7 +747,8 @@ send_market_reply(Ref, Reply, State) ->
         {{Id, Dataset}, MarketRefs} ->
             Next = State#{market_refs => MarketRefs},
             case Dataset of
-                <<"relics">> -> start_local_request(Id, Dataset, fun() -> Reply end, Next);
+                D when D =:= <<"relics">>; D =:= <<"relic_recommendations">> ->
+                    start_local_request(Id, Dataset, fun() -> Reply end, Next);
                 _ ->
                     case Reply of
                         {ok, Data} -> send_ok(maps:get(socket, State), Id, Dataset, Data);

@@ -5,6 +5,10 @@ use serde::Deserialize;
 
 use crate::assets;
 
+pub(crate) use retinue_protocol::warframe_native::{
+    RelicRecommendations as Suggestions, RelicSuggestion as Suggestion,
+};
+
 #[derive(Debug)]
 pub(crate) enum Trigger {
     Rewards {
@@ -42,7 +46,7 @@ pub(crate) struct CaptureArm {
     pub(crate) timeout: Duration,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Scene {
     Reading,
     Rewards(Rewards),
@@ -238,22 +242,6 @@ impl AssetRefresh {
             + self.path.capacity()
             + self.digest.capacity()
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct Suggestions {
-    pub(crate) trace_count: u64,
-    pub(crate) items: Vec<Suggestion>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct Suggestion {
-    pub(crate) name: String,
-    pub(crate) amount_owned: u64,
-    pub(crate) vaulted: bool,
-    pub(crate) favorite: bool,
-    pub(crate) expected_platinum: Option<u64>,
-    pub(crate) expected_ducats: u64,
 }
 
 #[cfg(test)]

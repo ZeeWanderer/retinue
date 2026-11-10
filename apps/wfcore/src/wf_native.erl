@@ -19,6 +19,7 @@ message(<<"market_presence">>) -> 'MarketPresence';
 message(<<"assets">>) -> 'Assets';
 message(<<"asset_cache">>) -> 'AssetCache';
 message(<<"ducat_inventory">>) -> 'DucatInventory';
+message(<<"relic_recommendations">>) -> 'RelicRecommendations';
 message(<<"relic_context">>) -> 'RelicContext';
 message(<<"notifications">>) -> 'NotificationSettings';
 message(<<"activity">>) -> 'Activity';

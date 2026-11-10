@@ -239,6 +239,19 @@ message ParentItem { string name = 1; bool owned = 2; bool mastered = 3; bool su
 message DucatItem { string id = 1; string name = 2; uint32 ducats = 3; ParentItem parent = 4; optional string slug = 5; Quote quote = 6; }
 message DucatInventory { repeated DucatItem items = 1; }
 
+message RelicRecommendations {
+  uint64 trace_count = 1;
+  repeated RelicSuggestion items = 2;
+}
+message RelicSuggestion {
+  string name = 1;
+  uint64 amount_owned = 2;
+  bool vaulted = 3;
+  bool favorite = 4;
+  optional double expected_platinum = 5;
+  double expected_ducats = 6;
+}
+
 message RelicPart {
   optional string id = 1;
   optional string slug = 2;
