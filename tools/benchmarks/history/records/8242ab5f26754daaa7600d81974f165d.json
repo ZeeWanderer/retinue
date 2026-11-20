@@ -594,7 +594,7 @@
   "completed_at": "2026-11-04T13:51:33.897283+00:00",
   "history": {
     "series": "e167ee527d32e7428297cd09acfcc91a85af0018a645705d849eca070fc560f1",
-    "note": "Last-commit checkpoint comparison, rails before; eight alternating runs; see 2026-11-04-checkpoint.md. Not baseline acceptance.",
+    "note": "Last-commit checkpoint comparison, rails before; eight alternating runs. Not baseline acceptance.",
     "archived_at": "2026-11-04T13:55:21.348927+00:00",
     "report_sha256": "293c5f1d7239139dcd037200e4e479e14cf50f77f34f7204ea2c0fa93bcd2e5f"
   }

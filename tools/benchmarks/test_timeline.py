@@ -77,7 +77,7 @@ class TimelineTests(unittest.TestCase):
             for i, binary in enumerate(["a", "b", "b"]):
                 report = measurement()
                 report["id"] = str(i) * 32
-                report["provenance"].update(binary_sha256=binary * 64, dirty=i != 0)
+                report["provenance"].update(binary_sha256=binary * 64)
                 path = root / (str(i) + ".json")
                 write_json(path, report)
                 archive(root, path)
@@ -87,6 +87,19 @@ class TimelineTests(unittest.TestCase):
             self.assertEqual(len({p["id"] for p in points}), 3)
             self.assertEqual(len({p["binary"] for p in points}), 2)
             self.assertEqual(len({p["revision"] for p in points}), 1)
+
+    def test_publication_rechecks_provenance_even_for_existing_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "report.json"
+            write_json(source, measurement())
+            record = archive(root, source)
+            r = read_json(record)
+            r["provenance"]["dirty"] = True
+            write_json(record, r)
+            with self.assertRaisesRegex(ValueError, "clean measured checkout"):
+                export(root, root / "site")
+            self.assertFalse((root / "site").exists())
 
     def test_lnt_uses_seconds_and_keeps_independent_runs(self):
         r = measurement()

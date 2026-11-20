@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from statistics import median, quantiles
 
-from history import DEFAULT_ROOT, baselines, fingerprint, record_path, series
+from history import DEFAULT_ROOT, baselines, clean_revision, fingerprint, record_path, series, verify_revision
 from reports import read_json
 from run import catalog
 
@@ -32,14 +32,18 @@ def trend_dimensions(report):
 
 def export(root, dest):
     groups = defaultdict(list)
+    revisions = set()
     suites = catalog()["suite"]
     accepted = baselines(root)["series"]
     for path in sorted((root / "records").glob("*.json")):
         report = read_json(path)
+        revisions.add(clean_revision(report))
         key = series(report)
         if key != report["history"]["series"] or path != record_path(root, report["id"]):
             raise ValueError(f"invalid archived identity: {path}")
         groups[(report["suite"], key)].append(report)
+    for revision in sorted(revisions):
+        verify_revision(revision)
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "records").mkdir(exist_ok=True)
     index = []
@@ -85,6 +89,7 @@ def export(root, dest):
 
 
 def lnt(report):
+    verify_revision(clean_revision(report))
     key = series(report)
     tests = []
     for case, metric, values in measurements(report):

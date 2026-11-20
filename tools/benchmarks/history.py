@@ -8,11 +8,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tomllib
 
 from compare import EXIT, compare
-from reports import read_json, validate_report, write_json
+from reports import ROOT, read_json, validate_report, write_json
 
 
 DEFAULT_ROOT = Path(__file__).with_name("history")
@@ -37,8 +38,27 @@ def record_path(root, record_id):
     return root / "records" / (record_id + ".json")
 
 
+def clean_revision(report):
+    provenance = report["provenance"]
+    if provenance.get("dirty") is not False:
+        raise ValueError(f"{report['id']}: history requires a clean measured checkout; rerun after committing")
+    revision = provenance.get("revision", "")
+    if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", revision):
+        raise ValueError(f"{report['id']}: expected a full Git commit ID")
+    return revision
+
+
+def verify_revision(revision):
+    obj = subprocess.run(["git", "cat-file", "-t", revision], cwd=ROOT, capture_output=True)
+    if obj.stdout.strip() != b"commit" or subprocess.run(
+        ["git", "merge-base", "--is-ancestor", revision, "HEAD"], cwd=ROOT,
+    ).returncode != 0:
+        raise ValueError(f"{revision}: measured commit is not in this checkout's history")
+
+
 def archive(root, source, note=""):
     report = read_json(source)
+    verify_revision(clean_revision(report))
     key = series(report)
     path = record_path(root, report["id"])
     compact = copy.deepcopy(report)
@@ -68,8 +88,7 @@ def baselines(root):
 def select(root, record_id, reason):
     report = read_json(record_path(root, record_id))
     key = series(report)
-    if report["provenance"]["dirty"]:
-        raise ValueError("dirty-worktree measurements can be archived, not selected as baselines")
+    verify_revision(clean_revision(report))
     if report["expected_runs"] < 7:
         raise ValueError("a baseline needs at least seven independent runs")
     if not reason.strip():
@@ -92,6 +111,7 @@ def baseline_for(root, candidate):
     if entry is None:
         raise ValueError("no accepted baseline for this workload and environment")
     report = read_json(record_path(root, entry["record"]))
+    verify_revision(clean_revision(report))
     if series(report) != key:
         raise ValueError("baseline index does not match its report")
     return report

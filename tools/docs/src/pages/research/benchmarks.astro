@@ -4,7 +4,7 @@ import {repository,url} from '../../../paths.mjs';
 ---
 <StarlightPage frontmatter={{title: 'Performance history', tableOfContents:false}}>
   <p class="intro">Track the same workload on the same machine across code, compiler and system updates.
-    Each point is a measured session, not a commit.</p>
+    Each point is a session measured from a clean, linked commit. A commit can have more than one session.</p>
   <section id="history" data-index={url('metrics/index.json')} data-repository={repository} aria-label="Benchmark explorer">
     <div class="controls">
       <label>Suite <select name="suite"></select></label>

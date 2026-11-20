@@ -15,7 +15,6 @@ export function sessionRows(d, {median, spread, change, percent, timestamp, comm
   const config = d.config;
   const source = link(commitURL, d.revision.slice(0, 8));
   const record = link(recordURL, d.id.slice(0, 8));
-  const state = d.dirty ? 'Local changes' : 'Clean';
   const baseline = d.id === config.baseline;
   const row = element('tr');
   function cell(className, ...content) {
@@ -34,7 +33,7 @@ export function sessionRows(d, {median, spread, change, percent, timestamp, comm
   cell('change', change);
   if (percent) row.lastElementChild.append(element('span', percent, 'secondary'));
   cell('runs', d.runs);
-  cell('source', source, element('span', state, 'secondary'));
+  cell('source', source);
   cell('record', record);
   if (baseline) row.lastElementChild.append(element('span', 'Baseline', 'secondary'));
 
@@ -50,7 +49,7 @@ export function sessionRows(d, {median, spread, change, percent, timestamp, comm
   const facts = element('dl', null, 'session-facts');
   const fields = [
     ['Middle 50%', spread], ['Runs', d.runs],
-    ['Source', [source.cloneNode(true), ' · ' + state]],
+    ['Source', source.cloneNode(true)],
     ['Data', [record.cloneNode(true), baseline ? ' · Baseline' : '']],
     ['Binary', d.binary], ['Changed', d.change], ['Rust', config.compiler],
     ['Native compiler', config.nativeCompiler], ['Kernel', config.kernel],

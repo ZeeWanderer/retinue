@@ -2046,7 +2046,7 @@
   "completed_at": "2026-11-02T23:14:10.253016+00:00",
   "history": {
     "series": "4e99ce1ab80a8e89d248c9f336b4aa5670ca03c17bcaf6a8ac69a18f0af43b31",
-    "note": "2026-11-03 post-migration clean cb0a0ce reference; 12 independent ABBA runs, four physical benchmark cores. See 2026-11-03-rendering.md for scope and same-binary noise checks; advisory, not a CI timing gate.",
+    "note": "2026-11-03 post-migration clean cb0a0ce reference; 12 independent ABBA runs, four physical benchmark cores. Advisory, not a CI timing gate.",
     "archived_at": "2026-11-02T23:20:46.861736+00:00",
     "report_sha256": "f6a2692360f36d22cae4aab1655c7e792c5a13ab4ee7d129fec1f7aa7b0cdb57"
   }

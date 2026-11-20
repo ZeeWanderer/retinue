@@ -994,7 +994,7 @@
   "completed_at": "2026-11-04T13:51:08.927326+00:00",
   "history": {
     "series": "a034fda49bafa6e44a975e3f074bf0f0cb1dfba8d6c7638b4b74399162948d0b",
-    "note": "Last-commit checkpoint comparison, relics before; eight alternating runs; see 2026-11-04-checkpoint.md. Not baseline acceptance.",
+    "note": "Last-commit checkpoint comparison, relics before; eight alternating runs. Not baseline acceptance.",
     "archived_at": "2026-11-04T13:55:21.187398+00:00",
     "report_sha256": "3b696c2cbdd1176fbf5a05c98291a0ec8da4dd2e6d4a5f2ebef6345a470c4b26"
   }

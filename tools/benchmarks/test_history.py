@@ -1,21 +1,54 @@
 import copy
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from history import archive, baseline_for, select, series
-from reports import read_json, write_json
+from history import archive, baseline_for, select, series, verify_revision
+from reports import ROOT, read_json, write_json
 from test_compare import report
 
 
 def measurement():
     value = report()
-    value.update(id="a" * 32, provenance={"revision": "old", "dirty": False, "untracked": {}},
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    value.update(id="a" * 32, provenance={"revision": commit, "dirty": False, "untracked": {}},
                  created_at="2026-11-02T00:00:00+00:00")
     return value
 
 
 class HistoryTests(unittest.TestCase):
+    def test_dangling_commit_is_not_a_durable_source_link(self):
+        with tempfile.TemporaryDirectory() as temp, patch("history.ROOT", Path(temp)):
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "user.name=Bench", "-c",
+                                                "user.email=bench@example.invalid", *args],
+                                               cwd=temp, text=True).strip()
+            git("init", "-q")
+            git("commit", "-q", "--allow-empty", "-m", "reachable")
+            verify_revision(git("rev-parse", "HEAD"))
+            dangling = git("commit-tree", "HEAD^{tree}", "-m", "unreferenced")
+            with self.assertRaisesRegex(ValueError, "not in this checkout"):
+                verify_revision(dangling)
+
+    def test_archive_rejects_unreferenceable_measurements_before_writing(self):
+        tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True).strip()
+        for fields, error in [({"dirty": True}, "clean measured checkout"),
+                              ({"dirty": None}, "clean measured checkout"),
+                              ({"revision": "HEAD"}, "full Git commit ID"),
+                              ({"revision": "0" * 40}, "not in this checkout"),
+                              ({"revision": tree}, "not in this checkout")]:
+            with self.subTest(fields=fields), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                r = measurement()
+                r["provenance"].update(fields)
+                source = root / "candidate.json"
+                write_json(source, r)
+                with self.assertRaisesRegex(ValueError, error):
+                    archive(root, source)
+                self.assertFalse((root / "records").exists())
+
     def test_revision_and_timings_do_not_change_the_series(self):
         old = measurement()
         new = copy.deepcopy(old)
@@ -48,14 +81,12 @@ class HistoryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 baseline_for(root, new)
 
-    def test_smoke_dirty_incomplete_and_unsafe_ids_are_not_baselines(self):
-        for kind in ("dirty", "smoke", "incomplete", "path", "reason"):
+    def test_smoke_incomplete_and_unsafe_ids_are_not_baselines(self):
+        for kind in ("smoke", "incomplete", "path", "reason"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 value = measurement()
-                if kind == "dirty":
-                    value["provenance"]["dirty"] = True
-                elif kind == "smoke":
+                if kind == "smoke":
                     value["runs"] = value["runs"][:1]
                     value["expected_runs"] = 1
                 elif kind == "incomplete":

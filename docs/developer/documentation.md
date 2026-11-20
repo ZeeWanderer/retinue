@@ -18,6 +18,8 @@ make docs-serve
 Open <http://127.0.0.1:4321/retinue/>. `make test-docs` runs the generator tests;
 `make docs-check` validates the built artifact. After changing only a guide or
 template, `make docs-site` reuses the extracted metadata.
+The performance history build verifies commit links. A shallow clone may need
+`git fetch --unshallow` to include the measured revisions.
 
 With the preview running, `npm --prefix tools/docs run test:layout` checks the
 performance explorer at desktop and phone widths. It uses Playwright Chromium

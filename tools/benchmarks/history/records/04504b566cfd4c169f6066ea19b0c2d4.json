@@ -6945,7 +6945,7 @@
   "completed_at": "2026-11-02T23:18:05.840693+00:00",
   "history": {
     "series": "0f97ab57320c23aa31753198b201601e59f7e922148f2cd751a97be720877891",
-    "note": "2026-11-03 post-migration clean cb0a0ce reference; 12 independent ABBA runs, four physical benchmark cores. See 2026-11-03-rendering.md for scope and same-binary noise checks; advisory, not a CI timing gate.",
+    "note": "2026-11-03 post-migration clean cb0a0ce reference; 12 independent ABBA runs, four physical benchmark cores. Advisory, not a CI timing gate.",
     "archived_at": "2026-11-02T23:20:46.880516+00:00",
     "report_sha256": "335dd73c5920adb00b9f05b00513654b5980065eb1d73485c9c00b446529e4db"
   }

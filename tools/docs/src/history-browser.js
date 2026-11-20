@@ -51,7 +51,6 @@ const detail = (d) =>
   d.runs +
   ' runs · middle 50%: ' + middle(d) + ' · ' +
   d.revision.slice(0, 8) +
-  (d.dirty ? ' + local changes' : ' (clean)') +
   ' · binary ' +
   (d.binary?.slice(0, 8) ?? 'unknown') + (d.change ? ' · Changed: ' + d.change : '');
 function graph(rows) {
@@ -104,7 +103,7 @@ function graph(rows) {
         pointerX({
           ...mark,
           title: d=>'Session '+d.ordinal+' · '+pretty(d.value)+'\n'+utc(d.date)+' UTC · '+d.runs+' runs\n'+
-            d.revision.slice(0,8)+(d.dirty?' + local changes':' (clean)')+'\nBinary '+(d.binary?.slice(0,8)??'unknown'),
+            d.revision.slice(0,8)+'\nBinary '+(d.binary?.slice(0,8)??'unknown'),
           fill: 'var(--sl-color-bg)',
           stroke: 'currentColor',
           maxRadius: Infinity,
@@ -151,7 +150,7 @@ function draw() {
   chartRows = rows;
   panel.querySelector('#metric-heading').textContent = label(metric.value);
   graph(rows);
-  let previous, previousClean;
+  let previous;
   const fixed = rows.find((r) => r.id === reference.value);
   const rendered = [];
   for (const d of rows) {
@@ -159,7 +158,7 @@ function draw() {
       previous = undefined;
       continue;
     }
-    const ref = fixed ?? (reference.value === 'previous-clean' ? previousClean : previous);
+    const ref = fixed ?? previous;
     let change = '—', percent;
     if (ref?.id === d.id) change = 'Reference';
     else if (ref?.value != null) {
@@ -174,7 +173,6 @@ function draw() {
       timestamp: utc(d.date), commitURL: panel.dataset.repository + '/commit/' + d.revision,
       recordURL: new URL('records/' + d.id + '.json', base)}));
     previous = d;
-    if (!d.dirty) previousClean = d;
   }
   panel.querySelector('tbody').replaceChildren(...rendered.reverse().flat());
   const bins = new Set(rows.filter((d) => d.value != null && d.binary).map((d) => d.binary));
@@ -221,10 +219,10 @@ async function loadSeries(requested) {
     if (seq !== revision) return;
     series = s;
     ({points, metrics: values} = timeline(parts));
-    options(reference, [['previous-clean', 'Previous clean session'], ['previous', 'Previous session'], ...points.map((p, i) =>
+    options(reference, [['previous', 'Previous session'], ...points.map((p, i) =>
       [p.id, '#' + (i + 1) + ' · ' + p.revision.slice(0, 8) +
-        (p.dirty ? ' + local changes' : ' (clean)') + (p.id === p.config.baseline ? ' · accepted baseline' : '')])]);
-    const preferred = requested?.get('reference') ?? (points.some(p => !p.dirty) ? 'previous-clean' : 'previous');
+        (p.id === p.config.baseline ? ' · accepted baseline' : '')])]);
+    const preferred = requested?.get('reference') ?? 'previous';
     if ([...reference.options].some(o => o.value === preferred)) reference.value = preferred;
     const names = [...values.keys()].sort();
     options(

@@ -1394,7 +1394,7 @@
   "completed_at": "2026-11-04T13:50:19.850413+00:00",
   "history": {
     "series": "ea152077e5c9962e576c107912a7b0f9f0048fb012c4352bc34b9c5b1bc71d08",
-    "note": "Last-commit checkpoint comparison, foundry before; eight alternating runs; see 2026-11-04-checkpoint.md. Not baseline acceptance.",
+    "note": "Last-commit checkpoint comparison, foundry before; eight alternating runs. Not baseline acceptance.",
     "archived_at": "2026-11-04T13:55:21.023527+00:00",
     "report_sha256": "4a253b2b1673a6463d0c04b09e571824469f9e9fdaf02fcaff415d8b702dceed"
   }

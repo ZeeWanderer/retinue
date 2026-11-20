@@ -128,11 +128,11 @@ archived as [JSON records](history/records/). The [performance history](https://
 and source provenance. A commit identifies the measured code; it need not have
 its own run or become a baseline.
 In the history chart, session order separates runs made seconds apart; elapsed
-time shows their actual spacing. The source link identifies the base commit,
+time shows their actual spacing. The source link identifies the measured commit,
 the binary hash identifies what ran, and the data link identifies one session.
 Repeated measurements of the same binary are useful controls. Vertical bars show the
 middle 50% of independent runs; they are not confidence intervals. Use **Compare against**
-to see absolute and relative changes from a previous clean session or a specific run.
+to see absolute and relative changes from the previous session or a specific run.
 Leave **Configuration** on **All** to see end-to-end trends; narrow it to isolate recorded
 conditions. Only the regression test requires an exact configuration match.
 The rail scenario measures window chrome with an unpopulated Foundry, not a
@@ -226,15 +226,18 @@ python3 tools/benchmarks/history.py compare research/bench/candidate/report.json
 ```
 
 Archive meaningful changes, release checkpoints and reproduced regressions, not
-every commit. Records are immutable; baseline selection is separate and explicit.
+every commit. Only measurements built from a clean checkout of a commit in the
+repository's history can be archived. To publish a working-tree experiment,
+commit the change and rerun the benchmark; do not relabel its old result.
+Records are immutable; baseline selection is separate and explicit.
 For an LLVM LNT instance, export a record with
 `python3 tools/benchmarks/timeline.py lnt MEASUREMENT_ID > run.json` and use
 `lnt submit SERVER_URL run.json`. The LNT `nts` export includes timing metrics
 in seconds, one sample per process. Memory and counter metrics remain available
 in the static browser. See [LNT's import format](https://llvm.org/docs/lnt/importing_data.html).
 Git retains the selection reason and previous measurement. Series match workload,
-fixtures, build settings and machine, not source commit. A dirty run can be kept
-as evidence but cannot be an accepted baseline. Raw frames, traces, binaries and
+fixtures, build settings and machine, not source commit. Uncommitted candidates
+can still be compared locally against a compatible baseline. Raw frames, traces, binaries and
 logs stay outside Git. No baseline is selected until a clean run is reviewed.
 
 ## Profiling
