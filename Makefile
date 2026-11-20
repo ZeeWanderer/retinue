@@ -154,6 +154,8 @@ build: dev prod
 sccache-setup:
 ifneq ($(strip $(SCCACHE)),)
 	@mkdir -p "$(SCCACHE_DIR)" "$(dir $(SCCACHE_SERVER_UDS))"
+	@# This connects or starts the server; --show-stats also succeeds offline.
+	@flock "$(SCCACHE_SERVER_UDS).startup.lock" "$(SCCACHE)" --dist-status >/dev/null
 endif
 
 dev: dev-erlang dev-companion gui-dev links

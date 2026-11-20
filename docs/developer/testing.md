@@ -53,6 +53,15 @@ make test-gui GUI_TEST=presentation::foundry::
 make test-poe2companion COMPANION_TEST=clipboard
 ```
 
+Tests keep line-table debug information for file/line backtraces instead of full
+type and variable information in every test executable. For debugger inspection,
+use `CARGO_PROFILE_TEST_DEBUG=full make <test-target>`. Development application
+builds retain full symbols. Run the relevant focused suite while editing; the
+complete `test-ui` feature matrix recompiles and links several configurations.
+Correctness tests use Cargo's test profile with debug assertions and overflow
+checks. Release builds are for timing measurements; they are not a substitute
+for these checks. Ordinary `assert!` checks remain active in either profile.
+
 Live checks are explicit: `make test-live LIVE_TEST=gui-session` needs a running
 daemon. Other opt-in checks and their prerequisites appear in `make bench-list`.
 Missing prerequisites mean **unverified**, never success. `#[ignore]` alone is
