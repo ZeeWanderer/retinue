@@ -11,6 +11,8 @@
     "node": ">=22.23.4"
   },
   "dependencies": {
+    "@ast-grep/lang-rust": "0.0.7",
+    "@ast-grep/napi": "0.51.3",
     "@astrojs/markdown-remark": "7.3.0",
     "@astrojs/starlight": "0.42.8",
     "astro": "7.4.4",
@@ -18,8 +20,10 @@
     "mdast-util-to-string": "4.0.0",
     "pagefind": "1.6.0",
     "protobufjs": "8.8.1",
+    "rehype-stringify": "10.0.1",
     "remark-gfm": "4.0.1",
     "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
     "remark-stringify": "11.0.0",
     "unified": "11.0.5",
     "unist-util-visit": "5.2.0"
