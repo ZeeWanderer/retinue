@@ -19,6 +19,10 @@ Open <http://127.0.0.1:4321/retinue/>. `make test-docs` runs the generator tests
 `make docs-check` validates the built artifact. After changing only a guide or
 template, `make docs-site` reuses the extracted metadata.
 
+With the preview running, `npm --prefix tools/docs run test:layout` checks the
+performance explorer at desktop and phone widths. It uses Playwright Chromium
+(`cd tools/docs && npx playwright-core install chromium`).
+
 ## Guides and topic groups
 
 Write guides under `docs/`. Register the intended navigation in

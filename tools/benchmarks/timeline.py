@@ -5,10 +5,11 @@ from collections import defaultdict
 from datetime import datetime
 import json
 from pathlib import Path
-from statistics import median
+from statistics import median, quantiles
 
-from history import DEFAULT_ROOT, baselines, record_path, series
+from history import DEFAULT_ROOT, baselines, fingerprint, record_path, series
 from reports import read_json
+from run import catalog
 
 
 def measurements(report):
@@ -18,8 +19,20 @@ def measurements(report):
             yield case, metric, [run["cases"][case]["metrics"][metric] for run in runs]
 
 
+def trend_dimensions(report):
+    c, machine = report["compatibility"], report["machine"]
+    config = c.get("config", {})
+    dimensions = {"suite": report["suite"], "workload": c.get("workload"), "adapter": c.get("adapter"),
+                  "host": machine.get("host"), "cpu": machine.get("cpu"), "threads": config.get("threads"),
+                  "hz": config.get("hz", 0)}
+    if c.get("adapter") in ("overlay", "quality"):
+        dimensions["samples"] = config.get("samples")
+    return dimensions
+
+
 def export(root, dest):
     groups = defaultdict(list)
+    suites = catalog()["suite"]
     accepted = baselines(root)["series"]
     for path in sorted((root / "records").glob("*.json")):
         report = read_json(path)
@@ -32,7 +45,7 @@ def export(root, dest):
     index = []
     for (suite, key), reports in sorted(groups.items()):
         reports.sort(key=lambda r: (r["created_at"], r["id"]))
-        points, values = [], defaultdict(dict)
+        points, values, spreads = [], defaultdict(dict), defaultdict(dict)
         for i, r in enumerate(reports):
             points.append({"id": r["id"], "date": r["created_at"], "revision": r["provenance"]["revision"],
                            "binary": r["provenance"].get("binary_sha256"),
@@ -40,15 +53,32 @@ def export(root, dest):
             sample_values = defaultdict(dict)
             for case, metric, samples in measurements(r):
                 values[case].setdefault(metric, {})[i] = median(samples)
+                if len(samples) >= 4:
+                    q1, _, q3 = quantiles(samples, n=4, method="inclusive")
+                    spreads[case].setdefault(metric, {})[i] = [q1, q3]
                 sample_values[case][metric] = samples
             public = {**points[-1], "suite": suite, "series": key, "metrics": sample_values}
             (dest / "records" / (r["id"] + ".json")).write_text(json.dumps(public, separators=(",", ":"), allow_nan=False))
         baseline = accepted.get(key, {}).get("record")
-        (dest / (key + ".json")).write_text(json.dumps({"points": points, "values": values},
+        (dest / (key + ".json")).write_text(json.dumps({"points": points, "values": values, "spreads": spreads},
                                                        separators=(",", ":"), allow_nan=False))
-        config = reports[0]["compatibility"].get("config", {})
+        compatibility = reports[0]["compatibility"]
+        config = compatibility.get("config", {})
+        build = compatibility.get("build", {})
+        rustc = build.get("rustc", "").splitlines()
+        native = build.get("CXX_version", "").splitlines()
+        machine = reports[0]["machine"]
+        dimensions = trend_dimensions(reports[0])
         index.append({"suite": suite, "series": key, "baseline": baseline, "count": len(points),
-                      "cpu": reports[0]["machine"].get("cpu"), "threads": config.get("threads"),
+                      "trend": fingerprint(dimensions), "workload": dimensions["workload"],
+                      "description": suites.get(suite, {}).get("description"),
+                      "adapter": compatibility.get("adapter"), "compiler": rustc[0] if rustc else None,
+                      "nativeCompiler": native[0] if native else None,
+                      "cpu": machine.get("cpu"), "host": machine.get("host"),
+                      "kernel": machine.get("kernel"), "affinity": machine.get("affinity"),
+                      "features": compatibility.get("build", {}).get("features", []),
+                      "fixture": compatibility.get("fixture_sha256"), "hz": config.get("hz"),
+                      "threads": config.get("threads"),
                       "samples": config.get("samples"),
                       "first": points[0]["date"], "last": points[-1]["date"]})
     (dest / "index.json").write_text(json.dumps(index, separators=(",", ":")))

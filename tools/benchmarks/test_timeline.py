@@ -6,10 +6,45 @@ from pathlib import Path
 from history import DEFAULT_ROOT, archive
 from reports import read_json, write_json
 from test_history import measurement
-from timeline import export, lnt
+from timeline import export, lnt, trend_dimensions
+from run import catalog
 
 
 class TimelineTests(unittest.TestCase):
+    def test_trends_follow_the_workload_not_the_toolchain(self):
+        before = measurement()
+        before["compatibility"].update(adapter="foundry", workload=1, config={"threads": 4})
+        after = copy.deepcopy(before)
+        after["compatibility"].update(build={"rustc": "next"}, fixture_sha256="new")
+        after["machine"].update(kernel="new", affinity=[4, 5, 6, 7])
+        self.assertEqual(trend_dimensions(before), trend_dimensions(after))
+        for field, value in [("workload", 2), ("config", {"threads": 1})]:
+            changed = copy.deepcopy(after)
+            changed["compatibility"][field] = value
+            self.assertNotEqual(trend_dimensions(before), trend_dimensions(changed))
+
+    def test_maintained_suites_explain_their_workload(self):
+        for name, spec in catalog()["suite"].items():
+            self.assertTrue(spec.get("description", "").strip(), name)
+
+    def test_spread_describes_independent_runs_not_frames(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for i, samples in enumerate(([2], [4, 1, 3, 2], [0, 0, 0, 0])):
+                r = measurement()
+                r.update(id=str(i) * 32, created_at=f"2026-11-0{i + 1}T00:00:00+00:00",
+                         expected_runs=len(samples), runs=[copy.deepcopy(r["runs"][0]) for _ in samples])
+                for run, value in zip(r["runs"], samples):
+                    run["cases"]["scroll"]["metrics"]["frame_p95_ms"] = value
+                path = root / f"{i}.json"
+                write_json(path, r)
+                archive(root, path)
+            export(root, root / "site")
+            [s] = read_json(root / "site/index.json")
+            chart = read_json(root / "site" / (s["series"] + ".json"))
+            self.assertEqual(chart["spreads"]["scroll"]["frame_p95_ms"], {"1": [1.75, 3.25], "2": [0, 0]})
+            self.assertEqual(chart["values"]["scroll"]["frame_p95_ms"], {"0": 2, "1": 2.5, "2": 0})
+
     def test_archive_contains_only_machine_readable_records(self):
         self.assertEqual([p for p in DEFAULT_ROOT.rglob("*") if p.is_file() and p.suffix != ".json"], [])
 

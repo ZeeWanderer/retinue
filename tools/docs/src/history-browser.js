@@ -1,7 +1,11 @@
-import {plot, line, dot, text, tip, pointerX} from '@observablehq/plot';
+import {plot, line, dot, text, tip, pointerX, ruleX} from '@observablehq/plot';
+import {rowsFor, timeline, trendsFor} from './history-series.mjs';
+import {sessionRows} from './history-table.js';
 
 const panel = document.querySelector('#history');
-const [suite, group, workload, metric, axis] = panel.querySelectorAll('select');
+const control = (name) => panel.querySelector(`select[name="${name}"]`);
+const [suite, group, workload, metric, axis, reference, configuration] =
+  ['suite', 'series', 'workload', 'metric', 'axis', 'reference', 'configuration'].map(control);
 const status = panel.querySelector('[role=status]'),
   chart = panel.querySelector('.plot'),
   reading = panel.querySelector('.reading');
@@ -26,13 +30,16 @@ const get = async (url) => {
   return r.json();
 };
 let index,
+  trends,
   series,
   points,
   values,
   revision = 0,
   chosen,
+  chartRows,
   chartWidth;
 const pretty = (n) => format.format(n) + (unit(metric.value) ? ' ' + unit(metric.value) : '');
+const middle = (d) => d.spread ? d.spread.map(pretty).join(' – ') : 'Not available';
 const detail = (d) =>
   'Session ' +
   d.ordinal +
@@ -42,18 +49,11 @@ const detail = (d) =>
   utc(d.date) +
   ' UTC · ' +
   d.runs +
-  ' runs · ' +
+  ' runs · middle 50%: ' + middle(d) + ' · ' +
   d.revision.slice(0, 8) +
   (d.dirty ? ' + local changes' : ' (clean)') +
   ' · binary ' +
-  (d.binary?.slice(0, 8) ?? 'unknown');
-function link(href, label) {
-  const a = document.createElement('a');
-  a.href = href;
-  a.textContent = label;
-  return a;
-}
-
+  (d.binary?.slice(0, 8) ?? 'unknown') + (d.change ? ' · Changed: ' + d.change : '');
 function graph(rows) {
   const valid = rows.filter((d) => d.value != null),
     timed = axis.value === 'time';
@@ -76,7 +76,8 @@ function graph(rows) {
         ticks: indices.filter((_, i) => i % Math.ceil(valid.length / ticks) === 0),
         label: 'Session (chronological order)',
       };
-  const labels = !timed && valid.length <= Math.max(1, Math.floor((width - 80) / 80)) ? valid : [];
+  const stride = Math.max(1, Math.ceil(valid.length / Math.max(1, Math.floor((width - 85) / 100))));
+  const labels = timed ? [] : valid.filter((_, i) => (valid.length - 1 - i) % stride === 0);
   const svg = plot({
     width,
     height: 230,
@@ -89,9 +90,15 @@ function graph(rows) {
     x: xAxis,
     y: {grid: true, nice: true, label: unit(metric.value) || label(metric.value)},
     marks: [
+      ruleX(valid.filter((d) => d.change), {x, stroke: 'var(--sl-color-gray-3)',
+        strokeDasharray: '3,5', ariaLabel: (d) => 'Session ' + d.ordinal + ': changed ' + d.change}),
       line(rows, {...mark, stroke: 'var(--sl-color-text-accent)'}),
+      ruleX(valid.filter((d) => d.spread), {x, y1: (d) => d.spread[0], y2: (d) => d.spread[1],
+        stroke: 'var(--sl-color-text)', strokeWidth: 2, ariaLabel: (d) => 'Middle 50%: ' + middle(d)}),
       dot(valid, {...mark, r: 4, fill: 'var(--sl-color-text-accent)'}),
-      text(labels, {...mark, text: (d) => pretty(d.value), dy: -13}),
+      text(labels, {...mark, text: (d) => pretty(d.value), dy: -13,
+        fill: 'currentColor', stroke: 'var(--sl-color-bg)', strokeWidth: 5, paintOrder: 'stroke',
+      }),
       tip(
         valid,
         pointerX({
@@ -140,45 +147,36 @@ function graph(rows) {
 }
 
 function draw() {
-  const data = values[workload.value][metric.value];
-  const rows = points.map((p, i) => ({...p, ordinal: i + 1, at: new Date(p.date), value: data[i]}));
+  const rows = rowsFor(points, workload.value, metric.value);
+  chartRows = rows;
   panel.querySelector('#metric-heading').textContent = label(metric.value);
   graph(rows);
-  let previous;
+  let previous, previousClean;
+  const fixed = rows.find((r) => r.id === reference.value);
   const rendered = [];
   for (const d of rows) {
     if (d.value == null) {
       previous = undefined;
       continue;
     }
-    const row = document.createElement('tr');
-    const delta = previous == null || previous === 0 ? null : (d.value / previous - 1) * 100;
-    for (const v of [
-      '#' + d.ordinal + ' · ' + utc(d.date),
-      pretty(d.value),
-      delta == null ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(1) + '%',
-      d.runs,
-    ])
-      row.insertCell().textContent = v;
-    row
-      .insertCell()
-      .append(
-        link(panel.dataset.repository + '/commit/' + d.revision, d.revision.slice(0, 8)),
-        d.dirty ? ' + local changes' : ' (clean)',
-      );
-    row.insertCell().textContent = d.binary?.slice(0, 8) ?? 'Unknown';
-    row
-      .insertCell()
-      .append(
-        link(
-          new URL('records/' + d.id + '.json', base),
-          d.id.slice(0, 8) + (d.id === series.baseline ? ' · baseline' : ''),
-        ),
-      );
-    rendered.unshift(row);
-    previous = d.value;
+    const ref = fixed ?? (reference.value === 'previous-clean' ? previousClean : previous);
+    let change = '—', percent;
+    if (ref?.id === d.id) change = 'Reference';
+    else if (ref?.value != null) {
+      const delta = d.value - ref.value;
+      change = (delta > 0 ? '+' : '') + pretty(delta);
+      if (ref.value !== 0) {
+        const pct = 100 * delta / Math.abs(ref.value);
+        percent = (pct > 0 ? '+' : '') + pct.toFixed(1) + '%';
+      }
+    }
+    rendered.push(sessionRows(d, {median: pretty(d.value), spread: middle(d), change, percent,
+      timestamp: utc(d.date), commitURL: panel.dataset.repository + '/commit/' + d.revision,
+      recordURL: new URL('records/' + d.id + '.json', base)}));
+    previous = d;
+    if (!d.dirty) previousClean = d;
   }
-  panel.querySelector('tbody').replaceChildren(...rendered);
+  panel.querySelector('tbody').replaceChildren(...rendered.reverse().flat());
   const bins = new Set(rows.filter((d) => d.value != null && d.binary).map((d) => d.binary));
   status.textContent =
     rendered.length +
@@ -188,18 +186,15 @@ function draw() {
     ' · ' +
     series.cpu;
   const locationURL = new URL(location.href);
-  for (const key of ['series', 'workload', 'metric', 'axis'])
-    locationURL.searchParams.set(
-      key,
-      {series: series.series, workload: workload.value, metric: metric.value, axis: axis.value}[key],
-    );
+  for (const select of [group, configuration, workload, metric, axis, reference])
+    locationURL.searchParams.set(select.name, select.value);
   history.replaceState(null, '', locationURL);
 }
 function cases(preferred) {
-  const names = Object.keys(values[workload.value]).sort();
+  const names = [...values.get(workload.value)].sort();
   options(
     metric,
-    names.map((k) => [k, k]),
+    names.map((k) => [k, label(k)]),
   );
   metric.value = names.includes(preferred)
     ? preferred
@@ -210,52 +205,70 @@ function cases(preferred) {
 }
 async function loadSeries(requested) {
   const seq = ++revision,
-    s = index.find((s) => s.series === group.value);
+    s = trends.find((s) => s.series === group.value);
   values = null;
   chosen = null;
   chart.replaceChildren();
   panel.querySelector('tbody').replaceChildren();
   reading.textContent = '';
   status.textContent = 'Loading measurements…';
-  workload.disabled = metric.disabled = true;
+  panel.querySelector('.suite-description').textContent = s.description ?? '';
+  workload.disabled = metric.disabled = reference.disabled = true;
   try {
-    const data = await get(new URL(s.series + '.json', base));
+    const members = s.members.filter(c => configuration.value === 'all' || c.series === configuration.value);
+    const parts = await Promise.all(members.map(async config =>
+      ({config, data: await get(new URL(config.series + '.json', base))})));
     if (seq !== revision) return;
     series = s;
-    ({points, values} = data);
-    const names = Object.keys(values).sort();
+    ({points, metrics: values} = timeline(parts));
+    options(reference, [['previous-clean', 'Previous clean session'], ['previous', 'Previous session'], ...points.map((p, i) =>
+      [p.id, '#' + (i + 1) + ' · ' + p.revision.slice(0, 8) +
+        (p.dirty ? ' + local changes' : ' (clean)') + (p.id === p.config.baseline ? ' · accepted baseline' : '')])]);
+    const preferred = requested?.get('reference') ?? (points.some(p => !p.dirty) ? 'previous-clean' : 'previous');
+    if ([...reference.options].some(o => o.value === preferred)) reference.value = preferred;
+    const names = [...values.keys()].sort();
     options(
       workload,
       names.map((k) => [k, k]),
     );
     if (names.includes(requested?.get('workload'))) workload.value = requested.get('workload');
-    workload.disabled = metric.disabled = false;
+    workload.disabled = metric.disabled = reference.disabled = false;
     cases(requested?.get('metric'));
   } catch (e) {
     if (seq === revision) status.textContent = 'Could not load measurements: ' + e.message;
   }
 }
+function configurations(requested) {
+  const {members} = trends.find(s => s.series === group.value);
+  options(configuration, [['all', 'All configurations'], ...members.map(c => [c.series,
+    [c.compiler?.split(' (')[0], c.last.slice(0, 10), c.series.slice(0, 8)].filter(Boolean).join(' · ')])]);
+  const preferred = requested?.get('configuration') ?? requested?.get('series');
+  if (members.some(c => c.series === preferred)) configuration.value = preferred;
+  configuration.disabled = members.length === 1;
+  loadSeries(requested);
+}
 function groups(requested) {
-  const sets = index
-    .filter((s) => s.suite === suite.value)
-    .sort((a, b) => Number(b.count > 1) - Number(a.count > 1) || b.last.localeCompare(a.last));
+  trends = trendsFor(index.filter((s) => s.suite === suite.value));
   options(
     group,
-    sets.map((s) => [
+    trends.map((s) => [
       s.series,
       [
-        s.last.slice(0, 10),
+        s.host,
+        'workload v' + s.workload,
         s.threads && s.threads + ' threads',
-        s.samples && s.samples + ' samples',
+        s.hz && s.hz + ' Hz',
+        (s.adapter === 'overlay' || s.adapter === 'quality') && s.samples && s.samples + ' samples',
         s.count + ' sessions',
-        s.series.slice(0, 8),
       ]
         .filter(Boolean)
         .join(' · '),
     ]),
   );
-  if (sets.some((s) => s.series === requested?.get('series'))) group.value = requested.get('series');
-  loadSeries(requested);
+  const preferred = trends.find(s => s.series === requested?.get('series') ||
+    s.members.some(c => c.series === requested?.get('series')));
+  if (preferred) group.value = preferred.series;
+  configurations(requested);
 }
 try {
   index = await get(base);
@@ -266,18 +279,19 @@ try {
     suites.map((k) => [k, k]),
   );
   suite.value =
-    index.find((s) => s.series === initial.get('series'))?.suite ??
+    index.find((s) => [s.series, s.trend].includes(initial.get('series')))?.suite ??
     (suites.includes('gui-foundry') ? 'gui-foundry' : suites[0]);
   if (initial.get('axis') === 'time') axis.value = 'time';
   groups(initial);
   suite.onchange = () => groups();
-  group.onchange = () => loadSeries();
+  group.onchange = () => configurations();
+  configuration.onchange = () => loadSeries(new URLSearchParams(location.search));
   workload.onchange = () => cases(metric.value);
-  metric.onchange = axis.onchange = () => {
+  metric.onchange = axis.onchange = reference.onchange = () => {
     if (values) draw();
   };
   new ResizeObserver(() => {
-    if (values && Math.round(chart.getBoundingClientRect().width) !== chartWidth) draw();
+    if (values && Math.round(chart.getBoundingClientRect().width) !== chartWidth) graph(chartRows);
   }).observe(chart);
 } catch (e) {
   status.textContent = 'Could not load measurements: ' + e.message;

@@ -3,29 +3,41 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import {repository,url} from '../../../paths.mjs';
 ---
 <StarlightPage frontmatter={{title: 'Performance history', tableOfContents:false}}>
-  <p>Compare measurements of the same workload on the same machine. Each point is a benchmark session,
-    not a commit. A session reports the median of its independent process runs.</p>
+  <p class="intro">Track the same workload on the same machine across code, compiler and system updates.
+    Each point is a measured session, not a commit.</p>
   <section id="history" data-index={url('metrics/index.json')} data-repository={repository} aria-label="Benchmark explorer">
     <div class="controls">
       <label>Suite <select name="suite"></select></label>
-      <label>Series <select name="series"></select></label>
+      <label>Test setup <select name="series"></select></label>
+      <label>Configuration <select name="configuration"></select></label>
       <label>Workload <select name="workload"></select></label>
       <label>Metric <select name="metric"></select></label>
     </div>
+    <p class="suite-description"></p>
     <p role="status">Loading measurements…</p>
     <div class="chart-header"><h2 id="metric-heading">Measurements</h2>
       <label>Horizontal axis <select name="axis"><option value="session">Session order</option><option value="time">Elapsed time (UTC)</option></select></label>
+      <label>Compare against <select name="reference"></select></label>
     </div>
     <div class="plot" aria-labelledby="metric-heading"></div>
+    <p class="legend">Dot: session median. Solid bar: middle 50% of runs. Dashed line: configuration changed.</p>
     <p class="reading" aria-live="polite" aria-atomic="true"></p>
-    <div class="measurements" role="region" aria-label="Measurement details" tabindex="0">
-      <table><thead><tr><th>Session (UTC)</th><th>Value</th><th>Change</th><th>Runs</th><th>Source</th><th>Binary</th><th>Data</th></tr></thead><tbody></tbody></table>
+    <div class="measurements not-content" role="region" aria-label="Measurement details" tabindex="0">
+      <table><thead><tr><th>Session (UTC)</th><th>Median</th><th class="spread">Middle 50%</th><th>Change</th><th class="runs">Runs</th><th class="source">Source</th><th class="record">Data</th></tr></thead><tbody></tbody></table>
     </div>
   </section>
+  <details><summary>How to read the measurements</summary>
+    <p><strong>p50</strong> is the median frame time within one run. <strong>p95</strong> is the time at or below which about 95% of frames finished; it describes slower frames. For both, lower is faster. A point is the median of those run-level numbers, not a percentile of all frames pooled together.</p>
+    <p>The bar shows variation across independent processes, not a confidence interval for a change. Fewer than four runs have no bar; identical quartiles have no visible height. The table gives the bounds and the JSON contains each run.</p>
+    <p>Test setup holds the machine, workload version, requested threads and cadence fixed. The timeline spans compiler and system updates. Select one configuration to also match toolchain, CPU affinity, fixtures and other recorded conditions. A gap means the metric was not measured.</p>
+    <p>Change is an observed difference, not its cause. Different sessions can run the same binary; a clean checkout is not automatically an accepted baseline. To test a suspected regression, use the <a href={url('developer/benchmarks/')}>comparison procedure</a>, which checks a confidence interval against a practical tolerance.</p>
+  </details>
   <p><a href={url('metrics/index.json')}>Series index (JSON)</a> · <a href={url('developer/benchmarks/')}>Run and compare benchmarks</a></p>
   <script>import '../../history-browser.js';</script>
 </StarlightPage>
 <style>
+  :global(.main-pane:has(#history)) { --sl-content-width: 100%; }
+  .intro, details, .suite-description {max-inline-size:74ch}
   .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; }
   #history .controls > label, #history label select {margin:0}
   label { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:.25rem; }
@@ -35,7 +47,27 @@ import {repository,url} from '../../../paths.mjs';
   .chart-header label {font-size:.85rem}
   .plot {color:var(--sl-color-text);margin-block:.6rem;min-height:215px}
   .reading {font-variant-numeric:tabular-nums;min-height:2.6em}
+  .legend {font-size:.875rem;color:var(--sl-color-gray-2)}
   .plot :global(circle:focus-visible) {stroke:var(--sl-color-text);stroke-width:3px;outline:none}
-  table { width:100%; font-variant-numeric:tabular-nums; }
-  .measurements { overflow-x:auto; }
+  .measurements { container-type:inline-size; overflow-x:auto; }
+  table {width:100%; border-collapse:collapse; font-size:var(--sl-text-sm); line-height:1.4; font-variant-numeric:tabular-nums;}
+  .measurements :global(:is(th, td)) {padding:.5rem .65rem; text-align:start; vertical-align:middle; border-bottom:1px solid var(--sl-color-gray-5);}
+  .measurements :global(:is(th, td):first-child) {padding-inline-start:0}
+  .measurements :global(:is(th, td):last-child) {padding-inline-end:0}
+  .measurements :global(:is(th, td):is(:nth-child(2), :nth-child(3), :nth-child(4), :nth-child(5))) {text-align:end; white-space:nowrap}
+  .measurements :global(.session-toggle) {display:inline-flex; gap:.45rem; align-items:center; font:inherit; font-weight:600; color:var(--sl-color-white); background:none; border:0; padding:.25rem .25rem .25rem 0; cursor:pointer;}
+  .measurements :global(.session-toggle::before) {content:''; width:.45em; height:.45em; border:solid currentColor; border-width:1.5px 1.5px 0 0; transform:rotate(45deg)}
+  .measurements :global(.session-toggle[aria-expanded=true]::before) {transform:rotate(135deg)}
+  .measurements :global(.secondary) {display:block; color:var(--sl-color-gray-2); font-size:.875em}
+  .measurements :global(a) {color:var(--sl-color-text-accent); text-underline-offset:.15em}
+  .measurements :global(.session-facts) {display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr)); gap:.65rem 1.5rem; margin:0; padding:.5rem; background:var(--sl-color-bg-sidebar); overflow-wrap:anywhere}
+  .measurements :global(.session-facts dt) {font-weight:600}
+  .measurements :global(.session-facts dd) {margin:0}
+  @container (max-width:53rem) {
+    .measurements :global(:is(.source,.record)) {display:none}
+  }
+  @container (max-width:36rem) {
+    .measurements :global(:is(.spread,.runs)) {display:none}
+    .measurements :global(:is(th, td)) {padding-inline:.35rem}
+  }
 </style>

@@ -1,5 +1,6 @@
 # Bump workload when scripted input, timing boundaries or case semantics change.
 [suite.promotion-cost]
+description = "Compares building a cached raster, replaying the original draw commands and blitting the raster for the same element."
 owner = "retinue-render"
 package = "retinue-render"
 target = ["--lib", "--features", "benchmark"]
@@ -12,6 +13,7 @@ workload = 3
 fixtures = ["assets/fonts/roboto/*"]
 
 [suite.text-pipeline]
+description = "Measures shaping, resolving and painting glyph runs, including retained text that changes between frames."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--test", "text_pipeline"]
@@ -24,6 +26,7 @@ workload = 3
 fixtures = ["assets/fonts/roboto/*"]
 
 [suite.text-layout]
+description = "Compares reshaping a paragraph with reflowing existing glyph runs at a new width. No painting."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--test", "text_layout"]
@@ -36,6 +39,7 @@ workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_layout.rs"]
 
 [suite.render-quality]
+description = "Compares renderer optimization policies on scripted scenes, including their frame costs and cache use."
 owner = "retinue-render"
 package = "retinue-render"
 target = ["--lib"]
@@ -48,6 +52,7 @@ workload = 1
 fixtures = ["crates/retinue-render/src/quality/scenarios.rs", "assets/fonts/roboto/*"]
 
 [suite.text-view]
+description = "Measures layout and command recording for new or updated Text views, without rasterization."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--test", "text_view"]
@@ -60,6 +65,7 @@ workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_view.rs"]
 
 [suite.view-ir]
+description = "Compares view-tree and template representations for scripted view and collection updates. Frame cases include painting; update cases do not."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--lib"]
@@ -83,6 +89,7 @@ workload = 3
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/ir/fixtures.rs"]
 
 [suite.view-ir-observed]
+description = "Updates an observable in a mounted row fixture. Compares dependency tracking and its effect on painted frames."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--lib"]
@@ -95,6 +102,7 @@ workload = 3
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/ir/fixtures.rs", "crates/retinue-ui/src/ir/observation_benchmark.rs"]
 
 [suite.view-ir-input]
+description = "Measures publishing a changed callback among mounted controls. Excludes pointer dispatch and painting."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--lib"]
@@ -107,6 +115,7 @@ workload = 1
 fixtures = ["crates/retinue-ui/src/ir/input_benchmark.rs", "crates/retinue-ui/src/ir/fixtures.rs"]
 
 [suite.text-editor]
+description = "Exercises repaint, selection, resizing and text insertion in a single editable field. Excludes window presentation."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--test", "text_editor"]
@@ -119,6 +128,7 @@ workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_editor.rs"]
 
 [suite.execution]
+description = "Compares serial, queued and batched execution on synthetic text and card workloads, not a complete application frame."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--test", "execution"]
@@ -131,6 +141,7 @@ workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/execution.rs"]
 
 [suite.layout-batches]
+description = "Compares serial and cooperative layout of sibling grids, stacks and text. Excludes painting."
 owner = "retinue-ui"
 package = "retinue-ui"
 target = ["--lib"]
@@ -143,6 +154,7 @@ workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/scene/layout/batch_tests.rs"]
 
 [suite.wf-overlay]
+description = "Exercises Warframe relic overlay buffer cycling, frame copying and scene changes without running the game."
 owner = "wfcompanion"
 package = "wfcompanion"
 target = ["--bin", "wfcompanion"]
@@ -155,6 +167,7 @@ workload = 2
 fixtures = ["apps/wfcompanion/src/presentation/relic/fixture.rs", "assets/fonts/roboto/*"]
 
 [suite.poe2-overlay]
+description = "Exercises Evaluate repaint, hover, scrolling and scale changes with fixture listings. Does not measure game FPS."
 owner = "poe2companion"
 package = "poe2companion"
 target = ["--lib"]
@@ -167,6 +180,7 @@ workload = 2
 fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
 
 [suite.gui-execution]
+description = "Compares execution paths for painting, reflowing and scrolling GUI fixtures, through native paint completion."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -179,6 +193,7 @@ workload = 3
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-rails]
+description = "Animates the desktop rails around an unpopulated Foundry. Measures window chrome, not scrolling a populated grid."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -190,6 +205,7 @@ workload = 1
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-rail-updates]
+description = "Exercises the Events rail while idle, updating countdowns or repainting, with inline and queued layout."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -202,6 +218,7 @@ workload = 1
 fixtures = ["apps/wfgui/src/presentation/right_rail/benchmark.rs", "assets/fonts/roboto/*"]
 
 [suite.poe2-drag]
+description = "Moves the Evaluate window using different copy and repaint strategies. Excludes compositor and game frame time."
 owner = "poe2companion"
 package = "poe2companion"
 target = ["--lib"]
@@ -214,6 +231,7 @@ workload = 4
 fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
 
 [suite.gui-foundry]
+description = "Scrolls a populated Foundry fixture at fixed window sizes and UI scales. Compares painting the full window with repairing only the viewport. Excludes desktop presentation."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -225,6 +243,7 @@ workload = 1
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-relics]
+description = "Scrolls the Relic Planner fixture and measures the GUI frame work without desktop presentation."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -236,6 +255,7 @@ workload = 1
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-drag]
+description = "Drags the Foundry scrollbar in the desktop shell to measure the input and rendering cost of scrolling."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
@@ -247,6 +267,7 @@ workload = 3
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-transfer]
+description = "Compares strategies for copying and repainting translated content during GUI scrolling."
 owner = "wfgui"
 package = "wfgui"
 target = ["--bin", "wfgui"]
