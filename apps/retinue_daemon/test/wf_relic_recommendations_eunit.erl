@@ -217,7 +217,10 @@ vanguard_uses_projection_tier_test() ->
     Body = jsone:encode([
         #{<<"uniqueName">> => <<"/Lotus/Types/Game/Projections/T4VanguardTestABronze">>,
           <<"name">> => <<"Vanguard V1 Intact">>, <<"vaulted">> => true,
-          <<"imageName">> => <<"RelicAxiD.png">>, <<"rewards">> => []}
+          <<"imageName">> => <<"RelicAxiD.png">>,
+          <<"rewards">> => [#{<<"chance">> => 1.0,
+                               <<"item">> => #{<<"name">> => <<"Test Prime Part">>,
+                                 <<"warframeMarket">> => #{<<"urlName">> => <<"test_prime_part">>}}}]}
     ]),
     {ok, Catalog} = wf_relic_recommendations:parse(Body),
     Player = #{data => #{<<"inventory">> => #{<<"index">> => #{<<"stacks">> => [
@@ -225,13 +228,29 @@ vanguard_uses_projection_tier_test() ->
           <<"count">> => 1}
     ]}}}},
     Axi = wf_relic_recommendations:build(
-            <<"axi">>, Catalog, [], #{}, Player, planner_options()),
+            <<"axi">>, Catalog, [], #{}, Player, recommendation_options(all)),
     [Relic] = maps:get(<<"items">>, Axi),
-    ?assertEqual(<<"Vanguard V1 Relic">>, maps:get(<<"name">>, Relic)),
+    ?assertEqual(<<"Vanguard V1 Intact">>, maps:get(<<"name">>, Relic)),
     ?assertEqual(<<"axi">>, maps:get(<<"era">>, Relic)),
     All = wf_relic_recommendations:build(
             <<"all">>, Catalog, [], #{}, Player, planner_options()),
-    ?assertEqual(1, length(maps:get(<<"items">>, All))).
+    [Group] = maps:get(<<"items">>, All),
+    ?assertEqual(<<"Vanguard V1 Relic">>, maps:get(<<"name">>, Group)),
+    ?assertEqual(<<"vanguard">>, maps:get(<<"era">>, Group)),
+    Vanguard = wf_relic_recommendations:build(
+                 <<"vanguard">>, Catalog, [], #{}, Player, planner_options()),
+    ?assertEqual([Group], maps:get(<<"items">>, Vanguard)),
+    PlannerAxi = wf_relic_recommendations:build(
+                   <<"axi">>, Catalog, [], #{}, Player, planner_options()),
+    ?assertEqual([], maps:get(<<"items">>, PlannerAxi)),
+    ?assertEqual([<<"test_prime_part">>], wf_relic_recommendations:price_slugs(
+        <<"vanguard">>, Catalog, [], Player, 32,
+        #{view => planner, only_owned => true})),
+    ?assertEqual([], wf_relic_recommendations:price_slugs(
+        <<"axi">>, Catalog, [], Player, 32,
+        #{view => planner, only_owned => true})),
+    ?assertEqual([<<"test_prime_part">>], wf_relic_recommendations:price_slugs(
+        <<"axi">>, Catalog, [], Player, 32)).
 
 unknown_vanguard_tier_remains_visible_in_all_test() ->
     Body = jsone:encode([

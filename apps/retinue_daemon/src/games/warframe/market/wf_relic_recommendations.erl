@@ -179,17 +179,19 @@ limit(Items, Count) -> lists:sublist(Items, Count).
 -doc "Return reward slugs worth warming for the highest-ducat owned relics.".
 -spec price_slugs(binary(), map(), [map()], map(), non_neg_integer()) -> [binary()].
 price_slugs(Era, Catalog, Items, PlayerSnapshot, CandidateLimit) ->
-    price_slugs(Era, Catalog, Items, PlayerSnapshot, CandidateLimit, true).
+    price_slugs(Era, Catalog, Items, PlayerSnapshot, CandidateLimit,
+                #{view => recommendations, only_owned => true}).
 
 -doc "Return reward slugs for the highest-ducat relics in one ownership scope.".
--spec price_slugs(binary(), map(), [map()], map(), non_neg_integer(), boolean()) -> [binary()].
-price_slugs(Era, Catalog, Items, PlayerSnapshot, CandidateLimit, OnlyOwned) ->
+-spec price_slugs(binary(), map(), [map()], map(), non_neg_integer(), map()) -> [binary()].
+price_slugs(Era, Catalog, Items, PlayerSnapshot, CandidateLimit, Options) ->
     Owned = owned_counts(PlayerSnapshot),
     ItemBySlug = maps:from_list(
                    [{maps:get(<<"slug">>, Item), Item}
                     || Item <- Items, maps:is_key(<<"slug">>, Item)]),
-    Candidates = ranked_candidates(Era, Catalog, Owned, ItemBySlug, #{},
-                                   recommendations, OnlyOwned),
+    SelectedCatalog = select_catalog(Era, Catalog, maps:get(view, Options)),
+    Candidates = ranked_candidates(<<"all">>, SelectedCatalog, Owned, ItemBySlug, #{},
+                                   recommendations, maps:get(only_owned, Options)),
     Selected = lists:sublist(Candidates, CandidateLimit),
     unique(lists:append(
              [maps:get(price_slugs, Suggestion, []) || Suggestion <- Selected]), []).
@@ -265,8 +267,8 @@ ranked_candidates(Era, Catalog, Owned, ItemBySlug, Quotes, View, OnlyOwned) ->
     Variants = lists:filtermap(
       fun({Unique, Relic}) ->
           Count = maps:get(Unique, Owned, 0),
-          case (not OnlyOwned orelse Count > 0) andalso
-               era_matches(Era, maps:get(era, Relic)) of
+          Category = view_era(Relic, View),
+          case (not OnlyOwned orelse Count > 0) andalso era_matches(Era, Category) of
               true ->
                   Rewards = maps:get(rewards, Relic),
                   {PricedRewards, PriceableRewards} = price_coverage(Rewards, Quotes),
@@ -281,7 +283,7 @@ ranked_candidates(Era, Catalog, Owned, ItemBySlug, Quotes, View, OnlyOwned) ->
                   {_Family, Refinement} = relic_name_parts(maps:get(name, Relic)),
                   Public = #{<<"id">> => Unique,
                              <<"name">> => maps:get(name, Relic),
-                             <<"era">> => maps:get(era, Relic),
+                             <<"era">> => Category,
                              <<"refinement">> => Refinement,
                              <<"amount_owned">> => Count,
                              <<"vaulted">> => maps:get(vaulted, Relic),
@@ -310,6 +312,15 @@ ranked_candidates(Era, Catalog, Owned, ItemBySlug, Quotes, View, OnlyOwned) ->
         recommendations -> Variants
     end,
     lists:sort(fun recommendation_before/2, Candidates).
+
+select_catalog(Era, Catalog, View) ->
+    maps:filter(fun(_Unique, Relic) -> era_matches(Era, view_era(Relic, View)) end,
+                Catalog).
+
+view_era(Relic, planner) ->
+    {Family, _Refinement} = relic_name_parts(maps:get(name, Relic)),
+    Family;
+view_era(Relic, recommendations) -> maps:get(era, Relic).
 
 group_candidates(Variants) ->
     Groups = lists:foldl(

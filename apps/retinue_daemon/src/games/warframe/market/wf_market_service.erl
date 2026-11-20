@@ -456,7 +456,7 @@ relic_recommendations(Request, SubmittedAt, Snapshot0, Next0) ->
 
 valid_relic_era(Era) ->
     lists:member(Era, [<<"lith">>, <<"meso">>, <<"neo">>, <<"axi">>,
-                       <<"requiem">>, <<"all">>]).
+                       <<"requiem">>, <<"vanguard">>, <<"all">>]).
 
 build_options(Request) ->
     #{view => maps:get(view, Request, recommendations),
@@ -472,7 +472,7 @@ maybe_fetch_recommendation_prices(Request, Era, Player, SubmittedAt, Snapshot, N
                       maps:get(items, Snapshot, []),
                       Player,
                       ?RECOMMENDATION_PRICE_CANDIDATES,
-                      maps:get(only_owned, Request, true)),
+                      build_options(Request)),
             PriceRequest = Request#{ttl => 900, refresh => false},
             fetch_quotes(Slugs, PriceRequest, SubmittedAt, Snapshot, Next, #{});
         false -> {Snapshot, Next, #{}}
