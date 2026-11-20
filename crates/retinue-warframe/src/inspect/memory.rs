@@ -388,7 +388,9 @@ pub fn ui_ducats(source: Source, save: Option<&std::path::Path>) -> Result<UiDuc
         .as_millis();
     let started = std::time::Instant::now();
     let result = if bindings.acquisition_consistent {
-        ui::ducats::Cache::default().read(&source.memory, bindings.display, &bindings.geometry)
+        ui::ducats::Cache::default()
+            .read(&source.memory, bindings.display, &bindings.geometry)
+            .map_err(|error| error.reason().to_owned())
     } else {
         Err("display capture was inconsistent at acquisition".into())
     };

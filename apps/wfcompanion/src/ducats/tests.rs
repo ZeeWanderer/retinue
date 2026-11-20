@@ -12,6 +12,51 @@ fn hover() -> DucatHover {
     }
 }
 
+#[test]
+fn registry_recovery_does_not_claim_a_tooltip_was_read() {
+    let mut health = ReadHealth::default();
+    let mut events = Vec::new();
+    let mut record = |key, result: Result<(), String>| events.push((key, result.is_ok()));
+    for _ in 0..3 {
+        health.observe(
+            &Err(DucatReadError::Registry("no movies".into())),
+            &mut record,
+        );
+    }
+    health.observe(
+        &Ok(DucatState {
+            kiosk_open: false,
+            hover: None,
+            total_us: 0,
+        }),
+        &mut record,
+    );
+    for _ in 0..3 {
+        health.observe(
+            &Err(DucatReadError::Tooltip("popup changed".into())),
+            &mut record,
+        );
+    }
+    health.observe(
+        &Ok(DucatState {
+            kiosk_open: true,
+            hover: Some(hover()),
+            total_us: 0,
+        }),
+        &mut record,
+    );
+    assert_eq!(
+        events,
+        [
+            ("ducat_registry", false),
+            ("ducat_registry", true),
+            ("ducat_tooltip", false),
+            ("ducat_kiosk", true),
+            ("ducat_tooltip", true)
+        ]
+    );
+}
+
 fn item(name: &str, slug: Option<&str>) -> Value {
     json!({"name":name, "ducats":100, "slug":slug, "quote":null,
         "parent":{"name":"Akjagara Prime", "owned":true, "mastered":true, "subsumed":false}})

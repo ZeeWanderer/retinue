@@ -11,7 +11,7 @@ use super::{ProcessIdentity, identify_process};
 
 mod display;
 pub(crate) mod ducats;
-pub use ducats::{DucatHover, DucatReader, DucatState};
+pub use ducats::{DucatHover, DucatReadError, DucatReader, DucatState};
 pub(crate) mod geometry;
 pub use geometry::{DisplayNode, DisplayReader, DisplayTree};
 pub(crate) mod layout;

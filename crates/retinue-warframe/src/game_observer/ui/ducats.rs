@@ -29,6 +29,21 @@ pub struct DucatState {
     pub total_us: u128,
 }
 
+#[derive(Debug)]
+pub enum DucatReadError {
+    Registry(String),
+    Kiosk(String),
+    Tooltip(String),
+}
+
+impl DucatReadError {
+    pub fn reason(&self) -> &str {
+        match self {
+            Self::Registry(reason) | Self::Kiosk(reason) | Self::Tooltip(reason) => reason,
+        }
+    }
+}
+
 pub struct DucatReader {
     pid: u32,
     display: ScaleformLayout,
@@ -47,9 +62,9 @@ impl DucatReader {
         })
     }
 
-    pub fn read(&mut self) -> Result<DucatState, String> {
-        self.cache
-            .read(&memory::open(self.pid)?, self.display, &self.geometry)
+    pub fn read(&mut self) -> Result<DucatState, DucatReadError> {
+        let memory = memory::open(self.pid).map_err(DucatReadError::Registry)?;
+        self.cache.read(&memory, self.display, &self.geometry)
     }
 }
 
@@ -65,29 +80,33 @@ impl Cache {
         memory: &ProcessMemory,
         display: ScaleformLayout,
         geometry: &geometry::layout::Layout,
-    ) -> Result<DucatState, String> {
+    ) -> Result<DucatState, DucatReadError> {
         let started = Instant::now();
         let snapshot = registry::scan(memory, display)
-            .map_err(|(stage, reason)| format!("{stage}: {reason}"))?
+            .map_err(|(stage, reason)| DucatReadError::Registry(format!("{stage}: {reason}")))?
             .snapshot;
         let mut state = DucatState {
             kiosk_open: false,
             hover: None,
             total_us: 0,
         };
-        let Some(_) = unique_movie(&snapshot.movies, INVENTORY)? else {
+        let Some(_) = unique_movie(&snapshot.movies, INVENTORY).map_err(DucatReadError::Kiosk)?
+        else {
             self.popup = None;
             return Ok(state);
         };
-        if let Some(movie) = unique_movie(&snapshot.movies, SQUAD)? {
-            let tree = selected_tree(&mut self.gate, memory, display, geometry, movie, false)?;
-            state.kiosk_open = kiosk_open(&tree)?;
+        if let Some(movie) = unique_movie(&snapshot.movies, SQUAD).map_err(DucatReadError::Kiosk)? {
+            let tree = selected_tree(&mut self.gate, memory, display, geometry, movie, false)
+                .map_err(DucatReadError::Kiosk)?;
+            state.kiosk_open = kiosk_open(&tree).map_err(DucatReadError::Kiosk)?;
         }
         if state.kiosk_open
-            && let Some(movie) = unique_movie(&snapshot.movies, POPUP)?
+            && let Some(movie) =
+                unique_movie(&snapshot.movies, POPUP).map_err(DucatReadError::Tooltip)?
         {
-            let tree = selected_tree(&mut self.popup, memory, display, geometry, movie, true)?;
-            state.hover = hover(&tree)?;
+            let tree = selected_tree(&mut self.popup, memory, display, geometry, movie, true)
+                .map_err(DucatReadError::Tooltip)?;
+            state.hover = hover(&tree).map_err(DucatReadError::Tooltip)?;
         }
         state.total_us = started.elapsed().as_micros();
         Ok(state)

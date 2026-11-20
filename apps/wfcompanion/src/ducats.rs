@@ -5,7 +5,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use retinue_warframe::game_observer::ui::{DucatHover, DucatReader};
+use retinue_warframe::game_observer::ui::{DucatHover, DucatReadError, DucatReader, DucatState};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -331,6 +331,58 @@ fn quote(reply: &Value, slug: &str) -> Result<Quote, String> {
     Ok(quote)
 }
 
+fn failed_check(error: &DucatReadError) -> &'static str {
+    match error {
+        DucatReadError::Registry(_) => "ducat_registry",
+        DucatReadError::Kiosk(_) => "ducat_kiosk",
+        DucatReadError::Tooltip(_) => "ducat_tooltip",
+    }
+}
+
+#[derive(Default)]
+struct ReadHealth {
+    registry_ready: bool,
+    failure: Option<(&'static str, u8)>,
+}
+
+impl ReadHealth {
+    fn observe(
+        &mut self,
+        result: &Result<DucatState, DucatReadError>,
+        mut report: impl FnMut(&'static str, Result<(), String>),
+    ) {
+        if !self.registry_ready && !matches!(result, Err(DucatReadError::Registry(_))) {
+            report("ducat_registry", Ok(()));
+            self.registry_ready = true;
+        }
+        match result {
+            Ok(state) => {
+                self.failure = None;
+                if state.kiosk_open {
+                    report("ducat_kiosk", Ok(()));
+                    if state.hover.is_some() {
+                        report("ducat_tooltip", Ok(()));
+                    }
+                }
+            }
+            Err(error) => {
+                let check = failed_check(error);
+                let count = self
+                    .failure
+                    .filter(|(last, _)| *last == check)
+                    .map_or(1, |(_, n)| n.saturating_add(1));
+                self.failure = Some((check, count));
+                if count >= 3 {
+                    if matches!(error, DucatReadError::Registry(_)) {
+                        self.registry_ready = false;
+                    }
+                    report(check, Err(error.reason().to_owned()));
+                }
+            }
+        }
+    }
+}
+
 pub(crate) fn spawn(
     session: Session,
     outbound: OutboundSender,
@@ -348,21 +400,20 @@ pub(crate) fn spawn(
             let mut pricing = Pricing::default();
             let mut next = Instant::now();
             let mut failures = 0;
+            let mut health = ReadHealth::default();
             while !stopping.load(Ordering::Relaxed) && session.is_current() {
                 let now = Instant::now();
                 let mut publish = false;
                 if now >= next {
-                    let result = session.check().and_then(|_| reader.read());
+                    let result = session
+                        .check()
+                        .map_err(DucatReadError::Registry)
+                        .and_then(|_| reader.read());
+                    health.observe(&result, |check, outcome| session.record(check, &outcome));
                     let interval = match result {
                         Ok(state) => {
                             failures = 0;
                             pricing.kiosk(state.kiosk_open, now);
-                            if state.kiosk_open {
-                                session.record("ducat_kiosk", &Ok::<_, String>(()));
-                                if state.hover.is_some() {
-                                    session.record("ducat_tooltip", &Ok::<_, String>(()));
-                                }
-                            }
                             pricing.observe(state.hover, now);
                             if state.kiosk_open {
                                 ACTIVE_INTERVAL
@@ -370,12 +421,11 @@ pub(crate) fn spawn(
                                 IDLE_INTERVAL
                             }
                         }
-                        Err(error) => {
+                        Err(_) => {
                             pricing.read_failed(now);
                             failures += 1;
                             if failures >= 3 {
                                 pricing.kiosk(false, now);
-                                session.record("ducat_tooltip", &Err::<(), _>(error));
                             }
                             if failures < 3 {
                                 ACTIVE_INTERVAL

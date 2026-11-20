@@ -210,6 +210,7 @@ adapter_checks() ->
      {<<"relic_rewards">>, "Relic reward memory", "Complete a fissure and reach the reward screen."},
      {<<"relic_reward_data">>, "Relic reward data", "Complete a fissure and reach the reward screen."},
      {<<"ducat_bindings">>, "Tooltip memory bindings", "Allow startup discovery to finish."},
+     {<<"ducat_registry">>, "Ducat UI movie registry", "Wait for the game's UI to load."},
      {<<"ducat_kiosk">>, "Ducat kiosk detection", "Open the ducat kiosk."},
      {<<"ducat_tooltip">>, "Ducat tooltip memory", "Hover a prime part in the ducat kiosk."},
      {<<"ducat_inventory">>, "Ducat item metadata", "Open the ducat kiosk."},

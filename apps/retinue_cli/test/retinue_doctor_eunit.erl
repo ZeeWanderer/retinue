@@ -28,9 +28,18 @@ inactive_is_not_healthy_test() ->
 connection_alone_does_not_verify_adapters_test() ->
     Report = report(warframe, info([client(warframe)]), {ok, #{<<"snapshot">> => snapshot()}}),
     ?assertEqual(incomplete, maps:get(status, Report)),
-    ?assertEqual(13, maps:get(unverified, Report)),
+    Count = map_size(adapters()),
+    ?assertEqual(Count, maps:get(unverified, Report)),
     ?assertNotEqual(nomatch, binary:match(iolist_to_binary(retinue_doctor:format(Report)),
-        <<"13 checks have not run or are waiting for the game.">>)).
+        <<(integer_to_binary(Count))/binary, " checks have not run or are waiting for the game.">>)).
+
+registry_failure_does_not_imply_tooltip_was_examined_test() ->
+    Adapters = #{<<"ducat_registry">> => evidence(<<"fail">>, <<"no valid movies">>)},
+    Report = report(warframe, info([client(warframe)]), live((snapshot())#{<<"adapters">> => Adapters})),
+    Checks = maps:get(checks, Report),
+    ?assertMatch([#{state := fail, message := <<"no valid movies">>}],
+                 [C || #{label := <<"Ducat UI movie registry">>} = C <- Checks]),
+    ?assertMatch([#{state := untested}], [C || #{label := <<"Ducat tooltip memory">>} = C <- Checks]).
 
 unresolved_incidents_survive_sessions_and_versions_test() ->
     Open = incident(<<"warframe.companion">>, <<"open">>),
@@ -129,5 +138,5 @@ adapters() -> maps:from_list([{K, evidence(<<"pass">>, null)} || K <-
     [<<"ui_bindings">>, <<"http_inventory">>, <<"native_inventory">>, <<"account">>,
      <<"relic_selection">>, <<"relic_recommendations">>, <<"relic_rewards">>,
      <<"relic_reward_data">>, <<"ducat_bindings">>,
-     <<"ducat_kiosk">>, <<"ducat_tooltip">>, <<"ducat_inventory">>, <<"ducat_market">>]]).
+     <<"ducat_registry">>, <<"ducat_kiosk">>, <<"ducat_tooltip">>, <<"ducat_inventory">>, <<"ducat_market">>]]).
 evidence(State, Error) -> #{<<"state">> => State, <<"error">> => Error, <<"checked_at">> => 99999}.
