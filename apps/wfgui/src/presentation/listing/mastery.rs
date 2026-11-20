@@ -1,6 +1,7 @@
 use super::{card_layout::Positioned, card_layout::place, *};
 use crate::{presentation::widgets::AssetImage, presentation::widgets::ComponentImage};
-use retinue_render::{painter::CachedFont, painter::text_width};
+use retinue_render::painter::CachedFont;
+use retinue_ui::drawing::text::text_width;
 
 fn child(id: Key, name: &'static str) -> Key {
     Key::new(name, id.value)
@@ -101,39 +102,38 @@ pub(super) struct MasteryCardView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for MasteryCardView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let id = self.id;
         let cell = self.cell.read();
         let m = self.metrics.read();
         let context = self.context.read();
         let size = m.uniform_grid().cell();
         let g = Geometry::new(&cell, size, m.scale, &context, &self.fonts.regular);
-        let label = |text: String, size, font, center| {
-            fitted_label(text, font, size, TEXT, center, m.scale)
-        };
+        let label = |text: String, size, font, center| label(text, font, size, TEXT, center);
         ui! {
             LayoutView(Positioned::new(size)) {
                 fill(if cell.hovered { crate::presentation::style::CARD_HOVER } else { controls::CARD }, 12.0)
-                place(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height))), g.image).id(child(id, "mastery.image"))
-                place(AssetImage::icon(if cell.favorite { "favorite_active" } else { "favorite" }, m.px(g.star.width)), g.star).id(child(id, "mastery.favorite")).interactive()
+                place(compose(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height)))), g.image).named(child(id, "mastery.image"))
+                place(compose(AssetImage::icon(if cell.favorite { "favorite_active" } else { "favorite" }, m.px(g.star.width))), g.star).named(child(id, "mastery.favorite")).interactive()
                 place(label(cell.item.name.clone(), 17.0, self.fonts.regular.clone(), false), g.title)
-                    .id(child(id, "mastery.title")).interactive()
+                    .named(child(id, "mastery.title")).interactive()
                 place(label(format!("+{} XP", cell.item.potential_xp), 14.0, self.fonts.regular.clone(), true)
                     .background(fill([0, 0, 0, 138], 5.0)), g.xp)
                 if cell.item.owned {
                     place(label(format!("Level {}/{}", cell.item.rank, cell.item.max_rank), 15.0, self.fonts.light.clone(), true), g.level)
-                    place(AssetImage::icon("owned", m.px(g.owned.width)), g.owned).id(child(id, "mastery.owned"))
-                    place(fitted_label("Owned", self.fonts.light.clone(), 14.0, crate::presentation::style::OWNED_TEXT, false, m.scale), g.owned_label)
+                    place(compose(AssetImage::icon("owned", m.px(g.owned.width))), g.owned).named(child(id, "mastery.owned"))
+                    place(super::label("Owned", self.fonts.light.clone(), 14.0, crate::presentation::style::OWNED_TEXT, false), g.owned_label)
                 } else {
                     place(label(chance(&cell.item), 16.0, self.fonts.regular.clone(), false), g.chance)
-                    place(AssetImage::icon("axi", m.px(g.relic.width)), g.relic).id(child(id, "mastery.relic"))
+                    place(compose(AssetImage::icon("axi", m.px(g.relic.width))), g.relic).named(child(id, "mastery.relic"))
                     place(label(price(cell.cost, context.prices_ready), 16.0, self.fonts.regular.clone(), false), g.price)
-                    place(AssetImage::icon("platinum", m.px(g.platinum.width)), g.platinum).id(child(id, "mastery.platinum"))
-                    for (i, bounds) in g.parts.iter().take(6).enumerate() {
+                    place(compose(AssetImage::icon("platinum", m.px(g.platinum.width))), g.platinum).named(child(id, "mastery.platinum"))
+                    ForEach(g.parts.iter().take(6).enumerate(), |(i, _)| *i as u64) { |(i, bounds)|
                         let component = &cell.item.components[i];
-                        place(ComponentImage { asset: component.asset.clone(), owned: component.blueprint_owned > 0 || (component.required > 0 && component.owned >= component.required),
-                            edge: m.px(bounds.width), scale: m.scale }, *bounds).id(part(id, i)).interactive()
+                        place(compose(ComponentImage { asset: component.asset.clone(), owned: component.blueprint_owned > 0 || (component.required > 0 && component.owned >= component.required),
+                            edge: m.px(bounds.width), scale: m.scale }), *bounds).named(part(id, i)).interactive()
                     }
                 }
             }.interactive()

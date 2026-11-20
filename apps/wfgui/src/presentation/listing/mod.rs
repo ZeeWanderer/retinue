@@ -31,7 +31,7 @@ fn categories(page: Page) -> &'static [(&'static str, &'static str, &'static str
             ("neo", "Neo", "neo"),
             ("axi", "Axi", "axi"),
             ("requiem", "Requiem", "requiem"),
-            ("vanguard", "Vanguard", "relics"),
+            ("vanguard", "Vanguard", "vanguard"),
         ],
     }
 }
@@ -94,6 +94,7 @@ pub struct Listing {
     pub scroll: Scroll,
     pub offset: u32,
     pub viewport: Rect,
+    bottom_inset: u32,
     pub grid: Grid,
     pub menu: Option<(usize, Option<usize>)>,
     pub(super) menu_anchor: (f64, f64),
@@ -137,6 +138,7 @@ impl Listing {
             scroll: Default::default(),
             offset: 0,
             viewport: Rect::default(),
+            bottom_inset: crate::presentation::style::SCROLL_CONTENT_INSET as u32,
             grid: Grid::new(600, 300, 130, 8),
             menu: None,
             menu_anchor: (0.0, 0.0),
@@ -156,6 +158,14 @@ impl Listing {
     }
     pub fn wheel(&mut self, delta: f32, smooth: bool) {
         self.scroll.by(delta, smooth, Instant::now());
+    }
+    fn content_height(&self) -> u32 {
+        self.grid.content_height(self.visible.len())
+            + if self.visible.is_empty() {
+                0
+            } else {
+                self.bottom_inset
+            }
     }
     pub fn replace_fixture(&mut self, data: Value, quotes: &HashMap<String, Quote>) {
         self.replace(
@@ -371,7 +381,7 @@ impl Listing {
                 .then_with(|| a.id.as_str().cmp(b.id.as_str()))
         });
         self.scroll.resize(
-            self.grid.content_height(self.visible.len()) as f32,
+            self.content_height() as f32,
             self.viewport.height as f32,
             Instant::now(),
         );
@@ -979,12 +989,17 @@ mod tests;
 mod toolbar;
 
 use crate::{
-    presentation::widgets::Fonts, presentation::widgets::fill, presentation::widgets::fitted_label,
-    presentation::widgets::key, presentation::widgets::place, presentation::widgets::slot,
+    presentation::widgets::compiled::{fill, frame, label, place, slot},
+    presentation::widgets::{Fonts, key},
 };
 use listing_model::Model;
-use retinue_render::{Bounds, Key};
-use retinue_ui::{layout::grid::UniformGrid, prelude::*, state::KeyedOrder, timeline::FrameTime};
+use retinue_render::{Bounds, Color, Key};
+use retinue_ui::{
+    authoring::*,
+    layout::{Insets, LayoutSize, anchors::AnchorPoint, grid::UniformGrid},
+    state::{KeyedOrder, State},
+    timeline::FrameTime,
+};
 
 const SEARCH: Key = Key::new("listing.search", 0);
 const SORT: Key = Key::new("listing.sort", 0);
@@ -1174,7 +1189,7 @@ impl ListingController {
         }
     }
 
-    fn view(&self, ui: &ControlHost) -> Element {
+    fn view(&self, ui: &ControlHost) -> impl View + use<> {
         let fonts = Fonts::new(ui);
         listing_view::ListingPageView {
             model: self.model.clone(),
@@ -1182,7 +1197,6 @@ impl ListingController {
             overlays: self.overlays.view(fonts.regular.clone()),
             fonts,
         }
-        .into_element()
     }
 
     fn sync(
@@ -1251,9 +1265,10 @@ impl ListingController {
             self.revision = Some(listing.order_revision);
         }
         listing.viewport = m.pixel_rect(m.viewport());
+        listing.bottom_inset = m.px(crate::presentation::style::SCROLL_CONTENT_INSET);
         listing.grid = m.grid();
         listing.scroll.resize(
-            listing.grid.content_height(listing.visible.len()) as f32,
+            listing.content_height() as f32,
             listing.viewport.height as f32,
             now,
         );
@@ -1361,6 +1376,7 @@ impl ListingController {
 
 impl Pages {
     pub(in crate::presentation) fn layout_listing(&mut self) {
+        let time = self.ui.layout_time(FrameTime::now());
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
         let (view, listing) = match self.page {
@@ -1375,17 +1391,20 @@ impl Pages {
             &self.quotes,
             &self.quote_pending,
             &self.preferences,
-            Instant::now(),
+            time.instant,
         );
         if !view.installed {
-            self.ui.install_view(view.view(&self.ui));
+            self.ui.install_compiled(view.view(&self.ui));
             view.installed = true;
         }
         view.overlays
             .sync(&self.ui, listing, &view.model.metrics.get());
         #[cfg(all(test, feature = "profiling"))]
         let synced = Instant::now();
-        self.ui.update_view(FrameTime::now());
+        if !self.ui.resolve_view(time) {
+            return;
+        }
+        self.ui.begin(self.ui.size, self.ui.scale);
         #[cfg(all(test, feature = "profiling"))]
         let projected = Instant::now();
         view.bind(&mut self.ui, listing);

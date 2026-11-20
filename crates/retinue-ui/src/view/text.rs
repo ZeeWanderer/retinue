@@ -1,9 +1,11 @@
-use super::{Element, IntoElement, Primitive, PrimitiveOutput, ViewContext};
+#[cfg(any(test, feature = "reference-frontend"))]
+use super::{Element, IntoElement};
+use super::{Primitive, PrimitiveOutput, ViewContext};
 use crate::{
     Bounds,
     drawing::{
         CanvasContent, DrawingContext, Typography,
-        text::{Paragraph, TextAlignment},
+        text::{ParagraphDrawing, ParagraphSpec, ParagraphState, TextAlignment},
     },
     layout::{
         Available, Layout, LayoutAlgorithm, LayoutError, LayoutSize, Proposal, Subviews,
@@ -12,11 +14,11 @@ use crate::{
     scene::Algorithm,
 };
 use retinue_render::{Color, painter::CachedFont};
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct Text {
-    text: Rc<str>,
+    text: Arc<str>,
     font: Option<Rc<CachedFont>>,
     size: Option<f32>,
     color: Option<Color>,
@@ -25,7 +27,7 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(text: impl Into<Rc<str>>) -> Self {
+    pub fn new(text: impl Into<Arc<str>>) -> Self {
         Self {
             text: text.into(),
             font: None,
@@ -70,7 +72,12 @@ impl PartialEq for Text {
 
 impl Primitive for Text {
     fn resolve(&self, context: &mut ViewContext<'_>) -> PrimitiveOutput {
-        let mut style = context.environment().get::<Typography>();
+        self.resolve_with(context.environment().get::<Typography>())
+    }
+}
+
+impl Text {
+    pub(crate) fn resolve_with(&self, mut style: crate::drawing::TextStyle) -> PrimitiveOutput {
         if let Some(font) = &self.font {
             style.font = font.clone();
         }
@@ -80,20 +87,23 @@ impl Primitive for Text {
         if let Some(color) = self.color {
             style.color = color;
         }
-        let paragraph = Rc::new(Paragraph::new(self.text.clone(), &style, self.line_limit));
+        let layout = TextMeasure {
+            paragraph: ParagraphSpec::new(self.text.clone(), &style, self.line_limit),
+            alignment: self.alignment,
+        };
         let mut output = PrimitiveOutput::new(
             TextPaint {
-                paragraph: paragraph.clone(),
+                layout: layout.clone(),
                 color: style.color,
-                alignment: self.alignment,
             },
             style,
         );
-        output.algorithm = Algorithm::Custom(LayoutAlgorithm::new(TextMeasure(paragraph)));
+        output.algorithm = Algorithm::Custom(LayoutAlgorithm::new(layout));
         output
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl IntoElement for Text {
     fn into_element(self) -> Element {
         Element::primitive(self)
@@ -117,39 +127,69 @@ impl AlignmentId for LastTextBaseline {
 
 #[derive(PartialEq)]
 struct TextPaint {
-    paragraph: Rc<Paragraph>,
+    layout: TextMeasure,
     color: Color,
-    alignment: TextAlignment,
 }
 impl CanvasContent for TextPaint {
     fn draw(&self, context: &mut DrawingContext) {
-        self.paragraph.layout(context.bounds.width).draw(
-            context,
-            context.bounds,
-            self.color,
-            self.alignment,
-        );
+        context
+            .layout::<TextMeasure>()
+            .and_then(|cache| cache.placed.as_ref())
+            .expect("text placement validated before recording")
+            .draw(context, context.bounds, self.color);
     }
 }
 
-#[derive(PartialEq)]
-struct TextMeasure(Rc<Paragraph>);
+#[derive(Clone, PartialEq)]
+struct TextMeasure {
+    paragraph: ParagraphSpec,
+    alignment: TextAlignment,
+}
+
+#[derive(Default)]
+struct TextCache {
+    paragraph: ParagraphState,
+    placed: Option<ParagraphDrawing>,
+}
+
 impl Layout for TextMeasure {
-    type Cache = ();
+    type Cache = TextCache;
     fn measure(
         &self,
         proposal: Proposal,
         _: &mut Subviews<'_, '_>,
-        _: &mut (),
+        cache: &mut TextCache,
     ) -> Result<LayoutSize, LayoutError> {
         let width = match proposal.width {
-            Available::Ideal => self.0.ideal_width(),
-            Available::MinContent => self.0.minimum_width(),
+            Available::Ideal => cache
+                .paragraph
+                .ideal_width(&self.paragraph)
+                .map_err(LayoutError::Text)?,
+            Available::MinContent => cache
+                .paragraph
+                .minimum_width(&self.paragraph)
+                .map_err(LayoutError::Text)?,
             Available::Limit(width) => width,
         };
-        Ok(self.0.layout(width).size)
+        Ok(cache
+            .paragraph
+            .layout(&self.paragraph, width, self.alignment)
+            .map_err(LayoutError::Text)?
+            .size)
     }
-    fn place(&self, _: Bounds, _: &mut Subviews<'_, '_>, _: &mut ()) -> Result<(), LayoutError> {
+    fn place(
+        &self,
+        bounds: Bounds,
+        _: &mut Subviews<'_, '_>,
+        cache: &mut TextCache,
+    ) -> Result<(), LayoutError> {
+        cache.placed = Some(
+            cache
+                .paragraph
+                .layout(&self.paragraph, bounds.width, self.alignment)
+                .map_err(LayoutError::Text)?
+                .drawing(),
+        );
         Ok(())
     }
     fn explicit_alignment(
@@ -157,17 +197,16 @@ impl Layout for TextMeasure {
         guide: AlignmentGuide,
         bounds: Bounds,
         _: &mut Subviews<'_, '_>,
-        _: &mut (),
+        cache: &mut TextCache,
     ) -> Result<Option<f32>, LayoutError> {
-        let layout = self.0.layout(bounds.width);
+        let layout = cache
+            .paragraph
+            .layout(&self.paragraph, bounds.width, self.alignment)
+            .map_err(LayoutError::Text)?;
         if guide.is::<FirstTextBaseline>() {
             Ok(Some(bounds.y + layout.baseline))
         } else if guide.is::<LastTextBaseline>() {
-            Ok(Some(
-                bounds.y
-                    + layout.baseline
-                    + (layout.lines.len().saturating_sub(1) as f32) * self.0.line_height,
-            ))
+            Ok(Some(bounds.y + layout.last_baseline))
         } else {
             Ok(None)
         }

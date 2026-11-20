@@ -8,6 +8,34 @@ pub struct Transfer {
 }
 
 impl Foundry {
+    pub(crate) fn ime_area(&self) -> Option<Rect> {
+        (self.focus == Some(Action::Search))
+            .then(|| self.search.borrow().ime_area(self.search_field))
+            .flatten()
+    }
+
+    pub(crate) fn ime(&mut self, event: &retinue_ui::desktop::winit::event::Ime) -> bool {
+        use retinue_ui::desktop::winit::event::Ime;
+        let changed = match event {
+            Ime::Preedit(text, cursor) => self.search.borrow_mut().preedit(text, *cursor),
+            Ime::Commit(text) => {
+                let changed = self
+                    .search
+                    .borrow_mut()
+                    .insert(text, |s| s.chars().count() <= 256);
+                if changed {
+                    self.filter(true);
+                }
+                true
+            }
+            Ime::Disabled => self.search.borrow_mut().cancel_preedit(),
+            Ime::Enabled => false,
+        };
+        if changed {
+            self.layout_search(Instant::now(), true);
+        }
+        changed
+    }
     pub fn query(&self) -> String {
         self.search.borrow().text()
     }
@@ -63,15 +91,21 @@ impl Foundry {
     }
 
     pub(super) fn layout_search(&mut self, now: Instant, animate: bool) -> bool {
-        let text = self.search.borrow().text();
         let active = matches!(self.focus, Some(Action::Search | Action::ClearSearch));
-        let content_width = text_width(&self.regular, &text, 14.0);
-        let changed =
-            self.search_motion
-                .update(active || !text.is_empty(), content_width, now, animate);
+        let (empty, content_width) = {
+            let editor = self.search.borrow();
+            let text = editor.display_text();
+            (text.is_empty(), text_width(&self.regular, &text, 14.0))
+        };
+        let changed = self
+            .search_motion
+            .update(active || !empty, content_width, now, animate);
         if self.scale > 0.0 {
             let rect = self.search_rect();
-            self.search.borrow_mut().layout(rect, 14.0 * self.scale);
+            self.search_field = rect;
+            self.search
+                .borrow_mut()
+                .layout_scaled(rect, 14.0 * self.scale, self.scale);
         }
         changed
     }
@@ -93,9 +127,9 @@ impl Foundry {
         }
     }
 
-    pub(super) fn paint_search(&self, p: &mut Painter<'_>, r: Rect) {
+    pub(super) fn paint_search(&self, p: &mut retinue_ui::drawing::PixelCanvas, r: Rect) {
         p.fill_rounded_rect(r.x, r.y, r.width, r.height, r.height / 2, CARD);
-        self.icon(
+        self.record_icon(
             p,
             Badge::Search,
             Rect {
@@ -109,11 +143,11 @@ impl Foundry {
         }
         p.viewport(sr, (0, 0), |p| {
             if self.focus == Some(Action::Search) {
-                if self.search.borrow().text().is_empty() {
-                    self.text(p, "Search Foundry", sr, 14.0, MUTED);
+                if self.search.borrow().display_text().is_empty() {
+                    self.record_text(p, "Search Foundry", sr, 14.0, MUTED);
                 }
-                self.search.borrow_mut().paint(
-                    p,
+                p.editor(
+                    &mut self.search.borrow_mut(),
                     sr,
                     14.0 * self.scale,
                     Colors {
@@ -123,7 +157,7 @@ impl Foundry {
                 );
             } else {
                 let text = self.search.borrow().text();
-                self.text(
+                self.record_text(
                     p,
                     if text.is_empty() {
                         "Search Foundry"

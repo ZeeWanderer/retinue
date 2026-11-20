@@ -87,8 +87,10 @@ fn independent_source_benchmark() {
             }
             let center = shell.geometry.center;
             let viewport = shell.foundry.capture_bounds("foundry.grid").unwrap();
-            let x = (center.x + center.width - shell.px(9.0)) as f64;
-            let y = (center.y + viewport.y + shell.px(3.0)) as f64;
+            let thumb = shell.foundry.scrollbar();
+            let travel = viewport.height - thumb.height;
+            let x = (center.x + thumb.x + thumb.width / 2) as f64;
+            let y = (center.y + thumb.y + shell.px(3.0)) as f64;
             shell.pointer_move((x, y));
             shell.pointer_button(true, Instant::now());
             let mut trial = Trial::new(size, count, policy);
@@ -105,17 +107,22 @@ fn independent_source_benchmark() {
             for frame in 0..160 {
                 let process = cpu();
                 let start = Instant::now();
+                let previous_offset = shell.foundry.offset;
                 for event in 0..8 {
                     let phase = ((frame * 8 + event) % 400) as f64 / 400.0;
                     let fraction = if phase < 0.5 { phase } else { 1.0 - phase };
                     let position = (
                         x - f64::from(shell.px(100.0)),
-                        y + fraction * f64::from(viewport.height - shell.px(40.0)),
+                        y + fraction * f64::from(travel),
                     );
                     std::hint::black_box(shell.cursor());
                     trial.invalidate(shell.pointer_move(position));
                     std::hint::black_box(shell.cursor());
                 }
+                assert_ne!(
+                    shell.foundry.offset, previous_offset,
+                    "drag must move content at {scale}, frame {frame}"
+                );
                 trial.invalidate(shell.tick(Instant::now()));
                 let input = Instant::now();
                 shell.prepare_paint();
@@ -127,11 +134,12 @@ fn independent_source_benchmark() {
                 let sample = trial
                     .paint(slot, scene, lease.threads(), |p, _| {
                         p.fill_rounded_rect(0, 0, size.0, size.1, 0, BACKGROUND);
+                        shell.prepare_rasters(&p.visible_regions());
                         shell.draw_prepared(p);
                         Ok(())
                     })
                     .unwrap()
-                    .unwrap();
+                    .unwrap_or_else(|| panic!("missing frame damage: scale {scale}, mode {mode}, frame {frame}, offset {}", shell.foundry.offset));
                 let painted = Instant::now();
                 let mut present_pixels = 0;
                 if offscreen {
@@ -151,7 +159,7 @@ fn independent_source_benchmark() {
                     }
                     painter.finish().unwrap();
                     present_pixels = plan.repair.area();
-                    present_damage.submitted(index);
+                    present_damage.submitted(index, plan.ticket);
                 }
                 if frame >= 20 {
                     let finished = Instant::now();

@@ -4,10 +4,8 @@ use super::{
 };
 use crate::resources::ResourceId;
 use std::{
-    cell::RefCell,
     collections::HashMap,
-    rc::{Rc, Weak},
-    sync::Arc,
+    sync::{Arc, OnceLock, Weak},
 };
 
 mod discovery;
@@ -42,7 +40,7 @@ pub(super) struct Signature {
 #[derive(Clone)]
 pub struct PaintProgram {
     key: PaintKey,
-    data: Rc<Program>,
+    data: Arc<Program>,
 }
 
 struct Program {
@@ -51,36 +49,34 @@ struct Program {
     fingerprint: u64,
     size: (f32, f32),
     scale: f32,
-    commands: Rc<Vec<Command>>,
-    optimized: Rc<Vec<Command>>,
+    commands: Arc<Vec<Command>>,
+    optimized: Arc<Vec<Command>>,
     analysis: Analysis,
     summary: optimize::Summary,
     cost: [crate::cost::Density; 2],
     calls: Vec<FragmentCall>,
     logical_bounds: Bounds,
-    acceleration: RefCell<Acceleration>,
+    acceleration: OnceLock<super::replay_index::ReplayIndex>,
 }
 
-#[derive(Default)]
-struct Acceleration {
-    lifetime: Option<Arc<()>>,
-    index: Option<Rc<super::replay_index::ReplayIndex>>,
-}
-
+#[derive(Clone)]
 pub(super) struct AnalysisTarget(Weak<Program>);
 
 impl AnalysisTarget {
+    pub fn build(&self, cancelled: impl Fn() -> bool) -> Option<super::replay_index::ReplayIndex> {
+        let program = self.0.upgrade()?;
+        super::replay_index::ReplayIndex::from_bounds(
+            program.optimized.len(),
+            |index| program.optimized[index].cull_bounds(program.scale),
+            || cancelled() || Arc::strong_count(&program) == 1,
+        )
+    }
+
     pub fn publish(&self, id: ProgramId, index: super::replay_index::ReplayIndex) -> bool {
         let Some(program) = self.0.upgrade().filter(|p| p.id == id) else {
             return false;
         };
-        let mut acceleration = program.acceleration.borrow_mut();
-        if acceleration.index.is_some() {
-            return false;
-        }
-        acceleration.index = Some(Rc::new(index));
-        acceleration.lifetime = None;
-        true
+        program.acceleration.set(index).is_ok()
     }
 }
 
@@ -106,7 +102,7 @@ impl ProgramStore {
         key: impl Into<PaintKey>,
         size: (f32, f32),
         scale: f32,
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
     ) -> Result<PaintProgram, &'static str> {
         if !scale.is_finite() || scale <= 0.0 {
             return Err("paint scale must be positive and finite");
@@ -123,7 +119,7 @@ impl ProgramStore {
         key: PaintKey,
         size: (f32, f32),
         scale: f32,
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
     ) -> PaintProgram {
         self.intern(key, size, scale, commands, Compilation::Source)
     }
@@ -133,7 +129,7 @@ impl ProgramStore {
         key: PaintKey,
         size: (f32, f32),
         scale: f32,
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
         compilation: Compilation,
     ) -> PaintProgram {
         let commands = self.canonicalize(&commands, scale);
@@ -150,7 +146,7 @@ impl ProgramStore {
         for data in versions.iter().filter_map(Weak::upgrade) {
             if data.size == size
                 && data.scale == scale
-                && (Rc::ptr_eq(&data.commands, &commands) || data.commands == commands)
+                && (Arc::ptr_eq(&data.commands, &commands) || data.commands == commands)
             {
                 self.reused += 1;
                 return PaintProgram { key, data };
@@ -159,7 +155,7 @@ impl ProgramStore {
         let (optimized, mut summary) = optimize::compile(&commands, scale);
         let optimized = if matches!(compilation, Compilation::Source | Compilation::Authored) {
             let discovered = self.discover(&optimized, scale, compilation == Compilation::Source);
-            if !Rc::ptr_eq(&discovered, &optimized) {
+            if !Arc::ptr_eq(&discovered, &optimized) {
                 let (_, discovered_summary) = optimize::compile(&discovered, scale);
                 summary.work = discovered_summary.work;
                 summary.direct_work = discovered_summary.direct_work;
@@ -178,7 +174,7 @@ impl ProgramStore {
             .map(Command::bounds)
             .reduce(Bounds::union)
             .unwrap_or_default();
-        let data = Rc::new(Program {
+        let data = Arc::new(Program {
             id: ProgramId(ResourceId::next()),
             compilation,
             fingerprint: hash,
@@ -191,17 +187,17 @@ impl ProgramStore {
             cost,
             calls,
             logical_bounds,
-            acceleration: RefCell::default(),
+            acceleration: OnceLock::new(),
         });
         self.entries
             .entry((hash, compilation))
             .or_default()
-            .push(Rc::downgrade(&data));
+            .push(Arc::downgrade(&data));
         self.compiled += 1;
         PaintProgram { key, data }
     }
 
-    fn canonicalize(&mut self, commands: &Rc<Vec<Command>>, scale: f32) -> Rc<Vec<Command>> {
+    fn canonicalize(&mut self, commands: &Arc<Vec<Command>>, scale: f32) -> Arc<Vec<Command>> {
         let mut changed = None;
         for (index, command) in commands.iter().enumerate() {
             let replacement = match command {
@@ -226,14 +222,14 @@ impl ProgramStore {
                 }
                 Command::Translate { offset, commands } => {
                     let children = self.canonicalize(commands, scale);
-                    (!Rc::ptr_eq(commands, &children)).then_some(Command::Translate {
+                    (!Arc::ptr_eq(commands, &children)).then_some(Command::Translate {
                         offset: *offset,
                         commands: children,
                     })
                 }
                 Command::Clip { bounds, commands } => {
                     let children = self.canonicalize(commands, scale);
-                    (!Rc::ptr_eq(commands, &children)).then_some(Command::Clip {
+                    (!Arc::ptr_eq(commands, &children)).then_some(Command::Clip {
                         bounds: *bounds,
                         commands: children,
                     })
@@ -244,21 +240,17 @@ impl ProgramStore {
                 changed.get_or_insert_with(|| commands.as_ref().clone())[index] = replacement;
             }
         }
-        changed.map(Rc::new).unwrap_or_else(|| commands.clone())
+        changed.map(Arc::new).unwrap_or_else(|| commands.clone())
     }
 }
 
 impl PaintProgram {
-    pub(super) fn analysis_target(&self) -> (AnalysisTarget, std::sync::Weak<()>) {
-        let mut acceleration = self.data.acceleration.borrow_mut();
-        (
-            AnalysisTarget(Rc::downgrade(&self.data)),
-            Arc::downgrade(acceleration.lifetime.get_or_insert_with(|| Arc::new(()))),
-        )
+    pub(super) fn analysis_target(&self) -> AnalysisTarget {
+        AnalysisTarget(Arc::downgrade(&self.data))
     }
 
     pub(super) fn has_replay_index(&self) -> bool {
-        self.data.acceleration.borrow().index.is_some()
+        self.data.acceleration.get().is_some()
     }
 
     pub(super) fn replay(
@@ -272,7 +264,7 @@ impl PaintProgram {
         fragments: &mut impl FnMut(
             &PaintProgram,
             &OptimizationContext,
-        ) -> Option<Rc<crate::painter::RasterImage>>,
+        ) -> Option<Arc<crate::painter::RasterImage>>,
     ) {
         let commands = if compiled {
             self.optimized()
@@ -294,8 +286,8 @@ impl PaintProgram {
                 );
             }
         };
-        let index = self.data.acceleration.borrow().index.clone();
-        if let Some(index) = index.as_ref().filter(|_| compiled && cull) {
+        let index = self.data.acceleration.get();
+        if let Some(index) = index.filter(|_| compiled && cull) {
             let (nodes, skipped) = index.visit(origin, clip, &mut replay);
             stats.indexed_nodes += nodes;
             stats.indexed_commands_skipped += skipped;
@@ -312,7 +304,7 @@ impl PaintProgram {
         key: impl Into<PaintKey>,
         size: (f32, f32),
         scale: f32,
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
     ) -> Result<Self, &'static str> {
         ProgramStore::default().record(key, size, scale, commands)
     }
@@ -333,7 +325,7 @@ impl PaintProgram {
                 && self.scale() == other.scale()
                 && self.commands() == other.commands())
     }
-    pub fn commands(&self) -> &Rc<Vec<Command>> {
+    pub fn commands(&self) -> &Arc<Vec<Command>> {
         &self.data.commands
     }
     pub fn scale(&self) -> f32 {
@@ -350,6 +342,9 @@ impl PaintProgram {
     }
     pub(super) fn calls(&self) -> &[FragmentCall] {
         &self.data.calls
+    }
+    pub(crate) fn fonts(&self) -> &[crate::text::preparation::FontRequest] {
+        &self.data.analysis.fonts
     }
 
     pub fn matches(&self, key: PaintKey, size: (f32, f32), scale: f32) -> bool {
@@ -371,7 +366,7 @@ impl PaintProgram {
     pub fn bounds(&self) -> Pixels {
         self.data.analysis.effects.writes
     }
-    pub(super) fn optimized(&self) -> &Rc<Vec<Command>> {
+    pub(super) fn optimized(&self) -> &Arc<Vec<Command>> {
         &self.data.optimized
     }
     pub(super) fn summary(&self) -> optimize::Summary {

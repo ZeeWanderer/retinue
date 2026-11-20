@@ -1,29 +1,43 @@
 use crate::model::{Model, text_style};
-use retinue_render::{Bounds, ImageFit, ImageSource};
+use retinue_render::{Bounds, Color, ImageFit, ImageSource};
 use retinue_ui::{
-    drawing::text::{Paragraph, TextAlignment},
-    prelude::*,
+    authoring::*,
+    drawing::{
+        CanvasContent, DrawingContext,
+        text::{Paragraph, TextAlignment},
+    },
+    prelude::Typography,
 };
+use std::rc::Rc;
 
 #[derive(PartialEq)]
-pub struct DrawnCard(pub Model);
+pub struct DrawnCard {
+    pub model: Model,
+}
 
 #[derive(PartialEq)]
 struct Content {
-    title: String,
+    title: Rc<Paragraph>,
     image: Option<ImageSource>,
 }
 
+#[view]
 impl View for DrawnCard {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let content = Content {
-            title: self.0.title.get(),
-            image: self.0.artwork.read().pixels(),
+            title: Rc::new(Paragraph::new(self.model.title.get(), &text_style(), None)),
+            image: self.model.artwork.read().pixels(),
         };
-        let label = Paragraph::new(content.title.as_str(), &text_style(), None).layout(160.0);
+        let height = content
+            .title
+            .layout(160.0, TextAlignment::Center)
+            .unwrap()
+            .size
+            .height;
         Canvas::new(content)
-            .frame(184.0, 104.0 + label.size.height)
+            .frame(Frame::new().width(184.0).height(104.0 + height))
             .environment::<Typography>(text_style())
+            .padding(20.0)
     }
 }
 
@@ -35,13 +49,15 @@ impl CanvasContent for Content {
         if let Some(image) = &self.image {
             context.image(image, art, ImageFit::Contain);
         }
-        let paragraph = Paragraph::new(self.title.as_str(), &context.text_style, None);
-        let label = paragraph.layout(160.0);
-        label.draw(
-            context,
-            Bounds::new(12.0, 92.0, 160.0, label.size.height),
-            context.text_style.color,
-            TextAlignment::Center,
-        );
+        let label = self.title.layout(160.0, TextAlignment::Center).unwrap();
+        let origin = label.origin(Bounds::new(12.0, 92.0, 160.0, label.size.height));
+        // Match the composed view's placement boundary, not the glyph positions.
+        context.translated(origin, |context| {
+            label.draw(
+                context,
+                Bounds::new(0.0, 0.0, label.size.width, label.size.height),
+                context.text_style.color,
+            );
+        });
     }
 }

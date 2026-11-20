@@ -77,7 +77,7 @@ fn content_and_properties_patch_as_one_frame_and_repair_like_fresh_replay() {
             PaintKey::new(1.into(), 1),
             (40.0, 30.0),
             scale,
-            Rc::new(vec![Command::Fill {
+            Arc::new(vec![Command::Fill {
                 bounds: Bounds::new(-6.0, -3.0, 22.0, 17.0),
                 radius: 0.0,
                 color: Color::rgb(0xdab321),
@@ -134,7 +134,7 @@ fn content_changes_recompute_bounds_without_property_changes() {
         4,
         (8.0, 6.0),
         1.0,
-        Rc::new(vec![Command::Fill {
+        Arc::new(vec![Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 8.0, 6.0),
             radius: 0.0,
             color: Color::rgb(0xffffff),
@@ -430,7 +430,7 @@ fn replacement_preserves_unchanged_revisions_but_reused_keys_get_new_lifetimes()
     let first = frame.translation_revision(transform(1));
     let snapshot = frame.snapshot();
     frame
-        .replace_with_properties(SIZE, 1.0, frame.chunks.clone(), Vec::new(), definitions())
+        .replace_with_properties(SIZE, 1.0, frame.chunks.to_vec(), Vec::new(), definitions())
         .unwrap();
     assert_eq!(frame.translation_revision(transform(1)), first);
     assert_eq!(frame.generation, snapshot.frame().generation);

@@ -15,13 +15,13 @@ impl Snapshot {
         let mut dirty = vec![false; scene.geometry.len()];
         let mut dirty_count = 0;
         // Parent movement does not dirty descendants; changes inside a subtree do.
-        for &slot in &scene.tree.changed {
+        for (slot, _) in scene.tree.state.changed.iter() {
             let mut current = Some(slot);
             while let Some(slot) = current {
-                let Some(node) = &scene.tree.nodes[slot] else {
+                let Some(node) = &scene.tree.inputs[slot] else {
                     break;
                 };
-                if let Some(&index) = scene.geometry_index.get(&node.element.key) {
+                if let Some(&index) = scene.geometry_index.get(&node.key) {
                     if std::mem::replace(&mut dirty[index], true) {
                         break;
                     }

@@ -1,17 +1,27 @@
 use super::*;
 use retinue_render::{RasterMode, Renderer, ResidencyPolicy, damage::Damage, painter::Painter};
-use retinue_ui::runtime::ViewTree;
+use retinue_ui::{environment::Environment, ir::InstanceGraph, timeline::FrameTime};
 use std::time::Instant;
 
-fn placeholder() -> impl IntoElement {
-    LoadingPlaceholder {
-        color: Color::rgba(120, 140, 160, 64),
-        radius: 4.0,
-    }
-    .frame(80.5, 24.5)
+fn placeholder(environment: Environment) -> InstanceGraph {
+    let mut graph = InstanceGraph::default();
+    let root = graph
+        .mount_body(
+            |_| {
+                compose(LoadingPlaceholder {
+                    color: Color::rgba(120, 140, 160, 64),
+                    radius: 4.0,
+                })
+                .frame(Frame::new().width(80.5).height(24.5))
+            },
+            environment,
+        )
+        .unwrap();
+    graph.set_root(Some(root)).unwrap();
+    graph
 }
 
-fn paint(tree: &ViewTree, renderer: &mut Renderer, pixels: &mut [u8], damage: Damage) {
+fn paint(tree: &InstanceGraph, renderer: &mut Renderer, pixels: &mut [u8], damage: Damage) {
     let size = tree.frame().size();
     renderer.prepare(tree.frame(), RasterMode::Replay);
     let mut painter = Painter::new(pixels, size.0, size.1).unwrap();
@@ -30,17 +40,19 @@ fn pulse_updates_only_paint_and_repairs_match_a_fresh_frame() {
     };
     for scale in [1.0, 1.25, 2.0] {
         let size = ((120.0 * scale) as u32, (60.0 * scale) as u32);
-        let mut tree = ViewTree::new(placeholder(), || {});
-        tree.update_at(size, scale, start).unwrap();
+        let mut tree = placeholder(Environment::default());
+        tree.advance_at(size, scale, start, None).unwrap();
         let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
         let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
         paint(&tree, &mut renderer, &mut pixels, Damage::Full);
         for millis in [16, 350, 700, 1050, 1400] {
             let time = start.at(start.instant + Duration::from_millis(millis));
-            let damage = tree.update_at(size, scale, time).unwrap();
-            assert_eq!(tree.stats.bodies, 0);
-            assert_eq!(tree.stats.mounted, 0);
-            assert_eq!(tree.stats.unmounted, 0);
+            let update = tree.advance_at(size, scale, time, None).unwrap();
+            let std::task::Poll::Ready(damage) = update.completion.unwrap() else {
+                panic!("inline layout pending")
+            };
+            assert_eq!(update.work.instances_mounted, 0);
+            assert_eq!(update.work.instances_unmounted, 0);
             assert_eq!(tree.scene().stats.layout_computations, 0);
             if millis == 16 {
                 assert_eq!(
@@ -53,8 +65,8 @@ fn pulse_updates_only_paint_and_repairs_match_a_fresh_frame() {
                 assert_ne!(damage, Damage::None);
             }
             paint(&tree, &mut renderer, &mut pixels, damage);
-            let mut expected = ViewTree::new(placeholder(), || {});
-            expected.update_at(size, scale, time).unwrap();
+            let mut expected = placeholder(Environment::default());
+            expected.advance_at(size, scale, time, None).unwrap();
             let mut full = vec![0; pixels.len()];
             paint(
                 &expected,
@@ -73,16 +85,23 @@ fn reduced_motion_stops_and_resumes_pulse_deadlines() {
         instant: Instant::now(),
         wall_time: UNIX_EPOCH,
     };
-    let mut tree = ViewTree::new(placeholder(), || {});
-    tree.update_at((120, 60), 1.0, time).unwrap();
+    let environment = Environment::default();
+    let mut tree = placeholder(environment.clone());
+    tree.advance_at((120, 60), 1.0, time, None).unwrap();
     assert!(tree.next_deadline().is_some());
-    tree.environment().set::<ReduceMotion>(true);
-    tree.update_at((120, 60), 1.0, time).unwrap();
+    environment.set::<ReduceMotion>(true);
+    tree.advance_at((120, 60), 1.0, time, None).unwrap();
     assert_eq!(tree.next_deadline(), None);
     assert_eq!(tree.scene().stats.layout_computations, 0);
     let later = time.at(time.instant + Duration::from_secs(1));
-    assert_eq!(tree.update_at((120, 60), 1.0, later).unwrap(), Damage::None);
-    tree.environment().set::<ReduceMotion>(false);
-    tree.update_at((120, 60), 1.0, later).unwrap();
+    assert_eq!(
+        tree.advance_at((120, 60), 1.0, later, None)
+            .unwrap()
+            .completion
+            .unwrap(),
+        std::task::Poll::Ready(Damage::None)
+    );
+    environment.set::<ReduceMotion>(false);
+    tree.advance_at((120, 60), 1.0, later, None).unwrap();
     assert!(tree.next_deadline().is_some());
 }

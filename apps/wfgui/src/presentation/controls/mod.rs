@@ -4,9 +4,10 @@ use crate::{
 #[cfg(test)]
 use retinue_render::painter::RasterImage;
 use retinue_render::{
-    painter::{CachedFont, GlyphCache, Painter, TextLine, text_width},
+    painter::{CachedFont, Painter, TextLine},
     thumbnails::Request,
 };
+use retinue_ui::drawing::text::text_width;
 use retinue_ui::{
     Rect, desktop::winit::keyboard::Key, desktop::winit::keyboard::ModifiersState,
     desktop::winit::keyboard::NamedKey, desktop::winit::window::CursorIcon,
@@ -102,6 +103,7 @@ pub struct ControlHost {
     pub hover: Option<String>,
     pressed: Option<String>,
     input: Controls<ControlId>,
+    input_scale: f32,
     input_changed: bool,
     building: bool,
     #[cfg(all(test, feature = "profiling"))]
@@ -142,44 +144,54 @@ impl ControlHost {
         Self::with_faces(&Default::default())
     }
     pub fn with_faces(faces: &retinue_render::painter::FontFaces) -> Result<Self, String> {
-        let glyphs = GlyphCache::new(4 * 1024 * 1024);
+        let regular = Rc::new(
+            faces
+                .load(
+                    include_bytes!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../assets/fonts/roboto/Roboto-Regular.ttf"
+                    )),
+                    0,
+                )
+                .map_err(|e| e.to_string())?,
+        );
+        let edit_resources = retinue_ui::line_edit::EditResources::new(&regular)
+            .map_err(|error| error.to_string())?;
         Ok(Self {
-            regular: Rc::new(CachedFont::with_faces(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../assets/fonts/roboto/Roboto-Regular.ttf"
-                )),
-                Default::default(),
-                &glyphs,
-                faces,
-            )?),
-            bold: Rc::new(CachedFont::with_faces(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../assets/fonts/roboto/Roboto-Bold.ttf"
-                )),
-                Default::default(),
-                &glyphs,
-                faces,
-            )?),
-            light: Rc::new(CachedFont::with_faces(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../assets/fonts/roboto/Roboto-Light.ttf"
-                )),
-                Default::default(),
-                &glyphs,
-                faces,
-            )?),
-            medium: Rc::new(CachedFont::with_faces(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../assets/fonts/roboto/Roboto-Medium.ttf"
-                )),
-                Default::default(),
-                &glyphs,
-                faces,
-            )?),
+            regular,
+            bold: Rc::new(
+                faces
+                    .load(
+                        include_bytes!(concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/../../assets/fonts/roboto/Roboto-Bold.ttf"
+                        )),
+                        0,
+                    )
+                    .map_err(|e| e.to_string())?,
+            ),
+            light: Rc::new(
+                faces
+                    .load(
+                        include_bytes!(concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/../../assets/fonts/roboto/Roboto-Light.ttf"
+                        )),
+                        0,
+                    )
+                    .map_err(|e| e.to_string())?,
+            ),
+            medium: Rc::new(
+                faces
+                    .load(
+                        include_bytes!(concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/../../assets/fonts/roboto/Roboto-Medium.ttf"
+                        )),
+                        0,
+                    )
+                    .map_err(|e| e.to_string())?,
+            ),
             scale: 1.0,
             size: (0, 0),
             visuals: vec![],
@@ -187,18 +199,13 @@ impl ControlHost {
             viewports: Vec::new(),
             buttons: vec![],
             fields: HashMap::new(),
-            edit_resources: retinue_ui::line_edit::EditResources::new(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../assets/fonts/roboto/Roboto-Regular.ttf"
-                )),
-                "Roboto",
-            ),
+            edit_resources,
             searches: HashMap::new(),
             focus: None,
             hover: None,
             pressed: None,
             input: Controls::default(),
+            input_scale: 1.0,
             input_changed: false,
             building: false,
             #[cfg(all(test, feature = "profiling"))]
@@ -255,9 +262,6 @@ impl ControlHost {
         self.context_keys.clear();
     }
     pub fn set_scale(&mut self, scale: f32) {
-        if scale != self.scale {
-            self.edit_resources.clear_glyphs();
-        }
         self.scale = scale;
     }
 
@@ -319,9 +323,10 @@ impl ControlHost {
     }
 
     fn sync_input(&mut self) {
-        if self.building {
+        if self.building || self.layout_pending() {
             return;
         }
+        self.input_scale = self.scale;
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
         let mut occurrences = rustc_hash::FxHashMap::default();
@@ -398,8 +403,8 @@ impl ControlHost {
 
     fn input_position(&self) -> (f32, f32) {
         (
-            self.pointer.0 as f32 / self.scale,
-            self.pointer.1 as f32 / self.scale,
+            self.pointer.0 as f32 / self.input_scale,
+            self.pointer.1 as f32 / self.input_scale,
         )
     }
     fn active_buttons(&self) -> &[Button] {
@@ -486,6 +491,10 @@ impl ControlHost {
         json!({"units":"logical_pixels", "scale":self.scale, "regions":regions, "elements":elements,"composition":self.composition.borrow().report(),
             "popup":self.popup_bounds().map(bounds),
             "controls":self.buttons.iter().map(|b|json!({"id":b.key,"bounds":bounds(b.rect),"enabled":b.enabled})).collect::<Vec<_>>()})
+    }
+    #[cfg(test)]
+    pub(crate) fn text_ink(&self, origin: (u32, u32), clip: Rect) -> Vec<Rect> {
+        super::pixel_tests::text_ink(self.composition.borrow().scene().frame(), origin, clip)
     }
     pub fn bounds(&self, key: &str) -> Option<Rect> {
         self.regions
@@ -923,18 +932,32 @@ impl ControlHost {
         self.hit(key, r, label, true);
     }
     pub fn field(&mut self, key: &str, r: Rect, value: &str, hint: &str) {
-        self.field_value(key, value);
+        self.boxed_field(key, r, value, hint, false);
+    }
+    fn boxed_field(&mut self, key: &str, r: Rect, value: &str, hint: &str, masked: bool) {
+        self.field_value(key, value, masked);
         self.fill(r, 6.0, rgb(0x20283e));
         self.outline(r, 6.0, rgb(0x333e58));
         self.field_control(key, r, hint);
     }
-    fn field_value(&mut self, key: &str, value: &str) {
+    fn field_value(&mut self, key: &str, value: &str, masked: bool) {
+        let new_editor = || {
+            if masked {
+                self.edit_resources.password()
+            } else {
+                self.edit_resources.editor()
+            }
+        };
         let entry = self
             .fields
             .entry(key.into())
-            .or_insert_with(|| RefCell::new(self.edit_resources.editor()));
-        if entry.borrow().text() != value {
-            entry.borrow_mut().set_text(value, false);
+            .or_insert_with(|| RefCell::new(new_editor()))
+            .get_mut();
+        if entry.is_password() != masked {
+            *entry = new_editor();
+        }
+        if entry.text() != value {
+            entry.set_text(value, false);
         }
     }
     fn field_control(&mut self, key: &str, r: Rect, hint: &str) {
@@ -970,7 +993,7 @@ impl ControlHost {
         style: crate::presentation::widgets::search::Style,
     ) -> Rect {
         use crate::{presentation::widgets::search::Anchor, presentation::widgets::search::Style};
-        self.field_value(key, value);
+        self.field_value(key, value, false);
         let active = self.focus.as_deref() == Some(key)
             || self.focus.as_deref() == Some(&format!("clear:{key}"))
             || !value.is_empty();
@@ -983,7 +1006,11 @@ impl ControlHost {
         search.width = available.width as f32 / self.scale;
         search.update(
             active,
-            text_width(&self.regular, value, 14.0),
+            text_width(
+                &self.regular,
+                &self.fields[key].borrow().display_text(),
+                14.0,
+            ),
             Instant::now(),
             true,
         );
@@ -1056,10 +1083,7 @@ impl ControlHost {
         }
     }
     pub fn password(&mut self, key: &str, r: Rect, value: &str) {
-        self.fields
-            .entry(key.into())
-            .or_insert_with(|| RefCell::new(self.edit_resources.password()));
-        self.field(key, r, value, "Password");
+        self.boxed_field(key, r, value, "Password", true);
     }
     pub fn number_field(
         &mut self,
@@ -1346,6 +1370,7 @@ impl ControlHost {
     #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>, media: &Media) {
         self.prepare_paint(media);
+        self.prepare_rasters(&p.visible_regions());
         self.draw_prepared(p);
     }
 
@@ -1357,6 +1382,26 @@ impl ControlHost {
         self.composition.borrow_mut().draw_prepared(self, p);
     }
 
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
+        self.composition.borrow_mut().prepare_rasters(repair);
+    }
+
+    pub fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        let composition = self.composition.borrow();
+        retinue_render::PacketJob::prepare(
+            composition.renderer.clone(),
+            composition.scene().frame(),
+            retinue_render::RasterMode::Explicit,
+            repair,
+            wake,
+            |_, _, _| Err("unresolved control paint".into()),
+        )
+    }
+
     pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
         let composition = self.composition.borrow();
         scene.record_rendered(
@@ -1365,13 +1410,6 @@ impl ControlHost {
             retinue_render::RasterMode::Explicit,
             |_, _| false,
         );
-    }
-
-    fn paint_live(&self, p: &mut Painter<'_>, draw: &Visual) {
-        match draw {
-            Visual::Field(r, key, hint) => self.paint_field(p, *r, key, hint),
-            _ => unreachable!("ordinary visuals are retained composition commands"),
-        }
     }
 
     fn paint_overlays(&self, p: &mut retinue_ui::drawing::PixelCanvas) {
@@ -1412,7 +1450,13 @@ impl ControlHost {
         }
         self.paint_tooltip(p);
     }
-    fn paint_field(&self, p: &mut Painter<'_>, bounds: Rect, key: &str, hint: &str) {
+    fn paint_field(
+        &self,
+        p: &mut retinue_ui::drawing::PixelCanvas,
+        bounds: Rect,
+        key: &str,
+        hint: &str,
+    ) {
         let r = self.field_rect(bounds, key);
         if r.is_empty() {
             return;
@@ -1421,9 +1465,9 @@ impl ControlHost {
         let focused = self.focus.as_deref() == Some(key)
             && self.active_buttons().iter().any(|b| b.key == key);
         if edit.text().is_empty() && !focused {
-            p.viewport(r, (0, 0), |p| {
+            p.clip(r, |p| {
                 p.draw_text_vertically_centered(
-                    self.regular.as_ref(),
+                    &self.regular,
                     TextLine::new(r.x, r.y, r.height),
                     14.0 * self.scale,
                     hint,
@@ -1431,8 +1475,8 @@ impl ControlHost {
                 )
             });
         } else if focused {
-            edit.paint(
-                p,
+            p.editor(
+                &mut edit,
                 r,
                 14.0 * self.scale,
                 Colors {
@@ -1441,14 +1485,10 @@ impl ControlHost {
                 },
             );
         } else {
-            let text = if key.ends_with("password") {
-                "*".repeat(edit.text().chars().count())
-            } else {
-                edit.text()
-            };
-            p.viewport(r, (0, 0), |p| {
+            let text = edit.display_text();
+            p.clip(r, |p| {
                 p.draw_text_vertically_centered(
-                    self.regular.as_ref(),
+                    &self.regular,
                     TextLine::new(r.x, r.y, r.height),
                     14.0 * self.scale,
                     &text,
@@ -1474,7 +1514,7 @@ impl ControlHost {
         let max_width = self
             .px(340.0)
             .min(self.size.0.saturating_sub(self.px(20.0)));
-        let lines = retinue_render::painter::wrap_text(
+        let lines = retinue_ui::drawing::text::wrap_text(
             &self.regular,
             &button.label,
             13.0 * self.scale,
@@ -1603,7 +1643,9 @@ impl ControlHost {
                 && let Some(button) = self.buttons.iter().find(|b| &b.key == key)
             {
                 let rect = self.field_rect(button.rect, key);
-                field.borrow_mut().layout(rect, 14.0 * self.scale);
+                field
+                    .borrow_mut()
+                    .layout_scaled(rect, 14.0 * self.scale, self.scale);
                 field
                     .borrow_mut()
                     .click(self.pointer.0 as f32 - rect.x as f32, false);
@@ -1652,6 +1694,43 @@ impl ControlHost {
         self.input.focus(current.as_ref());
         self.input.focus_next(reverse);
         self.focus = self.input.focused().map(|id| id.0.clone());
+    }
+    pub(super) fn ime_field(&self) -> Option<(&str, Rect)> {
+        let key = self.focus.as_deref()?;
+        let editor = self.fields.get(key)?.borrow();
+        if editor.is_password() || self.popup.is_some() {
+            return None;
+        }
+        let button = self
+            .active_buttons()
+            .iter()
+            .find(|b| b.field && b.enabled && b.key == key)?;
+        Some((key, editor.ime_area(self.field_rect(button.rect, key))?))
+    }
+
+    pub(super) fn ime(&mut self, id: &str, event: &retinue_ui::desktop::winit::event::Ime) -> bool {
+        use retinue_ui::desktop::winit::event::Ime;
+        let Some(editor) = self.fields.get_mut(id) else {
+            return false;
+        };
+        let editor = editor.get_mut();
+        if editor.is_password() {
+            return false;
+        }
+        match event {
+            Ime::Preedit(text, cursor) => editor.preedit(text, *cursor),
+            Ime::Commit(text) => {
+                if editor.insert(text, |s| s.chars().count() <= 4096) {
+                    self.signals.push(Signal {
+                        key: id.into(),
+                        value: Some(editor.text()),
+                    });
+                }
+                true
+            }
+            Ime::Disabled => editor.cancel_preedit(),
+            Ime::Enabled => false,
+        }
     }
     pub fn key(&mut self, key: Key<&str>, mods: ModifiersState) -> bool {
         self.focus_visible.keyboard_input();
@@ -1871,7 +1950,8 @@ impl ControlHost {
             {
                 continue;
             }
-            let value = self.fields[key].borrow().text();
+            let editor = self.fields[key].borrow();
+            let value = editor.display_text();
             let active = self.focus.as_ref() == Some(key)
                 || self.focus.as_deref() == Some(&format!("clear:{key}"));
             search_changed |= search.update(
@@ -1925,6 +2005,8 @@ impl ControlHost {
                 Role::CheckBox
             } else if self.choices.contains_key(&button.key) {
                 Role::ComboBox
+            } else if button.field && self.fields[&button.key].borrow().is_password() {
+                Role::PasswordInput
             } else if button.field {
                 Role::TextInput
             } else {
@@ -1957,8 +2039,20 @@ impl ControlHost {
             } else {
                 node.set_disabled();
             }
-            if button.field && !button.key.ends_with("password") {
-                node.set_value(self.fields[&button.key].borrow().text());
+            if button.field && !self.fields[&button.key].borrow().is_password() {
+                let mut edit = self.fields[&button.key].borrow_mut();
+                if self.focus.as_ref() == Some(&button.key) {
+                    edit.accessible_text(
+                        &mut node,
+                        &mut nodes,
+                        self.field_rect(r, &button.key),
+                        14.0 * self.scale,
+                        self.scale,
+                        super::text_run_id,
+                    );
+                } else {
+                    node.set_value(edit.text());
+                }
                 node.add_action(Action::SetValue);
             }
             if self.focus.as_ref() == Some(&button.key) {
@@ -1995,6 +2089,24 @@ impl ControlHost {
             return false;
         };
         let key = button.key.clone();
+        if request.action == Action::SetTextSelection {
+            let Some(ActionData::SetTextSelection(selection)) = request.data else {
+                return false;
+            };
+            return self.focus.as_ref() == Some(&key)
+                && self
+                    .fields
+                    .get_mut(&key)
+                    .is_some_and(|field| field.get_mut().select_accessible_text(&selection));
+        }
+        if request.action == Action::SetValue
+            && self
+                .fields
+                .get(&key)
+                .is_none_or(|field| field.borrow().is_password())
+        {
+            return false;
+        }
         self.focus = Some(key.clone());
         self.focus_visible.keyboard_input();
         match request.action {
@@ -2033,28 +2145,77 @@ mod tests {
     use super::*;
 
     #[test]
+    fn field_privacy_controls_paint_and_accessibility_independently_of_its_key() {
+        use retinue_ui::desktop::accesskit::Role;
+        let mut ui = ControlHost::new().unwrap();
+        let value = "e\u{301}x";
+        for masked in [false, true, false] {
+            ui.begin((300, 100), 1.0);
+            let r = ui.rect(2.0, 2.0, 140.0, 24.0);
+            if masked {
+                ui.password("credential", r, value);
+            } else {
+                ui.field("credential", r, value, "Account");
+            }
+            ui.finish();
+            let tree = ui.accessibility(1);
+            let (_, node) = tree
+                .nodes
+                .iter()
+                .find(|(id, _)| *id == access_id(1, "credential"))
+                .unwrap();
+            assert_eq!(
+                node.role(),
+                if masked {
+                    Role::PasswordInput
+                } else {
+                    Role::TextInput
+                }
+            );
+            assert_eq!(node.value(), (!masked).then_some(value));
+            let expected = if masked { "**" } else { value };
+            let mut oracle = ControlHost::new().unwrap();
+            oracle.begin((300, 100), 1.0);
+            oracle.field("display", r, expected, "Account");
+            oracle.finish();
+            let pixels = |host: &ControlHost| {
+                let mut pixels = vec![0; 300 * 100 * 4];
+                let mut painter = Painter::new(&mut pixels, 300, 100).unwrap();
+                host.paint(&mut painter, &Media::default());
+                painter.finish().unwrap();
+                pixels
+            };
+            assert!(pixels(&ui) == pixels(&oracle));
+        }
+    }
+
+    #[test]
     fn keyed_controls_retain_identity_and_paint_when_items_reorder() {
-        use retinue_ui::prelude::*;
+        use crate::presentation::widgets::compiled::{frame, slot};
+        use retinue_ui::{authoring::*, state::State, timeline::FrameTime};
         #[derive(PartialEq)]
-        struct List([u64; 2]);
+        struct List(State<[u64; 2]>);
+        #[view]
         impl View for List {
-            fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+            fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
                 ui! {
                     VStack(10.0) {
-                        for id in self.0 {
-                            view_host::PaintSlot(retinue_render::Key::new("test.item", id))
-                                .frame(170.0, 50.0).id(retinue_render::Key::new("test.row", id))
+                        ForEach(self.0.get(), |id| *id) { |id|
+                            slot(retinue_render::Key::new("test.item", id))
+                                .frame(frame(170.0, 50.0)).named(retinue_render::Key::new("test.row", id))
                         }
                     }
                 }
             }
         }
         let mut ui = ControlHost::new().unwrap();
+        let order = State::new([0, 1]);
+        ui.install_compiled(List(order.clone()));
         let media = Media::default();
         let mut before = None;
         for items in [[0, 1], [1, 0], [0, 1]] {
             ui.begin((600, 400), 1.25);
-            ui.composition.get_mut().host.set_view(List(items));
+            order.set(items);
             ui.update_view(FrameTime::now());
             for id in items {
                 ui.view_control(retinue_render::Key::new("test.item", id), |ui, r| {
@@ -2071,9 +2232,7 @@ mod tests {
             let ids = [0, 1].map(|id| {
                 composition
                     .host
-                    .tree
-                    .unique(retinue_render::Key::new("test.item", id))
-                    .unwrap()
+                    .stable_key(retinue_render::Key::new("test.item", id))
                     .unwrap()
             });
             if let Some(previous) = before {
@@ -2117,13 +2276,42 @@ mod tests {
                     p.outline(*r, ui.px(*radius), ui.px(1.0).max(1), *color)
                 }
                 Visual::Text(r, text, size, color, weight) => p.viewport(*r, (0, 0), |p| {
-                    p.draw_text_vertically_centered(
+                    use retinue_ui::drawing::text::{LabelAlignment, label_commands};
+                    let commands = label_commands(
                         ui.font(*weight),
-                        TextLine::new(r.x, r.y, r.height),
-                        *size * scale,
+                        retinue_render::Bounds::new(
+                            r.x as f32 / scale,
+                            r.y as f32 / scale,
+                            r.width as f32 / scale,
+                            r.height as f32 / scale,
+                        ),
+                        *size,
                         text,
-                        *color,
+                        retinue_render::Color::from_bgra(*color),
+                        LabelAlignment::Center,
                     )
+                    .unwrap();
+                    let retinue_render::Command::Clip { commands, .. } = &commands[0] else {
+                        unreachable!()
+                    };
+                    for command in commands.iter() {
+                        let retinue_render::Command::GlyphRun { origin, run, color } = command
+                        else {
+                            unreachable!()
+                        };
+                        let font = retinue_render::text::PreparedFont::new(run.font(), run.size())
+                            .unwrap();
+                        p.draw_glyph_run(
+                            &font,
+                            run,
+                            (
+                                origin.0 as f64 * scale as f64,
+                                origin.1 as f64 * scale as f64,
+                            ),
+                            scale as f64,
+                            *color,
+                        );
+                    }
                 }),
                 Visual::ComponentBase(r, ready) => p.fill_rounded_rect(
                     r.x,
@@ -2148,7 +2336,24 @@ mod tests {
             }
             p.finish().unwrap();
             assert_eq!(
-                composed.iter().zip(expected).position(|(a, b)| *a != b),
+                crate::presentation::pixel_tests::mismatch(
+                    &composed,
+                    &expected,
+                    size.0,
+                    Rect {
+                        width: size.0,
+                        height: size.1,
+                        ..Rect::default()
+                    },
+                    &ui.text_ink(
+                        (0, 0),
+                        Rect {
+                            width: size.0,
+                            height: size.1,
+                            ..Rect::default()
+                        }
+                    )
+                ),
                 None,
                 "scale={scale}"
             );

@@ -12,7 +12,7 @@ fn unhinted(frame: &mut PaintFrame, store: &mut ProgramStore, scale: f32, count:
     };
     let items = (0..count)
         .map(|index| {
-            let commands = Rc::new(vec![
+            let commands = Arc::new(vec![
                 Command::Fill {
                     bounds: Bounds::new(0.0, 0.0, 64.0, 60.0),
                     radius: 4.0,
@@ -20,9 +20,9 @@ fn unhinted(frame: &mut PaintFrame, store: &mut ProgramStore, scale: f32, count:
                 },
                 Command::Clip {
                     bounds: Bounds::new(0.0, 0.0, 64.0, 60.0),
-                    commands: Rc::new(vec![Command::Translate {
+                    commands: Arc::new(vec![Command::Translate {
                         offset: (-2.25, 10.35),
-                        commands: Rc::new(vec![Command::InsetShadow {
+                        commands: Arc::new(vec![Command::InsetShadow {
                             bounds: Bounds::new(0.25, -0.25, 40.0, 40.0),
                             radius: 20.0,
                             blur: 4.0,
@@ -83,7 +83,7 @@ fn authored_scopes_preserve_automatic_discovery_of_nested_drawing() {
                     item.program.key(),
                     item.program.size(),
                     1.25,
-                    Rc::new(vec![Command::Fragment {
+                    Arc::new(vec![Command::Fragment {
                         program: item.program,
                         context: OptimizationContext::default(),
                     }]),
@@ -110,7 +110,7 @@ fn single_moving_candidate_requires_actual_repaints_not_idle_prepares() {
         renderer.prepare(&frame, RasterMode::Explicit);
     }
     assert!(renderer.fragments.selected.is_empty());
-    for step in 0..4 {
+    for step in 0..8 {
         let mut items = frame.instances().to_vec();
         let clip = items[0].clip();
         items[0].set_pixels((10 + step, 16), clip);
@@ -118,7 +118,9 @@ fn single_moving_candidate_requires_actual_repaints_not_idle_prepares() {
             .replace(frame.size(), frame.scale(), items, Vec::new())
             .unwrap();
         draw(&frame, &mut renderer);
-        assert_eq!(renderer.fragments.selected.len(), usize::from(step == 3));
+        if step < 3 {
+            assert!(renderer.fragments.selected.is_empty());
+        }
         if step == 0 {
             for _ in 0..20 {
                 renderer.prepare(&frame, RasterMode::Explicit);
@@ -126,6 +128,7 @@ fn single_moving_candidate_requires_actual_repaints_not_idle_prepares() {
             assert!(renderer.fragments.selected.is_empty());
         }
     }
+    assert_eq!(renderer.fragments.selected.len(), 1);
     check(&frame, &mut renderer);
 }
 

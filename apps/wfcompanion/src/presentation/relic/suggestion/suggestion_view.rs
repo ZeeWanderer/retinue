@@ -1,7 +1,7 @@
 use super::suggestion_geometry::Slot;
 use retinue_render::Key;
+use retinue_ui::authoring::*;
 use retinue_ui::layout::anchors::AnchorPoint;
-use retinue_ui::prelude::*;
 
 #[derive(PartialEq)]
 pub(super) struct SuggestionView {
@@ -10,8 +10,9 @@ pub(super) struct SuggestionView {
     pub count: usize,
 }
 
+#[view]
 impl View for SuggestionView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let margin = 20.min(self.width / 2).min(self.height / 2);
         let width = 480.min(self.width.saturating_sub(margin));
         let height = 220.min(self.height.saturating_sub(margin));
@@ -26,30 +27,28 @@ impl View for SuggestionView {
         ui! {
             VStack(0.0) {
                 ZStack() {
-                    empty().frame(28.0, 28.0)
-                        .offset(inner_width.saturating_sub(35) as f32, 8.0).id(Key::from(Slot::Close))
-                }.alignment(Alignment::Start)
-                    .frame_aligned(inner_width as f32, header as f32, AnchorPoint::TOP_LEADING)
-                    .id(Key::from(Slot::Header))
+                    empty().frame(Frame::new().width(28.0).height(28.0))
+                        .offset(inner_width.saturating_sub(35) as f32, 8.0).named(Key::from(Slot::Close))
+                }.alignment(AnchorPoint::TOP_LEADING)
+                    .frame(Frame::new().width(inner_width as f32).height(header as f32).alignment(AnchorPoint::TOP_LEADING))
+                    .named(Key::from(Slot::Header))
                 VStack(5.0) {
-                    for row in 0..self.count.div_ceil(2) {
+                    ForEach(0..self.count.div_ceil(2), |row| *row as u64) { |row|
                         HStack(5.0) {
-                            for col in 0..2 {
-                                if row * 2 + col < self.count {
-                                    empty().frame(cell_width as f32, cell_height as f32)
-                                        .id(Key::from(Slot::Card(row * 2 + col)))
-                                }
+                            ForEach(row * 2..self.count.min(row * 2 + 2), |i| Key::from(Slot::Card(*i))) { |i|
+                                empty().frame(Frame::new().width(cell_width as f32).height(cell_height as f32))
+                                    .named(Key::from(Slot::Card(i)))
                             }
                         }
                     }
-                }.alignment(Alignment::Start).padding(padding as f32)
-                    .frame_aligned(inner_width as f32, grid_height as f32, AnchorPoint::TOP_LEADING)
-                    .clipped().id(Key::from(Slot::Grid))
-                empty().frame(inner_width as f32, footer as f32).id(Key::from(Slot::Footer))
-            }.alignment(Alignment::Start).padding(2.0)
-                .frame_aligned(width as f32, height as f32, AnchorPoint::TOP_LEADING)
+                }.alignment(HorizontalAlignment::Leading).padding(padding as f32)
+                    .frame(Frame::new().width(inner_width as f32).height(grid_height as f32).alignment(AnchorPoint::TOP_LEADING))
+                    .clipped().named(Key::from(Slot::Grid))
+                empty().frame(Frame::new().width(inner_width as f32).height(footer as f32)).named(Key::from(Slot::Footer))
+            }.alignment(HorizontalAlignment::Leading).padding(2.0)
+                .frame(Frame::new().width(width as f32).height(height as f32).alignment(AnchorPoint::TOP_LEADING))
                 .offset(self.width.saturating_sub(width + margin) as f32, margin as f32)
-                .id(Key::from(Slot::Shell))
+                .named(Key::from(Slot::Shell))
         }
     }
 }

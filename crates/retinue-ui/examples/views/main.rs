@@ -48,8 +48,9 @@ fn geometry(demo: &Demo) -> Value {
         "scale": demo.scale, "size": demo.size,
         "stats": { "nodes": demo.view.scene().stats.nodes, "layout_computations": demo.view.scene().stats.layout_computations, "recordings": demo.view.scene().stats.recordings, "visible_chunks": demo.view.scene().stats.visible_chunks },
         "declaration": {
-            "items_created":demo.view.stats.mounted,
-            "bindings_evaluated":demo.view.stats.bodies,
+            "items_created":demo.work.instances_mounted,
+            "owners_evaluated":demo.work.owners_evaluated,
+            "bindings_emitted":demo.work.bindings_emitted,
             "item_count":model::ITEM_COUNT,
         },
         "nodes": demo.view.scene().geometry().iter().map(|node| json!({
@@ -72,6 +73,19 @@ fn capture(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
                 now + Duration::from_millis(elapsed),
                 RecordingMode::Retained,
             );
+            for tab in 10..=13 {
+                let rect = demo.view.named_bounds(tab.into())?.unwrap().hit;
+                let center = (
+                    (rect.x + rect.width / 2) as f64,
+                    (rect.y + rect.height / 2) as f64,
+                );
+                let hit = demo
+                    .view
+                    .scene()
+                    .hit_test(center)
+                    .and_then(|key| demo.view.enclosing_name(key));
+                assert_eq!(hit, Some(tab.into()), "tab hit at {scale}/{name}");
+            }
             demo.renderer
                 .prepare(demo.view.scene().frame(), RasterMode::Explicit);
             let mut pixels = vec![0; demo.size.0 as usize * demo.size.1 as usize * 4];
@@ -96,13 +110,7 @@ fn capture(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
                     (retinue_ui::Key::new("card", 0), "card"),
                     (2.into(), "tabs"),
                 ] {
-                    let rect = demo
-                        .view
-                        .named_geometry()
-                        .iter()
-                        .find(|node| node.key == key)
-                        .unwrap()
-                        .hit;
+                    let rect = demo.view.named_bounds(key).unwrap().unwrap().hit;
                     retinue_render::image::imageops::crop_imm(
                         &image,
                         rect.x,
@@ -220,7 +228,7 @@ impl Application for App {
                     .view
                     .scene()
                     .hit_test(self.cursor)
-                    .and_then(|key| self.demo.view.authored_key(key))
+                    .and_then(|key| self.demo.view.enclosing_name(key))
                     .map(|key| key.value)
                 {
                     self.focus = key;

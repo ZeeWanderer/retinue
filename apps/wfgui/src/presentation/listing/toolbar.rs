@@ -33,8 +33,9 @@ pub(super) struct ToolbarView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for ToolbarView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.model.metrics.get();
         let weights = self.model.weights.get();
         let mode = self.model.mode.get();
@@ -49,7 +50,7 @@ impl View for ToolbarView {
         };
         ui! {
             ZStack() {
-                for (i, _) in categories(m.page).iter().enumerate() {
+                ForEach(0..categories(m.page).len(), |i| *i as u64) { |i|
                     let r = tab(&m, &weights, i);
                     let (collapsed, height, icon) = m.tab_style();
                     let color = std::array::from_fn(|channel| {
@@ -64,8 +65,8 @@ impl View for ToolbarView {
                             place(slot(Key::new("listing.category.label", i as u64)),
                                 Bounds::new((collapsed - icon) / 2.0 + icon + 5.0, 0.0,
                                     (r.width - collapsed - 5.0).max(0.0), height))
-                        }.alignment(Alignment::Start)
-                    }, r).id(Key::new("listing.category", i as u64)).interactive()
+                        }.alignment(AnchorPoint::TOP_LEADING)
+                    }, r).named(Key::new("listing.category", i as u64)).interactive()
                 }
                 place(slot(SEARCH), m.bounds(x + 5.0, m.tools_y(),
                     (m.width - x - m.tools_width() - 17.0).max(80.0), 32.0)).interactive()
@@ -91,11 +92,11 @@ impl View for ToolbarView {
                             m.bounds(4.0, m.tools_y() + 38.0, m.width - 8.0, m.height - m.tools_y() - 38.0))
                         place(fill(crate::presentation::style::INSET_PANEL, 0.0),
                             m.bounds(4.0, m.tools_y() + 50.0, m.width - 8.0, m.height - m.tools_y() - 50.0))
-                        place(fitted_label("Best ways to level mastery", self.fonts.regular.clone(), 18.0, TEXT, false, m.scale),
+                        place(label("Best ways to level mastery", self.fonts.regular.clone(), 18.0, TEXT, false),
                             m.bounds(16.0, m.tools_y() + 42.0, 230.0, 34.0))
                         place(fill(controls::CARD, 10.0),
                             m.bounds((m.width - 359.0).max(16.0), m.modes_y(), 343.0, 34.0))
-                        for (i, &(id, label, _, width)) in MODES.iter().enumerate() {
+                        ForEach(MODES.iter().enumerate(), |(i, _)| *i as u64) { |(i, &(id, name, _, width))|
                             let x = MODES[..i].iter().map(|m| m.3).sum::<f32>();
                             let r = Bounds::new((m.width - 359.0).max(16.0) + x, m.modes_y(), width, 34.0);
                             place(ui! {
@@ -103,16 +104,16 @@ impl View for ToolbarView {
                                     if mode == id { fill(crate::presentation::style::SUMMARY_HEADER, 10.0) }
                                     place(slot(Key::new("listing.mode.icon", i as u64)),
                                         m.local(r, Bounds::new(8.0, 7.0, 20.0, 20.0)))
-                                    place(fitted_label(label, self.fonts.light.clone(), 15.0, TEXT, false, m.scale),
+                                    place(label(name, self.fonts.light.clone(), 15.0, TEXT, false),
                                         m.local(r, Bounds::new(33.0, 0.0, width - 38.0, 34.0)))
-                                }.alignment(Alignment::Start)
+                                }.alignment(AnchorPoint::TOP_LEADING)
                             }, m.bounds(r.x, r.y, r.width, r.height))
-                                .id(Key::new("listing.mode", i as u64)).interactive()
+                                .named(Key::new("listing.mode", i as u64)).interactive()
                         }
                     }
                     _ => {}
                 }
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.height, retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.width, m.height))
         }
     }
 }
@@ -121,7 +122,13 @@ pub(super) fn bind(view: &ListingController, ui: &mut ControlHost, listing: &Lis
     for (i, (id, label, icon)) in categories(view.page).iter().enumerate() {
         let weight = view.model.weights.get()[i];
         let icon_key = Key::new("listing.category.icon", i as u64);
-        ui.view_icon(icon_key, icon, None);
+        if *id == "vanguard" {
+            ui.view_control(icon_key, |ui, r| {
+                ui.aligned(r, "V", 15.0, TEXT, controls::Weight::Medium, 0.5);
+            });
+        } else {
+            ui.view_icon(icon_key, icon, None);
+        }
         if let Some(rect) = ui.view_bounds(icon_key) {
             ui.region(&format!("list:category:{id}:icon"), rect);
         }

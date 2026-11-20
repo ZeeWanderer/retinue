@@ -90,16 +90,16 @@ fn rail_motion_preserves_controls_and_only_evaluates_affected_views() {
         now += MOTION / 2;
         c.update_at(Layout { left, ..layout() }, now);
         assert_eq!(c.rect(control_key(Control::Close)), close);
-        let tree = c.tree.borrow();
-        assert_eq!(tree.stats.mounted, 0);
-        assert_eq!(tree.stats.unmounted, 0);
-        assert!(tree.stats.bodies < CONTROLS.len());
+
+        assert_eq!(c.work.get().instances_mounted, 0);
+        assert_eq!(c.work.get().instances_unmounted, 0);
+        assert!(c.work.get().owners_evaluated < CONTROLS.len());
     }
     now += MOTION;
     c.update_at(layout(), now);
     assert_eq!(c.deadline(now, Duration::from_millis(8)), None);
     assert_eq!(c.update_at(layout(), now), Damage::None);
-    assert_eq!(c.tree.borrow().stats.bodies, 0);
+    assert_eq!(c.work.get().owners_evaluated, 0);
 }
 
 #[test]
@@ -116,8 +116,8 @@ fn rail_arrangements_switch_without_remounting() {
                 ..layout()
             },
         );
-        assert_eq!(c.tree.borrow().stats.mounted, 0);
-        assert_eq!(c.tree.borrow().stats.unmounted, 0);
+        assert_eq!(c.work.get().instances_mounted, 0);
+        assert_eq!(c.work.get().instances_unmounted, 0);
         assert_eq!(c.rect(control_key(Control::Close)), close);
         assert_eq!(c.rect(CENTER).width > docked.width, !fits);
     }

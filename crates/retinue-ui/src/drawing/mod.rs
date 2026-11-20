@@ -7,6 +7,7 @@ mod layers;
 mod pixels;
 pub use animated::AnimatedDrawing;
 pub use commands::{DrawList, ExternalDrawing};
+pub(crate) use layers::PixelFrame;
 pub use layers::{LayeredDrawing, PixelLayers};
 pub use pixels::PixelCanvas;
 pub mod text;
@@ -31,7 +32,16 @@ impl Drawing {
     }
 
     pub fn record(&self, bounds: crate::Bounds, text: TextStyle) -> Vec<retinue_render::Command> {
-        let mut context = DrawingContext::new(bounds, text);
+        self.record_layout(bounds, text, crate::layout::LayoutResult::default())
+    }
+
+    pub fn record_layout(
+        &self,
+        bounds: crate::Bounds,
+        text: TextStyle,
+        layout: crate::layout::LayoutResult<'_>,
+    ) -> Vec<retinue_render::Command> {
+        let mut context = DrawingContext::new(bounds, text).with_layout(layout);
         self.0.draw(&mut context);
         context.finish()
     }

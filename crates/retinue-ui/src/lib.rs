@@ -1,13 +1,13 @@
 //! Retained UI authoring for Retinue's desktop clients and in-game overlays.
 //!
-//! Start with the [`prelude`], [`view::View`] and [`runtime::ViewTree`]. A view's
-//! body describes active content; observed reads in that body establish its
+//! Start with [`authoring::View`] and [`authoring::ui!`]. A view's body
+//! describes active content; observed reads in that body establish its
 //! invalidation dependencies. [`state`] and [`environment`] supply local and
 //! inherited state without tying models to a window.
 //!
 //! Use stacks and ordered modifiers for ordinary composition, [`layout::Layout`]
 //! for custom arrangement, and [`drawing`] for typed custom paint. These all feed
-//! the same retained runtime and layout-independent `retinue-render` pipeline.
+//! a retained [`ir::InstanceGraph`] and the layout-independent `retinue-render` pipeline.
 //! Lower-level drawing is supported, not a separate rendering fallback.
 //!
 //! [`input`] owns hit geometry and pointer capture; [`motion`] and [`timeline`]
@@ -17,7 +17,22 @@
 
 extern crate self as retinue_ui;
 
-pub use retinue_ui_macros::ui;
+pub mod authoring;
+pub mod ir;
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/ui/first-view.md")]
+mod first_view_guide {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/ui/state.md")]
+mod state_guide {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/developer/ui-drawing.md")]
+mod drawing_guide {}
+
+pub use authoring::ui;
 pub use retinue_ui_macros::{ViewProperties, observable};
 pub use view::ViewProperties;
 
@@ -44,6 +59,8 @@ pub mod prelude;
 pub mod preparation;
 #[cfg(any(feature = "desktop", feature = "overlay"))]
 pub mod presentation_buffers;
+#[cfg(feature = "profiling")]
+pub mod profiling;
 pub mod runtime;
 pub mod scene;
 pub mod schedule;

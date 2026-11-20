@@ -414,8 +414,32 @@ impl Pages {
     pub fn draw_prepared(&self, p: &mut Painter<'_>) {
         self.ui.draw_prepared(p);
     }
+
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
+        self.ui.prepare_rasters(repair);
+    }
+
+    pub fn prepare_rail_rasters(&self, repair: &retinue_render::damage::Region) {
+        self.rail.prepare_rasters(repair);
+    }
     pub fn draw_rail(&self, p: &mut Painter<'_>) {
         self.rail.draw_prepared(p);
+    }
+
+    pub fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        self.ui.prepare_packet(repair, wake)
+    }
+
+    pub fn prepare_rail_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        self.rail.prepare_packet(repair, wake)
     }
     pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
         self.ui.record_surface(scene);
@@ -434,22 +458,22 @@ impl Pages {
     pub(super) fn layout_center(&mut self) {
         let size = self.ui.size;
         let scale = self.ui.scale;
-        self.ui.begin(size, scale);
         if matches!(self.page, Page::Inventory | Page::Mastery | Page::Relics) {
             self.layout_listing();
-            self.ui.finish();
+            self.finish_center_layout();
             return;
         }
         if self.page == Page::Market {
             self.layout_market();
-            self.ui.finish();
+            self.finish_center_layout();
             return;
         }
         if self.page == Page::Builds {
             self.layout_builds();
-            self.ui.finish();
+            self.finish_center_layout();
             return;
         }
+        self.ui.begin(size, scale);
         self.ui.fill(
             Rect {
                 x: 0,
@@ -471,6 +495,22 @@ impl Pages {
             controls::PANEL,
         );
         self.ui.finish();
+    }
+
+    fn finish_center_layout(&mut self) {
+        if self.ui.layout_pending() {
+            self.dirty = true;
+        } else {
+            self.ui.finish();
+        }
+    }
+
+    pub fn poll_layout(&mut self) -> bool {
+        if self.ui.layout_pending() || self.rail.layout_pending() {
+            self.dirty = true;
+        }
+        self.layout();
+        !self.ui.layout_pending() && !self.rail.layout_pending()
     }
     pub fn pointer(&mut self, rail: bool, point: (f64, f64)) -> bool {
         let changed = if rail {

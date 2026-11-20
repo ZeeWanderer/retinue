@@ -1,10 +1,7 @@
 use super::*;
 use crate::damage::Region;
 #[cfg(feature = "benchmark")]
-use crate::{
-    ImageSource, TextAlignment,
-    painter::{GlyphCache, load_overlay_font},
-};
+use crate::{ImageSource, TextAlignment, painter::load_overlay_font};
 #[cfg(feature = "benchmark")]
 use std::num::NonZeroU32;
 
@@ -16,8 +13,8 @@ fn fixture(scale: f32) -> PaintFrame {
         height: size.1,
         ..Rect::default()
     };
-    let font = Rc::new(load_overlay_font(&GlyphCache::new(8 * 1024 * 1024)).unwrap());
-    let image: ImageSource = Rc::new(
+    let font = Arc::new(load_overlay_font().unwrap());
+    let image: ImageSource = Arc::new(
         RasterImage::render(80, 80, |p| {
             p.fill_rounded_rect(0, 0, 80, 80, 12, [160, 100, 60, 180]);
             p.draw_ring(40, 40, 30, 5, [80, 240, 180, 230]);
@@ -40,20 +37,20 @@ fn fixture(scale: f32) -> PaintFrame {
                 },
             ];
             for row in 0..4 {
-                commands.push(Command::Text {
-                    bounds: Bounds::new(10.0, 66.0 + row as f32 * 17.0, 216.0, 18.0),
-                    size: 14.0,
-                    text: format!("Item {i} status row {row}"),
-                    font: font.clone(),
-                    color: Color::rgba(220, 224, 231, 235),
-                    align: TextAlignment::Top,
-                });
+                commands.push(crate::text::fixture::label(
+                    &font,
+                    &format!("Item {i} status row {row}"),
+                    14.0,
+                    Bounds::new(10.0, 66.0 + row as f32 * 17.0, 216.0, 18.0),
+                    TextAlignment::Top,
+                    Color::rgba(220, 224, 231, 235),
+                ));
             }
             let program = PaintProgram::new(
                 PaintKey::new((i + 1).into(), 0),
                 (236.0, 142.0),
                 scale,
-                Rc::new(commands),
+                Arc::new(commands),
             )
             .unwrap();
             let mut item = PaintInstance::new(
@@ -96,7 +93,7 @@ fn sparse_scene_repair_culls_gaps_and_calls_external_paint_once() {
             height: 30,
         },
     ]);
-    let commands = Rc::new(vec![
+    let commands = Arc::new(vec![
         Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 480.0, 220.0),
             radius: 12.0,

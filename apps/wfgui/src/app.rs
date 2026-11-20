@@ -1,6 +1,7 @@
 use crate::domain::{login, preferences, session, storage as data};
 use crate::presentation::{foundry, shell};
 pub(crate) mod diagnostics;
+mod resources;
 use diagnostics as memory;
 #[cfg(test)]
 pub(crate) mod benchmark;
@@ -289,10 +290,13 @@ fn start(args: Args) -> Result<(), String> {
                 write_report(args.report.as_ref(), &view.settings.snapshot)?;
             }
             let output = sender.clone();
-            let images =
-                foundry::images::spawn((!args.fixture).then(data::native_cache_root), move || {
+            let images = foundry::images::spawn(
+                (!args.fixture).then(data::native_cache_root),
+                view.render_host().executor(),
+                move || {
                     output.send(Message::Images);
-                })?;
+                },
+            )?;
             let mut gui = Gui {
                 clipboard: None,
                 view,
@@ -720,47 +724,51 @@ impl Gui {
                 });
             }
         }
-        {
-            if self.foundry_worker.is_none() && !self.fixture {
-                let output = self.sender.clone();
-                match crate::domain::foundry::Worker::new(move |update| {
-                    output.send(Message::Foundry(update))
-                }) {
-                    Ok(worker) => self.foundry_worker = Some(worker),
-                    Err(error) => self.view.foundry.error = Some(error),
-                }
+        if self.foundry_worker.is_none() && !self.fixture {
+            let output = self.sender.clone();
+            match crate::domain::foundry::Worker::new(move |update| {
+                output.send(Message::Foundry(update))
+            }) {
+                Ok(worker) => self.foundry_worker = Some(worker),
+                Err(error) => self.view.foundry.error = Some(error),
             }
-            let mut assets = self.view.foundry.desired_assets();
-            assets.extend(self.view.pages.assets());
-            let mut seen = std::collections::HashSet::new();
-            assets.retain(|a| seen.insert(a.id.clone()));
-            let ids = assets.clone();
-            if ids != self.asset_ids || self.refresh != self.view.foundry.refresh {
-                self.asset_ids = ids;
-                self.refresh = self.view.foundry.refresh;
-                if let Some(worker) = &self.foundry_worker {
-                    worker.set(crate::domain::foundry::Desired {
-                        assets,
-                        refresh: self.refresh,
-                    });
-                }
+        }
+        if self.refresh != self.view.foundry.refresh {
+            self.refresh = self.view.foundry.refresh;
+            if let Some(worker) = &self.foundry_worker {
+                worker.set(crate::domain::foundry::Desired {
+                    assets: self.asset_ids.clone(),
+                    refresh: self.refresh,
+                });
             }
-            let mut requests = self.view.foundry.image_requests();
-            requests.extend(self.view.pages.image_requests());
-            let mut seen = std::collections::HashSet::new();
-            requests.retain(|r| seen.insert(r.key));
-            let keys = requests.iter().map(|r| r.key).collect::<Vec<_>>();
-            if keys != self.image_keys {
-                self.image_keys = keys;
-                self.images_ready = false;
-                self.view.foundry.image_errors.clear();
-                self.view.foundry.cache_warnings.clear();
-                if let Err(error) = self.images.request(foundry::images::Input {
-                    generation: self.memory_generation,
-                    requests,
-                }) {
-                    self.view.foundry.error = Some(error.to_string());
-                }
+        }
+    }
+
+    fn prepare_resources(&mut self) {
+        let resources::Requests {
+            assets,
+            images: requests,
+        } = resources::requests(&self.view);
+        if assets != self.asset_ids {
+            self.asset_ids = assets;
+            if let Some(worker) = &self.foundry_worker {
+                worker.set(crate::domain::foundry::Desired {
+                    assets: self.asset_ids.clone(),
+                    refresh: self.refresh,
+                });
+            }
+        }
+        let keys = requests.iter().map(|r| r.key).collect::<Vec<_>>();
+        if keys != self.image_keys {
+            self.image_keys = keys;
+            self.images_ready = false;
+            self.view.foundry.image_errors.clear();
+            self.view.foundry.cache_warnings.clear();
+            if let Err(error) = self.images.request(foundry::images::Input {
+                generation: self.memory_generation,
+                requests,
+            }) {
+                self.view.foundry.error = Some(error.to_string());
             }
         }
     }
@@ -821,8 +829,42 @@ impl Application for Gui {
     }
     fn prepare(&mut self) -> Result<Option<retinue_render::surface::Snapshot>, String> {
         self.view.prepare_paint();
+        self.prepare_resources();
         Ok(Some(self.view.paint_scene()))
     }
+    fn set_waker(&mut self, wake: retinue_render::Wake) {
+        let execution = retinue_ui::runtime::LayoutExecution::new(&self.view.render_host(), wake);
+        self.view.pages.ui.set_layout_execution(execution.clone());
+        self.view.pages.rail.set_layout_execution(execution.clone());
+        self.view.foundry.set_layout_execution(execution);
+    }
+    fn poll_prepare(
+        &mut self,
+    ) -> Result<std::task::Poll<Option<retinue_render::surface::Snapshot>>, String> {
+        let pages = self.view.pages.poll_layout();
+        let foundry = self.view.foundry.poll_layout();
+        if !pages || !foundry {
+            return Ok(std::task::Poll::Pending);
+        }
+        self.prepare().map(std::task::Poll::Ready)
+    }
+    fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) -> Result<(), String> {
+        self.view.prepare_rasters(repair);
+        Ok(())
+    }
+
+    fn prepare_packet(
+        &mut self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<Option<retinue_render::PacketJob>, String> {
+        self.view.prepare_packet(repair, wake).map(Some)
+    }
+
+    fn prepared(&mut self) {
+        self.view.prepared();
+    }
+
     fn paint(&mut self, painter: &mut Painter<'_>) -> Result<(), String> {
         self.view.draw_prepared(painter);
         Ok(())
@@ -970,12 +1012,17 @@ impl Application for Gui {
         self.dispatch();
         if matches!(
             event,
-            WindowEvent::KeyboardInput { .. } | WindowEvent::MouseInput { .. }
+            WindowEvent::KeyboardInput { .. }
+                | WindowEvent::MouseInput { .. }
+                | WindowEvent::Ime(_)
         ) {
             if let Err(error) = report_view(self.report.as_ref(), &self.view) {
                 self.view.settings.error = Some(error);
             }
         }
         damage
+    }
+    fn sync_input_method(&mut self, window: &Window) -> Damage {
+        self.view.sync_input_method(window)
     }
 }

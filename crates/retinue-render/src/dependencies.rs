@@ -1,12 +1,9 @@
 use super::{Key, PaintFrame, PaintProgram, ProgramId, ResourceRead};
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    rc::Rc,
-};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Default)]
 pub(super) struct Dependencies {
-    frame: Option<(Rc<()>, u64)>,
+    frame: Option<(crate::frame::Identity, u64)>,
     programs: Vec<Instance>,
     resources: HashMap<ResourceRead, HashSet<Key>>,
     pub changed: Vec<usize>,
@@ -53,7 +50,7 @@ impl Dependencies {
         let previous = self
             .frame
             .as_ref()
-            .filter(|(id, _)| Rc::ptr_eq(id, &frame.identity))
+            .filter(|(id, _)| *id == frame.identity)
             .map(|(_, revision)| *revision);
         if previous == Some(frame.generation) {
             return;
@@ -107,7 +104,7 @@ impl Dependencies {
             }
         }
         self.visited = self.changed.len();
-        self.frame = Some((frame.identity.clone(), frame.generation));
+        self.frame = Some((frame.identity, frame.generation));
     }
 
     fn add(&mut self, key: Key, program: &PaintProgram) {

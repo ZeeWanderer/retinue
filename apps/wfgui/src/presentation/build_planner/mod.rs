@@ -429,11 +429,17 @@ mod groups;
 mod tests;
 
 use crate::{
-    presentation::widgets::Fonts, presentation::widgets::fill, presentation::widgets::fitted_label,
-    presentation::widgets::key, presentation::widgets::place, presentation::widgets::slot,
+    presentation::widgets::compiled::{fill, frame, place, slot},
+    presentation::widgets::{Fonts, key},
 };
 use retinue_render::{Bounds, CacheHint, Key};
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*, semantics::Role};
+use retinue_ui::{
+    authoring::*,
+    layout::{Insets, anchors::AnchorPoint},
+    semantics::Role,
+    state::{Items, State},
+    timeline::FrameTime,
+};
 use std::rc::Rc;
 
 const SCROLL: Key = Key::new("build.scroll", 0);
@@ -526,11 +532,18 @@ pub(in crate::presentation) struct BuildPlannerController {
 fn node(name: &'static str) -> Key {
     key("build.header", name)
 }
-fn control(id: Key, rect: Bounds) -> Element {
+fn control(id: Key, rect: Bounds) -> impl Body {
     place(slot(id), rect).interactive()
 }
-fn label(fonts: &Fonts, text: &str, size: f32, color: [u8; 4], bold: bool, scale: f32) -> Element {
-    fitted_label(
+fn label(
+    fonts: &Fonts,
+    text: &str,
+    size: f32,
+    color: [u8; 4],
+    bold: bool,
+    _scale: f32,
+) -> Framed<Text> {
+    crate::presentation::widgets::compiled::label(
         text,
         if bold {
             fonts.bold.clone()
@@ -540,7 +553,6 @@ fn label(fonts: &Fonts, text: &str, size: f32, color: [u8; 4], bold: bool, scale
         size,
         color,
         false,
-        scale,
     )
 }
 fn choices(options: &[(String, String)]) -> Vec<(&str, &str)> {
@@ -577,7 +589,7 @@ impl BuildPlannerController {
         }
     }
 
-    fn view(&self, ui: &ControlHost) -> Element {
+    fn view(&self, ui: &ControlHost) -> impl View + use<> {
         let fonts = Fonts::new(ui);
         build_planner_view::BuildPageView {
             metrics: self.metrics.clone(),
@@ -596,13 +608,11 @@ impl BuildPlannerController {
                 metrics: self.metrics.clone(),
                 model: self.model.clone(),
                 fonts: fonts.clone(),
-            }
-            .into_element(),
+            },
             content: self.content.view(self.metrics.clone(), self.state.clone()),
             previews: self.content.previews_view(self.metrics.clone()),
             dialog: self.dialog.view(self.metrics.clone(), fonts),
         }
-        .into_element()
     }
 
     fn sync(&mut self, ui: &ControlHost, b: &mut Builds, state: PageState, now: Instant) {
@@ -625,7 +635,7 @@ impl BuildPlannerController {
                 .definitions()
                 .iter()
                 .map(|d| {
-                    retinue_render::painter::text_width(&ui.regular, &d.name, 13.0 * ui.scale)
+                    retinue_ui::drawing::text::text_width(&ui.regular, &d.name, 13.0 * ui.scale)
                         / ui.scale
                         + 60.0
                 })
@@ -700,6 +710,7 @@ impl BuildPlannerController {
 
 impl Pages {
     pub(in crate::presentation) fn layout_builds(&mut self) {
+        let time = self.ui.layout_time(FrameTime::now());
         let state = PageState {
             tab: self.builds.tab.clone(),
             account: if self.login_active {
@@ -721,12 +732,15 @@ impl Pages {
             notice: self.builds.notice.clone(),
         };
         let view = &mut self.build_view;
-        view.sync(&self.ui, &mut self.builds, state, Instant::now());
+        view.sync(&self.ui, &mut self.builds, state, time.instant);
         if !view.installed {
-            self.ui.install_view(view.view(&self.ui));
+            self.ui.install_compiled(view.view(&self.ui));
             view.installed = true;
         }
-        self.ui.update_view(FrameTime::now());
+        if !self.ui.resolve_view(time) {
+            return;
+        }
+        self.ui.begin(self.ui.size, self.ui.scale);
         view.bind(&mut self.ui, &self.builds);
     }
 }

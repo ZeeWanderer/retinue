@@ -2,6 +2,7 @@
 
 use crate::paint::Pixels;
 
+pub(crate) mod cache;
 mod program;
 pub(crate) use program::{leaf, summarize};
 
@@ -13,10 +14,11 @@ pub(crate) struct Work {
     pub commands: f64,
     pub edges: f64,
     pub glyphs: f64,
+    pub native_glyphs: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Density([f32; 6]);
+pub(crate) struct Density([f32; 7]);
 
 impl Work {
     pub fn add(&mut self, other: Self) {
@@ -26,6 +28,7 @@ impl Work {
         self.commands += other.commands;
         self.edges += other.edges;
         self.glyphs += other.glyphs;
+        self.native_glyphs += other.native_glyphs;
     }
 
     pub fn density(self, area: u64) -> Density {
@@ -40,6 +43,7 @@ impl Work {
                 self.commands,
                 self.edges,
                 self.glyphs,
+                self.native_glyphs,
             ]
             .map(|v| (v / area as f64) as f32),
         )
@@ -62,6 +66,7 @@ impl Work {
             commands: self.commands - other.commands,
             edges: self.edges - other.edges,
             glyphs: self.glyphs - other.glyphs,
+            native_glyphs: self.native_glyphs - other.native_glyphs,
         }
     }
 }
@@ -72,8 +77,15 @@ impl Density {
     }
 
     pub fn work(self, area: u64) -> Work {
-        let [solid, blended, sampled, commands, edges, glyphs] =
-            self.0.map(|v| f64::from(v) * area as f64);
+        let [
+            solid,
+            blended,
+            sampled,
+            commands,
+            edges,
+            glyphs,
+            native_glyphs,
+        ] = self.0.map(|v| f64::from(v) * area as f64);
         Work {
             solid,
             blended,
@@ -81,6 +93,7 @@ impl Density {
             commands,
             edges,
             glyphs,
+            native_glyphs,
         }
     }
 }
@@ -137,7 +150,7 @@ impl Execution {
             / f64::from(self.threads.clamp(1, WARM_NATIVE.pixel_workers))
             + work.commands * WARM_NATIVE.command
             + work.edges * WARM_NATIVE.edge
-            + work.glyphs * WARM_NATIVE.glyph
+            + (work.glyphs + work.native_glyphs) * WARM_NATIVE.glyph
     }
 
     pub fn transfer(self, read_bytes: u64, write_bytes: u64, regions: usize) -> f64 {

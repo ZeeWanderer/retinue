@@ -50,6 +50,18 @@ pub fn measure<T>(
     size: (u32, u32),
     scale: f32,
     prepare: impl FnOnce() -> T,
+    paint: impl FnMut(&mut T, usize),
+    resources: impl FnOnce(&T) -> Value,
+) -> Value {
+    measure_with_warmup(name, size, scale, 5, prepare, paint, resources)
+}
+
+pub fn measure_with_warmup<T>(
+    name: &str,
+    size: (u32, u32),
+    scale: f32,
+    warmup_frames: usize,
+    prepare: impl FnOnce() -> T,
     mut paint: impl FnMut(&mut T, usize),
     resources: impl FnOnce(&T) -> Value,
 ) -> Value {
@@ -71,7 +83,7 @@ pub fn measure<T>(
     let started = Instant::now();
     paint(black_box(&mut context), 0);
     let first_paint_ns = started.elapsed().as_nanos() as u64;
-    for index in 1..=5 {
+    for index in 1..=warmup_frames {
         paint(black_box(&mut context), index);
     }
     let process_before = cpu_ns(ClockId::ProcessCPUTime);
@@ -80,7 +92,7 @@ pub fn measure<T>(
     let samples: Vec<_> = (0..count)
         .map(|index| {
             let started = Instant::now();
-            paint(black_box(&mut context), index + 6);
+            paint(black_box(&mut context), index + warmup_frames + 1);
             let elapsed = started.elapsed();
             if let Some(interval) = interval {
                 std::thread::sleep(interval.saturating_sub(elapsed));
@@ -99,7 +111,7 @@ pub fn measure<T>(
     json!({
         "case": name, "size": [size.0, size.1], "scale": scale,
         "prepare_ns": prepare_ns, "first_paint_ns": first_paint_ns,
-        "samples": count, "warmup_frames": 5,
+        "samples": count, "warmup_frames": warmup_frames,
         "warm": {
             "p50_ns": percentile(50), "p95_ns": percentile(95),
             "p99_ns": percentile(99), "max_ns": sorted.last(),

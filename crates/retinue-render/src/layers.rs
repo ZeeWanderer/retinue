@@ -1,8 +1,6 @@
 use super::{
     CollectionMotion, Key, PaintFrame, PaintStats, ScopeId, coverage,
-    execution::{
-        Input, Materialization, PaintDemand, Preparation, SourceRegion, Substitute, TaskId,
-    },
+    execution::{Completion, Input, PaintDemand, Preparation, SourceRegion, Substitute, TaskId},
     materialization::Recipe,
     residency::{Owner, RasterId, Reservation, Residency, Retention},
 };
@@ -144,7 +142,7 @@ impl Layers {
             .map(|g| &g.instances)
             .collect();
         let mut regions = Vec::new();
-        for group in &frame.groups {
+        for group in frame.groups.iter() {
             if group.cache_hint() == CacheHint::Dynamic
                 || !self.prepared.keys().any(|key| key.group == group.key)
                 || reordering.iter().any(|range| {
@@ -586,7 +584,7 @@ impl Layers {
     pub fn publish(
         &mut self,
         plan: &mut Preparation,
-        results: &[Option<Materialization>],
+        results: &Completion,
         scheduled: &[(ScopeId, TaskId)],
         residency: &mut Residency,
         now: Instant,
@@ -595,15 +593,15 @@ impl Layers {
         let mut demoted = 0;
         for &(key, task) in scheduled {
             plan.complete(task);
-            if plan.deferred(task) {
+            if results.deferred(task) {
                 continue;
             }
             let entry = self.entries.get_mut(&key).unwrap();
             let previous = entry.raster.take();
-            entry.raster = plan
-                .result(task, results)
+            entry.raster = results
+                .result(task)
                 .cloned()
-                .map(|raster| residency.insert(Owner::Group(key), raster, plan.elapsed(task)));
+                .map(|raster| residency.insert(Owner::Group(key), raster, results.elapsed(task)));
             if let Some(id) = previous {
                 residency.release(id, Retention::Discard, now);
             }
@@ -682,7 +680,7 @@ impl Layers {
 mod tests {
     use super::*;
     use crate::{painter::Painter, *};
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     fn policy() -> LayerPolicy {
         LayerPolicy {
@@ -710,7 +708,7 @@ mod tests {
                 PaintKey::new(key, 0),
                 (25.0, 30.0),
                 scale,
-                Rc::new(vec![Command::Fill {
+                Arc::new(vec![Command::Fill {
                     bounds: Bounds::new(0.0, 0.0, 25.0, 30.0),
                     radius: 4.0,
                     color: Color::rgba(100, (i * 80) as u8, 150, 190),
@@ -771,7 +769,7 @@ mod tests {
             PaintKey::new(key, old.key().revision + 1),
             old.size(),
             frame.scale(),
-            Rc::new(commands),
+            Arc::new(commands),
         )
         .unwrap();
         frame
@@ -975,7 +973,7 @@ mod tests {
             8,
             (20.0, 20.0),
             1.0,
-            Rc::new(vec![Command::Fill {
+            Arc::new(vec![Command::Fill {
                 bounds: Bounds::new(0.0, 0.0, 20.0, 20.0),
                 radius: 3.0,
                 color: Color::rgb(0x224466),
@@ -1012,7 +1010,7 @@ mod tests {
                 1,
                 (40.0, 40.0),
                 scale,
-                Rc::new(vec![Command::Polygon {
+                Arc::new(vec![Command::Polygon {
                     points: vec![[1.2, 1.2], [20.2, 1.2], [20.2, 20.2], [1.2, 20.2]],
                     color: Color::rgba(80, 100, 150, 190),
                 }]),

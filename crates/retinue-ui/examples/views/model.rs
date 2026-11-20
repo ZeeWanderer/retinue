@@ -6,13 +6,17 @@ mod tab;
 use retinue_render::{
     Color, Renderer, ResidencyPolicy,
     damage::Damage,
-    painter::{CachedFont, GlyphCache, RasterImage, load_overlay_font},
+    painter::{RasterImage, load_overlay_font},
 };
 use retinue_ui::{
-    image::ImageResource, layout::grid::UniformGrid, prelude::*, runtime::ViewTree,
+    environment::Environment,
+    image::ImageResource,
+    ir::{InstanceGraph, Work},
+    layout::grid::UniformGrid,
+    prelude::*,
     scene::RecordingMode,
 };
-use std::{rc::Rc, time::Instant};
+use std::{rc::Rc, sync::Arc, time::Instant};
 
 pub const BACKGROUND: Color = Color::rgb(0x181c27);
 const CARD: Color = Color::rgb(0x212734);
@@ -34,7 +38,8 @@ struct Model {
 }
 
 pub struct Demo {
-    pub view: ViewTree,
+    pub view: InstanceGraph,
+    pub work: Work,
     pub renderer: Renderer,
     pub size: (u32, u32),
     pub scale: f32,
@@ -43,7 +48,7 @@ pub struct Demo {
     pub replacement: bool,
     pub selected: State<u64>,
     model: Model,
-    font: Rc<CachedFont>,
+    environment: Environment,
 }
 
 fn grid(width: f32) -> UniformGrid {
@@ -59,11 +64,10 @@ fn grid(width: f32) -> UniformGrid {
 
 impl Demo {
     pub fn new(scale: f32) -> Self {
-        let glyphs = GlyphCache::new(4 * 1024 * 1024);
-        let font = Rc::new(load_overlay_font(&glyphs).unwrap());
+        let font = Rc::new(load_overlay_font().unwrap());
         let selected = State::new(10);
         let image = |color| {
-            ImageResource::ready(Rc::new(
+            ImageResource::ready(Arc::new(
                 RasterImage::render(72, 72, |painter| {
                     painter.fill_rounded_rect(8, 8, 56, 56, 12, color);
                 })
@@ -80,16 +84,18 @@ impl Demo {
                 .unwrap(),
             images: [image([70, 170, 130, 255]), image([205, 145, 70, 255])],
         };
-        let view = ViewTree::new(
-            root::Root(model.clone()).environment::<Typography>(TextStyle::new(
-                font.clone(),
-                14.0,
-                TEXT,
-            )),
-            || {},
-        );
+        let environment = Environment::default();
+        environment.set::<Typography>(TextStyle::new(font, 14.0, TEXT));
+        let view = InstanceGraph::with_root_view(
+            root::Root {
+                model: model.clone(),
+            },
+            environment.clone(),
+        )
+        .unwrap();
         Self {
             view,
+            work: Work::default(),
             renderer: Renderer::new(ResidencyPolicy::desktop(16 * 1024 * 1024)),
             size: ((960.0 * scale) as u32, (680.0 * scale) as u32),
             scale,
@@ -98,7 +104,7 @@ impl Demo {
             replacement: false,
             selected,
             model,
-            font,
+            environment,
         }
     }
 
@@ -111,25 +117,31 @@ impl Demo {
         self.model.counter.set(self.counter);
         self.model.replacement.set(self.replacement);
         if matches!(mode, RecordingMode::Always) {
-            self.view = ViewTree::new(
-                root::Root(self.model.clone()).environment::<Typography>(TextStyle::new(
-                    self.font.clone(),
-                    14.0,
-                    TEXT,
-                )),
-                || {},
-            );
+            self.view = InstanceGraph::with_root_view(
+                root::Root {
+                    model: self.model.clone(),
+                },
+                self.environment.clone(),
+            )
+            .unwrap();
         }
-        self.view
-            .update_at(
+        let update = self
+            .view
+            .advance_at(
                 self.size,
                 self.scale,
                 FrameTime {
                     instant: now,
                     wall_time: std::time::SystemTime::now(),
                 },
+                None,
             )
-            .unwrap()
+            .unwrap();
+        self.work = update.work;
+        match update.completion.unwrap() {
+            std::task::Poll::Ready(damage) => damage,
+            std::task::Poll::Pending => unreachable!("inline layout"),
+        }
     }
 
     pub fn scroll_by(&mut self, distance: f32) {

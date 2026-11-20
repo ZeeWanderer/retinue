@@ -49,7 +49,7 @@ struct Properties {
 
 #[test]
 fn properties_find_the_renamed_runtime_and_respect_disabled_fields() {
-    use ui_alias::prelude::*;
+    use ui_alias::runtime::reference::prelude::*;
     #[derive(PartialEq)]
     struct Root;
     impl View for Root {

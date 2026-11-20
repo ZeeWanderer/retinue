@@ -207,6 +207,57 @@ fn mutations_during_evaluation_are_not_lost() {
 }
 
 #[test]
+fn writes_before_reading_do_not_request_another_evaluation() {
+    let state = State::new(1);
+    let (mut observation, wakes) = observe();
+    let (mut other, other_wakes) = observe();
+    observation.track(|| state.get());
+    other.track(|| state.get());
+    assert_eq!(
+        observation.track(|| {
+            state.set(2);
+            state.get()
+        }),
+        2
+    );
+    assert!(!observation.is_dirty());
+    assert_eq!(wakes.get(), 0);
+    assert!(other.is_dirty());
+    assert_eq!(other_wakes.get(), 1);
+}
+
+#[test]
+fn writes_to_previous_dependencies_do_not_wake_an_unrelated_body() {
+    let state = State::new(1);
+    let (mut observation, wakes) = observe();
+    observation.track(|| state.get());
+    observation.track(|| state.set(2));
+    assert!(!observation.is_dirty());
+    assert_eq!(observation.dependency_count(), 0);
+    assert_eq!(wakes.get(), 0);
+}
+
+#[test]
+fn nested_mutations_retry_only_consumers_that_read_the_old_value() {
+    let state = State::new(1);
+    let (mut parent, wakes) = observe();
+    let (mut child, child_wakes) = observe();
+    parent.track(|| state.get());
+    child.track(|| state.get());
+    parent.track(|| {
+        state.get();
+        child.track(|| {
+            state.set(2);
+            state.get()
+        });
+    });
+    assert!(parent.is_dirty());
+    assert_eq!(wakes.get(), 1);
+    assert!(!child.is_dirty());
+    assert_eq!(child_wakes.get(), 0);
+}
+
+#[test]
 fn untracked_and_debug_reads_do_not_create_dependencies() {
     let ignored = State::new(1);
     let tracked = State::new(2);

@@ -5,7 +5,7 @@ use retinue_render::{
     resources::{Resource, ResourceCache},
 };
 use retinue_ui::{Rect, drawing::PixelCanvas as Canvas};
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, sync::Arc};
 
 include!(concat!(env!("OUT_DIR"), "/chrome-digests.rs"));
 
@@ -25,7 +25,7 @@ struct ImageKey {
 
 struct Frame {
     caps: [RgbaImage; 3],
-    divider: Option<Rc<RasterImage>>,
+    divider: Option<std::sync::Arc<RasterImage>>,
     digest: [u8; 32],
 }
 
@@ -282,7 +282,7 @@ mod tests {
 
 pub struct Artwork {
     frames: BTreeMap<&'static str, Frame>,
-    icons: BTreeMap<&'static str, [Rc<RasterImage>; 2]>,
+    icons: BTreeMap<&'static str, [std::sync::Arc<RasterImage>; 2]>,
     cache: ResourceCache<ImageKey, RasterImage>,
     headers: Vec<(ImageKey, Resource<RasterImage>)>,
     search_caps: [RgbaImage; 4],
@@ -331,7 +331,7 @@ impl Artwork {
                             .map(RasterImage::from_rgba)
                             .transpose()
                             .map_err(|e| e.to_string())?
-                            .map(Rc::new),
+                            .map(Arc::new),
                     },
                 );
             }};
@@ -447,8 +447,8 @@ impl Artwork {
             icons.insert(
                 name,
                 [
-                    Rc::new(idle_image.map_err(|e| e.to_string())?),
-                    Rc::new(active_image.map_err(|e| e.to_string())?),
+                    Arc::new(idle_image.map_err(|e| e.to_string())?),
+                    Arc::new(active_image.map_err(|e| e.to_string())?),
                 ],
             );
         }

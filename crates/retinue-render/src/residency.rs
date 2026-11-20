@@ -10,7 +10,7 @@ use crate::{
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
-    rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -73,7 +73,7 @@ pub(super) enum Retention {
 }
 
 pub(super) struct Reservation {
-    pending: Rc<Cell<usize>>,
+    pending: Arc<Cell<usize>>,
     bytes: usize,
     _host: super::host::Reservation,
 }
@@ -123,7 +123,7 @@ struct Entry {
     owner: Owner,
     slot: Option<RasterSlot>,
     allocation: ResourceId,
-    image: Option<Rc<RasterImage>>,
+    image: Option<Arc<RasterImage>>,
     recipe: Option<Recipe>,
     identity: Identity,
     consumers: usize,
@@ -152,7 +152,7 @@ pub(super) struct Residency {
     warm_bytes: usize,
     tracked_bytes: usize,
     reclaimed: u64,
-    pending: Rc<Cell<usize>>,
+    pending: Arc<Cell<usize>>,
     hits: u64,
     misses: u64,
     evictions: u64,
@@ -179,7 +179,7 @@ impl Residency {
             warm_bytes: 0,
             tracked_bytes: 0,
             reclaimed: 0,
-            pending: Rc::default(),
+            pending: Arc::default(),
             hits: 0,
             misses: 0,
             evictions: 0,
@@ -288,7 +288,7 @@ impl Residency {
         id
     }
 
-    pub fn image(&self, id: RasterId) -> &Rc<RasterImage> {
+    pub fn image(&self, id: RasterId) -> &Arc<RasterImage> {
         self.entries[&id].image.as_ref().expect("selected raster")
     }
 

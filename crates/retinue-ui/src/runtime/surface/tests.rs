@@ -2,7 +2,7 @@ use super::*;
 use crate::drawing::PixelLayers;
 use retinue_render::{
     CacheHint,
-    painter::{GlyphCache, TextLine, load_overlay_font},
+    painter::{TextLine, load_overlay_font},
 };
 use std::rc::Rc;
 
@@ -26,9 +26,32 @@ fn render(surface: &mut ViewSurface, recording: PixelLayers) -> (Vec<u8>, Damage
     (pixels, damage)
 }
 
+fn reference(recording: PixelLayers) -> Vec<u8> {
+    let size = (recording.width(), recording.height());
+    let mut tree = crate::runtime::ViewTree::new(recording.finish(), || {});
+    tree.update(size, 1.0).unwrap();
+    let mut renderer = Renderer::new(ResidencyPolicy::overlay(0));
+    renderer.prepare(tree.frame(), RasterMode::Replay);
+    let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
+    let mut painter = Painter::new(&mut pixels, size.0, size.1).unwrap();
+    renderer.draw_with(
+        tree.frame(),
+        &mut painter,
+        Rect {
+            width: size.0,
+            height: size.1,
+            ..Rect::default()
+        },
+        |_, _| {},
+    );
+    painter.finish().unwrap();
+    pixels
+}
+
 #[test]
 fn retained_layers_match_fresh_views_through_move_reorder_resize_and_removal() {
     let mut retained = ViewSurface::default();
+    let mut pixels = Vec::new();
     for (width, order, shift, color) in [
         (100, vec![0, 1], 0, 80),
         (100, vec![0, 1], 0, 80),
@@ -57,20 +80,34 @@ fn retained_layers_match_fresh_views_through_move_reorder_resize_and_removal() {
             }
             recording
         };
-        let a = render(&mut retained, record()).0;
-        let b = render(&mut ViewSurface::default(), record()).0;
-        assert_eq!(a, b);
+        let size = (width, 80);
+        let repair = retained
+            .update(record().finish(), size)
+            .unwrap()
+            .regions(size);
+        pixels.resize(width as usize * 80 * 4, 0);
+        let mut painter = Painter::new(&mut pixels, width, 80).unwrap();
+        painter.repair(&repair);
+        painter.clear();
+        retained.prepare_rasters(&repair);
+        retained.draw_prepared(&mut painter, repair.bounds(), |_, _| {});
+        painter.finish().unwrap();
+        assert!(
+            pixels == reference(record()),
+            "repair mismatch: {width}/{order:?}/{shift}/{color}"
+        );
+        let generation = retained.frame().generation();
         assert_eq!(render(&mut retained, record()).1, Damage::None);
-        assert_eq!(retained.tree.scene().stats.recordings, 0);
-        assert_eq!(retained.tree.scene().stats.layout_computations, 0);
+        assert_eq!(retained.frame().generation(), generation);
     }
 }
 
 #[test]
 fn local_pixel_drawing_matches_direct_paint_and_translation_reuses_it() {
-    let font = Rc::new(load_overlay_font(&GlyphCache::new(8192)).unwrap());
+    let font = Rc::new(load_overlay_font().unwrap());
     let size = (240, 170);
     let mut surface = ViewSurface::default();
+    let mut program = None;
     for shift in [0, 9] {
         let mut recording = PixelLayers::new(size);
         recording.section(
@@ -94,18 +131,24 @@ fn local_pixel_drawing_matches_direct_paint_and_translation_reuses_it() {
         let mut expected = vec![0; actual.len()];
         let mut painter = Painter::new(&mut expected, size.0, size.1).unwrap();
         painter.draw_ring(65 + shift, 64, 16, 3, [90, 170, 220, 180]);
-        painter.draw_text_vertically_centered(
-            font.as_ref(),
-            TextLine::new(40 + shift, 80, 20),
-            16.0,
-            "Relic rewards",
-            [255; 4],
+        let shaped = crate::drawing::text::font::TextFace::for_font(&font)
+            .unwrap()
+            .shape("Relic rewards", 16.0)
+            .unwrap();
+        shaped.prepare().unwrap().draw(
+            &mut painter,
+            (
+                f64::from(40 + shift),
+                80.0 + (20.0 - f64::from(shaped.layout().height())) / 2.0,
+            ),
+            1.0,
+            retinue_render::Color::rgb(0xffffff),
         );
         painter.finish().unwrap();
-        assert_eq!(actual, expected);
-        if shift > 0 {
-            assert_eq!(surface.tree.scene().stats.recordings, 0);
-            assert_eq!(surface.tree.scene().stats.layout_computations, 0);
+        assert!(actual == expected, "native label differs at shift={shift}");
+        let current = surface.frame().instances()[0].program.id();
+        if let Some(previous) = program.replace(current) {
+            assert_eq!(current, previous);
         }
     }
 }
@@ -135,6 +178,7 @@ fn optional_overlay_layers_are_released_on_close() {
 #[test]
 fn adding_popup_does_not_rerecord_background() {
     let mut surface = ViewSurface::default();
+    let mut background = None;
     for popup in [false, true, false, true] {
         let mut recording = PixelLayers::new((120, 80));
         recording.section(
@@ -160,7 +204,10 @@ fn adding_popup_does_not_rerecord_background() {
             recording.fill_rounded_rect(30, 20, 50, 40, 4, [180, 70, 20, 180]);
         }
         render(&mut surface, recording);
-        assert!(surface.tree.scene().stats.recordings <= 1);
+        let id = surface.frame().instances()[0].program.id();
+        if let Some(previous) = background.replace(id) {
+            assert_eq!(id, previous);
+        }
     }
 }
 
@@ -210,17 +257,19 @@ fn partial_repair_preserves_other_live_caches_but_removal_releases_them() {
     let mut painter = Painter::new(&mut pixels, 160, 80).unwrap();
     painter.repair(&repair);
     painter.clear();
+    surface.prepare_rasters(&repair);
     surface.draw_prepared(&mut painter, repair.bounds(), |_, _| {});
     painter.finish().unwrap();
     assert_eq!(pixels, expected);
     assert_eq!(surface.residency_stats().selected_bytes, bytes);
-    assert_eq!(surface.renderer.stats.preparation_tasks, 0);
+    assert_eq!(surface.renderer.borrow().stats.preparation_tasks, 0);
     surface.update(record(1).finish(), (160, 80)).unwrap();
     let mut painter = Painter::new(&mut pixels, 160, 80).unwrap();
     painter.repair(&retinue_render::damage::Region::default());
+    surface.prepare_rasters(&repair);
     surface.draw_prepared(&mut painter, repair.bounds(), |_, _| {});
     painter.finish().unwrap();
     assert!(surface.residency_stats().selected_bytes < bytes);
-    assert_eq!(surface.renderer.stats.preparation_tasks, 0);
+    assert_eq!(surface.renderer.borrow().stats.preparation_tasks, 0);
     assert!(!surface.has_deferred());
 }

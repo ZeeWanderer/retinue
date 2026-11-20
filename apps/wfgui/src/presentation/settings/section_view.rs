@@ -1,19 +1,28 @@
-use crate::presentation::widgets::slot;
+use super::row_view::RowView;
+use crate::presentation::widgets::compiled::slot;
 use retinue_render::Key;
-use retinue_ui::prelude::*;
+use retinue_ui::{authoring::*, layout::Insets};
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(in crate::presentation::settings) struct SectionView {
     pub id: Key,
-    pub children: Vec<Element>,
+    pub rows: Vec<(Option<Key>, RowView)>,
+    pub scale: f32,
 }
 
+#[view]
 impl View for SectionView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         ui! {
             VStack(0.0) {
-                for child in &self.children { child.clone() }
-            }.alignment(Alignment::Stretch).fill_width().background { slot(self.id) }
+                ForEach(self.rows.iter(), |(_, row)| row.id) { |(separator, row)|
+                    if let Some(id) = separator {
+                        slot(*id).frame(Frame::new().height(self.scale).fill_width())
+                            .padding(Insets { left: 16.0 * self.scale, right: 16.0 * self.scale, ..Default::default() })
+                    }
+                    compose(row.clone())
+                }
+            }.stretch_children().frame(Frame::new().fill_width()).background { slot(self.id) }
         }
     }
 }

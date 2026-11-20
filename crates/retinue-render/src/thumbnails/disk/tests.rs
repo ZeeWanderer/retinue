@@ -97,6 +97,63 @@ fn corrupt_cache_falls_back_to_source_and_repairs() {
 }
 
 #[test]
+fn executor_rejection_does_not_discard_valid_disk_pixels() {
+    use crate::work::{CpuStage, Executor, Limits};
+    use std::{num::NonZeroUsize, sync::Arc};
+    let dir = tempfile::tempdir().unwrap();
+    let request = request(40);
+    let mut disk = DiskCache::new(dir.path().into());
+    let pixels = RasterImage::from_rgba(image::RgbaImage::new(40, 40)).unwrap();
+    disk.begin_batch(std::slice::from_ref(&request)).unwrap();
+    disk.store(&request, &pixels).unwrap();
+    let path = disk.path(&request).unwrap();
+    disk.cpu = CpuStage::new(Arc::new(Executor::new(Limits {
+        participants: NonZeroUsize::MIN,
+        tasks: 0,
+    })));
+    assert!(
+        disk.load(&request)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("admission")
+    );
+    assert!(path.exists());
+    disk.cpu = CpuStage::default();
+    assert!(disk.load(&request).unwrap().is_some());
+}
+
+#[test]
+fn cpu_pool_roundtrip_preserves_pixels_and_disk_hits_in_either_builder_order() {
+    use crate::work::{Executor, Limits};
+    use std::{num::NonZeroUsize, sync::Arc};
+    let dir = tempfile::tempdir().unwrap();
+    let executor = Arc::new(Executor::new(Limits {
+        participants: NonZeroUsize::new(2).unwrap(),
+        tasks: 8,
+    }));
+    let mut cache = Thumbnails::new(1 << 20, 1 << 20)
+        .with_executor(executor.clone())
+        .with_disk(dir.path().into());
+    let mut request = request(40);
+    cache.begin_batch(std::slice::from_ref(&request));
+    let original = cache.prepare(&request).unwrap();
+    cache.persist(&request, &original);
+    assert_eq!(cache.work.disk_writes, 1);
+    drop(cache);
+    request.source = Source::File(dir.path().join("not-read"));
+    let mut cache = Thumbnails::new(1 << 20, 1 << 20)
+        .with_disk(dir.path().into())
+        .with_executor(executor);
+    cache.begin_batch(std::slice::from_ref(&request));
+    let loaded = cache.prepare(&request).unwrap();
+    assert!(original.to_rgba().unwrap() == loaded.to_rgba().unwrap());
+    assert_eq!(cache.work.disk_hits, 1);
+    assert_eq!(cache.work.resamples, 0);
+    assert!(cache.take_warnings().is_empty());
+}
+
+#[test]
 fn same_session_missing_or_corrupt_derivatives_can_be_repaired() {
     let dir = tempfile::tempdir().unwrap();
     let request = request(40);

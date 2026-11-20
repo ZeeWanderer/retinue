@@ -1,12 +1,33 @@
 use crate::environment::EnvironmentKey;
 use retinue_render::{
     Color,
-    painter::{CachedFont, GlyphCache, load_overlay_font},
+    painter::{CachedFont, load_overlay_font},
 };
 use std::rc::Rc;
 
+pub(crate) mod font;
+mod labels;
 mod paragraph;
+pub mod shaping;
+pub use labels::{LabelAlignment, fit_text_size, label_commands, text_width, wrap_text};
 pub use paragraph::{Paragraph, TextAlignment, TextLayout};
+pub(crate) use paragraph::{ParagraphDrawing, ParagraphSpec, ParagraphState};
+
+/// Prime the platform font catalog off the frame path. No font files are
+/// selected or pinned. Missing capacity leaves ordinary lazy lookup intact.
+pub fn prepare_host_fonts(
+    host: &retinue_render::RenderHost,
+) -> Option<retinue_render::work::Submission> {
+    #[cfg(target_os = "linux")]
+    {
+        font::prepare_host_fonts(host)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = host;
+        None
+    }
+}
 
 #[derive(Clone)]
 pub struct TextStyle {
@@ -31,7 +52,7 @@ impl Default for TextStyle {
     fn default() -> Self {
         thread_local! {
             static DEFAULT_FONT: Rc<CachedFont> = Rc::new(
-                load_overlay_font(&GlyphCache::new(2 * 1024 * 1024)).expect("bundled UI font"));
+                load_overlay_font().expect("bundled UI font"));
         }
         Self::new(DEFAULT_FONT.with(Clone::clone), 16.0, Color::rgb(0xffffff))
     }

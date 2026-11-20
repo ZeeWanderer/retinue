@@ -20,6 +20,7 @@ pub(super) struct Registrar {
 
 pub(super) struct Listener {
     dirty: Cell<bool>,
+    tracking: Cell<bool>,
     mutation: Cell<Option<Mutation>>,
     wake: Box<dyn Fn()>,
 }
@@ -28,6 +29,7 @@ impl Listener {
     pub fn new(wake: impl Fn() + 'static) -> Self {
         Self {
             dirty: Cell::new(true),
+            tracking: Cell::new(false),
             mutation: Cell::new(None),
             wake: Box::new(wake),
         }
@@ -38,8 +40,14 @@ impl Listener {
     }
 
     pub fn begin(&self) {
+        self.tracking.set(true);
         self.dirty.set(false);
         self.mutation.set(None);
+    }
+
+    pub fn end(&self) -> Option<Mutation> {
+        self.tracking.set(false);
+        self.mutation.take()
     }
 
     pub fn mutation(&self) -> Option<Mutation> {
@@ -49,6 +57,10 @@ impl Listener {
     pub fn invalidate(&self, mutation: Option<Mutation>) {
         self.mutation
             .set(Mutation::latest(self.mutation.get(), mutation));
+        // The active read validates revisions itself; writes before a read are already visible.
+        if self.tracking.get() {
+            return;
+        }
         if !self.dirty.replace(true) && !std::thread::panicking() {
             untracked(|| (self.wake)());
         }

@@ -1,3 +1,4 @@
+mod compiled_ui;
 mod model;
 mod properties;
 mod ui;
@@ -26,6 +27,22 @@ pub fn observable(arguments: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn ui(input: TokenStream) -> TokenStream {
     ui::expand(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro]
+pub fn compiled_ui(input: TokenStream) -> TokenStream {
+    compiled_ui::expand(input.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+/// Marks a `View` implementation for compiled authoring. Use it as `#[view]`
+/// from the SDK prelude on the `impl View` block, not on the model struct.
+#[proc_macro_attribute]
+pub fn compiled_view(arguments: TokenStream, input: TokenStream) -> TokenStream {
+    compiled_ui::view(arguments.into(), input.into())
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

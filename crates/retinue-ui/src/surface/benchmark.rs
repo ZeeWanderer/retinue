@@ -2,6 +2,7 @@
 use super::Surface;
 use rustix::time::{ClockId, clock_gettime};
 use serde::Serialize;
+use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -65,9 +66,36 @@ pub struct Report {
     pub clock_id: Option<u32>,
     pub dispatches: u64,
     pub coalesced_updates: u64,
+    pub marked_updates: u64,
+    pub pointer: PointerTraffic,
     pub overflow: u64,
     pub measurement: Option<Period>,
     pub frames: Vec<Frame>,
+}
+
+#[derive(Clone, Default, Serialize)]
+pub struct PointerTraffic {
+    pub batches_with_motion: u64,
+    pub motion_samples: u64,
+    pub adjacent_motion_samples: u64,
+    pub motion_while_raster_pending: u64,
+}
+
+impl PointerTraffic {
+    fn record(&mut self, samples: impl Iterator<Item = bool>, raster_pending: bool) {
+        let mut previous = false;
+        let mut count = 0;
+        for motion in samples {
+            count += u64::from(motion);
+            self.adjacent_motion_samples += u64::from(previous && motion);
+            previous = motion;
+        }
+        self.motion_samples += count;
+        self.batches_with_motion += u64::from(count != 0);
+        if raster_pending {
+            self.motion_while_raster_pending += count;
+        }
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -89,6 +117,7 @@ struct State {
     start: Instant,
     clock: Option<ClockId>,
     pending: Option<(u64, Instant)>,
+    rendering: Option<(u64, Instant)>,
     measurement: Option<Counters>,
     report: Report,
 }
@@ -102,11 +131,14 @@ impl Default for Capture {
             start: Instant::now(),
             clock: None,
             pending: None,
+            rendering: None,
             measurement: None,
             report: Report {
                 clock_id: None,
                 dispatches: 0,
                 coalesced_updates: 0,
+                marked_updates: 0,
+                pointer: PointerTraffic::default(),
                 overflow: 0,
                 measurement: None,
                 frames: Vec::with_capacity(MAX_FRAMES),
@@ -128,6 +160,7 @@ impl Capture {
 
     pub fn mark(&self, revision: u64, ready: Instant) {
         let mut state = self.0.borrow_mut();
+        state.report.marked_updates += 1;
         if state.pending.replace((revision, ready)).is_some() {
             state.report.coalesced_updates += 1;
         }
@@ -146,20 +179,30 @@ impl Capture {
         report
     }
 
+    fn prepared(&self) {
+        let mut state = self.0.borrow_mut();
+        // A second preparation without a submission supersedes a discarded frame.
+        if let Some(update) = state.pending.take()
+            && state.rendering.replace(update).is_some()
+        {
+            state.report.coalesced_updates += 1;
+        }
+    }
+
     fn submitted(&self, start: Instant, end: Instant) -> Option<usize> {
         let mut state = self.0.borrow_mut();
+        let painted = state.rendering.take();
         if state.report.frames.len() == MAX_FRAMES {
             state.report.overflow += 1;
             return None;
         }
-        let pending = state.pending.take();
         let clock = state.clock.map(clock_ns);
         let origin = state.start;
         let relative =
             |instant: Instant| instant.saturating_duration_since(origin).as_nanos() as u64;
         let frame = Frame {
-            revision: pending.map(|p| p.0),
-            ready_ns: pending.map(|p| relative(p.1)),
+            revision: painted.map(|p| p.0),
+            ready_ns: painted.map(|p| relative(p.1)),
             paint_start_ns: relative(start),
             paint_end_ns: relative(end),
             submitted_ns: relative(Instant::now()),
@@ -188,6 +231,28 @@ pub(super) struct Measurement {
 }
 
 impl Measurement {
+    pub fn pointer_frame(
+        &self,
+        events: &[PointerEvent],
+        surface: &wl_surface::WlSurface,
+        raster_pending: bool,
+    ) {
+        let mut state = self.capture.0.borrow_mut();
+        if state.measurement.is_some() {
+            state.report.pointer.record(
+                events.iter().map(|event| {
+                    &event.surface == surface
+                        && matches!(event.kind, PointerEventKind::Motion { .. })
+                }),
+                raster_pending,
+            );
+        }
+    }
+
+    pub fn prepared(&self) {
+        self.capture.prepared();
+    }
+
     pub fn bind(
         globals: &GlobalList,
         qh: &QueueHandle<Surface>,
@@ -293,6 +358,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn pointer_runs_end_at_boundaries_and_frame_end() {
+        let mut traffic = PointerTraffic::default();
+        traffic.record([true, true, false, true].into_iter(), true);
+        traffic.record([true, false].into_iter(), false);
+        assert_eq!(traffic.motion_samples, 4);
+        assert_eq!(traffic.batches_with_motion, 2);
+        assert_eq!(traffic.adjacent_motion_samples, 1);
+        assert_eq!(traffic.motion_while_raster_pending, 3);
+    }
+
+    #[test]
     fn polling_restores_previous_mapped_and_hidden_intervals() {
         assert_eq!(
             Policy::Polling.timeout(true, None),
@@ -315,6 +391,7 @@ mod tests {
         let ready = Instant::now();
         capture.mark(1, ready);
         capture.mark(2, ready);
+        capture.prepared();
         capture.submitted(ready, ready + Duration::from_millis(2));
         let report = capture.report();
         assert_eq!(report.coalesced_updates, 1);
@@ -329,6 +406,41 @@ mod tests {
         );
         frame.presented_ns = Some(99_999);
         assert_eq!(frame.ready_to_present_ns(), None);
+    }
+
+    #[test]
+    fn a_later_update_is_not_attributed_to_an_older_render_job() {
+        let capture = Capture::default();
+        let now = Instant::now();
+        capture.mark(1, now);
+        capture.prepared();
+        capture.mark(2, now);
+        capture.submitted(now, now);
+        capture.prepared();
+        capture.submitted(now, now);
+        let report = capture.report();
+        assert_eq!(report.coalesced_updates, 0);
+        assert_eq!(report.frames[0].revision, Some(1));
+        assert_eq!(report.frames[1].revision, Some(2));
+    }
+
+    #[test]
+    fn discarded_work_is_retried_unless_a_new_revision_supersedes_it() {
+        let capture = Capture::default();
+        let now = Instant::now();
+        capture.mark(1, now);
+        capture.prepared();
+        capture.prepared();
+        capture.submitted(now, now);
+        capture.mark(2, now);
+        capture.prepared();
+        capture.mark(3, now);
+        capture.prepared();
+        capture.submitted(now, now);
+        let report = capture.report();
+        assert_eq!(report.coalesced_updates, 1);
+        assert_eq!(report.frames[0].revision, Some(1));
+        assert_eq!(report.frames[1].revision, Some(3));
     }
 
     #[test]

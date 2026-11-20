@@ -4,6 +4,8 @@ use retinue_ui::{drawing::DrawList, layout::LayoutSize, layout::grid::UniformGri
 
 #[derive(Clone, PartialEq)]
 pub(super) struct Model {
+    #[cfg(test)]
+    pub grid_builds: std::rc::Rc<std::cell::Cell<usize>>,
     pub area: State<Bounds>,
     pub toolbar: State<Bounds>,
     pub viewport: State<Bounds>,
@@ -25,6 +27,8 @@ pub(super) struct Model {
 impl Default for Model {
     fn default() -> Self {
         Self {
+            #[cfg(test)]
+            grid_builds: Default::default(),
             area: State::default(),
             toolbar: State::default(),
             viewport: State::default(),

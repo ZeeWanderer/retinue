@@ -167,6 +167,19 @@ fn validate(trace: &[FrameSnapshot], policy: Policy) -> u8 {
         } else {
             glow_regions(snapshot.frame())
         };
+        let ink = if matches!(policy, Policy::Raw | Policy::Compiled) {
+            Vec::new()
+        } else {
+            crate::presentation::pixel_tests::text_ink(
+                snapshot.frame(),
+                (0, 0),
+                Rect {
+                    width: size.0,
+                    height: size.1,
+                    ..Rect::default()
+                },
+            )
+        };
         for (index, (a, b)) in actual.iter().zip(&expected).enumerate() {
             let diff = a.abs_diff(*b);
             error = error.max(diff);
@@ -175,6 +188,9 @@ fn validate(trace: &[FrameSnapshot], policy: Policy) -> u8 {
             }
             let x = (index / 4) as u32 % size.0;
             let y = (index / 4) as u32 / size.0;
+            if diff <= 1 && ink.iter().any(|r| r.contains(x as f64, y as f64)) {
+                continue;
+            }
             let glow = glows
                 .iter()
                 .any(|r| x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height);

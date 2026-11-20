@@ -1,13 +1,16 @@
 mod loading_view;
 mod rail_view;
 use crate::{
-    presentation::controls, presentation::controls::BAD, presentation::controls::ControlHost,
-    presentation::controls::MUTED, presentation::controls::TEXT, presentation::settings::rgb,
-    presentation::widgets::fill, presentation::widgets::label, presentation::widgets::place,
-    presentation::widgets::slot,
+    presentation::controls,
+    presentation::controls::BAD,
+    presentation::controls::ControlHost,
+    presentation::controls::MUTED,
+    presentation::controls::TEXT,
+    presentation::settings::rgb,
+    presentation::widgets::compiled::{fill, frame, label, place, slot},
 };
 use retinue_render::{Bounds, Color, Key, painter::CachedFont};
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*};
+use retinue_ui::{authoring::*, drawing::TextStyle, layout::anchors::AnchorPoint, state::State};
 use std::rc::Rc;
 
 pub const NOTIFICATION: Key = Key::new("rail.notification.control", 0);
@@ -42,7 +45,12 @@ impl Rail {
         self.error.set(error.unwrap_or_default().to_owned());
     }
 
-    pub fn view(&self, events: Element, market: Element, regular: Rc<CachedFont>) -> Element {
+    pub fn view<E: View + Clone + PartialEq, M: View + Clone + PartialEq>(
+        &self,
+        events: E,
+        market: M,
+        regular: Rc<CachedFont>,
+    ) -> impl View + use<E, M> {
         rail_view::RailView {
             area: self.area.clone(),
             market: self.market.clone(),
@@ -52,7 +60,6 @@ impl Rail {
             market_content: market,
             font: TextStyle::new(regular, 14.0, Color::from_bgra(TEXT)),
         }
-        .into_element()
     }
 
     pub fn bind(&self, ui: &mut ControlHost, market: bool, connected: bool) {

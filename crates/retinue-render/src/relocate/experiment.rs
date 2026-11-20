@@ -5,11 +5,7 @@ use crate::{
     painter::Painter, program::Signature,
 };
 use rustc_hash::FxHashMap;
-use std::{
-    num::NonZeroU32,
-    rc::{Rc, Weak},
-    time::Instant,
-};
+use std::{num::NonZeroU32, time::Instant};
 
 #[cfg(test)]
 #[path = "tests.rs"]
@@ -42,7 +38,7 @@ pub struct Sample {
 }
 
 struct State {
-    identity: Weak<()>,
+    identity: crate::frame::Identity,
     generation: u64,
     size: (u32, u32),
     scale: f32,
@@ -79,7 +75,7 @@ impl State {
             r.is_empty() || r.intersection(motion.viewport) == r
         });
         Self {
-            identity: Rc::downgrade(&frame.identity),
+            identity: frame.identity,
             generation: frame.generation(),
             size: frame.size(),
             scale: frame.scale(),
@@ -106,7 +102,7 @@ impl State {
     }
 
     fn compatible(&self, other: &Self) -> bool {
-        self.identity.ptr_eq(&other.identity)
+        self.identity == other.identity
             && self.generation >= other.generation
             && self.size == other.size
             && self.scale == other.scale

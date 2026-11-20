@@ -1,7 +1,12 @@
 use super::{DrawList, PixelCanvas};
-use crate::{Rect, layout::anchors::AnchorPoint, prelude::*};
+use crate::Rect;
+#[cfg(test)]
+use crate::{layout::anchors::AnchorPoint, runtime::reference::prelude::*};
 use retinue_render::{CacheHint, Key};
 use std::ops::{Deref, DerefMut};
+
+mod frame;
+pub(crate) use frame::PixelFrame;
 
 /// Named local drawings for custom pixel-layout content. Layout and painter order
 /// remain visible to the SDK; unchanged layers retain their recordings.
@@ -20,12 +25,13 @@ struct Layer {
     drawing: DrawList,
 }
 
-#[derive(PartialEq)]
+#[derive(Default, PartialEq)]
 pub struct LayeredDrawing {
     size: (u32, u32),
     layers: Vec<Layer>,
 }
 
+#[cfg(test)]
 impl View for LayeredDrawing {
     fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
         ui! {

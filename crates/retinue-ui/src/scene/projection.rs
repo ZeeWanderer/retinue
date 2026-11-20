@@ -7,6 +7,7 @@ pub(super) struct Placement {
     pub parent: Option<usize>,
     pub end: usize,
     pub local: Bounds,
+    pub content_insets: taffy::Rect<f32>,
     pub offset: (f32, f32),
     pub clipper: bool,
     pub clip: Rect,
@@ -22,28 +23,36 @@ pub(super) struct Placement {
 impl Scene {
     pub(super) fn project(&mut self, mode: RecordingMode, size: (u32, u32), scale: f32) -> Damage {
         #[cfg(feature = "profiling")]
+        let _scope = crate::profiling::Scope::enter(crate::profiling::Phase::Projection);
+        #[cfg(feature = "profiling")]
         let started = std::time::Instant::now();
         let resized = self.frame.size() != size || self.frame.scale() != scale;
         self.stats = UpdateStats {
-            layout_computations: self.tree.computed,
+            layout_computations: self.tree.state.computed,
             ..UpdateStats::default()
         };
-        self.tree.changed.sort_unstable();
-        self.tree.changed.dedup();
-        let paint_topology = self.tree.changed.iter().any(|&slot| {
+        self.tree.state.changed.coalesce();
+        let paint_topology = self.tree.state.changed.iter().any(|(slot, work)| {
+            if !work.intersects(
+                Work::LAYOUT
+                    | Work::PAINT
+                    | Work::GEOMETRY
+                    | Work::STRUCTURE
+                    | Work::RENDER_CONTEXT,
+            ) {
+                return false;
+            }
             let Some(node) = &self.tree.nodes[slot] else {
                 return true;
             };
             self.geometry_index
-                .get(&node.element.key)
+                .get(&self.tree.inputs[slot].as_ref().unwrap().key)
                 .is_some_and(|&index| {
-                    self.projection[index].chunk.is_some() != node.element.paint.is_some()
-                        || self.projection[index].clipper != node.element.clip
+                    self.projection[index].chunk.is_some() != node.paint.is_some()
+                        || self.projection[index].clipper != node.clip
                         || self.projection[index].group.is_some()
-                            != (node.element.cache_hint != CacheHint::Dynamic
-                                || node.custom_cache.as_ref().is_some_and(|cache| {
-                                    cache.rendering != OptimizationContext::default()
-                                }))
+                            != (node.cache_hint != CacheHint::Dynamic
+                                || self.tree.render_context(slot) != OptimizationContext::default())
                 })
         });
         let damage = if resized
@@ -61,7 +70,7 @@ impl Scene {
             .iter()
             .filter(|chunk| !chunk.visible_bounds().is_empty())
             .count();
-        self.tree.changed.clear();
+        self.tree.state.changed.clear();
         #[cfg(feature = "profiling")]
         {
             self.profile.projection += started.elapsed();
@@ -72,56 +81,85 @@ impl Scene {
     fn project_changes(&mut self) -> Damage {
         let mut ranges = Vec::new();
         let mut input_ranges = Vec::new();
-        let mut input_changed = false;
+        let mut geometry_moved = false;
+        let mut hit_policy_changed = false;
         let mut updates = Vec::new();
         let mut groups = HashSet::default();
-        for i in 0..self.tree.changed.len() {
-            let slot = self.tree.changed[i];
+        for i in 0..self.tree.state.changed.len() {
+            let (slot, work) = self.tree.state.changed.get(i);
             let node = self.tree.nodes[slot].as_mut().unwrap();
-            let Some(&index) = self.geometry_index.get(&node.element.key) else {
+            let input = self.tree.inputs[slot].as_ref().unwrap();
+            let layout = self.tree.state.nodes[slot].as_ref().unwrap().layout;
+            let Some(&index) = self.geometry_index.get(&input.key) else {
                 continue;
             };
             let placement = &mut self.projection[index];
-            if placement.group.is_some() {
+            if placement.group.is_some()
+                && work.intersects(
+                    Work::LAYOUT
+                        | Work::PAINT
+                        | Work::GEOMETRY
+                        | Work::STRUCTURE
+                        | Work::RENDER_CONTEXT,
+                )
+            {
                 groups.insert(index);
             }
             let local = Bounds::new(
-                node.layout.location.x,
-                node.layout.location.y,
-                node.layout.size.width,
-                node.layout.size.height,
+                layout.location.x,
+                layout.location.y,
+                layout.size.width,
+                layout.size.height,
             );
             let moved = placement.local != local
-                || placement.offset != node.element.offset
-                || placement.clipper != node.element.clip;
-            input_changed |= moved
-                || placement.hit_testing != node.element.hit_testing
-                || placement.interactive != node.element.interactive;
+                || placement.offset != node.offset
+                || placement.clipper != node.clip;
+            hit_policy_changed |= placement.hit_testing != node.hit_testing
+                || placement.interactive != node.interactive
+                || self.geometry[index].role != node.role
+                || self.geometry[index].window_action != node.window_action;
+            geometry_moved |= moved;
             placement.local = local;
-            placement.offset = node.element.offset;
-            placement.clipper = node.element.clip;
-            if placement.hit_testing != node.element.hit_testing {
+            placement.content_insets = layout.border + layout.padding;
+            placement.offset = node.offset;
+            placement.clipper = node.clip;
+            if placement.hit_testing != node.hit_testing {
                 input_ranges.push(index..placement.end);
-            } else if placement.interactive != node.element.interactive {
+            } else if placement.interactive != node.interactive {
                 input_ranges.push(index..index + 1);
             }
-            placement.interactive = node.element.interactive;
-            placement.hit_testing = node.element.hit_testing;
-            self.geometry[index].role = node.element.role;
-            self.geometry[index].window_action = node.element.window_action;
+            placement.interactive = node.interactive;
+            placement.hit_testing = node.hit_testing;
+            self.geometry[index].role = node.role;
+            self.geometry[index].window_action = node.window_action;
             let mut painted = false;
-            if let (Some(paint), Some(chunk)) = (&node.element.paint, placement.chunk) {
+            if work.intersects(Work::PAINT | Work::GEOMETRY | Work::STRUCTURE)
+                && let (Some(paint), Some(chunk)) = (&node.paint, placement.chunk)
+            {
                 let size = (local.width, local.height);
-                if node
-                    .recorded
-                    .as_ref()
-                    .is_none_or(|recorded| !recorded.matches(paint.key, size, self.frame.scale()))
+                let revision = self.tree.state.nodes[slot].as_ref().unwrap().revision;
+                if paint.uses_layout && node.recorded_layout != revision
+                    || node.recorded.as_ref().is_none_or(|recorded| {
+                        !recorded.matches(paint.key, size, self.frame.scale())
+                    })
                 {
+                    let result = self.tree.state.nodes[slot]
+                        .as_ref()
+                        .unwrap()
+                        .result(node.custom_cache.as_ref());
+                    #[cfg(feature = "profiling")]
+                    let started = std::time::Instant::now();
                     node.recorded = Some(paint.compile(
                         &mut self.programs,
-                        node.layout.size,
+                        layout.size,
                         self.frame.scale(),
+                        result,
                     ));
+                    #[cfg(feature = "profiling")]
+                    {
+                        self.profile.recording += started.elapsed();
+                    }
+                    node.recorded_layout = revision;
                     self.stats.recordings += 1;
                     painted = true;
                 }
@@ -138,8 +176,10 @@ impl Scene {
                 ranges.push(index..if moved { placement.end } else { index + 1 });
             }
         }
-        if input_changed {
+        let previous_revision = self.input_revision;
+        if geometry_moved || hit_policy_changed {
             self.input_revision = self.input_revision.wrapping_add(1);
+            self.input_motion = None;
         }
         for range in coalesce(input_ranges) {
             for index in range {
@@ -208,6 +248,9 @@ impl Scene {
                 }
                 parent = self.projection[index].parent;
             }
+        }
+        if geometry_moved && !hit_policy_changed {
+            self.input_motion = Some((previous_revision, InputMotion::Ranges(merged)));
         }
         damage
     }

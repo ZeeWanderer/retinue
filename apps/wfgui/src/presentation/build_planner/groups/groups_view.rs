@@ -1,20 +1,27 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(in super::super) struct GroupsView {
     pub metrics: State<Metrics>,
     pub model: State<Rc<build_planner_model::Model>>,
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for GroupsView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.metrics.get();
         let model = self.model.get();
         let d = &model.groups;
         let c = |id, rect| control(node(id), rect);
         let centered = |text: &str, size, color| {
-            fitted_label(text, self.fonts.regular.clone(), size, color, true, m.scale)
+            crate::presentation::widgets::compiled::label(
+                text,
+                self.fonts.regular.clone(),
+                size,
+                color,
+                true,
+            )
         };
         ui! {
             ZStack() {
@@ -32,10 +39,10 @@ impl View for GroupsView {
                     c("calculate", m.bounds(m.width - 86.0, 78.0, 72.0, 32.0))
                     if d.selected {
                         c("instance", m.bounds(14.0, 119.0, (m.width - 28.0).min(420.0), 30.0))
-                        for (i, (id, _)) in OPTIONS.into_iter().enumerate() {
+                        ForEach(OPTIONS.into_iter().enumerate(), |(_, (id, _))| node(id), |(i, (id, _))| {
                             c(id, m.bounds(14.0 + i as f32 * (m.width - 28.0) / 3.0,
                                 157.0, (m.width - 28.0) / 3.0, 28.0))
-                        }
+                        })
                         c("member", m.bounds(14.0, 195.0, m.width - 234.0, 33.0))
                         c("remove", m.bounds(m.width - 210.0, 195.0, 90.0, 33.0))
                         c("planned", m.bounds(m.width - 110.0, 195.0, 96.0, 33.0))
@@ -46,7 +53,7 @@ impl View for GroupsView {
                             m.bounds(24.0, 132.0, m.width - 48.0, 32.0))
                     }
                 }
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.height, AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.width, m.height))
         }
     }
 }

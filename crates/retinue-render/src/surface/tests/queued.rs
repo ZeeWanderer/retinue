@@ -1,6 +1,99 @@
 use super::*;
 
 #[test]
+fn immutable_surface_work_can_return_to_its_owner_after_new_input() {
+    fn send<T: Send>() {}
+    fn shared<T: Send + Sync>() {}
+    send::<QueuedFrame<'static>>();
+    send::<Submission>();
+    shared::<Snapshot>();
+    let mut host = Buffered::default();
+    host.add_buffer();
+    let mut pixels = vec![0; (SIZE.0 * SIZE.1 * 4) as usize];
+    let planned = host
+        .plan_queued(0, SIZE, None, &mut pixels, None, NonZeroU32::MIN)
+        .unwrap()
+        .unwrap();
+    let barrier = std::sync::Barrier::new(2);
+    let late = Rect {
+        x: 5,
+        y: 10,
+        width: 12,
+        height: 17,
+    };
+    let completed = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            barrier.wait();
+            barrier.wait();
+            planned
+                .execute(NonZeroU32::MIN, |p, _| {
+                    p.clear();
+                    Ok(())
+                })
+                .unwrap()
+        });
+        barrier.wait();
+        host.invalidate(Damage::rect(late));
+        barrier.wait();
+        worker.join().unwrap()
+    });
+    assert!(host.submitted(completed));
+    let next = host
+        .plan_queued(0, SIZE, None, &mut pixels, None, NonZeroU32::MIN)
+        .unwrap()
+        .unwrap();
+    assert_eq!(*next.repair(), Region::from(late));
+}
+
+#[test]
+fn planning_does_not_write_and_completion_keeps_post_cutoff_damage() {
+    let mut host = Aged::default();
+    let mut pixels = vec![27; (SIZE.0 * SIZE.1 * 4) as usize];
+    let planned = host
+        .plan_queued(0, SIZE, None, &mut pixels, None, NonZeroU32::MIN)
+        .unwrap()
+        .unwrap();
+    assert_eq!(*planned.repair(), Damage::Full.regions(SIZE));
+    drop(planned);
+    assert!(pixels.iter().all(|&v| v == 27));
+
+    let planned = host
+        .plan_queued(0, SIZE, None, &mut pixels, None, NonZeroU32::MIN)
+        .unwrap()
+        .unwrap();
+    let late = Rect {
+        x: 7,
+        y: 11,
+        width: 15,
+        height: 17,
+    };
+    host.invalidate(Damage::rect(late));
+    let completed = planned
+        .execute(NonZeroU32::MIN, |p, _| {
+            p.clear();
+            Ok(())
+        })
+        .unwrap();
+    assert!(host.can_submit(&completed));
+    assert!(host.submitted(completed));
+    assert!(host.is_dirty());
+    let planned = host
+        .plan_queued(1, SIZE, None, &mut pixels, None, NonZeroU32::MIN)
+        .unwrap()
+        .unwrap();
+    assert_eq!(*planned.repair(), Region::from(late));
+    host.reset();
+    let completed = planned
+        .execute(NonZeroU32::MIN, |p, _| {
+            p.clear();
+            Ok(())
+        })
+        .unwrap();
+    assert!(!host.can_submit(&completed));
+    assert!(!host.submitted(completed));
+}
+
+#[test]
 fn aged_native_copies_recover_from_abandoned_frames_and_policy_changes() {
     let mut host = Aged::default();
     let mut pixels = vec![vec![0; (SIZE.0 * SIZE.1 * 4) as usize]; 3];

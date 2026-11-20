@@ -1,6 +1,101 @@
 use super::*;
 
 #[test]
+fn frozen_pages_match_owner_paint_after_the_shell_changes() {
+    use retinue_render::damage::Region;
+    for scale in [1.0, 1.2] {
+        for page in [
+            Page::Foundry,
+            Page::Inventory,
+            Page::Mastery,
+            Page::Relics,
+            Page::Market,
+            Page::Builds,
+            Page::Settings,
+        ] {
+            for sparse in [false, true] {
+                let size = (1280, 800);
+                let mut shell = view(scale, size);
+                shell.pages.fixture();
+                shell.set_page(page);
+                shell.foundry.update(crate::data::foundry::fixture());
+                shell.prepare_paint();
+                let repair = if sparse {
+                    Region::new([
+                        Rect {
+                            x: 20,
+                            y: 10,
+                            width: 630,
+                            height: 100,
+                        },
+                        Rect {
+                            x: 310,
+                            y: 170,
+                            width: 820,
+                            height: 550,
+                        },
+                    ])
+                } else {
+                    Region::from(Rect {
+                        width: size.0,
+                        height: size.1,
+                        ..Rect::default()
+                    })
+                };
+                let (wake, wakes) = std::sync::mpsc::channel();
+                let mut job = shell
+                    .prepare_packet(
+                        &repair,
+                        std::sync::Arc::new(move || {
+                            let _ = wake.send(());
+                        }),
+                    )
+                    .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(10);
+                let packet = loop {
+                    if let Some(packet) = job.poll() {
+                        break packet.unwrap();
+                    }
+                    wakes
+                        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        .unwrap();
+                };
+                let mut expected = vec![0x57; (size.0 * size.1 * 4) as usize];
+                let mut painter =
+                    Painter::with_threads(&mut expected, size.0, size.1, std::num::NonZeroU32::MIN)
+                        .unwrap();
+                painter.repair(&repair);
+                painter.fill_rounded_rect(0, 0, size.0, size.1, 0, BACKGROUND);
+                shell.draw_prepared(&mut painter);
+                painter.finish().unwrap();
+                shell.set_page(Page::Foundry);
+                shell.resize((960, 600), 1.0).unwrap();
+                drop(shell);
+                let actual = std::thread::spawn(move || {
+                    let mut pixels = vec![0x57; (size.0 * size.1 * 4) as usize];
+                    let mut painter = Painter::with_threads(
+                        &mut pixels,
+                        size.0,
+                        size.1,
+                        std::num::NonZeroU32::MIN,
+                    )
+                    .unwrap();
+                    painter.repair(&repair);
+                    painter.fill_rounded_rect(0, 0, size.0, size.1, 0, BACKGROUND);
+                    packet.draw(&mut painter);
+                    painter.finish().unwrap();
+                    pixels
+                })
+                .join()
+                .unwrap();
+                let mismatch = actual.iter().zip(&expected).position(|(a, b)| a != b);
+                assert_eq!(mismatch, None, "{page:?}, scale {scale}, sparse {sparse}");
+            }
+        }
+    }
+}
+
+#[test]
 fn acquired_surface_nested_page_scroll_matches_full_paint() {
     check_nested_page_scroll(None);
 }
@@ -91,6 +186,7 @@ fn check_nested_page_scroll(transfer: Option<retinue_render::surface::experiment
                             shell.paint_scene(),
                             frame.threads(),
                             |painter, repair| {
+                                shell.prepare_rasters(repair);
                                 reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
                                 painter.fill_rounded_rect(0, 0, size.0, size.1, 0, BACKGROUND);
                                 shell.draw_prepared(painter);
@@ -109,6 +205,7 @@ fn check_nested_page_scroll(transfer: Option<retinue_render::surface::experiment
                             Some(shell.paint_scene()),
                             &mut buffers[slot],
                             |pixels, repair| {
+                                shell.prepare_rasters(repair);
                                 reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
                                 let frame =
                                     shell.render_host.begin_frame(std::num::NonZeroU32::MIN);
@@ -270,6 +367,34 @@ fn page_switch_cancels_a_rail_press_but_allows_the_next_click_without_motion() {
     shell.pointer_button(true, Instant::now());
     shell.pointer_button(false, Instant::now());
     assert!(shell.pages.rail_tab);
+}
+
+#[test]
+fn foundry_scrollbar_drag_moves_content_at_fractional_scales() {
+    for scale in [0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.5, 2.0] {
+        let mut shell = view(scale, (2560, 1440));
+        shell.set_page(Page::Foundry);
+        shell.foundry.update(crate::data::foundry::fixture());
+        let center = shell.geometry.center;
+        let grid = shell.foundry.capture_bounds("foundry.grid").unwrap();
+        let x = (center.x + center.width - shell.px(9.0)) as f64;
+        let y = (center.y + grid.y + shell.px(3.0)) as f64;
+        shell.pointer_move((x, y));
+        shell.pointer_button(true, Instant::now());
+        let before = shell.foundry.offset;
+        shell.pointer_move((x - 100.0, y + grid.height as f64 / 3.0));
+        assert!(
+            shell.foundry.offset > before,
+            "scrollbar did not move content at {scale}"
+        );
+        shell.pointer_button(false, Instant::now());
+        let released = shell.foundry.offset;
+        shell.pointer_move((x - 100.0, y + grid.height as f64 / 2.0));
+        assert_eq!(
+            shell.foundry.offset, released,
+            "released scrollbar moved at {scale}"
+        );
+    }
 }
 
 #[test]
@@ -628,7 +753,32 @@ fn navigation_hover_damage_includes_the_trailing_indicator_immediately() {
             );
             shell.paint(&mut painter);
             painter.finish().unwrap();
-            assert_eq!(pixels, render(&shell), "hover {control:?} at {scale}");
+            let expected = render(&shell);
+            let bounds = Rect {
+                width: shell.size.0,
+                height: shell.size.1,
+                ..Rect::default()
+            };
+            let mut ink = crate::presentation::pixel_tests::text_ink(
+                shell.composition.tree.borrow().frame(),
+                (0, 0),
+                bounds,
+            );
+            let rail = shell.geometry.right;
+            ink.extend(shell.pages.rail.text_ink((rail.x, rail.y), rail));
+            let center = shell.geometry.center;
+            ink.extend(shell.foundry.text_ink((center.x, center.y), center));
+            assert_eq!(
+                crate::presentation::pixel_tests::mismatch(
+                    &pixels,
+                    &expected,
+                    shell.size.0,
+                    bounds,
+                    &ink
+                ),
+                None,
+                "hover {control:?} at {scale}"
+            );
             let damage = shell.pointer_move((-1.0, -1.0));
             assert!(
                 damage
@@ -709,12 +859,24 @@ fn pointer_focus_is_invisible_and_keyboard_rings_are_shared_across_pages() {
                 }
                 _ => shell.geometry.center,
             };
-            let unchanged = (check.y..check.y + check.height).all(|y| {
-                let start = (y as usize * shell.size.0 as usize + check.x as usize) * 4;
-                let end = start + check.width as usize * 4;
-                pointer[start..end] == baseline[start..end]
-            });
-            assert!(unchanged, "mouse focus drew a ring: {name}/{scale}");
+            let ink = match name {
+                "settings" => shell.settings.text_ink((check.x, check.y), check),
+                "foundry" => shell
+                    .foundry
+                    .text_ink((shell.geometry.center.x, shell.geometry.center.y), check),
+                _ => Vec::new(),
+            };
+            assert_eq!(
+                crate::presentation::pixel_tests::mismatch(
+                    &pointer,
+                    &baseline,
+                    shell.size.0,
+                    check,
+                    &ink
+                ),
+                None,
+                "mouse focus drew a ring: {name}/{scale}"
+            );
             shell.note_keyboard(Key::Named(NamedKey::Tab));
             let keyboard = render(&shell);
             assert!(keyboard != pointer, "missing keyboard ring: {name}/{scale}");
@@ -836,6 +998,65 @@ fn rail_and_window_buttons_have_matching_highlight_bounds() {
 }
 
 #[test]
+fn rail_materialization_preserves_pixels_outside_native_text_ink() {
+    use retinue_render::{AnalysisPolicy, HostPolicy, RenderHost};
+    let size = (1440, 900);
+    let mut shell = view(1.25, size);
+    shell.pages.activity = serde_json::json!({});
+    shell.pages.dirty = true;
+    shell.tick(Instant::now());
+    shell
+        .pages
+        .rail
+        .set_render_host(RenderHost::new(HostPolicy {
+            preparation_tasks: 0,
+            analysis: AnalysisPolicy::disabled(),
+            ..HostPolicy::desktop()
+        }));
+    shell.prepare_paint();
+    let rect = shell.geometry.right;
+    let region = retinue_render::damage::Region::from(Rect {
+        width: rect.width,
+        height: rect.height,
+        ..Rect::default()
+    });
+    let paint = |shell: &Shell| {
+        let mut pixels = vec![0; (size.0 * size.1 * 4) as usize];
+        shell.pages.prepare_rail_rasters(&region);
+        let mut painter = Painter::new(&mut pixels, size.0, size.1).unwrap();
+        painter.fill_rounded_rect(0, 0, size.0, size.1, 0, settings::BACKGROUND);
+        painter.viewport(rect, (rect.x as i32, rect.y as i32), |p| {
+            shell.pages.rail.draw_prepared(p);
+        });
+        painter.finish().unwrap();
+        pixels
+    };
+    let direct = paint(&shell);
+    assert_eq!(shell.pages.rail.raster_memory().0, 0);
+    shell
+        .pages
+        .rail
+        .set_render_host(RenderHost::new(HostPolicy {
+            preparation_tasks: usize::MAX,
+            preparation_pixels: usize::MAX,
+            preparation_time: Duration::MAX,
+            analysis: AnalysisPolicy::disabled(),
+            ..HostPolicy::desktop()
+        }));
+    let mut cached = paint(&shell);
+    for _ in 0..3 {
+        cached = paint(&shell);
+    }
+    let ink = shell.pages.rail.text_ink((rect.x, rect.y), rect);
+    assert!(!ink.is_empty());
+    assert!(shell.pages.rail.raster_memory().0 > 0);
+    assert_eq!(
+        crate::presentation::pixel_tests::mismatch(&cached, &direct, size.0, rect, &ink),
+        None,
+    );
+}
+
+#[test]
 fn rail_damage_repairs_alternating_buffers_like_a_full_repaint() {
     let size = (1440, 900);
     for scale in [1.0, 1.25] {
@@ -860,6 +1081,7 @@ fn rail_damage_repairs_alternating_buffers_like_a_full_repaint() {
                 let Some(plan) = damage.plan(age, size) else {
                     continue;
                 };
+                shell.prepare_paint();
                 let pixels = &mut buffers[frame % 2];
                 let paint = |pixels: &mut [u32], region: retinue_render::damage::Region| {
                     let mut painter =
@@ -874,24 +1096,49 @@ fn rail_damage_repairs_alternating_buffers_like_a_full_repaint() {
                         0,
                         BACKGROUND,
                     );
-                    shell.paint(&mut painter);
+                    shell.prepare_rasters(&painter.visible_regions());
+                    shell.draw_prepared(&mut painter);
                     painter.finish().unwrap();
                 };
                 paint(pixels, plan.repair.clone());
                 paint(&mut expected, Damage::Full.regions(size));
-                let mismatch = pixels.iter().zip(&expected).position(|(a, b)| a != b);
+                let center = shell.geometry.center;
+                let bounds = Rect {
+                    width: size.0,
+                    height: size.1,
+                    ..Rect::default()
+                };
+                let mut ink = crate::presentation::pixel_tests::text_ink(
+                    shell.composition.tree.borrow().frame(),
+                    (0, 0),
+                    bounds,
+                );
+                ink.extend(shell.settings.text_ink((center.x, center.y), center));
+                let right = shell.geometry.right;
+                ink.extend(shell.pages.rail.text_ink((right.x, right.y), right));
+                let mismatch = crate::presentation::pixel_tests::mismatch(
+                    bytemuck::cast_slice(pixels),
+                    bytemuck::cast_slice(&expected),
+                    size.0,
+                    Rect {
+                        width: size.0,
+                        height: size.1,
+                        ..Rect::default()
+                    },
+                    &ink,
+                );
                 assert!(pixels.iter().all(|pixel| pixel >> 24 == 255));
                 assert!(
                     mismatch.is_none(),
-                    "scale {scale}, cycle {cycle}, frame {frame}: {:?}, repair {:?}",
-                    mismatch.map(|i| (
-                        (i % size.0 as usize, i / size.0 as usize),
-                        pixels[i],
-                        expected[i]
-                    )),
+                    "scale {scale}, cycle {cycle}, frame {frame}: {:?}, BGRA {:?}, repair {:?}",
+                    mismatch,
+                    mismatch.map(|(x, y)| {
+                        let index = (y * size.0 + x) as usize;
+                        (pixels[index].to_le_bytes(), expected[index].to_le_bytes())
+                    }),
                     plan.repair
                 );
-                damage.submitted();
+                damage.submitted(plan.ticket);
             }
         }
     }

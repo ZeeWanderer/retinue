@@ -1,19 +1,19 @@
 use super::{CanvasContent, DrawingContext};
 use retinue_render::Command;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Default)]
-pub struct DrawList(pub Rc<Vec<Command>>);
+pub struct DrawList(pub Arc<Vec<Command>>);
 
 impl PartialEq for DrawList {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
     }
 }
 
 impl From<Vec<Command>> for DrawList {
     fn from(commands: Vec<Command>) -> Self {
-        Self(Rc::new(commands))
+        Self(Arc::new(commands))
     }
 }
 

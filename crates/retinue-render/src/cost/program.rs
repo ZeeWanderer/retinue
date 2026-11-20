@@ -13,18 +13,12 @@ pub(crate) fn leaf(command: &Command, scale: f32) -> Work {
             ..Work::default()
         },
         Command::Image { .. } => Work::image(area(bounds)),
-        Command::Text { text, size, .. } => {
-            let glyphs = text.chars().count() as f64;
-            let size = f64::from(size * scale);
-            let coverage = pixels.min(glyphs * size * size * 0.6);
-            Work {
-                blended: coverage,
-                sampled: coverage / 4.0,
-                glyphs,
-                commands: 1.0,
-                ..Work::default()
-            }
-        }
+        Command::GlyphRun { run, .. } => Work {
+            blended: pixels,
+            native_glyphs: run.glyphs().len() as f64,
+            commands: 1.0,
+            ..Work::default()
+        },
         Command::Outline { thickness, .. } | Command::Ring { thickness, .. } => Work {
             blended: pixels.min(
                 2.0 * (f64::from(bounds.width) + f64::from(bounds.height))

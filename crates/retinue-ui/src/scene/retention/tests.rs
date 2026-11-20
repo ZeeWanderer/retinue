@@ -16,7 +16,7 @@ fn cell(id: u64, frame: usize) -> Element {
         leaf.paint = (id != 3 || part != 1 || frame % 4 != 2).then(|| {
             Paint::commands(
                 PaintKey::new(key, revision),
-                Rc::new(vec![Command::Fill {
+                std::sync::Arc::new(vec![Command::Fill {
                     bounds: Bounds::new(0.0, 0.0, 27.0, 18.0),
                     radius: 0.0,
                     color: Color::rgba(
@@ -172,8 +172,119 @@ fn structural_projection_matches_fresh_geometry_groups_hits_and_aged_pixels() {
                 None,
                 "scale={scale}, frame={frame}"
             );
-            tracker.submitted();
+            tracker.submitted(repair.ticket);
         }
+    }
+}
+
+#[test]
+fn resizing_matches_fresh_slots_clips_hits_groups_and_pixels() {
+    use crate::layout::{Layout, LayoutError, Proposal, Subviews};
+
+    #[derive(PartialEq)]
+    struct Intrinsic(f32);
+    impl Layout for Intrinsic {
+        type Cache = ();
+        fn measure(
+            &self,
+            _: Proposal,
+            _: &mut Subviews<'_, '_>,
+            _: &mut (),
+        ) -> Result<LayoutSize, LayoutError> {
+            Ok(LayoutSize::new(self.0, 8.25))
+        }
+        fn place(
+            &self,
+            _: Bounds,
+            _: &mut Subviews<'_, '_>,
+            _: &mut (),
+        ) -> Result<(), LayoutError> {
+            Ok(())
+        }
+    }
+
+    let mut scene = Scene::default();
+    let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
+    for (i, (size, scale, structure)) in [
+        ((151, 101), 1.0, 0),
+        ((118, 81), 1.0, 0),
+        ((118, 81), 1.25, 0),
+        ((170, 112), 1.25, 2),
+        ((143, 94), 1.25, 2),
+        ((149, 98), 1.0, 6),
+        ((153, 105), 1.0, 6),
+        ((166, 101), 1.0, 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut model = tree(structure);
+        let group = &mut model.children[0];
+        group.clip = i % 2 == 0;
+        group.hit_testing = i % 3 != 1;
+        group.offset = (i as f32 * 0.75, -2.5);
+        let leaf = &mut group.children[0].children[0];
+        leaf.role = Role::Title;
+        leaf.window_action = (i % 2 == 1).then_some(WindowAction::Move);
+        if i % 2 == 0 {
+            leaf.paint = None;
+        }
+        let mut measured = Element::new("measured", Style::default());
+        measured.algorithm = Algorithm::Custom(LayoutAlgorithm::new(Intrinsic(10.0 + i as f32)));
+        measured.interactive = true;
+        model.children.push(measured);
+        let revision = scene.input_revision();
+        assert_eq!(
+            scene.update(model.clone(), size, scale, RecordingMode::Retained),
+            Ok(Damage::Full)
+        );
+        assert_ne!(scene.input_revision(), revision);
+        let mut fresh = Scene::default();
+        fresh
+            .update(model, size, scale, RecordingMode::Always)
+            .unwrap();
+        assert_eq!(scene.geometry_index, fresh.geometry_index);
+        assert_eq!(scene.frame.groups(), fresh.frame.groups());
+        assert_eq!(scene.projection.len(), fresh.projection.len());
+        for (a, b) in scene.projection.iter().zip(&fresh.projection) {
+            assert_eq!(
+                (a.parent, a.end, a.chunk, a.group, &a.instances),
+                (b.parent, b.end, b.chunk, b.group, &b.instances),
+                "frame {i}"
+            );
+        }
+        for (a, b) in scene.geometry.iter().zip(&fresh.geometry) {
+            let fields = |g: &Geometry| {
+                (
+                    g.key,
+                    g.parent,
+                    g.layout,
+                    g.clip,
+                    g.hit,
+                    g.paint,
+                    g.interactive,
+                    g.role,
+                    g.window_action,
+                )
+            };
+            assert_eq!(fields(a), fields(b));
+        }
+        for y in (0..size.1).step_by(5) {
+            for x in (0..size.0).step_by(7) {
+                let point = (x as f64 + 0.5, y as f64 + 0.5);
+                assert_eq!(scene.hit_test(point), fresh.hit_test(point));
+            }
+        }
+        let pixels = |s: &Scene, renderer: &mut Renderer| {
+            let mut buffer = vec![0; (size.0 * size.1 * 4) as usize];
+            render(s, renderer, &mut buffer, Damage::Full.regions(size));
+            buffer
+        };
+        assert!(
+            pixels(&scene, &mut renderer)
+                == pixels(&fresh, &mut Renderer::new(ResidencyPolicy::desktop(0))),
+            "frame {i}"
+        );
     }
 }
 

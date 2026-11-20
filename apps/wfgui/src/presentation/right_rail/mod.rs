@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod benchmark;
 pub(super) mod declaration;
 pub(super) mod events;
 
@@ -30,13 +32,17 @@ impl Pages {
         self.layout_rail_at(retinue_ui::timeline::FrameTime::now());
     }
     pub(super) fn layout_rail_at(&mut self, time: retinue_ui::timeline::FrameTime) {
+        let time = self.rail.layout_time(time);
         self.layout_rail_content(time);
-        self.rail.finish();
+        if self.rail.layout_pending() {
+            self.dirty = true;
+        } else {
+            self.rail.finish();
+        }
     }
     fn layout_rail_content(&mut self, time: retinue_ui::timeline::FrameTime) {
         let size = self.rail.size;
         let scale = self.rail.scale;
-        self.rail.begin(size, scale);
         let error = self
             .activity_error
             .as_ref()
@@ -51,7 +57,7 @@ impl Pages {
         if !self.rail_view.installed {
             let regular = self.rail.font_resource(controls::Weight::Regular);
             let bold = self.rail.font_resource(controls::Weight::Bold);
-            self.rail.install_view(self.rail_view.view(
+            self.rail.install_compiled(self.rail_view.view(
                 self.events.view(regular.clone(), bold.clone()),
                 self.market_rail_view.view(regular.clone(), bold),
                 regular,
@@ -77,7 +83,10 @@ impl Pages {
             self.rail_offset = self.rail_scroll.offset(time.instant).round() as u32;
             self.events.scroll(self.rail_offset as f32 / scale);
         }
-        self.rail.update_view(time);
+        if !self.rail.resolve_view(time) {
+            return;
+        }
+        self.rail.begin(size, scale);
         if size.0 == 0 || size.1 == 0 {
             return;
         }

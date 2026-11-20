@@ -215,7 +215,7 @@ fn declared_choices_preserve_fractional_geometry_and_scroll_without_relayout() {
         view.filter_panel.offset += 1;
         {
             let composition = view.resolved_composition();
-            assert_eq!(composition.view_stats().mounted, 0);
+            assert_eq!(composition.view_stats().instances_mounted, 0);
             assert_eq!(composition.tree.scene().stats.layout_computations, 0);
             assert_eq!(composition.tree.scene().stats.recordings, 0);
         }
@@ -293,7 +293,11 @@ fn filter_scroll_and_live_card_update_damage_match_full_paint() {
             paint(&view, &mut pixels, damage);
             let mut expected = vec![0; pixels.len()];
             paint(&view, &mut expected, Damage::rect(full));
-            assert!(pixels == expected, "scale={scale} stage={stage}");
+            assert_eq!(
+                super::super::tests::pixel_mismatch(&view, &pixels, &expected),
+                None,
+                "scale={scale} stage={stage}"
+            );
         }
     }
 }

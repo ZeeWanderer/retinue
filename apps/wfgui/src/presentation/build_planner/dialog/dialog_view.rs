@@ -1,18 +1,17 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) struct DialogView {
     pub metrics: State<Metrics>,
     pub state: State<DialogState>,
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for DialogView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let s = self.state.get();
-        if s.kind.is_empty() {
-            return empty();
-        }
+        ui! { if !s.kind.is_empty() {
         let m = self.metrics.get();
         let rect = Bounds::new(
             (m.width - 380.0) / 2.0,
@@ -49,9 +48,10 @@ impl View for DialogView {
                         }
                         c("cancel", Bounds::new(16.0, 182.0, 162.0, 36.0))
                         c("confirm", Bounds::new(196.0, 182.0, 168.0, 36.0))
-                    }.alignment(Alignment::Start)
+                    }.alignment(AnchorPoint::TOP_LEADING)
                 }, m.bounds(rect.x, rect.y, rect.width, rect.height)).role(Role::Overlay)
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.height, AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.width, m.height))
         }
+        } }
     }
 }

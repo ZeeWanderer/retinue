@@ -1,8 +1,9 @@
 use super::*;
 use crate::domain::preferences::Preferences;
 mod summary_view;
-use crate::presentation::widgets::aligned_label;
-use retinue_render::{painter::CachedFont, painter::text_width};
+use crate::presentation::widgets::compiled::aligned_label;
+use retinue_render::painter::CachedFont;
+use retinue_ui::drawing::text::text_width;
 
 const ROOT: Key = Key::new("mastery.summary", 0);
 const RANK: Key = Key::new("mastery.rank", 0);
@@ -272,14 +273,17 @@ impl Summary {
             .fold(0.0, f32::max)
     }
 
-    pub fn view(&self, metrics: State<Metrics>, fonts: Fonts) -> Element {
+    pub fn view(
+        &self,
+        metrics: State<Metrics>,
+        fonts: Fonts,
+    ) -> impl View + Clone + PartialEq + use<> {
         summary_view::SummaryView {
             data: self.data.clone(),
             pending: self.pending.clone(),
             metrics,
             fonts,
         }
-        .into_element()
     }
 
     pub fn bind(&self, ui: &mut ControlHost) {

@@ -3,19 +3,19 @@ use super::{
     dock_layout::DockLayout, navigation_view::NavigationView, paint_view::PaintView,
     shell_model::ShellModel, shell_model::Viewport,
 };
-use retinue_ui::{drawing::ExternalDrawing, prelude::*, semantics::Role};
+use retinue_ui::{
+    authoring::*,
+    drawing::ExternalDrawing,
+    semantics::Role,
+    transition::{Animation, Easing},
+};
 
 #[derive(Clone, PartialEq)]
 pub struct BodyView(pub ShellModel);
 
-impl BodyView {
-    pub fn new(model: ShellModel) -> Self {
-        Self(model)
-    }
-}
-
+#[view]
 impl View for BodyView {
-    fn body(&self, cx: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, cx: &mut ViewContext<'_>) -> impl Body {
         let model = &self.0;
         let v = cx.environment().get::<Viewport>();
         let animation = Animation::new(MOTION).easing(Easing::InOutCubic);
@@ -41,11 +41,11 @@ impl View for BodyView {
         let page = page_key(model.page.get());
         ui! {
             LayoutView(layout) {
-                NavigationView { model: model.clone(), width: left_width }.clipped().id(LEFT)
-                Canvas(ExternalDrawing(page)).id(page)
-                    .background { PaintView(model.paint(CENTER)) }
-                    .clipped().role(Role::Content).id(CENTER)
-                PaintView(model.paint(RIGHT)).clipped().id(RIGHT)
+                compose(NavigationView { model: model.clone(), width: left_width }).clipped().named(LEFT)
+                Canvas(ExternalDrawing(page)).named(page)
+                    .background { compose(PaintView(model.paint(CENTER))) }
+                    .clipped().role(Role::Content).named(CENTER)
+                compose(PaintView(model.paint(RIGHT))).clipped().named(RIGHT)
             }
         }
     }

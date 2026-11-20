@@ -55,7 +55,7 @@ impl Overlays {
         }
     }
 
-    pub fn view(&self, regular: Rc<CachedFont>) -> Element {
+    pub fn view(&self, regular: Rc<CachedFont>) -> impl View + Clone + PartialEq + use<> {
         overlays_view::OverlaysView {
             filters: self.filters.clone(),
             menu: self.menu.clone(),
@@ -65,7 +65,6 @@ impl Overlays {
                 retinue_render::Color::from_bgra(TEXT),
             ),
         }
-        .into_element()
     }
 
     pub fn sync(&self, ui: &ControlHost, listing: &mut Listing, metrics: &Metrics) {

@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 #[cfg(feature = "benchmark")]
 mod benchmark;
 use crate::{
@@ -27,7 +28,7 @@ fn shadow(store: &mut ProgramStore, revision: u64, scale: f32) -> PaintProgram {
             PaintKey::new(1.into(), revision),
             (120.0, 80.0),
             scale,
-            Rc::new(vec![Command::InsetShadow {
+            Arc::new(vec![Command::InsetShadow {
                 bounds: Bounds::new(0.0, 0.0, 120.0, 80.0),
                 radius: 8.0,
                 blur: 4.0,
@@ -88,7 +89,7 @@ fn cached_item_changes_admission_not_pixel_evidence_or_residency() {
     let before = snapshot(&frame, Some(&renderer));
     let stats = format!("{:?}", renderer.residency_stats());
     let id = renderer.prepared[0].unwrap();
-    let references = Rc::strong_count(renderer.residency.image(id));
+    let references = Arc::strong_count(renderer.residency.image(id));
     let raw = snapshot(&frame, None);
     let region = Region::new([bounds()]);
     assert_eq!(cold.repair_cost(&region), raw.repair_cost(&region));
@@ -96,7 +97,7 @@ fn cached_item_changes_admission_not_pixel_evidence_or_residency() {
     assert_eq!(before.damage_since(Some(&raw)), Damage::None);
     assert_eq!(raw.damage_since(Some(&before)), Damage::None);
     assert_eq!(format!("{:?}", renderer.residency_stats()), stats);
-    assert_eq!(Rc::strong_count(renderer.residency.image(id)), references);
+    assert_eq!(Arc::strong_count(renderer.residency.image(id)), references);
 
     replace(
         &mut frame,
@@ -137,7 +138,7 @@ fn fragment_cost_uses_its_own_clip_and_does_not_double_charge_parent() {
             2,
             (300.0, 200.0),
             1.0,
-            Rc::new(vec![
+            Arc::new(vec![
                 Command::Fill {
                     bounds: Bounds::new(0.0, 0.0, 300.0, 200.0),
                     radius: 0.0,
@@ -145,9 +146,9 @@ fn fragment_cost_uses_its_own_clip_and_does_not_double_charge_parent() {
                 },
                 Command::Translate {
                     offset: (10.0, 20.0),
-                    commands: Rc::new(vec![Command::Clip {
+                    commands: Arc::new(vec![Command::Clip {
                         bounds: Bounds::new(0.0, 0.0, 50.0, 30.0),
-                        commands: Rc::new(vec![
+                        commands: Arc::new(vec![
                             Command::Fragment {
                                 program: fragment.clone(),
                                 context: OptimizationContext::default().with(CacheHint::Stable),
@@ -164,7 +165,12 @@ fn fragment_cost_uses_its_own_clip_and_does_not_double_charge_parent() {
         .unwrap();
     replace(&mut frame, vec![item(parent, (0, 0), false)], vec![]);
     let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
-    paint(&frame, &mut renderer);
+    for _ in 0..24 {
+        paint(&frame, &mut renderer);
+        if !renderer.fragments.selected.is_empty() {
+            break;
+        }
+    }
     assert_eq!(renderer.fragments.selected.len(), 1);
     let full = Region::new([bounds()]);
     let scene = snapshot(&frame, Some(&renderer));
@@ -365,7 +371,7 @@ fn nested_external_frames_preserve_cost_space_and_logical_damage() {
             3,
             (300.0, 200.0),
             1.0,
-            Rc::new(vec![Command::External {
+            Arc::new(vec![Command::External {
                 bounds: Bounds::new(30.0, 40.0, 100.0, 60.0),
                 key: 9.into(),
             }]),

@@ -23,6 +23,11 @@ fn block(commands: &[Command], hash: &mut impl Hasher) {
     for command in commands {
         std::mem::discriminant(command).hash(hash);
         match command {
+            Command::GlyphRun { origin, run, color } => {
+                floats(&[origin.0, origin.1], hash);
+                run.fingerprint().hash(hash);
+                color.bgra().hash(hash);
+            }
             Command::Fragment { program, .. } => program.fingerprint().hash(hash),
             Command::Fill {
                 bounds: b,
@@ -51,21 +56,6 @@ fn block(commands: &[Command], hash: &mut impl Hasher) {
             } => {
                 floats(&[center.0, center.1, *radius, *thickness], hash);
                 color.bgra().hash(hash);
-            }
-            Command::Text {
-                bounds: b,
-                size,
-                text,
-                font,
-                color,
-                align,
-            } => {
-                bounds(b, hash);
-                floats(&[*size], hash);
-                text.hash(hash);
-                font.id().hash(hash);
-                color.bgra().hash(hash);
-                std::mem::discriminant(align).hash(hash);
             }
             Command::InsetShadow {
                 bounds: b,

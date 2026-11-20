@@ -7,6 +7,8 @@ mod market;
 mod right_rail;
 use right_rail as rail;
 #[cfg(test)]
+mod pixel_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::{
@@ -54,3 +56,9 @@ pub(crate) mod settings;
 pub(crate) mod shell;
 pub(crate) mod style;
 pub(crate) mod widgets;
+fn text_run_id() -> retinue_ui::desktop::accesskit::NodeId {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    // Below hashed control IDs (bit 63), above the item and chrome ranges.
+    static NEXT: AtomicU64 = AtomicU64::new(1 << 62);
+    retinue_ui::desktop::accesskit::NodeId(NEXT.fetch_add(1, Ordering::Relaxed))
+}

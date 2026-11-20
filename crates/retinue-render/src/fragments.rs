@@ -1,11 +1,14 @@
 use super::{
     CacheHint, OptimizationContext, PaintProgram, PaintStats, ProgramId,
-    execution::{Input, Materialization, PaintDemand, Preparation, TaskId},
+    execution::{Completion, Input, PaintDemand, Preparation, TaskId},
     materialization::Recipe,
     program::FragmentCall,
     residency::{Owner, RasterId, Residency, Retention},
 };
-use crate::Rect;
+use crate::{
+    Rect,
+    cost::{self, Work, cache::CacheCost},
+};
 use std::{
     collections::{HashMap, HashSet},
     time::Instant,
@@ -18,19 +21,20 @@ pub(super) struct Fragments {
     pub awaiting_demand: bool,
     observations: HashMap<ProgramId, Observation>,
     epoch: u64,
-    stable_repaints: u32,
 }
 
 #[derive(Default)]
 struct Observation {
     epoch: u64,
     paints: u32,
+    required: u32,
 }
 
 struct Demand {
     program: PaintProgram,
     live_uses: usize,
-    paint_uses: usize,
+    live_pixels: f64,
+    paint_pixels: f64,
     stable: bool,
 }
 
@@ -50,13 +54,16 @@ impl FragmentCall {
 }
 
 impl Fragments {
+    pub fn begin_frame(&mut self) {
+        self.epoch = self.epoch.wrapping_add(1);
+    }
+
     pub fn prepare<'a>(
         &mut self,
         roots: impl IntoIterator<Item = (&'a PaintProgram, (i32, i32), Rect)>,
         paint: PaintDemand<'_>,
         residency: &mut Residency,
         plan: &mut Preparation,
-        min_work: usize,
         stable_repaints: u32,
         now: Instant,
         stats: &mut PaintStats,
@@ -64,10 +71,18 @@ impl Fragments {
         let mut demands = Vec::new();
         let mut indices = HashMap::new();
         for (program, origin, clip) in roots {
-            demand(program, origin, clip, paint, &mut demands, &mut indices);
+            demand(
+                program,
+                origin,
+                clip,
+                paint,
+                &self.selected,
+                &mut demands,
+                &mut indices,
+            );
         }
-        self.epoch = self.epoch.wrapping_add(1);
-        self.stable_repaints = stable_repaints.max(2);
+        let stable_repaints = stable_repaints.max(2);
+        let threads = residency.host.threads();
         self.observations.retain(|id, _| indices.contains_key(id));
         stats.fragment_candidates = demands.len();
         let mut selected = HashMap::new();
@@ -84,48 +99,49 @@ impl Fragments {
             if demand.live_uses > 1 {
                 self.nearby.insert(id);
             }
-            let mature = program.discovered()
-                && self
-                    .observations
-                    .get(&id)
-                    .is_some_and(|o| o.paints >= self.stable_repaints);
-            let work = effective_work(&program, &substituted).saturating_sub(1);
-            let reuse = if mature {
-                self.stable_repaints as usize
-            } else {
-                1
-            };
-            if work != 0
-                && let Some(raster) = self.selected.remove(&id)
-            {
+            if let Some(raster) = self.selected.remove(&id) {
                 plan.bind_fragment(id, Input::Ready(residency.image(raster).clone()));
                 selected.insert(id, raster);
                 substituted.insert(id);
                 continue;
             }
-            if work.saturating_mul(demand.live_uses.max(reuse)) < min_work
-                || (demand.live_uses < 2 && !demand.stable && !mature)
-            {
-                continue;
-            }
-            if demand.paint_uses == 0
-                || work.saturating_mul(demand.paint_uses.max(reuse)) < min_work
-                || (demand.paint_uses < 2 && !demand.stable && !mature)
-            {
+            if demand.paint_pixels == 0.0 {
                 self.awaiting_demand = true;
                 continue;
             }
+            let area = cost::area(program.bounds());
+            let cost = CacheCost::new(effective_work(&program, &substituted), area, threads);
+            let Some(required_uses) = cost.required_uses() else {
+                self.observations.remove(&id);
+                continue;
+            };
             let recipe = Recipe::item(&program);
             if let Some(raster) = residency.acquire(Owner::Item(id), &recipe) {
                 plan.bind_fragment(id, Input::Ready(residency.image(raster).clone()));
                 selected.insert(id, raster);
                 substituted.insert(id);
-            } else if let Some(task) = plan.admit(residency, recipe, None, Vec::new(), 1) {
+                continue;
+            }
+            let uses = demand.paint_pixels / area as f64;
+            let observation = self.observations.entry(id).or_default();
+            observation.required = ((required_uses / uses).ceil() as u32).max(stable_repaints);
+            let observed = if observation.paints >= stable_repaints {
+                observation.paints
+            } else {
+                1
+            };
+            let horizon = observed.max(if demand.stable { stable_repaints } else { 1 });
+            if uses * f64::from(horizon) < required_uses {
+                self.awaiting_demand |= demand.paint_pixels < demand.live_pixels;
+                continue;
+            }
+            if let Some(task) = plan.admit(residency, recipe, None, Vec::new(), 1) {
                 plan.bind_fragment(id, Input::Task(task));
                 tasks.push((id, task));
                 substituted.insert(id);
             } else {
                 stats.rejected_rasters += 1;
+                self.awaiting_demand = true;
             }
         }
         for (_, raster) in self.selected.drain() {
@@ -136,14 +152,13 @@ impl Fragments {
     }
 
     pub fn replayed(&mut self, program: &PaintProgram) {
-        if !program.discovered() || self.stable_repaints == 0 {
+        let Some(observation) = self.observations.get_mut(&program.id()) else {
             return;
-        }
-        let observation = self.observations.entry(program.id()).or_default();
-        if observation.epoch != self.epoch && observation.paints < self.stable_repaints {
+        };
+        if observation.epoch != self.epoch && observation.paints < observation.required {
             observation.epoch = self.epoch;
             observation.paints += 1;
-            self.awaiting_demand = true;
+            self.awaiting_demand |= observation.paints == observation.required;
         }
     }
 
@@ -151,19 +166,20 @@ impl Fragments {
         &mut self,
         tasks: &[(ProgramId, TaskId)],
         plan: &mut Preparation,
-        results: &[Option<Materialization>],
+        results: &Completion,
         residency: &mut Residency,
         stats: &mut PaintStats,
     ) {
         for &(id, task) in tasks {
             plan.complete(task);
-            if let Some(result) = plan.result(task, results) {
-                let raster = residency.insert(Owner::Item(id), result.clone(), plan.elapsed(task));
+            if let Some(result) = results.result(task) {
+                let raster =
+                    residency.insert(Owner::Item(id), result.clone(), results.elapsed(task));
                 self.selected.insert(id, raster);
                 stats.prepared_fragments += usize::from(plan.rasterized(task));
             }
         }
-        for id in &plan.used_fragments {
+        for id in results.used_fragments() {
             if let Some(&raster) = self.selected.get(id) {
                 residency.drawn(raster);
             }
@@ -201,19 +217,19 @@ impl Fragments {
     }
 }
 
-fn effective_work(program: &PaintProgram, substituted: &HashSet<ProgramId>) -> usize {
-    program
-        .calls()
-        .iter()
-        .fold(program.summary().direct_work, |work, call| {
-            work.saturating_add(
-                if allowed(&call.context) && substituted.contains(&call.program.id()) {
-                    1
-                } else {
-                    effective_work(&call.program, substituted)
-                },
-            )
-        })
+fn effective_work(program: &PaintProgram, substituted: &HashSet<ProgramId>) -> Work {
+    let mut work = program.cost(true).work(cost::area(program.bounds()));
+    for call in program.calls() {
+        let bounds = call.program.bounds().translated(call.origin);
+        let visible = cost::area(call.clip.map_or(bounds, |clip| clip.intersection(bounds)));
+        let child = if allowed(&call.context) && substituted.contains(&call.program.id()) {
+            Work::image(cost::area(bounds))
+        } else {
+            effective_work(&call.program, substituted)
+        };
+        work.add(child.density(cost::area(bounds)).work(visible));
+    }
+    work
 }
 
 fn demand(
@@ -221,6 +237,7 @@ fn demand(
     origin: (i32, i32),
     clip: Rect,
     paint: PaintDemand<'_>,
+    selected: &HashMap<ProgramId, RasterId>,
     demands: &mut Vec<Demand>,
     indices: &mut HashMap<ProgramId, usize>,
 ) {
@@ -228,7 +245,17 @@ fn demand(
         let Some((origin, clip)) = call.placed(origin, clip) else {
             continue;
         };
-        demand(&call.program, origin, clip, paint, demands, indices);
+        if !allowed(&call.context) || !selected.contains_key(&call.program.id()) {
+            demand(
+                &call.program,
+                origin,
+                clip,
+                paint,
+                selected,
+                demands,
+                indices,
+            );
+        }
         if !allowed(&call.context) {
             continue;
         }
@@ -237,14 +264,16 @@ fn demand(
             demands.push(Demand {
                 program: call.program.clone(),
                 live_uses: 0,
-                paint_uses: 0,
+                live_pixels: 0.0,
+                paint_pixels: 0.0,
                 stable: false,
             });
             index
         });
         demands[index].live_uses += 1;
-        demands[index].paint_uses +=
-            usize::from(paint.intersects(call.program.bounds().visible(origin, clip)));
+        let visible = call.program.bounds().visible(origin, clip);
+        demands[index].live_pixels += f64::from(visible.width) * f64::from(visible.height);
+        demands[index].paint_pixels += paint.area(visible) as f64;
         demands[index].stable |= call.context.get::<CacheHint>() == Some(&CacheHint::Stable);
     }
 }

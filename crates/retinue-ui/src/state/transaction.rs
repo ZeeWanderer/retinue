@@ -96,6 +96,33 @@ mod tests {
     }
 
     #[test]
+    fn failed_body_preserves_the_latest_deferred_transaction_for_its_retry() {
+        let state = State::new(0);
+        let mut observation = Observation::new(|| {});
+        let animation = Animation::new(Duration::from_millis(80));
+        observation.track(|| state.get());
+        state.set(1);
+        let before = observation.pending_mutation().unwrap();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            observation.track(|| {
+                with_animation(animation, || state.set(2));
+                panic!("failed body");
+            });
+        }));
+        assert!(result.is_err());
+        assert!(observation.is_dirty());
+        let retry = observation.pending_mutation().unwrap();
+        assert!(retry.sequence > before.sequence);
+        assert_eq!(retry.transaction.animation, Some(animation));
+        observation.track(|| {
+            with_animation(animation, || state.set(3));
+            state.get()
+        });
+        assert!(!observation.is_dirty());
+        assert_eq!(observation.pending_mutation(), None);
+    }
+
+    #[test]
     fn nested_scopes_restore_on_panic_and_preserve_disable_intent() {
         let transaction = Transaction {
             animation: None,

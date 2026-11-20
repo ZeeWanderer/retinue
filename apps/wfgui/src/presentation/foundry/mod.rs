@@ -2,11 +2,13 @@ mod card;
 mod card_view;
 mod component;
 mod component_view;
+mod components_view;
 mod composition;
 pub mod filters;
 mod filters_view;
 mod foundry_model;
 mod foundry_view;
+mod grid_content_view;
 mod grid_view;
 pub mod images;
 mod overlays_view;
@@ -15,8 +17,6 @@ mod toolbar_view;
 pub use foundry_view::FoundryView;
 
 use retinue_ui::drawing::PixelCanvas as Canvas;
-#[cfg(test)]
-use std::rc::Rc;
 mod input;
 use crate::data::foundry as model;
 mod search;
@@ -35,10 +35,10 @@ use crate::{
 use filters::{Filter, FilterPanel, Filters};
 use model::{Asset, Card, Descriptor, Snapshot};
 use retinue_render::{
-    damage::Damage, painter::CachedFont, painter::GlyphCache, painter::Painter,
-    painter::RasterImage, painter::TextLine, painter::text_width, resources::Resource,
-    thumbnails::Key, thumbnails::Request, thumbnails::WorkStats,
+    damage::Damage, painter::CachedFont, painter::Painter, painter::RasterImage,
+    resources::Resource, thumbnails::Key, thumbnails::Request, thumbnails::WorkStats,
 };
+use retinue_ui::drawing::text::text_width;
 use retinue_ui::{
     Rect, desktop::accesskit, desktop::accesskit::Node, desktop::accesskit::NodeId,
     desktop::accesskit::Role, desktop::accesskit::TreeInfo, desktop::accesskit::TreeUpdate,
@@ -157,11 +157,11 @@ pub struct Foundry {
     tooltip: bool,
     search: RefCell<LineEdit>,
     search_motion: search::SearchMotion,
+    search_field: Rect,
     regular: std::rc::Rc<CachedFont>,
     icons: HashMap<Badge, Request>,
     descriptors: HashMap<String, Descriptor>,
     previous_descriptors: HashMap<String, Descriptor>,
-    glyphs: GlyphCache,
     images: HashMap<Key, Resource<RasterImage>>,
     composition: RefCell<composition::Composition>,
     active: bool,
@@ -172,6 +172,14 @@ pub struct Foundry {
 impl Foundry {
     pub fn set_render_host(&mut self, host: retinue_render::RenderHost) {
         self.composition.get_mut().set_render_host(host);
+    }
+
+    pub fn set_layout_execution(&mut self, execution: retinue_ui::runtime::LayoutExecution) {
+        self.composition.get_mut().execution = Some(execution);
+    }
+
+    pub fn poll_layout(&self) -> bool {
+        !self.active || self.composition.borrow_mut().update(self)
     }
 
     #[cfg(test)]
@@ -186,7 +194,9 @@ impl Foundry {
             env!("CARGO_MANIFEST_DIR"),
             "/../../assets/fonts/roboto/Roboto-Regular.ttf"
         ));
-        let glyphs = GlyphCache::new(8 * 1024 * 1024);
+
+        let regular = std::rc::Rc::new(faces.load(bytes, 0).map_err(|e| e.to_string())?);
+        let search = RefCell::new(LineEdit::new(&regular).map_err(|error| error.to_string())?);
         Ok(Self {
             snapshot: Snapshot::default(),
             ready: false,
@@ -220,15 +230,10 @@ impl Foundry {
             hover: None,
             hover_since: Instant::now(),
             tooltip: false,
-            search: RefCell::new(LineEdit::new(bytes, "Roboto")),
+            search,
             search_motion: search::SearchMotion::default(),
-            regular: std::rc::Rc::new(CachedFont::with_faces(
-                bytes,
-                Default::default(),
-                &glyphs,
-                faces,
-            )?),
-            glyphs,
+            search_field: Rect::default(),
+            regular,
             icons: HashMap::new(),
             descriptors: HashMap::new(),
             previous_descriptors: HashMap::new(),
@@ -468,7 +473,7 @@ impl Foundry {
         Viewport {
             bounds: self.viewport,
             padding: Padding {
-                bottom: self.px(12.0),
+                bottom: self.px(crate::presentation::style::SCROLL_CONTENT_INSET),
                 ..Default::default()
             },
         }
@@ -637,7 +642,6 @@ impl Foundry {
     pub fn clear_images(&mut self) {
         self.image_revision += 1;
         self.images.clear();
-        self.glyphs.clear();
         self.composition.get_mut().clear_resources();
     }
     pub fn prepared_count(&self) -> usize {
@@ -645,11 +649,10 @@ impl Foundry {
     }
     pub fn memory(&self) -> (usize, usize) {
         let (a, b) = self.cache_stats;
-        let glyphs = self.glyphs.stats();
         let rasters = self.composition.borrow().cache_stats();
         (
-            a.live_bytes + b.live_bytes + glyphs.live_bytes + rasters.live_bytes,
-            a.budget_bytes + b.budget_bytes + glyphs.budget_bytes + rasters.peak_limit_bytes,
+            a.live_bytes + b.live_bytes + rasters.live_bytes,
+            a.budget_bytes + b.budget_bytes + rasters.peak_limit_bytes,
         )
     }
 
@@ -735,7 +738,7 @@ impl Foundry {
             .collect();
     }
 
-    fn scrollbar(&self) -> Rect {
+    pub(super) fn scrollbar(&self) -> Rect {
         let height = (self.viewport.height as f32 * self.viewport.height as f32
             / (self.scroll.maximum() + self.viewport.height as f32).max(1.0))
         .round() as u32;

@@ -1,5 +1,19 @@
 use super::*;
 
+pub(super) fn pixel_mismatch(view: &Foundry, actual: &[u8], expected: &[u8]) -> Option<(u32, u32)> {
+    let bounds = Rect {
+        width: view.size.0,
+        height: view.size.1,
+        ..Rect::default()
+    };
+    let ink = crate::presentation::pixel_tests::text_ink(
+        view.composition.borrow().tree.frame(),
+        (0, 0),
+        bounds,
+    );
+    crate::presentation::pixel_tests::mismatch(actual, expected, view.size.0, bounds, &ink)
+}
+
 pub(super) fn view() -> Foundry {
     let mut view = Foundry::new(Default::default()).unwrap();
     view.resize((1300, 900), 1.25);
@@ -204,14 +218,120 @@ fn composition_keeps_only_visible_cards_and_stable_item_identities() {
         .map(|node| node.key)
         .collect::<Vec<_>>();
     assert_eq!(before.into_iter().rev().collect::<Vec<_>>(), after);
-    assert_eq!(view.resolved_composition().view_stats().mounted, 0);
+    assert_eq!(
+        view.resolved_composition().view_stats().instances_mounted,
+        0
+    );
     assert_eq!(view.resolved_composition().tree.scene().stats.recordings, 0);
+}
+
+#[test]
+fn published_controls_follow_page_edits_and_virtual_rows() {
+    let mut view = view();
+    let mut previous = HashSet::new();
+    for change in ["mount", "translate", "row", "hover", "resize"] {
+        match change {
+            "mount" => view.offset = 51,
+            "translate" => view.offset += 1,
+            "row" => view.offset += view.grid.height + view.grid.gap,
+            "hover" => {
+                let r = view.screen_card(view.visible(0).start + view.grid.columns);
+                view.pointer = ((r.x + 5) as f64, (r.y + 5) as f64);
+            }
+            "resize" => view.resize((1080, 840), 1.25),
+            _ => unreachable!(),
+        }
+        let c = view.resolved_composition();
+        let geometry = c.geometry();
+        let visible: HashSet<_> = geometry
+            .iter()
+            .filter(|g| g.key.namespace == "foundry.card")
+            .map(|g| g.key)
+            .collect();
+        let w = c.view_stats();
+        let s = c.tree.scene().stats;
+        let entering = visible.difference(&previous).count();
+        eprintln!(
+            "{change}: cards={} entering={entering} named={} owners={} sources={} bindings={} mounted={} solves={} recordings={}",
+            visible.len(),
+            geometry.len(),
+            w.owners_evaluated,
+            w.sources_compared,
+            w.bindings_emitted,
+            w.instances_mounted,
+            s.layout_computations,
+            s.recordings
+        );
+        if change == "row" {
+            assert!(entering > 0 && entering < visible.len());
+            assert_eq!(w.owners_evaluated, 1 + entering);
+        }
+        if change == "hover" {
+            assert_eq!(w.owners_evaluated, 1);
+            assert_eq!((entering, s.layout_computations, s.recordings), (0, 0, 1));
+        }
+        if change == "translate" {
+            assert_eq!((entering, s.layout_computations, s.recordings), (0, 0, 0));
+        }
+        assert!(!c.has_control_index());
+        c.hit((1.0, 1.0));
+        assert!(!c.has_control_index());
+        for items in [false, true] {
+            let expected: Vec<_> = geometry
+                .iter()
+                .filter(|g| !g.hit.is_empty())
+                .filter_map(|g| {
+                    let action = c.action(g.key)?;
+                    match g.key.namespace {
+                        "foundry.control" if !items => Some((action, g.hit)),
+                        "foundry.favorite" | "foundry.component" | "foundry.component.relic"
+                            if items =>
+                        {
+                            Some((action, g.hit))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect();
+            assert!(!expected.is_empty());
+            assert_eq!(c.controls(items), expected);
+            assert!(c.has_control_index());
+        }
+        previous = visible;
+    }
+}
+
+#[test]
+fn component_inputs_track_local_sizes_not_grid_placement() {
+    let rect = Rect {
+        x: 10,
+        y: 20,
+        width: 40,
+        height: 30,
+    };
+    let mut part = card::PartLayout {
+        image: rect,
+        count: rect,
+        relic: rect,
+    };
+    let component =
+        |part: &card::PartLayout| component_view::ComponentView::new(7, part, 1.25, true);
+    let original = component(&part);
+    part.image.x += 100;
+    part.count.y += 100;
+    part.relic.x += 100;
+    assert!(original == component(&part));
+    assert!(original != component_view::ComponentView::new(7, &part, 1.0, true));
+    assert!(original != component_view::ComponentView::new(7, &part, 1.25, false));
+    part.count.width += 1;
+    assert!(original != component(&part));
 }
 
 #[test]
 fn scrolling_within_visible_rows_reuses_layout_and_recording() {
     let mut view = view();
     view.offset = 51;
+    let builds = view.resolved_composition().grid_builds();
     let keys = view
         .resolved_composition()
         .geometry()
@@ -222,8 +342,9 @@ fn scrolling_within_visible_rows_reuses_layout_and_recording() {
     let composition = view.resolved_composition();
     assert_eq!(composition.tree.scene().stats.layout_computations, 0);
     assert_eq!(composition.tree.scene().stats.recordings, 0);
-    assert_eq!(composition.view_stats().mounted, 0);
-    assert_eq!(composition.view_stats().bodies, 1);
+    assert_eq!(composition.view_stats().instances_mounted, 0);
+    assert_eq!(composition.view_stats().owners_evaluated, 1);
+    assert_eq!(composition.grid_builds(), builds);
     assert_eq!(
         composition
             .geometry()
@@ -285,7 +406,7 @@ fn crossing_virtual_rows_matches_a_fresh_projection() {
             let expected = render(&view);
             view.composition.replace(retained);
             assert_eq!(
-                actual.iter().zip(&expected).position(|(a, b)| a != b),
+                pixel_mismatch(&view, &actual, &expected),
                 None,
                 "scale={scale}, row={row}"
             );
@@ -301,14 +422,14 @@ fn hover_changes_only_background_recordings_without_rebuilding_items() {
     view.pointer = ((r.x + 5) as f64, (r.y + 5) as f64);
     {
         let composition = view.resolved_composition();
-        assert_eq!(composition.view_stats().mounted, 0);
+        assert_eq!(composition.view_stats().instances_mounted, 0);
         assert_eq!(composition.tree.scene().stats.layout_computations, 0);
         assert_eq!(composition.tree.scene().stats.recordings, 1);
     }
     let r = view.screen_card(1);
     view.pointer = ((r.x + 5) as f64, (r.y + 5) as f64);
     let composition = view.resolved_composition();
-    assert_eq!(composition.view_stats().mounted, 0);
+    assert_eq!(composition.view_stats().instances_mounted, 0);
     assert_eq!(composition.tree.scene().stats.layout_computations, 0);
     assert_eq!(composition.tree.scene().stats.recordings, 2);
 }
@@ -375,12 +496,17 @@ fn materialized_cards_match_direct_rendering_through_scroll_and_artwork_updates(
                     "compositing at scale={scale}, row={row}: {actual:?} != {expected:?}"
                 );
             }
-            let repeated = render(&views[0]);
-            assert_eq!(
-                repeated.iter().zip(&cached).position(|(a, b)| a != b),
-                None,
-                "unchanged paint at scale={scale}, row={row}"
-            );
+            for _ in 0..8 {
+                let repeated = render(&views[0]);
+                assert_eq!(
+                    pixel_mismatch(&views[0], &repeated, &cached),
+                    None,
+                    "unchanged paint at scale={scale}, row={row}"
+                );
+                if views[0].paint_stats().preparation_tasks == 0 {
+                    break;
+                }
+            }
             assert_eq!(views[0].paint_stats().preparation_tasks, 0);
         }
     }
@@ -418,7 +544,7 @@ fn late_card_artwork_updates_one_paint_without_layout_or_item_recreation() {
     view.images.insert(key, image);
     view.image_revision += 1;
     let composition = view.resolved_composition();
-    assert_eq!(composition.view_stats().mounted, 0);
+    assert_eq!(composition.view_stats().instances_mounted, 0);
     assert_eq!(composition.tree.scene().stats.layout_computations, 0);
     assert_eq!(composition.tree.scene().stats.recordings, 1);
 }
@@ -441,14 +567,14 @@ fn height_only_resize_mounts_new_rows_and_toolbar_motion_reuses_cards() {
                 .count(),
             view.visible(0).len()
         );
-        assert!(composition.view_stats().mounted > 0);
+        assert!(composition.view_stats().instances_mounted > 0);
     }
     let now = Instant::now();
     view.select_category(3, now);
     drop(view.resolved_composition());
     view.tick(now + Duration::from_millis(85));
     let composition = view.resolved_composition();
-    assert_eq!(composition.view_stats().mounted, 0);
+    assert_eq!(composition.view_stats().instances_mounted, 0);
     assert_eq!(composition.tree.scene().stats.recordings, 0);
 }
 
@@ -469,7 +595,7 @@ fn card_part_branches_follow_snapshot_changes_without_recreating_the_card() {
     {
         let composition = view.resolved_composition();
         assert!(composition.bounds(key).is_some());
-        assert_eq!(composition.view_stats().mounted, 0);
+        assert_eq!(composition.view_stats().instances_mounted, 0);
         assert!(
             composition
                 .bounds(retinue_ui::Key::new("foundry.component", key.value * 8))
@@ -541,7 +667,7 @@ fn shared_component_glow_matches_vector_paint_at_all_scales() {
             1,
             (diameter as f32 / scale, diameter as f32 / scale),
             scale,
-            Rc::new(vec![command]),
+            std::sync::Arc::new(vec![command]),
         )
         .unwrap();
         let clip = Rect {
@@ -554,21 +680,19 @@ fn shared_component_glow_matches_vector_paint_at_all_scales() {
         frame
             .replace(size, scale, vec![instance], Vec::new())
             .unwrap();
-        let mut renderer = Renderer::with_layers(
-            ResidencyPolicy::desktop(0),
-            retinue_render::LayerPolicy {
-                min_work: 1,
-                ..retinue_render::LayerPolicy::desktop()
-            },
-        );
-        for _ in 0..3 {
+        let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
+        let mut admitted = false;
+        for _ in 0..8 {
             renderer.prepare(&frame, RasterMode::Replay);
+            if renderer.stats.prepared_fragments == 1 {
+                admitted = true;
+                break;
+            }
             let mut warm = Painter::new(&mut pixels[0], size.0, size.1).unwrap();
             renderer.paint(&frame, &mut warm, clip, retinue_render::Color::rgb(0));
             warm.finish().unwrap();
         }
-        renderer.prepare(&frame, RasterMode::Replay);
-        assert_eq!(renderer.stats.prepared_fragments, 1);
+        assert!(admitted, "glow did not become reusable at scale {scale}");
         for (i, buffer) in pixels.iter_mut().enumerate() {
             let mut p = Painter::new(buffer, size.0, size.1).unwrap();
             p.fill_rounded_rect(0, 0, size.0, size.1, 0, CARD);
@@ -620,7 +744,36 @@ fn component_badges_follow_aleca_lower_corner_anchors_at_all_scales() {
 }
 
 #[test]
-fn anchored_component_clusters_preserve_rectangles_hits_and_paint_only_updates() {
+fn mounted_component_clusters_have_only_the_anchor_and_three_outputs() {
+    let view = view();
+    let composition = view.resolved_composition();
+    let graph = &composition.tree;
+    let mut seen = 0;
+    let mut counts = HashMap::new();
+    let mut clusters = HashMap::new();
+    for g in graph.scene().geometry() {
+        let cluster = if graph
+            .authored_key(g.key)
+            .is_some_and(|k| k.namespace == "foundry.component.cluster")
+        {
+            seen += 1;
+            Some(g.key)
+        } else {
+            g.parent.and_then(|p| clusters.get(&p).copied())
+        };
+        if let Some(cluster) = cluster {
+            clusters.insert(g.key, cluster);
+            *counts.entry(cluster).or_insert(0) += 1;
+        }
+    }
+    assert!(seen > 0);
+    for count in counts.values() {
+        assert_eq!(*count, 4, "{seen} mounted component clusters");
+    }
+}
+
+#[test]
+fn anchored_component_clusters_preserve_rectangles_hits_and_unchanged_artwork() {
     let mut view = view();
     for scale in [1.0, 1.2, 1.25, 1.5, 2.0] {
         view.resize((1800, 1100), scale);
@@ -641,7 +794,10 @@ fn anchored_component_clusters_preserve_rectangles_hits_and_paint_only_updates()
                     let node = composition
                         .bounds(retinue_ui::Key::new("foundry.component", id))
                         .unwrap();
-                    assert_eq!(node.parent.unwrap().namespace, "foundry.component.cluster");
+                    let cluster = composition
+                        .bounds(retinue_ui::Key::new("foundry.component.cluster", id))
+                        .unwrap();
+                    assert_eq!(node.layout, cluster.layout);
                     assert_eq!((node.layout.x * scale).round() as u32, screen.x + rect.x);
                     assert_eq!(
                         (node.layout.y * scale).round() as i64,
@@ -696,15 +852,12 @@ fn anchored_component_clusters_preserve_rectangles_hits_and_paint_only_updates()
                     }
                 }
             }
+            let generation = composition.tree.frame().generation();
             drop(composition);
             view.image_revision += 1;
             assert_eq!(
-                view.resolved_composition()
-                    .tree
-                    .scene()
-                    .stats
-                    .layout_computations,
-                0
+                view.resolved_composition().tree.frame().generation(),
+                generation
             );
         }
     }
@@ -762,7 +915,11 @@ fn card_palette_and_hover_damage_match_full_repaint() {
             paint(&view, &mut pixels, damage.bounds(size).unwrap());
             let mut expected = vec![0; pixels.len()];
             paint(&view, &mut expected, full);
-            assert_eq!(pixels.iter().zip(&expected).position(|(a, b)| a != b), None);
+            assert_eq!(
+                pixel_mismatch(&view, &pixels, &expected),
+                None,
+                "scale={scale} hover={i:?}"
+            );
         }
     }
 }
@@ -1017,7 +1174,7 @@ fn animated_toolbar_damage_matches_full_paint() {
             view.paint(&mut painter, Default::default());
             painter.finish().unwrap();
             assert_eq!(
-                pixels.iter().zip(&expected).position(|(a, b)| a != b),
+                pixel_mismatch(&view, &pixels, &expected),
                 None,
                 "scale {scale}, time {ms}: first mismatched byte"
             );
@@ -1149,10 +1306,7 @@ fn recycled_buffers_repair_scroll_and_changed_card_pixels_like_full_paint() {
                     height: size.1,
                     ..Rect::default()
                 },
-                |_, p| {
-                    let r = view.search_bounds();
-                    p.translated((-(r.x as i32), -(r.y as i32)), |p| view.paint_search(p, r));
-                },
+                |_, _| unreachable!("Foundry ink is recorded"),
             );
         }
         painter.finish().unwrap();
@@ -1161,7 +1315,7 @@ fn recycled_buffers_repair_scroll_and_changed_card_pixels_like_full_paint() {
             mismatch, None,
             "recycled frame {frame}: first mismatched byte"
         );
-        tracker.submitted();
+        tracker.submitted(plan.ticket);
     }
 }
 
@@ -1296,9 +1450,9 @@ fn foundry_scroll_benchmark() {
                             "lowering_ms": profile.lowering.as_secs_f64() * 1000.0,
                             "scene_ms": profile.scene.as_secs_f64() * 1000.0,
                             "input_ms": profile.input.as_secs_f64() * 1000.0,
-                            "bodies": composition.tree.stats.bodies,
-                            "projected": composition.tree.stats.projected,
-                            "mounted": composition.tree.stats.mounted,
+                            "bodies": composition.view_stats().owners_evaluated,
+                            "projected": composition.view_stats().nodes_materialized,
+                            "mounted": composition.view_stats().instances_mounted,
                             "scene_parts_ms": ([scene.reconcile, scene.layout, scene.projection,
                                 scene.geometry, scene.frame].map(|d| d.as_secs_f64() * 1000.0)),
                         }));

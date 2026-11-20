@@ -1,17 +1,23 @@
 use super::{FoundryView, foundry_model::Model, *};
 use retinue_render::{Bounds, Command, Key as ElementKey, RasterMode, Renderer};
 use retinue_ui::{
-    drawing::DrawList, drawing::PixelCanvas as Canvas, layout::Insets, layout::LayoutSize,
-    layout::grid::UniformGrid, prelude::Element, prelude::IntoElement, prelude::ViewExt,
-    runtime::ViewTree, state::KeyedOrder,
+    authoring::{Body, ViewExt, compose},
+    drawing::DrawList,
+    drawing::PixelCanvas as Canvas,
+    environment::Environment,
+    ir::InstanceGraph,
+    layout::Insets,
+    layout::LayoutSize,
+    layout::grid::UniformGrid,
+    state::KeyedOrder,
 };
+use std::{cell::OnceCell, rc::Rc};
 
 const ROOT: ElementKey = ElementKey::new("foundry", 0);
 pub(super) const TOOLBAR: ElementKey = ElementKey::new("foundry", 1);
 pub(super) const GRID: ElementKey = ElementKey::new("foundry", 2);
 pub(super) const OVERLAYS: ElementKey = ElementKey::new("foundry", 3);
 pub(super) const CONTENT: ElementKey = ElementKey::new("foundry", 4);
-pub(super) const SEARCH: ElementKey = ElementKey::new("foundry", 5);
 
 pub(super) use super::card::CardLayout;
 
@@ -64,12 +70,15 @@ impl LayoutState {
 }
 
 pub(super) struct Composition {
-    pub tree: ViewTree,
-    pub(super) renderer: RefCell<Renderer>,
+    pub tree: InstanceGraph,
+    work: retinue_ui::ir::Work,
+    pub(super) renderer: Rc<RefCell<Renderer>>,
     #[cfg(test)]
     pub raster_mode: RasterMode,
     inputs: Model,
     state: Option<State>,
+    pub(super) execution: Option<retinue_ui::runtime::LayoutExecution>,
+    controls: OnceCell<Vec<(ElementKey, Rect)>>,
     identities: HashMap<String, u64>,
     next_identity: u64,
     actions: HashMap<ElementKey, Action>,
@@ -89,14 +98,17 @@ impl Default for Composition {
     fn default() -> Self {
         let inputs = Model::default();
         Self {
-            tree: ViewTree::new(FoundryView(inputs.clone()).id(ROOT), || {}),
-            renderer: RefCell::new(Renderer::new(retinue_render::ResidencyPolicy::desktop(
-                32 * 1024 * 1024,
+            tree: mount(inputs.clone()),
+            work: Default::default(),
+            renderer: Rc::new(RefCell::new(Renderer::new(
+                retinue_render::ResidencyPolicy::desktop(32 * 1024 * 1024),
             ))),
             #[cfg(test)]
             raster_mode: RasterMode::Explicit,
             inputs,
             state: None,
+            execution: None,
+            controls: OnceCell::new(),
             identities: HashMap::new(),
             next_identity: 0,
             actions: HashMap::new(),
@@ -114,9 +126,8 @@ impl Default for Composition {
 impl Composition {
     pub fn bounds(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
         self.tree
-            .unique(key)
+            .named_bounds(key)
             .expect("unique Foundry key")
-            .and_then(|id| self.tree.geometry(id))
             .map(|geometry| retinue_ui::scene::Geometry {
                 key,
                 parent: geometry.parent.and_then(|key| self.tree.authored_key(key)),
@@ -125,10 +136,10 @@ impl Composition {
     }
 
     pub fn geometry(&self) -> Vec<retinue_ui::scene::Geometry> {
-        self.tree.named_geometry()
+        self.tree.named_geometry().collect()
     }
     pub fn set_render_host(&mut self, host: retinue_render::RenderHost) {
-        self.renderer.get_mut().set_host(host);
+        self.renderer.borrow_mut().set_host(host);
     }
 
     pub fn cache_stats(&self) -> retinue_render::ResidencyStats {
@@ -148,17 +159,23 @@ impl Composition {
     }
 
     #[cfg(test)]
-    pub fn view_stats(&self) -> retinue_ui::runtime::UpdateStats {
-        self.tree.stats
+    pub fn view_stats(&self) -> retinue_ui::ir::Work {
+        self.work
+    }
+
+    #[cfg(test)]
+    pub fn grid_builds(&self) -> usize {
+        self.inputs.grid_builds.get()
     }
 
     pub fn clear_resources(&mut self) {
         self.state = None;
+        self.controls.take();
         self.artwork.clear();
         self.actions.clear();
         self.inputs = Model::default();
-        self.tree = ViewTree::new(FoundryView(self.inputs.clone()).id(ROOT), || {});
-        self.renderer.get_mut().clear_cache();
+        self.tree = mount(self.inputs.clone());
+        self.renderer.borrow_mut().clear_cache();
     }
 
     fn state(view: &Foundry) -> State {
@@ -169,7 +186,36 @@ impl Composition {
         }
     }
 
-    pub fn update(&mut self, view: &Foundry) {
+    pub fn update(&mut self, view: &Foundry) -> bool {
+        self.synchronize(view);
+        if view.scale <= 0.0 {
+            return true;
+        }
+        if !self.tree.has_pending_inputs()
+            && !self.tree.is_layout_pending()
+            && self.tree.frame().size() == view.size
+            && self.tree.frame().scale() == view.scale
+        {
+            return true;
+        }
+        let update = self
+            .tree
+            .advance_at(
+                view.size,
+                view.scale,
+                retinue_ui::timeline::FrameTime::now(),
+                self.execution.as_ref(),
+            )
+            .expect("Foundry tracked inputs");
+        self.work = update.work;
+        let ready = update.completion.expect("Foundry layout").is_ready();
+        if ready {
+            self.controls.take();
+        }
+        ready
+    }
+
+    fn synchronize(&mut self, view: &Foundry) {
         let state = Self::state(view);
         if self.state.as_ref() == Some(&state) || view.scale <= 0.0 {
             return;
@@ -232,39 +278,39 @@ impl Composition {
         if !content_only {
             self.sync_chrome(view);
         }
-        let retained_window = self.state.as_ref().is_some_and(|old| {
+        if let Some(old) = self.state.as_ref().filter(|old| {
             old.layout.scale == layout.scale
                 && old.layout.grid == layout.grid
                 && old.layout.revision == layout.revision
-                && old.layout.visible == layout.visible
-        });
-        if retained_window {
-            for index in [self.state.as_ref().and_then(|s| s.hovered), state.hovered]
-                .into_iter()
-                .flatten()
-            {
-                let card = &view.snapshot.items[view.filtered[index]];
-                if let Some(&id) = self.identities.get(&card.id) {
+        }) {
+            let previous = old.layout.visible.clone();
+            let old_hover = old.hovered;
+            let images_changed = old.images != state.images;
+            if previous != layout.visible {
+                self.sync_window(view, &previous, &layout.visible, state.hovered);
+            }
+            if images_changed {
+                self.sync_artwork(
+                    view,
+                    previous.start.max(layout.visible.start)..previous.end.min(layout.visible.end),
+                );
+            }
+            if old_hover != state.hovered {
+                for index in [old_hover, state.hovered]
+                    .into_iter()
+                    .flatten()
+                    .filter(|i| layout.visible.contains(i))
+                {
+                    let id = self.identities[&view.snapshot.items[view.filtered[index]].id];
                     let key = ElementKey::new("foundry.card", id);
-                    if let Some(mut content) = self.inputs.cards.get(key) {
-                        content.hovered = state.hovered == Some(index);
-                        self.inputs.cards.set(key, content);
-                    }
+                    let mut content = self.inputs.cards.get(key).expect("visible Foundry card");
+                    content.hovered = state.hovered == Some(index);
+                    self.inputs.cards.set(key, content);
                 }
             }
-            if self
-                .state
-                .as_ref()
-                .is_some_and(|old| old.images != state.images)
-            {
-                self.sync_artwork(view);
-            }
         } else {
-            self.sync_cards(view, layout);
+            self.sync_cards(view, layout, state.hovered);
         }
-        self.tree
-            .update(view.size, view.scale)
-            .expect("Foundry tracked inputs");
         self.state = Some(state);
     }
 
@@ -303,7 +349,7 @@ impl Composition {
             .expect("unique Foundry controls");
     }
 
-    fn sync_cards(&mut self, view: &Foundry, layout: &LayoutState) {
+    fn sync_cards(&mut self, view: &Foundry, layout: &LayoutState, hovered: Option<usize>) {
         if self
             .state
             .as_ref()
@@ -317,103 +363,130 @@ impl Composition {
                 .collect();
             self.identities.retain(|id, _| ids.contains(id.as_str()));
         }
-        let retained_content = self.state.as_ref().is_some_and(|old| {
-            old.layout.revision == layout.revision
-                && old.layout.grid == layout.grid
-                && old.layout.scale == layout.scale
+        let order = view.filtered.iter().map(|&row| {
+            let id = *self
+                .identities
+                .entry(view.snapshot.items[row].id.clone())
+                .or_insert_with(|| {
+                    self.next_identity += 1;
+                    self.next_identity
+                });
+            ElementKey::new("foundry.card", id)
         });
-        if !retained_content {
-            let order = view.filtered.iter().map(|&row| {
-                let id = *self
-                    .identities
-                    .entry(view.snapshot.items[row].id.clone())
-                    .or_insert_with(|| {
-                        self.next_identity += 1;
-                        self.next_identity
-                    });
-                ElementKey::new("foundry.card", id)
-            });
-            let grid = UniformGrid::new(
-                view.grid.columns,
-                LayoutSize::new(
-                    view.grid.width.max(1) as f32 / view.scale,
-                    view.grid.height as f32 / view.scale,
-                ),
-                LayoutSize::new(
-                    view.grid.gap as f32 / view.scale,
-                    view.grid.gap as f32 / view.scale,
-                ),
-                Insets::default(),
-            )
-            .expect("Foundry grid tracks");
-            self.inputs
-                .grid
-                .set(grid.arrange(KeyedOrder::new(order).expect("unique Foundry order")));
-        }
+        let grid = UniformGrid::new(
+            view.grid.columns,
+            LayoutSize::new(
+                view.grid.width.max(1) as f32 / view.scale,
+                view.grid.height as f32 / view.scale,
+            ),
+            LayoutSize::new(
+                view.grid.gap as f32 / view.scale,
+                view.grid.gap as f32 / view.scale,
+            ),
+            Insets::default(),
+        )
+        .expect("Foundry grid tracks");
+        self.inputs
+            .grid
+            .set(grid.arrange(KeyedOrder::new(order).expect("unique Foundry order")));
+
         self.actions.retain(|key, _| {
             matches!(key.namespace, "foundry.control" | "foundry.overlay.control")
         });
-        let mut cards = Vec::new();
-        let mut visible_artwork = HashSet::new();
-        for index in view.visible(0) {
-            let row = view.filtered[index];
-            let card = &view.snapshot.items[row];
-            let id = self.identities[&card.id];
-            let key = ElementKey::new("foundry.card", id);
-            let content_key = ElementKey::new("foundry.card.content", id);
-            let title_key = ElementKey::new("foundry.title", id);
-            let mut content = if let Some(mut content) = retained_content
-                .then(|| self.inputs.cards.get(key))
-                .flatten()
-            {
-                if self
-                    .state
-                    .as_ref()
-                    .is_some_and(|old| old.images != view.image_revision)
-                {
-                    let mut canvas = Canvas::new(view.scale);
-                    view.record_card_content(&mut canvas, card, &content.layout);
-                    content.artwork = self.artwork(content_key, canvas.commands);
-                }
-                content
-            } else {
-                let layout = card::CardLayout::new(view, card);
-                let mut canvas = Canvas::new(view.scale);
-                view.record_card_content(&mut canvas, card, &layout);
-                let artwork = self.artwork(content_key, canvas.commands);
-                let title = self.artwork(title_key, card::title(view, card, &layout));
-                card::Content::new(view, card, index, layout, title, artwork)
-            };
-            content.hovered = view.hovered_card() == Some(index);
-            visible_artwork.extend([content_key, title_key]);
-            self.actions.insert(
-                ElementKey::new("foundry.favorite", id),
-                Action::Favorite(row),
-            );
-            for part in 0..content.layout.parts.len() {
-                let part_id = id * 8 + part as u64;
-                self.actions.insert(
-                    ElementKey::new("foundry.component", part_id),
-                    Action::Component(row, part),
+        let cards = self.inputs.cards.clone();
+        cards
+            .replace(layout.visible.clone().map(|index| {
+                let key = ElementKey::new(
+                    "foundry.card",
+                    self.identities[&view.snapshot.items[view.filtered[index]].id],
                 );
-                if card.components[part].owned_relic {
-                    self.actions.insert(
-                        ElementKey::new("foundry.component.relic", part_id),
-                        Action::ComponentRelic(row, part),
-                    );
-                }
-            }
-            cards.push((key, content));
-        }
-        self.inputs
-            .cards
-            .replace(cards)
+                (key, self.build_card(view, index, key, hovered))
+            }))
             .expect("unique Foundry items");
-        self.artwork.retain(|key, _| visible_artwork.contains(key));
+        let visible = cards.order();
+        self.artwork.retain(|key, _| {
+            visible
+                .index(ElementKey::new("foundry.card", key.value))
+                .is_some()
+        });
     }
 
-    fn sync_artwork(&mut self, view: &Foundry) {
-        for index in view.visible(0) {
+    fn sync_window(
+        &mut self,
+        view: &Foundry,
+        old: &std::ops::Range<usize>,
+        new: &std::ops::Range<usize>,
+        hovered: Option<usize>,
+    ) {
+        for index in old.clone().filter(|index| !new.contains(index)) {
+            let card = &view.snapshot.items[view.filtered[index]];
+            let id = self.identities[&card.id];
+            self.artwork.remove(&ElementKey::new("foundry.title", id));
+            self.artwork
+                .remove(&ElementKey::new("foundry.card.content", id));
+            self.actions
+                .remove(&ElementKey::new("foundry.favorite", id));
+            for part in 0..card.components.len().min(6) {
+                for ns in ["foundry.component", "foundry.component.relic"] {
+                    self.actions
+                        .remove(&ElementKey::new(ns, id * 8 + part as u64));
+                }
+            }
+        }
+        let order = KeyedOrder::new(new.clone().map(|index| {
+            ElementKey::new(
+                "foundry.card",
+                self.identities[&view.snapshot.items[view.filtered[index]].id],
+            )
+        }))
+        .expect("unique Foundry items");
+        self.inputs.cards.clone().set_order_with(order, |pos, key| {
+            self.build_card(view, new.start + pos, key, hovered)
+        });
+    }
+
+    fn build_card(
+        &mut self,
+        view: &Foundry,
+        index: usize,
+        key: ElementKey,
+        hovered: Option<usize>,
+    ) -> card::Content {
+        let row = view.filtered[index];
+        let card = &view.snapshot.items[row];
+        let id = key.value;
+        let layout = card::CardLayout::new(view, card);
+        let mut canvas = Canvas::new(view.scale);
+        view.record_card_content(&mut canvas, card, &layout);
+        let artwork = self.artwork(ElementKey::new("foundry.card.content", id), canvas.commands);
+        let title = self.artwork(
+            ElementKey::new("foundry.title", id),
+            card::title(view, card, &layout),
+        );
+        self.actions.insert(
+            ElementKey::new("foundry.favorite", id),
+            Action::Favorite(row),
+        );
+        for part in 0..layout.parts.len() {
+            let part_id = id * 8 + part as u64;
+            self.actions.insert(
+                ElementKey::new("foundry.component", part_id),
+                Action::Component(row, part),
+            );
+            if card.components[part].owned_relic {
+                self.actions.insert(
+                    ElementKey::new("foundry.component.relic", part_id),
+                    Action::ComponentRelic(row, part),
+                );
+            }
+        }
+        let mut content = card::Content::new(view, card, index, layout, title, artwork);
+        content.hovered = hovered == Some(index);
+        content
+    }
+
+    fn sync_artwork(&mut self, view: &Foundry, retained: std::ops::Range<usize>) {
+        for index in retained {
             let card = &view.snapshot.items[view.filtered[index]];
             let id = self.identities[&card.id];
             let key = ElementKey::new("foundry.card", id);
@@ -444,7 +517,7 @@ impl Composition {
             .and_then(|key| self.action(key))
     }
 
-    fn action(&self, key: ElementKey) -> Option<Action> {
+    pub(super) fn action(&self, key: ElementKey) -> Option<Action> {
         filters::declaration::action(key).or_else(|| self.actions.get(&key).copied())
     }
 
@@ -467,11 +540,31 @@ impl Composition {
         (action(result.target), action(result.activated))
     }
 
+    fn published_controls(&self) -> &[(ElementKey, Rect)] {
+        self.controls.get_or_init(|| {
+            self.tree
+                .scene()
+                .geometry()
+                .iter()
+                .filter(|g| !g.hit.is_empty())
+                .filter_map(|g| {
+                    let key = self.tree.authored_key(g.key)?;
+                    self.actions.contains_key(&key).then_some((key, g.hit))
+                })
+                .collect()
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) fn has_control_index(&self) -> bool {
+        self.controls.get().is_some()
+    }
+
     pub fn controls(&self, items: bool) -> Vec<(Action, Rect)> {
-        self.geometry()
+        self.published_controls()
             .iter()
-            .filter_map(|node| {
-                let action = self.actions.get(&node.key)?;
+            .filter_map(|(key, rect)| {
+                let action = self.actions.get(key)?;
                 if matches!(
                     action,
                     Action::Scroll
@@ -486,20 +579,15 @@ impl Composition {
                     action,
                     Action::Favorite(_) | Action::Component(_, _) | Action::ComponentRelic(_, _)
                 );
-                (item == items && !node.hit.is_empty()).then_some((*action, node.hit))
+                (item == items).then_some((*action, *rect))
             })
             .collect()
     }
 
     pub fn control_bounds(&self, action: Action) -> Option<Rect> {
-        self.actions.iter().find_map(|(&key, &candidate)| {
-            if candidate != action {
-                return None;
-            }
-            self.bounds(key)
-                .map(|geometry| geometry.hit)
-                .filter(|rect| !rect.is_empty())
-        })
+        self.published_controls()
+            .iter()
+            .find_map(|(key, rect)| (self.actions.get(key) == Some(&action)).then_some(*rect))
     }
 
     pub fn record_chrome(
@@ -514,9 +602,12 @@ impl Composition {
         self.inputs.toolbar_paint.set(DrawList::from(toolbar));
         self.inputs.overlays_paint.set(DrawList::from(overlays));
         let state = self.state.as_ref().expect("resolved Foundry geometry");
-        self.tree
-            .update(state.layout.size, state.layout.scale)
+        let update = self
+            .tree
+            .advance(state.layout.size, state.layout.scale, None)
             .expect("Foundry chrome");
+        self.work = update.work;
+        assert!(update.completion.expect("Foundry chrome layout").is_ready());
         #[cfg(all(test, feature = "profiling"))]
         let updated = Instant::now();
         #[cfg(all(test, feature = "profiling"))]
@@ -524,14 +615,24 @@ impl Composition {
             .set([updated - started, Duration::ZERO, Duration::ZERO]);
     }
 
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
+        #[cfg(all(test, feature = "profiling"))]
+        let started = Instant::now();
+        self.renderer
+            .borrow_mut()
+            .prepare_for(self.tree.frame(), self.raster_mode(), repair);
+        #[cfg(all(test, feature = "profiling"))]
+        {
+            let mut profile = self.paint_profile.get();
+            profile[1] = started.elapsed();
+            self.paint_profile.set(profile);
+        }
+    }
+
     pub fn paint(&self, view: &Foundry, p: &mut Painter<'_>) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
-        let mut renderer = self.renderer.borrow_mut();
-        renderer.prepare_for(self.tree.frame(), self.raster_mode(), &p.visible_regions());
-        #[cfg(all(test, feature = "profiling"))]
-        let prepared = Instant::now();
-        renderer.draw_with(
+        self.renderer.borrow_mut().draw_with(
             self.tree.frame(),
             p,
             Rect {
@@ -539,19 +640,12 @@ impl Composition {
                 height: view.size.1,
                 ..Rect::default()
             },
-            |key, p| match key {
-                SEARCH => {
-                    let r = view.search_bounds();
-                    p.translated((-(r.x as i32), -(r.y as i32)), |p| view.paint_search(p, r));
-                }
-                _ => unreachable!("only the search editor uses live paint"),
-            },
+            |_, _| unreachable!("Foundry ink is recorded"),
         );
         #[cfg(all(test, feature = "profiling"))]
         {
             let mut profile = self.paint_profile.get();
-            profile[1] = prepared - started;
-            profile[2] = prepared.elapsed();
+            profile[2] = started.elapsed();
             self.paint_profile.set(profile);
         }
     }
@@ -565,13 +659,24 @@ fn content_offset(view: &Foundry) -> (f32, f32) {
     )
 }
 
-pub(super) fn position(view: impl IntoElement, bounds: Bounds) -> Element {
-    view.frame_aligned(
+pub(super) fn position(view: impl Body, bounds: Bounds) -> impl Body {
+    view.frame(crate::presentation::widgets::compiled::frame(
         bounds.width,
         bounds.height,
-        retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING,
-    )
+    ))
     .offset(bounds.x, bounds.y)
+}
+
+fn mount(model: Model) -> InstanceGraph {
+    let mut graph = InstanceGraph::default();
+    let root = graph
+        .mount_body(
+            move |_| compose(FoundryView(model.clone())).named(ROOT),
+            Environment::default(),
+        )
+        .expect("Foundry template");
+    graph.set_root(Some(root)).unwrap();
+    graph
 }
 
 impl Foundry {

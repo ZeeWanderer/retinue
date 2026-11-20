@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 mod queued;
 use crate::{
     Bounds, Color, Command, Key, PaintFrame, PaintInstance, PaintKey, ProgramStore, RasterMode,
@@ -7,6 +8,104 @@ use crate::{
 
 const SIZE: (u32, u32) = (240, 190);
 const BACKGROUND: Color = Color::rgb(0x182026);
+
+#[test]
+fn surface_completion_keeps_later_input_damage() {
+    let late = Rect {
+        x: 7,
+        y: 9,
+        width: 13,
+        height: 11,
+    };
+    for slots in [false, true] {
+        let mut host = if slots {
+            let mut host = Buffered::default();
+            host.add_buffer();
+            Host::Slots(host)
+        } else {
+            Host::Age(Aged::default())
+        };
+        let mut pixels = vec![0; (SIZE.0 * SIZE.1 * 4) as usize];
+        let first = match &mut host {
+            Host::Slots(host) => host.render(0, SIZE, None, &mut pixels, |_, _| Ok(())),
+            Host::Age(host) => host.render(0, SIZE, None, &mut pixels, |_, _| Ok(())),
+        }
+        .unwrap()
+        .unwrap();
+        host.invalidate(Damage::rect(late));
+        host.submitted(first);
+        let next = match &mut host {
+            Host::Slots(host) => host.render(0, SIZE, None, &mut pixels, |_, repair| {
+                assert_eq!(*repair, Region::from(late));
+                Ok(())
+            }),
+            Host::Age(host) => host.render(1, SIZE, None, &mut pixels, |_, repair| {
+                assert_eq!(*repair, Region::from(late));
+                Ok(())
+            }),
+        }
+        .unwrap()
+        .unwrap();
+        assert_eq!(next.damage, Region::from(late));
+        host.submitted(next);
+    }
+}
+
+#[test]
+fn replaced_same_epoch_submission_cannot_change_target_history() {
+    let mut host = Buffered::default();
+    host.add_buffer();
+    host.add_buffer();
+    let mut pixels = vec![0; (SIZE.0 * SIZE.1 * 4) as usize];
+    let old = host
+        .render(0, SIZE, None, &mut pixels, |_, _| Ok(()))
+        .unwrap()
+        .unwrap();
+    let current = host
+        .render(1, SIZE, None, &mut pixels, |_, _| Ok(()))
+        .unwrap()
+        .unwrap();
+    assert!(!host.can_submit(&old));
+    assert!(!host.submitted(old));
+    assert!(host.can_submit(&current));
+    assert!(host.submitted(current));
+    host.invalidate(Damage::rect(Rect {
+        x: 4,
+        y: 7,
+        width: 3,
+        height: 5,
+    }));
+    let repaired = host
+        .render(0, SIZE, None, &mut pixels, |_, repair| {
+            assert_eq!(*repair, Damage::Full.regions(SIZE));
+            Ok(())
+        })
+        .unwrap()
+        .unwrap();
+    assert!(host.submitted(repaired));
+}
+
+#[test]
+fn reset_and_foreign_surface_reject_completed_work() {
+    let mut host = Aged::default();
+    let mut other = Aged::default();
+    let mut pixels = vec![0; (SIZE.0 * SIZE.1 * 4) as usize];
+    let old = host
+        .render(0, SIZE, None, &mut pixels, |_, _| Ok(()))
+        .unwrap()
+        .unwrap();
+    let foreign = other
+        .render(0, SIZE, None, &mut pixels, |_, _| Ok(()))
+        .unwrap()
+        .unwrap();
+    assert!(!host.can_submit(&foreign));
+    assert!(!host.submitted(foreign));
+    assert!(host.can_submit(&old));
+    host.reset();
+    assert!(!host.can_submit(&old));
+    assert!(!host.submitted(old));
+    assert!(host.is_dirty());
+}
 
 #[test]
 fn independent_and_snapshot_transfers_match_full_repair_across_target_ages() {
@@ -175,7 +274,7 @@ fn expanded_surface_leaves_do_not_inherit_parent_work() {
                     PaintKey::new(key, 0),
                     (240.0, 190.0),
                     1.0,
-                    Rc::new(commands),
+                    Arc::new(commands),
                 ),
                 (0, 0),
                 Rect {
@@ -210,7 +309,7 @@ fn prepare(frame: &mut PaintFrame, store: &mut ProgramStore, step: u32) -> Snaps
                 .collect();
             PaintInstance::new(
                 key,
-                store.compile(PaintKey::new(key, 0), (52.0, 36.0), 1.0, Rc::new(commands)),
+                store.compile(PaintKey::new(key, 0), (52.0, 36.0), 1.0, Arc::new(commands)),
                 (
                     (n % 4) as i32 * 58 + 4,
                     (n / 4) as i32 * 45 + 4 - step as i32 * 3,
@@ -243,6 +342,13 @@ enum Host {
     Age(Aged),
 }
 impl Host {
+    fn invalidate(&mut self, damage: Damage) {
+        match self {
+            Self::Slots(host) => host.invalidate(damage),
+            Self::Age(host) => host.invalidate(damage),
+        }
+    }
+
     fn new(aged: bool) -> Self {
         if aged {
             Self::Age(Aged::default())
@@ -268,10 +374,10 @@ impl Host {
         }
     }
     fn submitted(&mut self, submission: Submission) {
-        match self {
+        assert!(match self {
             Self::Slots(host) => host.submitted(submission),
             Self::Age(host) => host.submitted(submission),
-        }
+        });
     }
 }
 

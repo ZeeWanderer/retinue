@@ -2,7 +2,7 @@ use super::{
     CachePolicy, Color, DrawStep, Key, PaintFrame, PaintStats, RasterMode, RenderHost,
     ResidencyPolicy, ResidencyStats, ResourceRead, ScopeId,
     dependencies::Dependencies,
-    execution::{Input, PaintDemand, Preparation},
+    execution::{Completion, Input, PaintDemand, Preparation},
     fragments::{self, Fragments},
     layers::{Layers, Prepared},
     materialization::Recipe,
@@ -11,13 +11,17 @@ use super::{
 use crate::{Rect, painter::Painter};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    rc::Rc,
+    sync::Arc,
     time::Instant,
 };
 
 pub(crate) mod cost;
 mod coverage;
+mod packet;
+mod preparation;
 use coverage::SpatialIndex;
+pub use packet::{DrawPacket, PacketError, PacketJob, Wake};
+use preparation::Pending;
 
 type DrawOrder = (usize, u8, ScopeId);
 
@@ -27,9 +31,10 @@ fn instance_order(index: usize) -> DrawOrder {
 
 pub struct Renderer {
     dependencies: Dependencies,
+    text_fonts: Arc<crate::text::preparation::PreparedFonts>,
     pub(super) residency: Residency,
     prepared: Vec<Option<RasterId>>,
-    prepared_for: Option<(Rc<()>, u64)>,
+    prepared_for: Option<(crate::frame::Identity, u64)>,
     draw_plan: BTreeMap<DrawOrder, DrawStep>,
     coverage: SpatialIndex,
     retry_items: BTreeSet<usize>,
@@ -44,6 +49,8 @@ pub struct Renderer {
     pub(super) layers: Layers,
     pub(super) fragments: Fragments,
     pub stats: PaintStats,
+    epoch: u64,
+    preparing: bool,
 }
 
 impl Renderer {
@@ -54,6 +61,7 @@ impl Renderer {
             optimizations && std::env::var_os("RETINUE_BENCH_FULL_REPLAY").is_none();
         Self {
             dependencies: Default::default(),
+            text_fonts: Default::default(),
             residency: Residency::new(policy),
             prepared: Vec::new(),
             prepared_for: None,
@@ -71,6 +79,8 @@ impl Renderer {
             layers: Default::default(),
             fragments: Default::default(),
             stats: Default::default(),
+            epoch: 0,
+            preparing: false,
         }
     }
 
@@ -113,7 +123,10 @@ impl Renderer {
     }
 
     pub fn clear_cache(&mut self) {
+        self.epoch = self.epoch.wrapping_add(1);
+        self.preparing = false;
         self.dependencies.clear();
+        self.text_fonts = Default::default();
         self.prepared.clear();
         self.layers.clear();
         self.fragments = Fragments::default();
@@ -208,12 +221,29 @@ impl Renderer {
     ) {
         let host = self.residency.host.clone();
         let _pass = host.begin_pass(0);
+        if let Some(pending) = self.plan_preparation(frame, mode, demand) {
+            let completed = pending.execute(&host, &self.text_fonts);
+            self.publish_preparation(completed);
+        }
+    }
+
+    fn plan_preparation(
+        &mut self,
+        frame: &PaintFrame,
+        mode: RasterMode,
+        demand: PaintDemand<'_>,
+    ) -> Option<Pending> {
+        assert!(
+            !self.preparing,
+            "finish or cancel the previous preparation first"
+        );
+        let host = self.residency.host.clone();
         self.stats = PaintStats::default();
         let now = Instant::now();
         if self
             .prepared_for
             .as_ref()
-            .is_some_and(|(id, _)| !Rc::ptr_eq(id, &frame.identity))
+            .is_some_and(|(id, _)| *id != frame.identity)
         {
             self.clear_cache();
         }
@@ -222,7 +252,18 @@ impl Renderer {
             self.retry_items.append(&mut self.blocked_items);
             self.reclaimed = self.residency.reclaimed();
         }
+        self.fragments.begin_frame();
         self.dependencies.update(frame);
+        if self.dependencies.full
+            || self.dependencies.paints != 0
+            || (self.text_fonts.has_failures() && !demand.is_empty())
+        {
+            let (fonts, prepared) = self
+                .text_fonts
+                .update(frame.chunks.iter().map(|chunk| &chunk.program));
+            self.text_fonts = Arc::new(fonts);
+            self.stats.prepared_fonts = prepared;
+        }
         if self.dependencies.full {
             self.analysis_retry.clear();
         }
@@ -246,7 +287,7 @@ impl Renderer {
         }
         let unchanged = self.mode == mode
             && self.prepared_for.as_ref().is_some_and(|(id, revision)| {
-                Rc::ptr_eq(id, &frame.identity) && *revision == frame.generation
+                *id == frame.identity && *revision == frame.generation
             });
         self.mode = mode;
         let mut plan = Preparation::default();
@@ -266,9 +307,13 @@ impl Renderer {
                 &mut self.stats,
             );
             if !unchanged {
-                let (_, demoted) =
-                    self.layers
-                        .publish(&mut plan, &[], &[], &mut self.residency, now);
+                let (_, demoted) = self.layers.publish(
+                    &mut plan,
+                    &Completion::default(),
+                    &[],
+                    &mut self.residency,
+                    now,
+                );
                 self.stats.demoted_layers += demoted;
                 self.refresh_coverage();
             }
@@ -299,7 +344,7 @@ impl Renderer {
             && !self.deferred
         {
             self.stats.layer_bytes = self.layers.bytes(&self.residency);
-            return;
+            return None;
         }
         let current_layers = self.layers.prepared.clone();
         let group_ranges: Vec<_> = pending
@@ -351,7 +396,6 @@ impl Renderer {
                 demand,
                 &mut self.residency,
                 &mut plan,
-                self.layers.policy.map_or(16, |p| p.min_work),
                 self.layers
                     .policy
                     .unwrap_or_else(super::LayerPolicy::desktop)
@@ -448,130 +492,19 @@ impl Renderer {
                     .plan(pending, &mut plan, &sources, &self.residency)
             })
             .collect();
-        let results = plan.execute_on(&host, &mut self.stats);
-        self.deferred = plan.has_deferred();
-        self.fragments.publish(
-            &fragment_tasks,
-            &mut plan,
-            &results,
-            &mut self.residency,
-            &mut self.stats,
-        );
-        let mut published = HashMap::new();
-        for (index, owner, task) in scheduled {
-            plan.complete(task);
-            if plan.deferred(task) {
-                self.retry_items.insert(index);
-            }
-            if let Some(result) = plan.result(task, &results) {
-                let id = if let Some(&id) = published.get(&task) {
-                    self.residency.retain(id, &result.recipe);
-                    id
-                } else {
-                    self.stats.prepared_rasters += usize::from(plan.rasterized(task));
-                    let id = self
-                        .residency
-                        .acquire(owner, &result.recipe)
-                        .unwrap_or_else(|| {
-                            self.residency
-                                .insert(owner, result.clone(), plan.elapsed(task))
-                        });
-                    published.insert(task, id);
-                    id
-                };
-                self.prepared[index] = Some(id);
-            }
-        }
-        if self.optimizations && !layer_tasks.is_empty() {
-            let (promoted, demoted) =
-                self.layers
-                    .publish(&mut plan, &results, &layer_tasks, &mut self.residency, now);
-            self.stats.promoted_layers += promoted;
-            self.stats.demoted_layers += demoted;
-            self.stats.layer_prepare_ns = layer_tasks
-                .iter()
-                .map(|(_, task)| plan.elapsed(*task))
-                .sum();
-            self.refresh_coverage();
-            Self::coverage_changes(&current_layers, &self.layers.prepared, &mut changed);
-            for ((_, task), range) in layer_tasks.iter().zip(&group_ranges) {
-                if plan.result(*task, &results).is_none() {
-                    self.retry_items.extend(range.clone());
-                }
-            }
-        }
-        for &index in &changed {
-            if self.coverage.covers(index, frame.chunks[index].visible)
-                && !frame.chunks[index].visible.is_empty()
-            {
-                if let Some(id) = self.prepared[index].take() {
-                    retired.push((id, Retention::Discard));
-                }
-            }
-        }
-        // Rebind every surviving consumer before releasing the preceding plan.
-        for id in previous.into_iter().flatten() {
-            retired.push((id, Retention::Discard));
-        }
-        for (id, retention) in retired {
-            self.residency.release(id, retention, now);
-        }
-        self.stats.planned_instances = changed.len();
-        for index in changed {
-            let visible = frame.chunks[index].visible;
-            let regions = self.coverage.remaining(index, visible);
-            if regions.is_empty() {
-                self.draw_plan.remove(&instance_order(index));
-            } else {
-                let raster = self.prepared[index].is_some();
-                self.draw_plan.insert(
-                    instance_order(index),
-                    if regions.as_slice() != [visible] {
-                        DrawStep::Clipped {
-                            instance: index,
-                            regions,
-                            raster,
-                        }
-                    } else if raster {
-                        DrawStep::Item { instance: index }
-                    } else {
-                        DrawStep::Replay { instance: index }
-                    },
-                );
-            }
-        }
-        self.stats.layer_bytes = self.layers.bytes(&self.residency);
-        let roots = self.draw_plan.values().filter_map(|step| match step {
-            DrawStep::Replay { instance }
-            | DrawStep::Clipped {
-                instance,
-                raster: false,
-                ..
-            } => {
-                let chunk = &frame.chunks[*instance];
-                Some((&chunk.program, chunk.origin, chunk.clip))
-            }
-            _ => None,
-        });
-        self.fragments
-            .retain_for_draw(roots, &mut self.residency, now);
-        drop(results);
-        drop(plan);
-        if full {
-            let mut programs = HashSet::new();
-            for chunk in &frame.chunks {
-                fragments::program_ids(&chunk.program, &mut programs);
-            }
-            let groups: HashMap<_, _> = frame.groups.iter().map(|g| (g.key, g)).collect();
-            self.residency.retain_warm(|owner| match owner {
-                Owner::Item(id) => programs.contains(&id),
-                Owner::Group(id) => groups
-                    .get(&id.group)
-                    .is_some_and(|g| super::coverage::declared(g, id)),
-            });
-        }
-        self.residency.maintain(now);
-        self.prepared_for = Some((frame.identity.clone(), frame.generation));
+        Some(Pending {
+            frame: frame.freeze(),
+            plan,
+            full,
+            current_layers,
+            group_ranges,
+            changed,
+            previous,
+            retired,
+            scheduled,
+            fragment_tasks,
+            layer_tasks,
+        })
     }
 
     pub fn paint(
@@ -616,10 +549,9 @@ impl Renderer {
         mut external: impl FnMut(Key, &mut Painter<'_>),
     ) {
         assert!(
-            self.prepared_for
-                .as_ref()
-                .is_some_and(|(id, revision)| Rc::ptr_eq(id, &frame.identity)
-                    && *revision == frame.generation),
+            self.prepared_for.as_ref().is_some_and(
+                |(id, revision)| *id == frame.identity && *revision == frame.generation
+            ),
             "prepare this frame generation before painting"
         );
         let repair = repair.intersection(painter.visible_bounds());
@@ -634,51 +566,59 @@ impl Renderer {
             optimizations: self.optimizations,
             sparse_repair: visible.rects().len() > 1,
         };
-        painter.viewport(repair, (0, 0), |painter| {
-            for step in self.draw_plan.values() {
-                match step {
-                    DrawStep::Layer { group, .. } => {
-                        let layer = &self.layers.prepared[group];
-                        for &region in &layer.regions {
-                            if !painter.intersects(region.intersection(repair)) {
-                                continue;
-                            }
-                            let image = playback.residency.image(layer.raster);
-                            let (width, height) = image.dimensions();
-                            painter.viewport(region, (0, 0), |painter| {
-                                painter.translated(layer.origin, |painter| {
-                                    painter.draw_image(image, 0, 0, width, height);
+        painter.with_text_fonts(&self.text_fonts, |painter| {
+            painter.viewport(repair, (0, 0), |painter| {
+                for step in self.draw_plan.values() {
+                    match step {
+                        DrawStep::Layer { group, .. } => {
+                            let layer = &self.layers.prepared[group];
+                            for &region in &layer.regions {
+                                if !painter.intersects(region.intersection(repair)) {
+                                    continue;
+                                }
+                                let image = playback.residency.image(layer.raster);
+                                let (width, height) = image.dimensions();
+                                painter.viewport(region, (0, 0), |painter| {
+                                    painter.translated(layer.origin, |painter| {
+                                        painter.draw_image(image, 0, 0, width, height);
+                                    });
                                 });
-                            });
-                            playback.stats.blits += 1;
-                        }
-                    }
-                    DrawStep::Item { instance } | DrawStep::Replay { instance } => {
-                        playback.instance(
-                            *instance,
-                            matches!(step, DrawStep::Item { .. }),
-                            painter,
-                            repair,
-                            &mut external,
-                        );
-                    }
-                    DrawStep::Clipped {
-                        instance,
-                        regions,
-                        raster,
-                    } => {
-                        for &region in regions {
-                            let clip = region.intersection(repair);
-                            if clip.is_empty() {
-                                continue;
+                                playback.stats.blits += 1;
                             }
-                            painter.viewport(clip, (0, 0), |painter| {
-                                playback.instance(*instance, *raster, painter, clip, &mut external);
-                            });
+                        }
+                        DrawStep::Item { instance } | DrawStep::Replay { instance } => {
+                            playback.instance(
+                                *instance,
+                                matches!(step, DrawStep::Item { .. }),
+                                painter,
+                                repair,
+                                &mut external,
+                            );
+                        }
+                        DrawStep::Clipped {
+                            instance,
+                            regions,
+                            raster,
+                        } => {
+                            for &region in regions {
+                                let clip = region.intersection(repair);
+                                if clip.is_empty() {
+                                    continue;
+                                }
+                                painter.viewport(clip, (0, 0), |painter| {
+                                    playback.instance(
+                                        *instance,
+                                        *raster,
+                                        painter,
+                                        clip,
+                                        &mut external,
+                                    );
+                                });
+                            }
                         }
                     }
                 }
-            }
+            })
         });
     }
 }

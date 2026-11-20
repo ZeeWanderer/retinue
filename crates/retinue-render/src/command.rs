@@ -1,10 +1,22 @@
 use super::Command;
-use std::rc::Rc;
+use std::sync::Arc;
 
 impl PartialEq for Command {
     fn eq(&self, other: &Self) -> bool {
         use Command::*;
         match (self, other) {
+            (
+                GlyphRun {
+                    origin: a,
+                    run: b,
+                    color: c,
+                },
+                GlyphRun {
+                    origin: x,
+                    run: y,
+                    color: z,
+                },
+            ) => (a, b, c) == (x, y, z),
             (
                 Fragment {
                     program: a,
@@ -38,7 +50,7 @@ impl PartialEq for Command {
                     offset: x,
                     commands: y,
                 },
-            ) => a == x && (Rc::ptr_eq(b, y) || b == y),
+            ) => a == x && (Arc::ptr_eq(b, y) || b == y),
             (
                 Fill {
                     bounds: a,
@@ -82,24 +94,6 @@ impl PartialEq for Command {
                 },
             ) => (a, b, c, d, e) == (v, w, x, y, z),
             (
-                Text {
-                    bounds: a,
-                    size: b,
-                    text: c,
-                    color: d,
-                    align: e,
-                    font: f,
-                },
-                Text {
-                    bounds: u,
-                    size: v,
-                    text: w,
-                    color: x,
-                    align: y,
-                    font: z,
-                },
-            ) => (a, b, c, d, e) == (u, v, w, x, y) && f.id() == z.id(),
-            (
                 Image {
                     bounds: a,
                     image: b,
@@ -120,7 +114,7 @@ impl PartialEq for Command {
                     bounds: x,
                     commands: y,
                 },
-            ) => a == x && (Rc::ptr_eq(b, y) || b == y),
+            ) => a == x && (Arc::ptr_eq(b, y) || b == y),
             (
                 Line {
                     from: a,
@@ -190,7 +184,6 @@ impl Command {
     pub(super) fn retained_bytes(&self) -> usize {
         size_of::<Self>()
             + match self {
-                Self::Text { text, .. } => text.capacity(),
                 Self::Polygon { points, .. } => points.capacity() * size_of::<[f32; 2]>(),
                 Self::Clip { commands, .. } | Self::Translate { commands, .. } => {
                     commands.iter().map(Self::retained_bytes).sum()

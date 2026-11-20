@@ -111,6 +111,7 @@ impl Observation {
             }
         }
         drop(accesses);
+        self.listener.end();
         attempt.complete = true;
         if changed_during_read.is_some() {
             self.listener.invalidate(changed_during_read);
@@ -130,7 +131,9 @@ impl Drop for Attempt<'_> {
     fn drop(&mut self) {
         if !self.complete {
             self.accesses.0.borrow_mut().clear();
-            self.listener.invalidate(self.mutation);
+            let deferred = self.listener.end();
+            self.listener
+                .invalidate(Mutation::latest(self.mutation, deferred));
         }
     }
 }

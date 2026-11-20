@@ -1,5 +1,6 @@
 use super::*;
-use retinue_render::{Bounds, Color, Command, TextAlignment};
+use retinue_render::{Bounds, Color, Command};
+use retinue_ui::drawing::text::{LabelAlignment, label_commands};
 use retinue_ui::{drawing::CanvasContent, drawing::DrawList, drawing::DrawingContext};
 
 #[derive(Clone, PartialEq)]
@@ -104,19 +105,20 @@ impl Content {
 
 pub(super) fn title(view: &Foundry, card: &Card, layout: &CardLayout) -> Vec<Command> {
     let rect = layout.title.1;
-    vec![Command::Text {
-        bounds: Bounds::new(
+    label_commands(
+        &view.regular,
+        Bounds::new(
             0.0,
             0.0,
             rect.width as f32 / view.scale,
             rect.height as f32 / view.scale,
         ),
-        size: 20.0,
-        text: title_text(view, card, rect.width),
-        font: view.regular.clone(),
-        color: Color::from_bgra(TEXT),
-        align: TextAlignment::Center,
-    }]
+        20.0,
+        &title_text(view, card, rect.width),
+        Color::from_bgra(TEXT),
+        LabelAlignment::Center,
+    )
+    .expect("valid foundry title")
 }
 
 pub(super) fn bounds(rect: Rect, scale: f32) -> Bounds {

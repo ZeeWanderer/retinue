@@ -7,7 +7,7 @@ use crate::{
     painter::{Painter, PixelSource},
     relocate::Plan,
 };
-use std::{num::NonZeroU32, rc::Rc, time::Instant};
+use std::{num::NonZeroU32, sync::Arc, time::Instant};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Transfer {
@@ -26,7 +26,7 @@ pub struct Trial {
     transfer: Transfer,
     size: (u32, u32),
     pixels: Vec<Vec<u8>>,
-    scenes: Vec<Option<Rc<Snapshot>>>,
+    scenes: Vec<Option<Arc<Snapshot>>>,
     latest: Option<usize>,
     damage: RepaintTracker,
     scratch: Vec<u8>,
@@ -188,9 +188,9 @@ impl Trial {
         let finish = Instant::now();
         painter.finish().map_err(|e| e.to_string())?;
         sample.finish_ns = finish.elapsed().as_nanos() as u64;
-        self.scenes[index] = Some(Rc::new(scene));
+        self.scenes[index] = Some(Arc::new(scene));
         self.latest = Some(index);
-        self.damage.submitted(index);
+        self.damage.submitted(index, repaint.ticket);
         Ok(Some(sample))
     }
 

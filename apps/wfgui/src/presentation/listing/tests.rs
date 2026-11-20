@@ -52,6 +52,170 @@ fn render(pages: &Pages) -> Vec<u8> {
 }
 
 #[test]
+fn category_retargeting_and_collapse_repair_the_previous_label() {
+    use crate::presentation::tests::{TestImages, assert_pixels_match};
+    use retinue_render::PaintFrame;
+    for scale in [1.0, 1.2, 1.75] {
+        let mut pages = pages(scale, 1);
+        pages.set_page(Page::Relics);
+        let mut images = TestImages::new();
+        let (width, height) = pages.ui.size;
+        let clip = Rect {
+            width,
+            height,
+            ..Rect::default()
+        };
+        let mut capture = PaintFrame::default();
+        let mut previous = PaintFrame::default();
+        let mut pixels = vec![0; (width * height * 4) as usize];
+        let mut now = Instant::now();
+        for (category, elapsed) in [
+            ("all", 0),
+            ("lith", 25),
+            ("axi", 70),
+            ("neo", 85),
+            ("neo", 160),
+            ("neo", 169),
+            ("neo", 170),
+            ("all", 170),
+            ("vanguard", 40),
+            ("requiem", 169),
+            ("all", 170),
+        ] {
+            pages.relics.category = category.into();
+            pages.relics.sync_category(true, now);
+            now += Duration::from_millis(elapsed);
+            pages.relics.tick(now);
+            pages.relics.reorder(&pages.quotes, true);
+            pages.layout_center();
+            images.load(&mut pages);
+            pages.ui.prepare_paint(&pages.media);
+            let snapshot = pages.ui.paint_snapshot(&mut capture, clip);
+            let frame = snapshot.frame();
+            let damage = previous
+                .replace(
+                    frame.size(),
+                    frame.scale(),
+                    frame.instances().to_vec(),
+                    frame.groups().to_vec(),
+                )
+                .unwrap();
+            let mut painter =
+                Painter::with_threads(&mut pixels, width, height, 4.try_into().unwrap()).unwrap();
+            painter.repair(&damage.regions((width, height)));
+            painter.clear();
+            pages.ui.prepare_rasters(&painter.visible_regions());
+            pages.ui.draw_prepared(&mut painter);
+            painter.finish().unwrap();
+
+            let full = render(&pages);
+            let mismatches = pixels
+                .chunks_exact(4)
+                .zip(full.chunks_exact(4))
+                .enumerate()
+                .filter(|(_, (a, b))| a.iter().zip(*b).any(|(a, b)| a.abs_diff(*b) > 2))
+                .take(8)
+                .map(|(i, (a, b))| (i as u32 % width, i as u32 / width, a.to_vec(), b.to_vec()))
+                .collect::<Vec<_>>();
+            assert!(
+                mismatches.is_empty(),
+                "repair category={category} elapsed={elapsed} scale={scale} changes={:?} first={mismatches:?}",
+                damage.regions((width, height)).rects()
+            );
+
+            let mut fresh_ui = ControlHost::new().unwrap();
+            fresh_ui.begin((width, height), scale);
+            fresh_ui.install_compiled(pages.relics_view.view(&fresh_ui));
+            fresh_ui.update_view(FrameTime::now());
+            pages.relics_view.bind(&mut fresh_ui, &pages.relics);
+            fresh_ui.finish();
+            let mut fresh = vec![0; pixels.len()];
+            let mut painter = Painter::new(&mut fresh, width, height).unwrap();
+            fresh_ui.paint(&mut painter, &pages.media);
+            painter.finish().unwrap();
+            assert_pixels_match(
+                &pixels,
+                &fresh,
+                &format!("category={category} elapsed={elapsed} scale={scale}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn listing_bottom_inset_is_scrollable_and_keeps_the_first_row_flush() {
+    for page in [Page::Inventory, Page::Relics, Page::Mastery] {
+        for scale in [0.9, 1.0, 1.2, 1.75] {
+            let mut pages = pages(scale, 1);
+            pages.set_page(page);
+            let listing = pages.listing_mut();
+            let template = listing.items[0].clone();
+            listing.items = (0..80)
+                .map(|i| {
+                    let mut item = template.clone();
+                    item.id = format!("inset-{i:03}");
+                    item
+                })
+                .collect();
+            pages.resort(true);
+            pages.layout_center();
+            let controller = match page {
+                Page::Inventory => &pages.inventory_view,
+                Page::Mastery => &pages.mastery_view,
+                _ => &pages.relics_view,
+            };
+            let order = controller.model.order.get();
+            let first = pages.ui.view_bounds(order.keys()[0]).unwrap();
+            assert_eq!(first.y, pages.listing().viewport.y);
+            pages
+                .listing_mut()
+                .scroll
+                .to(f32::MAX, false, Instant::now());
+            pages.layout_center();
+            let last = pages.ui.view_bounds(*order.keys().last().unwrap()).unwrap();
+            let viewport = pages.listing().viewport;
+            let bottom = last.y + last.height;
+            assert!(
+                (viewport.y + viewport.height - bottom).abs_diff(
+                    pages
+                        .ui
+                        .px(crate::presentation::style::SCROLL_CONTENT_INSET)
+                ) <= 1,
+                "{page:?} scale={scale} last={last:?} viewport={viewport:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn vanguard_category_is_distinct_and_all_keeps_every_family() {
+    let mut pages = pages(1.0, 1);
+    pages.set_page(Page::Relics);
+    let mut vanguard = pages.relics.items[0].clone();
+    vanguard.id = "vanguard-v1".into();
+    vanguard.name = "Vanguard V1 Relic".into();
+    vanguard.era = "vanguard".into();
+    let asset = Asset {
+        id: "vanguard-art".into(),
+        source: "wfcd".into(),
+        image_name: "vanguard.png".into(),
+    };
+    vanguard.asset = Some(asset.clone());
+    pages.relics.items.push(vanguard);
+    pages.select_listing_category(Page::Relics, "vanguard");
+    pages.layout_center();
+    assert_eq!(pages.relics.visible.len(), 1);
+    assert_eq!(
+        pages.relics.items[pages.relics.visible[0]].name,
+        "Vanguard V1 Relic"
+    );
+    assert!(pages.ui.assets().contains(&asset));
+    assert_ne!(categories(Page::Relics).last().unwrap().2, "relics");
+    pages.select_listing_category(Page::Relics, "all");
+    assert_eq!(pages.relics.visible.len(), pages.relics.items.len());
+}
+
+#[test]
 fn retained_listing_records_are_shared_until_the_source_changes() {
     let mut pages = pages(1.0, 80);
     let key = pages.inventory_view.model.cells.order().keys()[0];
@@ -116,7 +280,7 @@ fn scrolling_listing_artwork_matches_a_fresh_tree() {
                 } else {
                     &pages.relics_view
                 };
-                pages.ui.install_view(view.view(&pages.ui));
+                pages.ui.install_compiled(view.view(&pages.ui));
                 pages.layout_center();
                 let fresh = render(&pages);
                 assert_pixels_match(

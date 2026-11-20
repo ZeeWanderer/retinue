@@ -8,7 +8,7 @@ mod target;
 pub use controls::{ControlDispatch, ControlRegion, Controls};
 pub use handler::EventHandler;
 pub use router::{Dispatch, Router};
-pub use target::{Activation, FocusPolicy, HitShape, InputOptions, Interaction, Target};
+pub use target::{Activation, FocusPolicy, HitRegion, HitShape, InputOptions, Interaction, Target};
 
 use crate::{Bounds, runtime::ViewId};
 

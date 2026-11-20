@@ -17,7 +17,7 @@ fn check_fresh_tree(
 ) {
     images.load(pages);
     let retained = pixels(&pages.ui, &pages.media);
-    pages.ui.install_view(pages.build_view.view(&pages.ui));
+    pages.ui.install_compiled(pages.build_view.view(&pages.ui));
     pages.ui.begin(pages.ui.size, pages.ui.scale);
     pages.ui.update_view(FrameTime::now());
     pages.build_view.bind(&mut pages.ui, &pages.builds);
@@ -75,6 +75,25 @@ fn scrolling_and_hovered_build_content_matches_a_fresh_tree() {
 
 #[test]
 fn bounded_canvases_preserve_artwork_text_and_clips_at_fractional_origins() {
+    struct Fixture {
+        key: Key,
+        frame: Bounds,
+        viewport: Bounds,
+        offset: f32,
+    }
+    #[view]
+    impl View for Fixture {
+        fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+            ui! {
+                ZStack() {
+                    fill(controls::PANEL, 0.0)
+                    place(ScrollViewport::new(
+                        place(slot(self.key), self.frame).frame(frame(self.viewport.width, 500.0))
+                    ).position(0.0, self.offset), self.viewport)
+                }.alignment(AnchorPoint::TOP_LEADING).frame(frame(800.0, 500.0))
+            }
+        }
+    }
     let mut pages = Pages::new(Default::default()).unwrap();
     pages.fixture();
     let model = build_planner_model::Model::new(&pages.builds);
@@ -99,13 +118,11 @@ fn bounded_canvases_preserve_artwork_text_and_clips_at_fractional_origins() {
                 let viewport = m.bounds(10.0, 41.0, 700.0, 350.0);
                 let frame = piece.frame(&m);
                 let scroll_pixels = (offset * scale).round() as u32;
-                declared.install_view(ui! {
-                    ZStack() {
-                        fill(controls::PANEL, 0.0)
-                        place(ScrollViewport::new(
-                            place(slot(piece.key), frame).frame_aligned(viewport.width, 500.0, AnchorPoint::TOP_LEADING)
-                        ).position(0.0, scroll_pixels as f32 / scale), viewport)
-                    }.alignment(Alignment::Start).frame(800.0, 500.0)
+                declared.install_compiled(Fixture {
+                    key: piece.key,
+                    frame,
+                    viewport,
+                    offset: scroll_pixels as f32 / scale,
                 });
                 let size = ((800.0 * scale) as u32, (500.0 * scale) as u32);
                 declared.begin(size, scale);

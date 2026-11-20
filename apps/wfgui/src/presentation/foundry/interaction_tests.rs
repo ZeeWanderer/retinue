@@ -1,6 +1,20 @@
 use super::{tests::view, *};
 
 #[test]
+fn ime_draft_does_not_filter_foundry() {
+    use retinue_ui::desktop::winit::event::Ime;
+    let mut v = view();
+    v.focus_action(Some(Action::Search));
+    let before = v.filtered.clone();
+    assert!(v.ime(&Ime::Preedit("Em".into(), None)));
+    assert_eq!(v.query(), "");
+    assert_eq!(v.filtered, before);
+    assert!(v.ime(&Ime::Commit("Ember".into())));
+    assert_eq!(v.query(), "Ember");
+    assert_ne!(v.filtered, before);
+}
+
+#[test]
 fn component_market_and_relic_navigation_use_canonical_reward_name() {
     let mut v = Foundry::new(Default::default()).unwrap();
     v.update(model::fixture());

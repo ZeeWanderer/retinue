@@ -6,60 +6,71 @@ pub(super) struct GridView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for GridView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        let m = self.model.metrics.get();
+        place(
+            ScrollViewport(compose(GridContentView {
+                model: self.model.clone(),
+                fonts: self.fonts.clone(),
+            }))
+            .content_insets(Insets {
+                bottom: crate::presentation::style::SCROLL_CONTENT_INSET,
+                ..Insets::default()
+            })
+            .position(0.0, self.model.offset.get()),
+            m.viewport(),
+        )
+        .named(VIEWPORT)
+    }
+}
+
+#[derive(PartialEq)]
+struct GridContentView {
+    model: Model,
+    fonts: Fonts,
+}
+
+#[view]
+impl View for GridContentView {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let model = &self.model;
         let m = model.metrics.get();
         let order = model.order.get();
         let grid = m.uniform_grid();
         let extent = grid.extent(order.len()).expect("listing extent");
-        let cells = model
-            .cells
-            .order()
-            .keys()
-            .iter()
-            .map(|&id| {
-                let cell = model.cells.item(id).expect("visible cell");
-                let card = match m.page {
-                    Page::Inventory => inventory::InventoryCardView {
+        ui! {
+            LayoutView(grid.arrange(order)) {
+                ForEach(model.cells.order().keys().iter().copied(), |id| *id) { |id|
+                    let cell = model.cells.item(id).expect("visible cell");
+                    Group() {
+                    match m.page {
+                    Page::Inventory => compose(inventory::InventoryCardView {
                         id,
                         cell,
                         metrics: model.metrics.clone(),
                         fonts: self.fonts.clone(),
-                    }
-                    .into_element(),
-                    Page::Mastery => mastery::MasteryCardView {
-                        id,
-                        cell,
-                        metrics: model.metrics.clone(),
-                        context: model.context.clone(),
-                        fonts: self.fonts.clone(),
-                    }
-                    .into_element(),
-                    Page::Relics => relics::RelicCardView {
+                    }),
+                    Page::Mastery => compose(mastery::MasteryCardView {
                         id,
                         cell,
                         metrics: model.metrics.clone(),
                         context: model.context.clone(),
                         fonts: self.fonts.clone(),
+                    }),
+                    Page::Relics => compose(relics::RelicCardView {
+                        id,
+                        cell,
+                        metrics: model.metrics.clone(),
+                        context: model.context.clone(),
+                        fonts: self.fonts.clone(),
+                    }),
+                    _ => {},
                     }
-                    .into_element(),
-                    _ => unreachable!(),
-                };
-                card.id(id)
-            })
-            .collect::<Vec<_>>();
-        let content = LayoutView::new(grid.arrange(order), cells)
-            .frame_aligned(
-                extent.width,
-                extent.height,
-                retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING,
-            )
-            .id(CONTENT);
-        place(
-            ScrollViewport::new(content).position(0.0, model.offset.get()),
-            m.viewport(),
-        )
-        .id(VIEWPORT)
+                    }.named(id)
+                }
+            }.frame(frame(extent.width, extent.height)).named(CONTENT)
+        }
     }
 }

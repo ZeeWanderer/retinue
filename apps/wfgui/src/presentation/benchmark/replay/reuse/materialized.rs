@@ -3,7 +3,6 @@ use retinue_render::{
     Bounds, CacheHint, CachePolicy, CollectionContext, CollectionMotion, CollectionRow, Command,
     OptimizationContext, PaintGroup, PaintInstance, PaintKey, ProgramStore,
 };
-use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug)]
 enum Coverage {
@@ -44,7 +43,7 @@ fn trace(coverage: Coverage, scale: f32, steps: usize) -> Vec<TraceFrame> {
         PaintKey::new(10000.into(), 0),
         background_size,
         scale,
-        Rc::new(vec![Command::Fill {
+        std::sync::Arc::new(vec![Command::Fill {
             bounds: Bounds::new(0.0, 0.0, background_size.0, background_size.1),
             radius: 0.0,
             color: Color::rgb(0x121419),
@@ -68,7 +67,7 @@ fn trace(coverage: Coverage, scale: f32, steps: usize) -> Vec<TraceFrame> {
                 PaintKey::new((id as u64).into(), 0),
                 (340.0, 180.0),
                 scale,
-                Rc::new(commands),
+                std::sync::Arc::new(commands),
             )
         })
         .collect();

@@ -78,6 +78,7 @@ impl<K: Eq + Hash + Clone> Controls<K> {
                     parent: None,
                     bounds: region.bounds,
                     clip: region.clip,
+                    regions: None,
                     enabled: region.enabled,
                     input: region.input,
                 })
@@ -104,6 +105,7 @@ impl<K: Eq + Hash + Clone> Controls<K> {
                     parent: None,
                     bounds: region.bounds,
                     clip: region.clip,
+                    regions: None,
                     enabled: region.enabled,
                     input: region.input,
                 }
@@ -122,13 +124,24 @@ impl<K: Eq + Hash + Clone> Controls<K> {
         self.keys.get(&self.router.captured(PointerId::MOUSE)?)
     }
 
-    pub fn pointer(&mut self, phase: PointerPhase, position: (f32, f32)) -> ControlDispatch<K> {
-        let result = self.router.dispatch(&Event::Pointer {
+    fn dispatch_pointer(&mut self, phase: PointerPhase, position: (f32, f32)) -> super::Dispatch {
+        self.router.dispatch(&Event::Pointer {
             id: PointerId::MOUSE,
             phase,
             position,
             modifiers: Default::default(),
-        });
+        })
+    }
+
+    pub fn move_pointer(&mut self, position: (f32, f32)) -> Option<&K> {
+        let hit = self
+            .dispatch_pointer(PointerPhase::Move, position)
+            .pointer_hit?;
+        self.keys.get(&hit)
+    }
+
+    pub fn pointer(&mut self, phase: PointerPhase, position: (f32, f32)) -> ControlDispatch<K> {
+        let result = self.dispatch_pointer(phase, position);
         ControlDispatch {
             target: result.target.and_then(|id| self.keys.get(&id).cloned()),
             activated: result.activated.and_then(|id| self.keys.get(&id).cloned()),

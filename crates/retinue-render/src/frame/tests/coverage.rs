@@ -425,7 +425,7 @@ fn row_coverage_preserves_overlapping_translucent_paint_and_negative_scroll() {
                         i as u64 + 1,
                         (40.0, 30.0),
                         scale,
-                        Rc::new(vec![
+                        Arc::new(vec![
                             Command::Fill {
                                 bounds: Bounds::new(-4.0, -4.0, 48.0, 40.0),
                                 radius: 9.0,

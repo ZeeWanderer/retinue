@@ -50,6 +50,7 @@ fn window_drag_benchmark() {
                         let frame = view.begin_frame();
                         let plan = repaint.paint(index % 3, view.paint_scene().unwrap(), frame.threads(), |painter, repair| {
                             view.prepared = Some(Frame {size, scale, zoom: scale, phase: 0.0});
+                            view.prepare_rasters(repair);
                             view.draw_prepared(painter, repair)
                         }).unwrap().unwrap();
                         *changed += plan.damage.rects().iter()

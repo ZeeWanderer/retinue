@@ -6,38 +6,51 @@ pub(super) struct GridView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for GridView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        let m = self.model.metrics.get();
+        place(
+            ScrollViewport(compose(GridContentView {
+                model: self.model.clone(),
+                fonts: self.fonts.clone(),
+            }))
+            .content_insets(Insets {
+                bottom: crate::presentation::style::SCROLL_CONTENT_INSET,
+                ..Insets::default()
+            })
+            .position(0.0, self.model.offset.get()),
+            m.viewport(),
+        )
+        .named(GRID)
+        .reuse(CacheHint::Conditional)
+    }
+}
+
+#[derive(PartialEq)]
+struct GridContentView {
+    model: Model,
+    fonts: Fonts,
+}
+
+#[view]
+impl View for GridContentView {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.model.metrics.get();
         let order = self.model.order.get();
         let grid = m.uniform_grid();
         let size = grid.extent(order.len()).expect("order extent");
-        let cells = self
-            .model
-            .cells
-            .order()
-            .keys()
-            .iter()
-            .map(|&id| {
-                card::OrderCardView {
+        ui! {
+            LayoutView(grid.arrange(order)) {
+                ForEach(self.model.cells.order().keys().iter().copied(), |id| *id) { |id|
+                compose(card::OrderCardView {
                     id,
                     card: self.model.cells.item(id).unwrap(),
                     metrics: self.model.metrics.clone(),
                     fonts: self.fonts.clone(),
+                }).named(id)
                 }
-                .id(id)
-            })
-            .collect::<Vec<_>>();
-        let content = LayoutView::new(grid.arrange(order), cells).frame_aligned(
-            size.width,
-            size.height,
-            retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING,
-        );
-        place(
-            ScrollViewport::new(content).position(0.0, self.model.offset.get()),
-            m.viewport(),
-        )
-        .id(GRID)
-        .reuse(CacheHint::Conditional)
+            }.frame(frame(size.width, size.height))
+        }
     }
 }

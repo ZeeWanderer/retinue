@@ -5,6 +5,7 @@ mod composition;
 mod dock_layout;
 mod icons;
 mod identity;
+mod ime;
 mod input;
 mod navigation_view;
 mod paint_view;
@@ -23,9 +24,8 @@ use crate::{
 };
 use icons::{Icon, Icons};
 use input::PressOwner;
-use retinue_render::{
-    ImageFit, damage::Damage, painter::Painter, painter::TextLine, painter::text_width,
-};
+use retinue_render::{ImageFit, damage::Damage, painter::Painter, painter::TextLine};
+use retinue_ui::drawing::text::text_width;
 use retinue_ui::{
     Rect, desktop::accesskit, desktop::accesskit::ActionRequest, desktop::accesskit::Node,
     desktop::accesskit::NodeId, desktop::accesskit::Role, desktop::accesskit::TreeInfo,
@@ -154,6 +154,7 @@ pub struct Shell {
     focus: Option<Focus>,
     focus_visible: FocusVisible,
     window_focused: bool,
+    ime: ime::Session,
     hover_since: Instant,
     tooltip: bool,
     last_title_press: Option<(Instant, (f64, f64))>,
@@ -191,6 +192,7 @@ impl Shell {
             pages: crate::presentation::Pages::with_faces(preferences.clone(), &faces)?,
             preferences,
             page: Page::Settings,
+            ime: Default::default(),
             close_requested: false,
             geometry: Geometry::default(),
             size: (1440, 900),
@@ -224,7 +226,11 @@ impl Shell {
         shell.foundry.set_render_host(host.clone());
         shell.pages.ui.set_render_host(host.clone());
         shell.pages.rail.set_render_host(host.clone());
-        shell.composition.renderer.get_mut().set_host(host.clone());
+        shell
+            .composition
+            .renderer
+            .borrow_mut()
+            .set_host(host.clone());
         shell.foundry.set_active(false);
         shell.resize(shell.size, 1.0)?;
         Ok(shell)
@@ -688,6 +694,7 @@ impl Shell {
 
     pub fn paint(&self, painter: &mut Painter<'_>) {
         self.prepare_paint();
+        self.prepare_rasters(&painter.visible_regions());
         self.draw_prepared(painter);
     }
 
@@ -782,21 +789,78 @@ impl Shell {
         scene
     }
 
-    pub fn draw_prepared(&self, painter: &mut Painter<'_>) {
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
         use composition::*;
-        let _pass = self.render_host.begin_pass(painter.thread_count());
+        let _pass = self.render_host.begin_pass(0);
         #[cfg(all(test, feature = "profiling"))]
         let updated = Instant::now();
         let tree = self.composition.tree.borrow();
-        let mut renderer = self.composition.renderer.borrow_mut();
-        renderer.prepare_for(
+        self.composition.renderer.borrow_mut().prepare_for(
             tree.frame(),
             retinue_render::RasterMode::Replay,
-            &painter.visible_regions(),
+            repair,
         );
+        for (key, repair) in tree.frame().external_repairs(repair) {
+            match key {
+                RIGHT => self.pages.prepare_rail_rasters(&repair),
+                _ => match page_for_key(key).expect("only page hosts use live shell paint") {
+                    Page::Settings => self.settings.prepare_rasters(&repair),
+                    Page::Foundry => self.foundry.prepare_rasters(&repair),
+                    _ => self.pages.prepare_rasters(&repair),
+                },
+            }
+        }
         #[cfg(all(test, feature = "profiling"))]
-        let prepared = Instant::now();
-        renderer.draw_with(
+        self.paint_profile.set([
+            self.paint_profile.get()[0],
+            self.paint_profile.get()[1],
+            updated.elapsed(),
+            Duration::ZERO,
+        ]);
+        self.preparation_deadline.set(
+            self.render_host
+                .has_deferred()
+                .then(|| Instant::now() + FRAME),
+        );
+    }
+
+    pub fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        use composition::*;
+        retinue_render::PacketJob::prepare(
+            self.composition.renderer.clone(),
+            self.composition.tree.borrow().frame(),
+            retinue_render::RasterMode::Replay,
+            repair,
+            wake,
+            |key, repair, wake| match key {
+                RIGHT => self.pages.prepare_rail_packet(repair, wake),
+                _ => match page_for_key(key).ok_or("unknown shell paint")? {
+                    Page::Settings => self.settings.prepare_packet(repair, wake),
+                    Page::Foundry => self.foundry.prepare_packet(repair, wake),
+                    _ => self.pages.prepare_packet(repair, wake),
+                },
+            },
+        )
+    }
+
+    pub fn prepared(&self) {
+        self.preparation_deadline.set(
+            self.render_host
+                .has_deferred()
+                .then(|| Instant::now() + FRAME),
+        );
+    }
+
+    pub fn draw_prepared(&self, painter: &mut Painter<'_>) {
+        use composition::*;
+        #[cfg(all(test, feature = "profiling"))]
+        let started = Instant::now();
+        let tree = self.composition.tree.borrow();
+        self.composition.renderer.borrow_mut().draw_with(
             tree.frame(),
             painter,
             Rect {
@@ -819,14 +883,9 @@ impl Shell {
         self.paint_profile.set([
             self.paint_profile.get()[0],
             self.paint_profile.get()[1],
-            prepared - updated,
-            prepared.elapsed(),
+            self.paint_profile.get()[2],
+            started.elapsed(),
         ]);
-        self.preparation_deadline.set(
-            self.render_host
-                .has_deferred()
-                .then(|| Instant::now() + FRAME),
-        );
     }
 
     fn paint_title(&self, painter: &mut Canvas) {

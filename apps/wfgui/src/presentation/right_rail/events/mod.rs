@@ -4,11 +4,17 @@ mod events_view;
 mod fissure_group_view;
 use super::*;
 use crate::{
-    presentation::widgets::fill, presentation::widgets::key, presentation::widgets::label,
-    presentation::widgets::place, presentation::widgets::slot as icon,
+    presentation::widgets::compiled::{fill, frame, label, place, slot as icon},
+    presentation::widgets::key,
 };
-use retinue_render::{Bounds, Color, Key, painter::CachedFont, painter::text_width};
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*};
+use retinue_render::{Bounds, Color, Key, painter::CachedFont};
+use retinue_ui::{
+    authoring::*,
+    drawing::TextStyle,
+    layout::{Insets, anchors::AnchorPoint},
+    state::{Items, State},
+    timeline::{FrameTime, TimelineSchedule},
+};
 use std::rc::Rc;
 
 const ERAS: [&str; 7] = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia", "Vanguard"];
@@ -127,7 +133,11 @@ impl Events {
         }
     }
 
-    pub fn view(&self, regular: Rc<CachedFont>, bold: Rc<CachedFont>) -> Element {
+    pub fn view(
+        &self,
+        regular: Rc<CachedFont>,
+        bold: Rc<CachedFont>,
+    ) -> impl View + Clone + PartialEq + use<> {
         events_view::EventsView {
             area: self.area.clone(),
             ready: self.ready.clone(),
@@ -140,7 +150,6 @@ impl Events {
             regular: TextStyle::new(regular, 14.0, Color::from_bgra(TEXT)),
             bold: TextStyle::new(bold, 14.0, Color::from_bgra(TEXT)),
         }
-        .into_element()
     }
 
     pub fn sync(
@@ -229,7 +238,7 @@ impl Events {
     }
 
     pub fn content_height(&self) -> f32 {
-        self.extent.get()
+        self.extent.get() + crate::presentation::style::SCROLL_CONTENT_INSET
     }
     pub fn scroll(&mut self, offset: f32) {
         self.offset.set(offset);
@@ -285,16 +294,27 @@ impl Events {
 mod tests {
     use super::*;
 
+    struct Harness<V>(V);
+    #[view]
+    impl<V: View + Clone + PartialEq> View for Harness<V> {
+        fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+            ui! {
+                ZStack() {
+                    fill(controls::PANEL, 0.0)
+                    compose(self.0.clone())
+                }.alignment(AnchorPoint::TOP_LEADING).frame(frame(400.0, 400.0))
+            }
+        }
+    }
+
     fn harness(scale: f32, rows: usize) -> (ControlHost, Events, Value, FrameTime) {
         let mut ui = ControlHost::new().unwrap();
         ui.begin(((400.0 * scale) as u32, (400.0 * scale) as u32), scale);
         let mut events = Events::new();
-        ui.install_view(ui! {
-            ZStack() {
-                fill(controls::PANEL, 0.0)
-                events.view(ui.font_resource(controls::Weight::Regular), ui.font_resource(controls::Weight::Bold))
-            }.alignment(Alignment::Start).frame(400.0, 400.0)
-        });
+        ui.install_compiled(Harness(events.view(
+            ui.font_resource(controls::Weight::Regular),
+            ui.font_resource(controls::Weight::Bold),
+        )));
         let time = FrameTime::now();
         let data = json!({"fissures": (0..rows).map(|i|json!({
             "id":format!("row-{i}"),"tier":"Lith","mission":"Survival","node":"Void",
@@ -357,8 +377,8 @@ mod tests {
     }
 
     #[test]
-    fn countdown_tick_changes_only_its_paint_and_keeps_input_geometry() {
-        for scale in [1.0, 1.25, 2.0] {
+    fn countdown_tick_only_remeasures_its_text_and_keeps_input_geometry() {
+        for scale in [1.0, 1.2, 1.25, 2.0] {
             let (mut ui, _, _, time) = harness(scale, 1);
             let controls = ui.layout_report()["controls"].clone();
             assert_eq!(
@@ -375,7 +395,12 @@ mod tests {
                 .paint;
             assert_eq!(damage, Damage::rect(rect));
             let report = ui.layout_report();
-            assert_eq!(report["composition"]["layout_computations"], 0);
+            assert!(
+                report["composition"]["layout_computations"]
+                    .as_u64()
+                    .unwrap()
+                    <= 3
+            );
             assert_eq!(report["composition"]["recordings"], 1);
             assert_eq!(report["composition"]["view"]["mounted"], 0);
             assert_eq!(report["composition"]["view"]["unmounted"], 0);

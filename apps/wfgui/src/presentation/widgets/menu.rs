@@ -1,5 +1,6 @@
 use crate::presentation::style;
-use retinue_render::{painter::CachedFont, painter::TextLine, painter::wrap_text};
+use retinue_render::{painter::CachedFont, painter::TextLine};
+use retinue_ui::drawing::text::wrap_text;
 use retinue_ui::{Rect, drawing::PixelCanvas as Canvas};
 use std::rc::Rc;
 

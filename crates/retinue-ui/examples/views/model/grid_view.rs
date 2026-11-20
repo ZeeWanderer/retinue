@@ -1,13 +1,14 @@
 use super::{ITEM_COUNT, Model, card::Card, grid};
-use retinue_ui::{prelude::*, view::ViewExt};
+use retinue_ui::authoring::*;
 
 #[derive(PartialEq)]
 pub(super) struct GridView {
     pub model: Model,
 }
 
+#[view]
 impl View for GridView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let (width, height) = self.model.size.get();
         let grid = grid(width);
         let offset = self.model.offset.get();
@@ -15,21 +16,17 @@ impl View for GridView {
         let visible = grid
             .visible(ITEM_COUNT, offset, viewport_height, 1)
             .unwrap();
-        let content = LayoutView::new(
-            grid.arrange(self.model.order.clone()),
-            self.model.order.keys()[visible]
-                .iter()
-                .map(|key| {
-                    Card {
-                        number: key.value,
-                        model: self.model.clone(),
-                    }
-                    .id(*key)
-                })
-                .collect::<Vec<_>>(),
-        );
-        ScrollViewport::new(content)
-            .position(0.0, offset)
-            .frame((width - 40.0).max(1.0), viewport_height)
+        let content = ui! {
+            LayoutView(grid.arrange(self.model.order.clone())) {
+                ForEach(self.model.order.keys()[visible].iter().copied(), |key| *key) { |key|
+                    compose(Card { number: key.value, model: self.model.clone() }).named(key)
+                }
+            }
+        };
+        ScrollViewport(content).position(0.0, offset).frame(
+            Frame::new()
+                .width((width - 40.0).max(1.0))
+                .height(viewport_height),
+        )
     }
 }

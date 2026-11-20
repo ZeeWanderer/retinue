@@ -8,7 +8,22 @@ use crate::{
     damage::{Damage, Region},
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{borrow::Cow, collections::VecDeque, ops::Range, rc::Rc};
+use std::{borrow::Cow, collections::VecDeque, ops::Range, sync::Arc};
+
+mod external;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct Identity(u64);
+
+impl Default for Identity {
+    fn default() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        assert_ne!(id, 0, "frame identity space exhausted");
+        Self(id)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PaintPlacement {
@@ -86,12 +101,12 @@ impl PaintGroup {
 }
 
 pub struct PaintFrame {
-    pub(crate) identity: Rc<()>,
+    pub(crate) identity: Identity,
     pub(crate) generation: u64,
     pub(crate) size: (u32, u32),
     pub(crate) scale: f32,
-    pub(crate) chunks: Vec<PaintInstance>,
-    pub(crate) groups: Vec<PaintGroup>,
+    pub(crate) chunks: Arc<Vec<PaintInstance>>,
+    pub(crate) groups: Arc<Vec<PaintGroup>>,
     pub(crate) changes: Changes,
     history: VecDeque<Changes>,
     pub(crate) properties: Properties,
@@ -125,12 +140,12 @@ pub(crate) struct Changes {
 impl Default for PaintFrame {
     fn default() -> Self {
         Self {
-            identity: Rc::new(()),
+            identity: Identity::default(),
             generation: 0,
             size: (0, 0),
             scale: 1.0,
-            chunks: Vec::new(),
-            groups: Vec::new(),
+            chunks: Default::default(),
+            groups: Default::default(),
             changes: Changes::default(),
             history: VecDeque::new(),
             properties: Properties::default(),
@@ -309,8 +324,12 @@ impl PaintFrame {
                 .visible(instance.origin, instance.clip);
         }
         let resized = self.size != size || self.scale != scale;
-        let (changed, damage) = difference(&self.chunks, &instances);
-        if resized || changed || self.groups != groups || properties_changed {
+        let (changed, damage) = if resized {
+            (true, Damage::Full)
+        } else {
+            difference(&self.chunks, &instances)
+        };
+        if resized || changed || *self.groups != groups || properties_changed {
             let topology = resized
                 || self.groups.len() != groups.len()
                 || self
@@ -350,11 +369,11 @@ impl PaintFrame {
             }
             self.size = size;
             self.scale = scale;
-            self.chunks = instances;
-            self.groups = groups;
+            self.chunks = Arc::new(instances);
+            self.groups = Arc::new(groups);
             self.properties = properties;
         }
-        Ok(if resized { Damage::Full } else { damage })
+        Ok(damage)
     }
 
     pub fn property_stats(&self) -> PropertyStats {
@@ -394,7 +413,7 @@ impl PaintFrame {
         if self.groups[index].context != context {
             self.begin_change(false);
             self.changes.groups.push(index);
-            self.groups[index].context = context;
+            Arc::make_mut(&mut self.groups)[index].context = context;
         }
         Ok(())
     }
@@ -500,7 +519,7 @@ impl PaintFrame {
         }
         self.begin_change(false);
         for update in groups {
-            self.groups[update.index].context = update.context;
+            Arc::make_mut(&mut self.groups)[update.index].context = update.context;
             self.changes.groups.push(update.index);
         }
         let mut indices = properties.instances;
@@ -514,7 +533,7 @@ impl PaintFrame {
         let mut placements = placements.into_iter().peekable();
         let mut damage = Vec::new();
         for index in indices {
-            let instance = &mut self.chunks[index];
+            let instance = &mut Arc::make_mut(&mut self.chunks)[index];
             let before = instance.visible;
             let mut changed = false;
             let mut repaint = false;
@@ -555,11 +574,10 @@ impl PaintFrame {
         Ok(Damage::region(Region::new(damage)))
     }
 
-    /// Retains commands and resources, not external callback state. Snapshots
-    /// remain renderer-thread owned, like their font and image resources.
+    /// Retains immutable commands and resources, not external callback state.
     pub fn snapshot(&self) -> FrameSnapshot {
         FrameSnapshot(Self {
-            identity: self.identity.clone(),
+            identity: self.identity,
             generation: self.generation,
             size: self.size,
             scale: self.scale,
@@ -569,6 +587,25 @@ impl PaintFrame {
             history: self.history.clone(),
             properties: self.properties.clone(),
         })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct FrozenFrame {
+    pub identity: Identity,
+    pub generation: u64,
+    pub chunks: Arc<Vec<PaintInstance>>,
+    pub groups: Arc<Vec<PaintGroup>>,
+}
+
+impl PaintFrame {
+    pub(crate) fn freeze(&self) -> FrozenFrame {
+        FrozenFrame {
+            identity: self.identity,
+            generation: self.generation,
+            chunks: self.chunks.clone(),
+            groups: self.groups.clone(),
+        }
     }
 }
 

@@ -7,12 +7,15 @@ use retinue_render::{
     damage::Damage,
     painter::{Painter, RasterImage, straight_rgba},
 };
-use retinue_ui::{image::ImageRendition, prelude::*, runtime::ViewTree};
+use retinue_ui::{
+    image::{ImageRendition, ImageResource},
+    ir::InstanceGraph,
+};
 use serde_json::json;
-use std::{fs, path::PathBuf, rc::Rc};
+use std::{fs, path::PathBuf};
 
 fn artwork(color: Color) -> ImageSource {
-    Rc::new(
+    ::std::sync::Arc::new(
         RasterImage::render(160, 72, |painter| {
             painter.fill_rounded_rect(0, 0, 160, 72, 4, color.bgra());
             painter.fill_rounded_rect(12, 12, 48, 48, 8, Color::rgb(0x375a68).bgra());
@@ -25,7 +28,7 @@ fn artwork(color: Color) -> ImageSource {
 }
 
 fn render(
-    tree: &ViewTree,
+    tree: &InstanceGraph,
     renderer: &mut Renderer,
     pixels: &mut [u8],
     damage: Damage,
@@ -51,8 +54,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let image = ImageResource::default();
         let request = image.begin();
         let model = model::Model::new("Retained Card".into(), image.clone());
-        let mut composed = ViewTree::new(card::Card(model.clone()).padding(20.0), || {});
-        let mut drawn = ViewTree::new(drawn_card::DrawnCard(model.clone()).padding(20.0), || {});
+        let mut composed = InstanceGraph::with_root_view(
+            card::Card {
+                model: model.clone(),
+            },
+            Default::default(),
+        )?;
+        let mut drawn = InstanceGraph::with_root_view(
+            drawn_card::DrawnCard {
+                model: model.clone(),
+            },
+            Default::default(),
+        )?;
         let size = ((240.0 * scale) as u32, (190.0 * scale) as u32);
         let mut buffers = [
             vec![0; size.0 as usize * size.1 as usize * 4],
@@ -93,7 +106,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 _ => {}
             }
             for (which, tree) in [&mut composed, &mut drawn].into_iter().enumerate() {
-                let damage = tree.update(size, scale)?;
+                let update = tree.advance(size, scale, None)?;
+                let std::task::Poll::Ready(damage) = update.completion? else {
+                    unreachable!("inline layout")
+                };
                 render(
                     tree,
                     &mut renderers[which],
@@ -112,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "partial repair differs: {name}/{scale}/{which}"
                 );
                 report.push(json!({ "case": name, "scale": scale, "mode": which,
-                    "bodies": tree.stats.bodies, "projected": tree.stats.projected,
+                    "bodies": update.work.owners_evaluated, "projected": update.work.nodes_materialized,
                     "layout": tree.scene().stats.layout_computations, "recordings": tree.scene().stats.recordings }));
                 straight_rgba(&buffers[which], size.0, size.1)?.save(output.join(format!(
                     "card-{}-{name}-{which}.png",

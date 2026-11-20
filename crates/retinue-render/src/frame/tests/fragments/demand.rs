@@ -102,6 +102,97 @@ fn unseen_fragment_waits_for_paint_without_requiring_a_new_scene_revision() {
 }
 
 #[test]
+fn tiny_repairs_do_not_claim_full_fragment_reuse() {
+    let mut frame = PaintFrame::default();
+    populate(
+        &mut frame,
+        &mut ProgramStore::default(),
+        1.0,
+        false,
+        false,
+        false,
+    );
+    let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
+    let pixels = Region::new(frame.instances().iter().map(|item| Rect {
+        x: (item.origin().0 + 12) as u32,
+        y: (item.origin().1 + 10) as u32,
+        width: 1,
+        height: 1,
+    }));
+    renderer.prepare_for(&frame, RasterMode::Explicit, &pixels);
+    assert_eq!(renderer.stats.preparation_tasks, 0);
+    assert!(renderer.fragments.selected.is_empty());
+    renderer.prepare_for(&frame, RasterMode::Explicit, &full(&frame));
+    assert_eq!(renderer.stats.prepared_fragments, 1);
+    assert_current_pixels(&frame, &mut renderer);
+}
+
+#[test]
+fn rejected_fragment_retries_after_a_sibling_releases_host_memory() {
+    let host = crate::RenderHost::new(crate::HostPolicy {
+        peak_bytes: 7000,
+        ..crate::HostPolicy::desktop()
+    });
+    let mut frame = PaintFrame::default();
+    populate(
+        &mut frame,
+        &mut ProgramStore::default(),
+        1.0,
+        false,
+        false,
+        false,
+    );
+    let mut first = Renderer::new(ResidencyPolicy::desktop(0));
+    first.set_host(host.clone());
+    first.prepare(&frame, RasterMode::Explicit);
+    assert_eq!(first.stats.prepared_fragments, 1);
+    let mut second = Renderer::new(ResidencyPolicy::desktop(0));
+    second.set_host(host);
+    second.prepare(&frame, RasterMode::Explicit);
+    assert!(second.stats.rejected_rasters > 0);
+    assert!(second.fragments.selected.is_empty());
+    first.clear_cache();
+    second.prepare(&frame, RasterMode::Explicit);
+    assert_eq!(second.stats.prepared_fragments, 1);
+    assert_current_pixels(&frame, &mut second);
+}
+
+#[test]
+fn stable_hint_does_not_promote_sparse_cheap_drawing_to_a_large_raster() {
+    let commands = (0..17)
+        .map(|i| Command::Fill {
+            bounds: Bounds::new((i * 31) as f32, (i * 31) as f32, 1.0, 1.0),
+            radius: 0.0,
+            color: Color::rgb(0x205040),
+        })
+        .collect();
+    let child = PaintProgram::new(1, (512.0, 512.0), 1.0, Arc::new(commands)).unwrap();
+    let root = PaintProgram::new(2, (512.0, 512.0), 1.0, Arc::new(vec![fragment(child)])).unwrap();
+    let clip = Rect {
+        width: 560,
+        height: 560,
+        ..Rect::default()
+    };
+    let mut frame = PaintFrame::default();
+    frame
+        .replace(
+            (560, 560),
+            1.0,
+            (0..4)
+                .map(|i| PaintInstance::new((i + 1).into(), root.clone(), (i as i32 * 10, 0), clip))
+                .collect(),
+            Vec::new(),
+        )
+        .unwrap();
+    let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
+    for _ in 0..8 {
+        check(&frame, &mut renderer);
+        assert_eq!(renderer.stats.preparation_tasks, 0);
+        assert!(renderer.fragments.selected.is_empty());
+    }
+}
+
+#[test]
 fn empty_repair_does_not_keep_obsolete_or_removed_consumers() {
     let mut frame = PaintFrame::default();
     let mut store = ProgramStore::default();

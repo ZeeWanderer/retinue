@@ -2,6 +2,9 @@ use crate::Rect;
 
 mod region;
 pub use region::Region;
+mod pending;
+use pending::Pending;
+pub use pending::Ticket;
 
 /// Invalidated buffer pixels. Full repaint remains the fallback for layout changes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -88,18 +91,19 @@ impl Damage {
 pub struct Repaint {
     pub repair: Region,
     pub damage: Region,
+    pub ticket: Ticket,
 }
 
 /// Backends reporting buffer age need the damage since that buffer was presented.
 pub struct AgeRepaintTracker {
-    pending: Damage,
+    pending: Pending,
     history: std::collections::VecDeque<Damage>,
 }
 
 impl Default for AgeRepaintTracker {
     fn default() -> Self {
         Self {
-            pending: Damage::Full,
+            pending: Pending::default(),
             history: Default::default(),
         }
     }
@@ -107,57 +111,61 @@ impl Default for AgeRepaintTracker {
 
 impl AgeRepaintTracker {
     pub fn invalidate(&mut self, damage: Damage) {
-        self.pending = std::mem::take(&mut self.pending).union(damage);
+        self.pending.invalidate(damage);
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.pending != Damage::None
+        self.pending.is_dirty()
     }
 
     pub fn reset(&mut self) {
-        self.pending = Damage::Full;
+        self.pending.reset();
         self.history.clear();
     }
 
     pub fn plan(&mut self, age: u8, size: (u32, u32)) -> Option<Repaint> {
-        let damage = self.pending.regions(size);
-        if damage.is_empty() {
-            self.pending = Damage::None;
-            return None;
-        }
+        let (ticket, damage) = self.pending.begin(None, size)?;
         let repair = if age == 0 || usize::from(age - 1) > self.history.len() {
             Damage::Full
         } else {
             self.history
                 .iter()
                 .take(usize::from(age - 1))
-                .fold(self.pending.clone(), |damage, old| {
+                .fold(Damage::region(damage.clone()), |damage, old| {
                     damage.union(old.clone())
                 })
         };
         Some(Repaint {
             repair: repair.regions(size),
             damage,
+            ticket,
         })
     }
 
-    pub fn submitted(&mut self) {
-        self.history.push_front(std::mem::take(&mut self.pending));
+    pub fn current(&self, ticket: Ticket) -> bool {
+        self.pending.current(ticket)
+    }
+
+    pub fn submitted(&mut self, ticket: Ticket) -> bool {
+        let Some(damage) = self.pending.acknowledge(ticket) else {
+            return false;
+        };
+        self.history.push_front(damage);
         self.history.truncate(8);
-        self.pending = Damage::None;
+        true
     }
 }
 
 /// Tracks repairs separately from compositor damage, including unavailable buffers.
 pub struct RepaintTracker {
-    pending: Damage,
+    pending: Pending,
     buffers: Vec<Damage>,
 }
 
 impl Default for RepaintTracker {
     fn default() -> Self {
         Self {
-            pending: Damage::Full,
+            pending: Pending::default(),
             buffers: Vec::new(),
         }
     }
@@ -168,14 +176,14 @@ impl RepaintTracker {
         if damage == Damage::None {
             return;
         }
-        self.pending = std::mem::take(&mut self.pending).union(damage.clone());
+        self.pending.invalidate(damage.clone());
         for buffer in &mut self.buffers {
             *buffer = std::mem::take(buffer).union(damage.clone());
         }
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.pending != Damage::None
+        self.pending.is_dirty()
     }
 
     pub fn add_buffer(&mut self) {
@@ -184,26 +192,31 @@ impl RepaintTracker {
 
     /// Call when discarding the host's buffers, including resize and remap.
     pub fn reset(&mut self) {
-        self.pending = Damage::Full;
+        self.pending.reset();
         self.buffers.clear();
     }
 
     pub fn plan(&mut self, index: usize, size: (u32, u32)) -> Option<Repaint> {
-        let damage = self.pending.regions(size);
-        if damage.is_empty() {
-            self.pending = Damage::None;
-            return None;
-        }
+        let (ticket, damage) = self.pending.begin(Some(index), size)?;
         Some(Repaint {
             repair: self.buffers[index].regions(size),
             damage,
+            ticket,
         })
     }
 
-    /// Complete after paint and submission, before processing another invalidation.
-    pub fn submitted(&mut self, index: usize) {
-        self.buffers[index] = Damage::None;
-        self.pending = Damage::None;
+    pub fn current(&self, index: usize, ticket: Ticket) -> bool {
+        ticket.slot == Some(index) && self.pending.current(ticket)
+    }
+
+    /// Acknowledge only this plan; newer invalidations also remain on its target.
+    pub fn submitted(&mut self, index: usize, ticket: Ticket) -> bool {
+        if !self.current(index, ticket) {
+            return false;
+        }
+        self.pending.acknowledge(ticket);
+        self.buffers[index] = self.pending.queued.clone();
+        true
     }
 
     pub fn failed(&mut self, index: usize) {
@@ -212,243 +225,4 @@ impl RepaintTracker {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const SIZE: (u32, u32) = (100, 60);
-    const A: Rect = Rect {
-        x: 10,
-        y: 20,
-        width: 5,
-        height: 7,
-    };
-    const B: Rect = Rect { x: 30, ..A };
-    const C: Rect = Rect { y: 40, ..A };
-
-    #[test]
-    fn unions_preserve_gaps_until_repair_planning() {
-        let damage = Damage::rect(A)
-            .union(Damage::rect(B))
-            .union(Damage::rect(C));
-        let region = damage.regions(SIZE);
-        assert_eq!(region.area(), 3 * region::area(A));
-        assert!(!region.intersects(Rect { x: 20, ..A }));
-        let mut tracker = AgeRepaintTracker::default();
-        tracker.submitted();
-        tracker.invalidate(damage);
-        tracker.submitted();
-        tracker.invalidate(Damage::rect(Rect { x: 50, ..A }));
-        let repaint = tracker.plan(2, SIZE).unwrap();
-        assert_eq!(repaint.damage.area(), region::area(A));
-        assert_eq!(repaint.repair.area(), 4 * region::area(A));
-        assert!(!repaint.repair.intersects(Rect { x: 20, ..A }));
-    }
-
-    #[test]
-    fn aged_buffers_consume_offscreen_damage_without_advancing_history() {
-        let mut tracker = AgeRepaintTracker::default();
-        tracker.submitted();
-        tracker.invalidate(Damage::rect(A));
-        tracker.submitted();
-        tracker.invalidate(Damage::rect(Rect { x: 200, ..A }));
-        assert_eq!(tracker.plan(1, SIZE), None);
-        assert!(!tracker.is_dirty());
-        tracker.invalidate(Damage::rect(B));
-        assert_eq!(tracker.plan(2, SIZE).unwrap().repair, Region::new([A, B]));
-    }
-
-    #[test]
-    fn aged_buffers_repair_only_changes_since_their_last_frame() {
-        let mut tracker = AgeRepaintTracker::default();
-        tracker.submitted();
-        tracker.invalidate(Damage::rect(A));
-        assert_eq!(
-            tracker.plan(1, SIZE).unwrap(),
-            Repaint {
-                damage: A.into(),
-                repair: A.into()
-            }
-        );
-        tracker.submitted();
-        tracker.invalidate(Damage::rect(B));
-        assert_eq!(
-            tracker.plan(2, SIZE).unwrap(),
-            Repaint {
-                damage: B.into(),
-                repair: Region::new([A, B])
-            }
-        );
-        for age in [0, 10, 255] {
-            assert_eq!(
-                tracker.plan(age, SIZE).unwrap().repair,
-                Damage::Full.regions(SIZE)
-            );
-        }
-        tracker.reset();
-        assert_eq!(
-            tracker.plan(1, SIZE).unwrap().damage,
-            Damage::Full.regions(SIZE)
-        );
-        tracker.submitted();
-        assert!(!tracker.is_dirty());
-        assert_eq!(tracker.plan(0, SIZE), None);
-    }
-
-    fn prepared(count: usize) -> RepaintTracker {
-        let mut tracker = RepaintTracker::default();
-        for index in 0..count {
-            tracker.add_buffer();
-            tracker.submitted(index);
-        }
-        tracker
-    }
-
-    #[test]
-    fn repair_includes_changes_while_buffer_was_unavailable() {
-        let mut tracker = prepared(3);
-        tracker.invalidate(Damage::rect(A));
-        assert_eq!(
-            tracker.plan(0, SIZE),
-            Some(Repaint {
-                repair: A.into(),
-                damage: A.into()
-            })
-        );
-        tracker.submitted(0);
-        tracker.invalidate(Damage::rect(B));
-        assert_eq!(
-            tracker.plan(1, SIZE),
-            Some(Repaint {
-                repair: Region::new([A, B]),
-                damage: B.into()
-            })
-        );
-        tracker.submitted(1);
-        tracker.invalidate(Damage::rect(C));
-        assert_eq!(
-            tracker.plan(2, SIZE),
-            Some(Repaint {
-                repair: Region::new([A, B, C]),
-                damage: C.into()
-            })
-        );
-        assert_eq!(
-            tracker.plan(0, SIZE),
-            Some(Repaint {
-                repair: Region::new([B, C]),
-                damage: C.into()
-            })
-        );
-        tracker.submitted(2);
-        assert!(!tracker.is_dirty());
-    }
-
-    #[test]
-    fn new_buffer_needs_full_repair_but_not_full_compositor_damage() {
-        let mut tracker = prepared(1);
-        tracker.invalidate(Damage::rect(A));
-        tracker.add_buffer();
-        let plan = tracker.plan(1, SIZE).unwrap();
-        assert_eq!(plan.repair, Damage::Full.regions(SIZE));
-        assert_eq!(plan.damage, A.into());
-    }
-
-    #[test]
-    fn coalesces_changes_without_a_free_buffer() {
-        let mut tracker = prepared(3);
-        tracker.invalidate(Damage::rect(A));
-        tracker.invalidate(Damage::rect(B));
-        let expected = Some(Repaint {
-            repair: Region::new([A, B]),
-            damage: Region::new([A, B]),
-        });
-        assert_eq!(tracker.plan(0, SIZE), expected);
-        assert_eq!(tracker.plan(0, SIZE), expected);
-        assert!(tracker.is_dirty());
-    }
-
-    #[test]
-    fn failed_paint_preserves_damage_and_requires_full_repair() {
-        let mut tracker = prepared(1);
-        tracker.invalidate(Damage::rect(A));
-        tracker.plan(0, SIZE).unwrap();
-        tracker.failed(0);
-        assert!(tracker.is_dirty());
-        assert_eq!(
-            tracker.plan(0, SIZE).unwrap(),
-            Repaint {
-                repair: Damage::Full.regions(SIZE),
-                damage: A.into(),
-            }
-        );
-    }
-
-    #[test]
-    fn resize_or_remap_resets_buffer_validity() {
-        let mut tracker = prepared(3);
-        tracker.reset();
-        tracker.add_buffer();
-        let full = Damage::Full.regions((200, 120));
-        assert_eq!(
-            tracker.plan(0, (200, 120)),
-            Some(Repaint {
-                repair: full.clone(),
-                damage: full
-            })
-        );
-    }
-
-    #[test]
-    fn clips_damage_and_consumes_offscreen_changes() {
-        let mut tracker = prepared(1);
-        tracker.invalidate(Damage::rect(Rect {
-            x: 95,
-            y: 55,
-            width: 10,
-            height: 10,
-        }));
-        let rect = Rect {
-            x: 95,
-            y: 55,
-            width: 5,
-            height: 5,
-        };
-        assert_eq!(
-            tracker.plan(0, SIZE),
-            Some(Repaint {
-                repair: rect.into(),
-                damage: rect.into()
-            })
-        );
-        tracker.submitted(0);
-        tracker.invalidate(Damage::rect(Rect { x: u32::MAX, ..A }));
-        assert_eq!(tracker.plan(0, SIZE), None);
-        assert!(!tracker.is_dirty());
-        assert_eq!(Damage::rect(Rect { width: 0, ..A }), Damage::None);
-    }
-
-    #[test]
-    fn margin_saturates_at_output_origin_and_integer_limit() {
-        let rect = Rect {
-            x: 1,
-            y: 1,
-            width: 2,
-            height: 2,
-        };
-        assert_eq!(
-            rect.expanded(3),
-            Rect {
-                x: 0,
-                y: 0,
-                width: 6,
-                height: 6
-            }
-        );
-        let far = Rect {
-            x: u32::MAX - 1,
-            ..rect
-        }
-        .expanded(3);
-        assert_eq!(far.x + far.width, u32::MAX);
-    }
-}
+mod tests;

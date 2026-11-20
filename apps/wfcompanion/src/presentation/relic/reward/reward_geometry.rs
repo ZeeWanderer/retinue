@@ -1,7 +1,7 @@
 use super::reward_view;
 use crate::presentation::geometry::Rect;
 use retinue_render::Key;
-use retinue_ui::runtime::ViewTree;
+use retinue_ui::ir::InstanceGraph;
 
 const REFERENCE_HEIGHT: f64 = 1080.0;
 const REFERENCE_WIDTH: f64 = 1000.0;
@@ -118,19 +118,15 @@ pub(super) fn compute(
     card_specs: &[CardSpec],
 ) -> Result<RewardGeometry, String> {
     let window = relic_overlay_bounds(screen_width, screen_height);
-    let mut tree = ViewTree::new(
+    let mut tree = InstanceGraph::with_root_view(
         reward_view::RewardView {
             window,
             cards: card_specs.iter().take(4).copied().collect(),
         },
-        || {},
-    );
-    tree.update((screen_width, screen_height), 1.0)?;
-    let bounds = |slot: Slot| {
-        tree.geometry(tree.unique(Key::from(slot)).unwrap().unwrap())
-            .unwrap()
-            .hit
-    };
+        Default::default(),
+    )?;
+    tree.update_inline((screen_width, screen_height), 1.0)?;
+    let bounds = |slot: Slot| tree.named_bounds(Key::from(slot)).unwrap().unwrap().hit;
     Ok(RewardGeometry {
         window,
         shell: bounds(Slot::Shell),
@@ -321,19 +317,16 @@ mod tests {
             let layout = compute(2560, 1440, &specs).unwrap();
             let first = layout.reward_cards.first().unwrap().card;
             let last = layout.reward_cards.last().unwrap().card;
-            let mut tree = ViewTree::new(
+            let mut tree = InstanceGraph::with_root_view(
                 reward_view::RewardView {
                     window: layout.window,
                     cards: specs,
                 },
-                || {},
-            );
-            tree.update((2560, 1440), 1.0).unwrap();
-            let logical = |slot| {
-                tree.geometry(tree.unique(Key::from(slot)).unwrap().unwrap())
-                    .unwrap()
-                    .layout
-            };
+                Default::default(),
+            )
+            .unwrap();
+            tree.update_inline((2560, 1440), 1.0).unwrap();
+            let logical = |slot| tree.named_bounds(Key::from(slot)).unwrap().unwrap().layout;
             let cards = logical(Slot::Cards);
             let a = logical(Slot::Card(0));
             let b = logical(Slot::Card(count - 1));

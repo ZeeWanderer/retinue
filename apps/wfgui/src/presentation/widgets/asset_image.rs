@@ -3,7 +3,7 @@ use crate::{
     data::foundry::Asset,
     domain::media::image_store::{ImageHandle, ImageStore},
 };
-use retinue_ui::prelude::*;
+use retinue_ui::authoring::ViewContext;
 
 #[derive(PartialEq)]
 enum Source {
@@ -44,13 +44,15 @@ impl AssetImage {
     }
 }
 
-impl View for AssetImage {
-    fn body(&self, cx: &mut ViewContext<'_>) -> impl IntoElement {
+#[retinue_ui::authoring::view]
+impl retinue_ui::authoring::View for AssetImage {
+    fn body(&self, cx: &mut ViewContext<'_>) -> impl retinue_ui::authoring::Body {
+        use retinue_ui::authoring::{compose, empty, ui};
         ui! {
             if let Some(image) = self.resolve(cx) {
-                LeasedImage { image }
+                compose(LeasedImage { image })
             } else {
-                Canvas::new(retinue_ui::drawing::DrawList::default())
+                empty()
             }
         }
     }

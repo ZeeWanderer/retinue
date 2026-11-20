@@ -1,21 +1,35 @@
 use super::TextStyle;
-use crate::Bounds;
+use crate::{
+    Bounds,
+    layout::{Layout, LayoutResult},
+};
 use retinue_render::{Color, Command, ImageFit, ImageSource};
-use std::rc::Rc;
+use std::sync::Arc;
 
-pub struct DrawingContext {
+pub struct DrawingContext<'a> {
     pub bounds: Bounds,
     pub text_style: TextStyle,
     commands: Vec<Command>,
+    layout: LayoutResult<'a>,
 }
 
-impl DrawingContext {
+impl<'a> DrawingContext<'a> {
     pub fn new(bounds: Bounds, text_style: TextStyle) -> Self {
         Self {
             bounds,
             text_style,
             commands: Vec::new(),
+            layout: LayoutResult::default(),
         }
+    }
+
+    pub fn with_layout(mut self, layout: LayoutResult<'a>) -> Self {
+        self.layout = layout;
+        self
+    }
+
+    pub fn layout<L: Layout>(&self) -> Option<&'a L::Cache> {
+        self.layout.get::<L>()
     }
 
     pub fn finish(self) -> Vec<Command> {
@@ -23,6 +37,15 @@ impl DrawingContext {
     }
     pub fn emit(&mut self, command: Command) {
         self.commands.push(command);
+    }
+
+    pub fn shaped_text(
+        &mut self,
+        text: &super::text::shaping::ShapedText,
+        origin: (f32, f32),
+        color: Color,
+    ) {
+        self.commands.extend(text.commands(origin, color));
     }
 
     pub fn fill(&mut self, bounds: Bounds, radius: f32, color: Color) {
@@ -69,11 +92,11 @@ impl DrawingContext {
     }
 
     pub fn clipped(&mut self, bounds: Bounds, draw: impl FnOnce(&mut Self)) {
-        let mut child = Self::new(self.bounds, self.text_style.clone());
+        let mut child = Self::new(self.bounds, self.text_style.clone()).with_layout(self.layout);
         draw(&mut child);
         self.emit(Command::Clip {
             bounds,
-            commands: Rc::new(child.commands),
+            commands: Arc::new(child.commands),
         });
     }
 
@@ -86,11 +109,12 @@ impl DrawingContext {
                 self.bounds.height,
             ),
             self.text_style.clone(),
-        );
+        )
+        .with_layout(self.layout);
         draw(&mut child);
         self.emit(Command::Translate {
             offset,
-            commands: Rc::new(child.commands),
+            commands: Arc::new(child.commands),
         });
     }
 }

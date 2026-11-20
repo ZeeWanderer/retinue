@@ -98,4 +98,40 @@ impl<T: 'static> Items<T> {
         drop(entries);
         Ok(self.0.order.set(order) | changed)
     }
+
+    /// Publish a new order without reading or replacing retained row values.
+    pub fn set_order_with(&self, order: KeyedOrder, mut enter: impl FnMut(usize, Key) -> T)
+    where
+        T: PartialEq,
+    {
+        let old = self.order();
+        if old == order {
+            return;
+        }
+        let added: Vec<_> = order
+            .keys()
+            .iter()
+            .enumerate()
+            .filter(|(_, key)| old.index(**key).is_none())
+            .map(|(index, &key)| (key, enter(index, key)))
+            .collect();
+        let mut entries = self.0.entries.borrow_mut();
+        entries.retired.retain(|_, row| row.upgrade().is_some());
+        for key in old.keys().iter().filter(|k| order.index(**k).is_none()) {
+            let row = entries.current.remove(key).expect("keyed row");
+            entries.retired.insert(*key, row.downgrade());
+        }
+        for (key, value) in added {
+            let row =
+                if let Some(row) = entries.retired.remove(&key).and_then(|weak| weak.upgrade()) {
+                    row.set(value);
+                    row
+                } else {
+                    State::new(value)
+                };
+            entries.current.insert(key, row);
+        }
+        drop(entries);
+        self.0.order.set(order);
+    }
 }

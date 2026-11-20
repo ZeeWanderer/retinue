@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 mod background;
 mod coverage;
 mod deferred;
@@ -25,7 +26,7 @@ fn viewport() -> Rect {
 }
 
 fn item(id: u64, revision: u64, origin: (i32, i32), scale: f32) -> PaintInstance {
-    let commands = Rc::new(vec![
+    let commands = Arc::new(vec![
         Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 40.0, 30.0),
             radius: 0.0,
@@ -105,8 +106,8 @@ fn placement_changes_share_programs_and_preserve_rasters() {
     frame.replace(SIZE, 1.0, vec![moved], Vec::new()).unwrap();
     paint(&frame, &mut renderer, RasterMode::Explicit);
     assert_eq!(renderer.stats.prepared_rasters, 0);
-    assert!(Rc::ptr_eq(frame.chunks[0].program.commands(), &commands));
-    assert!(Rc::ptr_eq(
+    assert!(Arc::ptr_eq(frame.chunks[0].program.commands(), &commands));
+    assert!(Arc::ptr_eq(
         snapshot.frame().chunks[0].program.commands(),
         &commands
     ));
@@ -165,7 +166,7 @@ fn snapshot_retains_image_lease_until_its_last_consumer_drops() {
         1,
         (12.0, 12.0),
         1.0,
-        Rc::new(vec![Command::Image {
+        Arc::new(vec![Command::Image {
             bounds: Bounds::new(0.0, 0.0, 12.0, 12.0),
             image: image.into(),
             fit: ImageFit::Stretch,
@@ -193,6 +194,31 @@ fn snapshot_retains_image_lease_until_its_last_consumer_drops() {
     );
     drop(snapshot);
     assert_eq!(images.stats().live_bytes, 0);
+}
+
+#[test]
+fn resizing_publishes_full_damage_and_preserves_the_previous_snapshot() {
+    let mut frame = PaintFrame::default();
+    frame
+        .replace(SIZE, 1.0, vec![item(1, 0, (5, 6), 1.0)], vec![])
+        .unwrap();
+    let old = frame.snapshot();
+    for (size, scale) in [((100, 80), 1.0), ((100, 80), 1.25)] {
+        let current = item(1, 0, (5, 6), scale);
+        let generation = frame.generation();
+        assert_eq!(
+            frame.replace(size, scale, vec![current.clone()], vec![]),
+            Ok(Damage::Full)
+        );
+        assert!(frame.changes_since(generation).unwrap().topology);
+        assert_eq!(frame.instances()[0].clip().width, size.0);
+        assert_eq!(
+            frame.replace(size, scale, vec![current], vec![]),
+            Ok(Damage::None)
+        );
+    }
+    assert_eq!((old.frame().size(), old.frame().scale()), (SIZE, 1.0));
+    assert_eq!(old.frame().instances()[0].clip(), viewport());
 }
 
 #[test]
@@ -354,7 +380,7 @@ fn snapshots_report_live_callback_dependencies() {
         1,
         (10.0, 10.0),
         1.0,
-        Rc::new(vec![Command::External {
+        Arc::new(vec![Command::External {
             bounds: Bounds::new(0.0, 0.0, 10.0, 10.0),
             key: 1.into(),
         }]),

@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use retinue_ui::presentation_buffers::{Buffers, buffer_size};
+use retinue_ui::surface::PublishedCursor;
 use serde_json::Value;
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState, Region};
 use smithay_client_toolkit::delegate_compositor;
@@ -83,6 +84,9 @@ pub(crate) fn run(
     layer.commit();
 
     let renderer = Renderer::load()?;
+    let host = renderer.render_host();
+    retinue_ui::drawing::text::prepare_host_fonts(&host);
+    let executor = host.executor();
     let loop_signal = event_loop.get_signal();
     let asset_signal = loop_signal.clone();
     let event_signal = loop_signal.clone();
@@ -97,8 +101,9 @@ pub(crate) fn run(
         empty_input_region,
         interactive_input_region,
         themed_pointer: None,
+        cursor: PublishedCursor::default(),
         renderer,
-        asset_loader: crate::domain::media::Loader::spawn(move || asset_signal.wakeup())?,
+        asset_loader: crate::domain::media::Loader::spawn(executor, move || asset_signal.wakeup())?,
         buffers: Buffers::default(),
         width: STATUS_SURFACE_WIDTH,
         height: STATUS_SURFACE_HEIGHT,
@@ -123,6 +128,8 @@ pub(crate) fn run(
         suggestion_dismissed: false,
         last_loading_frame: Instant::now() - LOADING_FRAME_INTERVAL,
         frame_pending: false,
+        rendering: None,
+        render_animation: false,
         interaction_active: false,
         reload,
         shortcut_scope: false,
@@ -151,6 +158,7 @@ pub(crate) fn run(
         }
     })();
     events.set_waker(None);
+    overlay.rendering.take();
     overlay.shortcut.set_enabled(false);
     overlay.unmap();
     result
@@ -166,6 +174,7 @@ struct Overlay {
     empty_input_region: Region,
     interactive_input_region: Region,
     themed_pointer: Option<ThemedPointer>,
+    cursor: PublishedCursor,
     renderer: Renderer,
     asset_loader: crate::domain::media::Loader,
     buffers: Buffers,
@@ -196,6 +205,8 @@ struct Overlay {
     suggestion_dismissed: bool,
     last_loading_frame: Instant,
     frame_pending: bool,
+    rendering: Option<retinue_ui::presentation_buffers::render::RenderJob>,
+    render_animation: bool,
     interaction_active: bool,
     reload: retinue_client::reload::Gate,
     shortcut_scope: bool,
@@ -279,7 +290,11 @@ impl Overlay {
     }
 
     fn animation_drawable(&mut self) -> bool {
-        self.mapped && self.configured && !self.frame_pending && self.buffers.drawable()
+        self.mapped
+            && self.configured
+            && !self.frame_pending
+            && self.rendering.is_none()
+            && self.buffers.drawable()
     }
 
     fn loading_active(&self) -> bool {
@@ -579,9 +594,7 @@ impl Overlay {
     }
 
     fn update_pointer(&mut self, connection: &Connection, position: (f64, f64)) {
-        self.renderer
-            .pointer(retinue_ui::input::PointerPhase::Move, position);
-        let hovered = self.hit_target(HitTarget::Close, position);
+        let hovered = self.renderer.move_pointer(position) == Some(HitTarget::Close);
         if self.presentation.set_close_hovered(hovered) {
             self.request_full_redraw();
         }
@@ -591,7 +604,8 @@ impl Overlay {
             } else {
                 CursorIcon::Default
             };
-            let _ = pointer.set_cursor(connection, icon);
+            self.cursor
+                .publish(icon, |icon| pointer.set_cursor(connection, icon));
         }
     }
 
@@ -648,6 +662,7 @@ impl Overlay {
             return;
         }
         let should_draw = ((status_visible || scene_visible) && self.warframe_active) || contextual;
+        self.finish_render(queue_handle, should_draw && self.configured);
         if !self.configured {
             if needs_remap_configure(should_draw, self.configure_pending) {
                 apply_layer_state(&self.layer, self.contextual_surface);
@@ -717,7 +732,10 @@ impl Overlay {
         Some(index)
     }
 
-    fn draw(&mut self, queue_handle: &QueueHandle<Self>) {
+    fn draw(&mut self, _queue_handle: &QueueHandle<Self>) {
+        if self.rendering.is_some() {
+            return;
+        }
         let was_mapped = self.mapped;
         if !was_mapped {
             self.request_full_redraw();
@@ -761,7 +779,7 @@ impl Overlay {
                     .presentation
                     .scene(scene.clone(), self.interaction_active),
             };
-            match self.renderer.prepare_frame(key) {
+            match self.renderer.prepare_frame_layout(key) {
                 Ok(true) => self.request_full_redraw(),
                 Ok(false) => {}
                 Err(error) => {
@@ -810,18 +828,17 @@ impl Overlay {
                 return;
             }
         };
-        let frame = self.renderer.surface_frame();
+        let _pass = self.renderer.render_host().begin_pass(0);
         let Some(pixels) = self.buffers.pixels(buffer_index) else {
             return;
         };
-        let plan = match self.repaint.render_queued(
+        let planned = match self.repaint.plan_queued(
             buffer_index,
             (width, height),
             Some(recorded),
             pixels.target,
             pixels.source,
-            frame.threads(),
-            |painter, repair| self.renderer.draw_surface(painter, repair, scene),
+            self.renderer.render_threads(),
         ) {
             Ok(Some(plan)) => plan,
             Ok(None) => return,
@@ -830,8 +847,61 @@ impl Overlay {
                 return;
             }
         };
+        let work = planned.into_work();
+        let signal = self.loop_signal.clone();
+        let wake: retinue_render::Wake = std::sync::Arc::new(move || signal.wakeup());
+        let packet = match self
+            .renderer
+            .prepare_packet(work.repair(), scene, wake.clone())
+        {
+            Ok(packet) => packet,
+            Err(error) => {
+                incident::error("overlay.render_failed", error);
+                return;
+            }
+        };
+        let Some(lease) = self.buffers.detach(buffer_index) else {
+            return;
+        };
+        match retinue_ui::presentation_buffers::render::RenderJob::submit(
+            &self.renderer.render_host(),
+            self.renderer.render_threads(),
+            lease,
+            work,
+            packet,
+            [0; 4],
+            wake,
+        ) {
+            Ok(job) => {
+                self.rendering = Some(job);
+                self.render_animation = animation_bounds.is_some();
+            }
+            Err(error) => incident::error("overlay.render_failed", error),
+        }
+    }
 
-        let frame_callback = animation_bounds.is_some() && !self.frame_pending;
+    fn finish_render(&mut self, queue_handle: &QueueHandle<Self>, visible: bool) {
+        let Some(result) = self.rendering.as_mut().and_then(|job| job.poll()) else {
+            return;
+        };
+        self.rendering.take();
+        let rendered = match result {
+            Ok(Some(rendered)) => rendered,
+            Ok(None) => return,
+            Err(error) => {
+                incident::error("overlay.render_failed", error);
+                return;
+            }
+        };
+        let Some(buffer_index) = self.buffers.restore(rendered.lease) else {
+            return;
+        };
+        let plan = rendered.submission;
+        if !visible || !self.repaint.can_submit(&plan) {
+            return;
+        }
+        let was_mapped = self.mapped;
+        let frame_callback = self.render_animation && !self.frame_pending;
         let surface = self.layer.wl_surface();
         if let Err(error) = self
             .buffers
@@ -856,8 +926,8 @@ impl Overlay {
             incident::info(
                 "overlay.mapped",
                 format!(
-                    "contextual={} size={}x{} scale={scale}",
-                    self.contextual_surface, self.width, self.height
+                    "contextual={} size={}x{} scale={}",
+                    self.contextual_surface, self.width, self.height, self.scale
                 ),
             );
         }
@@ -945,6 +1015,13 @@ impl CompositorHandler for Overlay {
         surface: &wl_surface::WlSurface,
         scale: i32,
     ) {
+        if self
+            .themed_pointer
+            .as_ref()
+            .is_some_and(|p| p.surface() == surface)
+        {
+            self.cursor.invalidate();
+        }
         if self.layer.wl_surface() == surface && self.scale != scale {
             self.scale = scale.max(1);
             self.layer.wl_surface().set_buffer_scale(self.scale);
@@ -1115,6 +1192,7 @@ impl SeatHandler for Overlay {
         if capability == Capability::Pointer
             && let Some(pointer) = self.themed_pointer.take()
         {
+            self.cursor.invalidate();
             pointer.pointer().release();
         }
     }
@@ -1137,7 +1215,13 @@ impl PointerHandler for Overlay {
         events: &[PointerEvent],
     ) {
         for event in events {
-            if &event.surface != self.layer.wl_surface() || !self.interaction_active {
+            if &event.surface != self.layer.wl_surface() {
+                continue;
+            }
+            if matches!(event.kind, PointerEventKind::Enter { .. }) {
+                self.cursor.invalidate();
+            }
+            if !self.interaction_active {
                 continue;
             }
             match event.kind {

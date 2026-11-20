@@ -1,28 +1,11 @@
 use super::*;
-use retinue_render::{Command, ImageFit};
+use retinue_render::ImageFit;
 use retinue_ui::drawing::PixelCanvas as Canvas;
 
 impl Foundry {
-    pub(super) fn text(&self, p: &mut Painter<'_>, text: &str, r: Rect, size: f32, color: [u8; 4]) {
-        p.draw_text_vertically_centered(
-            self.regular.as_ref(),
-            TextLine::new(r.x, r.y, r.height),
-            size * self.scale,
-            text,
-            color,
-        );
-    }
-    pub(super) fn icon(&self, p: &mut Painter<'_>, badge: Badge, r: Rect) {
-        if let Some(image) = self.icons.get(&badge).and_then(|r| self.images.get(&r.key)) {
-            let (w, h) = image.dimensions();
-            p.draw_image(
-                image,
-                r.x + r.width.saturating_sub(w) / 2,
-                r.y + r.height.saturating_sub(h) / 2,
-                w,
-                h,
-            );
-        }
+    #[cfg(test)]
+    pub(crate) fn text_ink(&self, origin: (u32, u32), clip: Rect) -> Vec<Rect> {
+        super::super::pixel_tests::text_ink(self.composition.borrow().tree.frame(), origin, clip)
     }
     fn picture(&self, p: &mut Canvas, asset: Option<&Asset>, r: Rect, bottom: bool) {
         if let Some(image) = self.displayed_image(asset, r.width) {
@@ -47,6 +30,7 @@ impl Foundry {
     #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>, focus: retinue_ui::focus_visible::FocusVisible) {
         self.prepare_paint(focus);
+        self.prepare_rasters(&p.visible_regions());
         self.draw_prepared(p);
     }
 
@@ -93,8 +77,8 @@ impl Foundry {
             "paint_ms": composition.paint_profile.get().map(|d| d.as_secs_f64() * 1000.0),
             "update_ms": ([view.evaluation, view.lowering, view.scene, view.input].map(|d| d.as_secs_f64() * 1000.0)),
             "scene_ms": ([scene.reconcile, scene.layout, scene.projection, scene.geometry, scene.frame].map(|d| d.as_secs_f64() * 1000.0)),
-            "resolve_ms": ([resolve.evaluation, resolve.lowering, resolve.scene, resolve.input].map(|d| d.as_secs_f64() * 1000.0)),
-            "resolve_scene_ms": ([layout.reconcile, layout.layout, layout.projection, layout.geometry, layout.frame].map(|d| d.as_secs_f64() * 1000.0)),
+            "resolve_ms": ([resolve.evaluation, resolve.lowering, resolve.scene, resolve.input, resolve.bodies].map(|d| d.as_secs_f64() * 1000.0)),
+            "resolve_scene_ms": ([layout.reconcile, layout.layout, layout.projection, layout.geometry, layout.frame, layout.recording].map(|d| d.as_secs_f64() * 1000.0)),
         })
     }
 
@@ -123,7 +107,7 @@ impl Foundry {
         };
         composition
             .renderer
-            .get_mut()
+            .borrow_mut()
             .set_materializations(mode != "none");
     }
 
@@ -134,6 +118,26 @@ impl Foundry {
 
     pub fn draw_prepared(&self, p: &mut Painter<'_>) {
         self.composition.borrow().paint(self, p);
+    }
+
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
+        self.composition.borrow().prepare_rasters(repair);
+    }
+
+    pub fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        let composition = self.composition.borrow();
+        retinue_render::PacketJob::prepare(
+            composition.renderer.clone(),
+            composition.tree.frame(),
+            composition.raster_mode(),
+            repair,
+            wake,
+            |_, _, _| Err("unresolved Foundry paint".into()),
+        )
     }
 
     pub(super) fn paint_toolbar(
@@ -182,10 +186,7 @@ impl Foundry {
                         });
                     }
                 }
-                Action::Search => p.commands.push(Command::External {
-                    bounds: p.bounds(r),
-                    key: composition::SEARCH,
-                }),
+                Action::Search => self.paint_search(p, r),
                 Action::ClearSearch => self.record_icon(p, Badge::ClearSearch, r),
                 Action::Refresh => self.record_icon(p, Badge::Refresh, r),
                 Action::Filters => {

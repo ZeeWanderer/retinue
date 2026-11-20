@@ -12,6 +12,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     num::NonZeroU32,
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -76,6 +77,7 @@ pub struct HostStats {
     pub warm_entries: usize,
     pub expired_entries: u64,
     pub analysis: AnalysisStats,
+    pub execution: crate::work::Stats,
 }
 
 struct Allocation {
@@ -86,7 +88,7 @@ struct Allocation {
 }
 
 struct Warm {
-    image: Rc<RasterImage>,
+    image: Arc<RasterImage>,
     deadline: Instant,
 }
 
@@ -102,11 +104,13 @@ struct State {
     tasks: usize,
     pixels: usize,
     time: Duration,
+    intervals: Vec<(Instant, Instant)>,
     deferred: usize,
     warm: HashMap<RasterId, Warm>,
     expirations: BTreeSet<(Instant, RasterId)>,
     expired: u64,
     analysis: Background,
+    executor: Arc<crate::work::Executor>,
     native_frames: usize,
 }
 
@@ -156,9 +160,21 @@ impl Drop for Reservation {
 }
 
 impl RenderHost {
+    pub(super) fn threads(&self) -> u32 {
+        self.0.borrow().policy.threads
+    }
+
     pub fn new(mut policy: HostPolicy) -> Self {
         policy.threads = render_thread_budget(policy.threads).get();
         policy.preparation_tasks = policy.preparation_tasks.max(1);
+        let executor = Arc::new(crate::work::Executor::new(crate::work::Limits {
+            participants: std::num::NonZeroUsize::new(policy.threads as usize).unwrap(),
+            tasks: policy
+                .analysis
+                .jobs
+                .saturating_add(policy.preparation_tasks.min(4096))
+                .saturating_add(1),
+        }));
         Self(Rc::new(RefCell::new(State {
             policy,
             allocations: HashMap::new(),
@@ -171,11 +187,13 @@ impl RenderHost {
             tasks: 0,
             pixels: 0,
             time: Duration::ZERO,
+            intervals: Vec::new(),
             deferred: 0,
             warm: HashMap::new(),
             expirations: BTreeSet::new(),
             expired: 0,
-            analysis: Background::new(policy.analysis),
+            analysis: Background::new(policy.analysis, executor.clone()),
+            executor,
             native_frames: 0,
         })))
     }
@@ -186,8 +204,17 @@ impl RenderHost {
         self.pass(foreground_threads, false)
     }
 
-    /// Hold through native completion. An in-flight analysis job keeps one worker
-    /// slot; new jobs wait until this frame and all nested passes finish.
+    pub fn executor(&self) -> Arc<crate::work::Executor> {
+        self.0.borrow().executor.clone()
+    }
+
+    /// The DAG admits this entire native team, including its submitting worker.
+    pub fn task_threads(&self, preferred: NonZeroU32) -> NonZeroU32 {
+        NonZeroU32::new(preferred.get().min(self.0.borrow().policy.threads).max(1)).unwrap()
+    }
+
+    /// Hold through native completion. Running CPU jobs keep their participant
+    /// slots; new background jobs wait until nested passes finish.
     pub fn begin_frame(&self, preferred_threads: NonZeroU32) -> RenderPass {
         self.pass(preferred_threads.get(), true)
     }
@@ -202,7 +229,7 @@ impl RenderHost {
             requested.max(1).min(available_threads(
                 state.policy.threads,
                 state.foreground_workers,
-                pause.running,
+                pause.participants,
             ))
         } else {
             requested
@@ -211,6 +238,7 @@ impl RenderHost {
             state.tasks = 0;
             state.pixels = 0;
             state.time = Duration::ZERO;
+            state.intervals.clear();
             state.deferred = 0;
         }
         state.depth += 1;
@@ -232,7 +260,7 @@ impl RenderHost {
 
     pub(super) fn analyze(&self, program: &PaintProgram) -> bool {
         let mut state = self.0.borrow_mut();
-        if state.native_frames == 0 || state.policy.threads < 2 {
+        if state.policy.threads < 2 {
             return true;
         }
         state.analysis.submit(program)
@@ -266,7 +294,7 @@ impl RenderHost {
         self.reap();
     }
 
-    pub(super) fn retain_warm(&self, id: RasterId, image: Rc<RasterImage>, deadline: Instant) {
+    pub(super) fn retain_warm(&self, id: RasterId, image: Arc<RasterImage>, deadline: Instant) {
         let mut state = self.0.borrow_mut();
         assert!(!state.warm.contains_key(&id));
         state.transition(image.id(), 0, 1);
@@ -278,7 +306,7 @@ impl RenderHost {
         self.0.borrow().warm.contains_key(&id)
     }
 
-    pub(super) fn take_warm(&self, id: RasterId) -> Option<Rc<RasterImage>> {
+    pub(super) fn take_warm(&self, id: RasterId) -> Option<Arc<RasterImage>> {
         self.0.borrow_mut().take_warm(id)
     }
 
@@ -296,6 +324,7 @@ impl RenderHost {
             warm_entries: state.warm.len(),
             expired_entries: state.expired,
             analysis: state.analysis.stats(),
+            execution: state.executor.stats(),
             ..Default::default()
         };
         for allocation in state.allocations.values() {
@@ -335,6 +364,38 @@ impl RenderHost {
     pub(super) fn charge(&self, elapsed: Duration) {
         let mut state = self.0.borrow_mut();
         state.time = state.time.saturating_add(elapsed);
+    }
+
+    pub(super) fn charge_interval(&self, mut start: Instant, elapsed: Duration) {
+        let mut end = start + elapsed;
+        let mut state = self.0.borrow_mut();
+        let mut previous = Duration::ZERO;
+        state.intervals.retain(|&(a, b)| {
+            if a <= end && start <= b {
+                start = start.min(a);
+                end = end.max(b);
+                previous += b - a;
+                false
+            } else {
+                true
+            }
+        });
+        state.intervals.push((start, end));
+        state.intervals.sort_unstable();
+        state.time = state
+            .time
+            .saturating_sub(previous)
+            .saturating_add(end - start);
+    }
+
+    pub(super) fn preparation_executor(&self) -> Option<(Arc<crate::work::Executor>, Duration)> {
+        let state = self.0.borrow();
+        (state.native_frames == 0).then(|| {
+            (
+                state.executor.clone(),
+                state.policy.preparation_time.saturating_sub(state.time),
+            )
+        })
     }
 
     pub(super) fn reserve(&self, bytes: usize) -> Option<Reservation> {
@@ -401,10 +462,10 @@ impl RenderHost {
     }
 }
 
-fn available_threads(total: u32, native_workers: u32, analysis: bool) -> u32 {
+fn available_threads(total: u32, native_workers: u32, analysis: usize) -> u32 {
     total
         .saturating_sub(native_workers)
-        .saturating_sub(u32::from(analysis))
+        .saturating_sub(analysis as u32)
         .max(1)
 }
 
@@ -423,7 +484,7 @@ impl State {
         }
     }
 
-    fn take_warm(&mut self, id: RasterId) -> Option<Rc<RasterImage>> {
+    fn take_warm(&mut self, id: RasterId) -> Option<Arc<RasterImage>> {
         let warm = self.warm.remove(&id)?;
         self.expirations.remove(&(warm.deadline, id));
         self.transition(warm.image.id(), 0, -1);
@@ -434,6 +495,23 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parallel_preparation_charges_overlapping_intervals_once_and_excludes_idle_time() {
+        let host = RenderHost::new(HostPolicy::desktop());
+        let start = Instant::now();
+        let ms = Duration::from_millis;
+        host.charge_interval(start + ms(5), ms(10));
+        host.charge_interval(start, ms(10));
+        host.charge_interval(start + ms(30), ms(4));
+        assert_eq!(host.stats().preparation_time, ms(19));
+        host.charge_interval(start + ms(12), ms(20));
+        assert_eq!(host.stats().preparation_time, ms(34));
+        let _pass = host.begin_pass(0);
+        assert_eq!(host.stats().preparation_time, Duration::ZERO);
+        host.charge_interval(start + ms(100), ms(2));
+        assert_eq!(host.stats().preparation_time, ms(2));
+    }
 
     #[test]
     fn managed_frames_count_native_workers_once_and_do_not_start_analysis_early() {
@@ -448,7 +526,7 @@ mod tests {
             1,
             (160.0, 160.0),
             1.0,
-            Rc::new(
+            Arc::new(
                 (0..256)
                     .map(|i| Command::Fill {
                         bounds: Bounds::new((i % 16 * 10) as f32, (i / 16 * 10) as f32, 8.0, 8.0),
@@ -478,12 +556,51 @@ mod tests {
     }
 
     #[test]
+    fn preparation_can_enqueue_analysis_before_reserving_the_native_frame() {
+        use crate::{Bounds, Color, Command};
+        let host = RenderHost::new(HostPolicy::desktop());
+        let threads = host.0.borrow().policy.threads;
+        let preparation = host.begin_pass(0);
+        let source = PaintProgram::new(
+            1,
+            (160.0, 160.0),
+            1.0,
+            Arc::new(
+                (0..256)
+                    .map(|i| Command::Fill {
+                        bounds: Bounds::new((i % 16 * 10) as f32, (i / 16 * 10) as f32, 8.0, 8.0),
+                        radius: 0.0,
+                        color: Color::rgb(0x228866),
+                    })
+                    .collect(),
+            ),
+        )
+        .unwrap();
+        assert!(host.analyze(&source));
+        assert_eq!(host.stats().analysis.submitted, u64::from(threads > 1));
+        assert!(!host.stats().analysis.running);
+        let frame = host.begin_frame(NonZeroU32::new(threads).unwrap());
+        drop(preparation);
+        assert!(!host.stats().analysis.running);
+        assert_eq!(host.0.borrow().foreground_workers, threads - 1);
+        drop(frame);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while host.stats().analysis.jobs != 0 {
+            host.maintain(Instant::now());
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(source.has_replay_index(), threads > 1);
+    }
+
+    #[test]
     fn running_analysis_reserves_one_concurrency_slot_without_blocking_caller() {
-        assert_eq!(available_threads(6, 0, false), 6);
-        assert_eq!(available_threads(6, 0, true), 5);
-        assert_eq!(available_threads(6, 4, true), 1);
-        assert_eq!(available_threads(6, 4, false), 2);
-        assert_eq!(available_threads(1, 0, false), 1);
+        assert_eq!(available_threads(6, 0, 0), 6);
+        assert_eq!(available_threads(6, 0, 1), 5);
+        assert_eq!(available_threads(6, 4, 1), 1);
+        assert_eq!(available_threads(6, 4, 0), 2);
+        assert_eq!(available_threads(1, 0, 0), 1);
+        assert_eq!(available_threads(6, 0, 4), 2);
     }
 
     #[test]

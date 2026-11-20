@@ -5,9 +5,8 @@ use std::rc::Rc;
 
 use super::{PaintOptions, Resources};
 use crate::presentation::geometry::{HitRegion, HitTarget, ScreenOutput};
-use retinue_render::painter::{
-    RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
-};
+use retinue_render::painter::{RasterImage, TextBox, TextLine, css_rgba};
+use retinue_ui::drawing::text::{fit_text_size, text_width};
 
 mod suggestion_geometry;
 mod suggestion_view;
@@ -341,7 +340,7 @@ fn draw_scrollbar(
 fn draw_suggestion_price(
     painter: &mut Canvas,
     font: &Rc<CachedFont>,
-    icon: &Rc<RasterImage>,
+    icon: &std::sync::Arc<RasterImage>,
     x: u32,
     y: u32,
     scale: u32,

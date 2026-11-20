@@ -26,7 +26,7 @@ fn collection(
                     PaintKey::new((i as u64).into(), u64::from(changed && i == 5)),
                     (64.0, 48.0),
                     scale,
-                    Rc::new(vec![
+                    Arc::new(vec![
                         Command::Fill {
                             bounds: Bounds::new(-3.0, -2.0, 64.0, 48.0),
                             radius: 4.0,
@@ -326,7 +326,7 @@ fn later_overlay_preserves_paint_order_above_tiles_and_partial_item_rasters() {
         900,
         (110.0, 50.0),
         1.25,
-        Rc::new(vec![Command::Fill {
+        Arc::new(vec![Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 110.0, 50.0),
             radius: 5.0,
             color: Color::rgba(220, 70, 40, 160),
@@ -389,15 +389,15 @@ fn hidden_tiles_can_return_from_warm_storage_without_native_preparation() {
 
 #[test]
 fn tile_boundaries_preserve_text_images_and_shadow_geometry() {
-    use crate::painter::{GlyphCache, load_overlay_font};
+    use crate::painter::load_overlay_font;
     use crate::{ImageSource, TextAlignment};
-    let font = Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap());
+    let font = Arc::new(load_overlay_font().unwrap());
     for scale in [1.0, 1.2, 1.25, 2.0] {
         let px = |v: f32| (v * scale).round() as u32;
         let mut frame = PaintFrame::default();
         let mut cached = renderer(0);
         for revision in 0..2 {
-            let image = Rc::new(
+            let image = Arc::new(
                 RasterImage::render(16, 8, |p| {
                     p.fill_rounded_rect(0, 0, 16, 8, 0, Color::rgba(60, 130, 180, 230).bgra());
                     p.fill_rounded_rect(
@@ -415,7 +415,7 @@ fn tile_boundaries_preserve_text_images_and_shadow_geometry() {
                 PaintKey::new(1.into(), revision),
                 (150.0, 90.0),
                 scale,
-                Rc::new(vec![
+                Arc::new(vec![
                     Command::Fill {
                         bounds: Bounds::new(0.0, 0.0, 150.0, 90.0),
                         radius: 0.0,
@@ -433,14 +433,14 @@ fn tile_boundaries_preserve_text_images_and_shadow_geometry() {
                         spread: 1.0,
                         color: Color::rgb(0x60bf5c),
                     },
-                    Command::Text {
-                        bounds: Bounds::new(0.0, 24.0, 150.0, 42.0),
-                        size: 19.0,
-                        text: "Tile boundaries".into(),
-                        font: font.clone(),
-                        color: Color::rgb(0xffffff),
-                        align: TextAlignment::Center,
-                    },
+                    crate::text::fixture::label(
+                        &font,
+                        "Tile boundaries",
+                        19.0,
+                        Bounds::new(0.0, 24.0, 150.0, 42.0),
+                        TextAlignment::Center,
+                        Color::rgb(0xffffff),
+                    ),
                 ]),
             )
             .unwrap();
@@ -496,7 +496,7 @@ fn tile_hint_cannot_capture_native_paint_or_duplicate_its_callback() {
         990,
         (90.0, 60.0),
         1.25,
-        Rc::new(vec![Command::External {
+        Arc::new(vec![Command::External {
             bounds: Bounds::new(0.0, 0.0, 90.0, 60.0),
             key: 990.into(),
         }]),

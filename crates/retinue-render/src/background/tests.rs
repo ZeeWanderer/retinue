@@ -1,16 +1,24 @@
 use super::*;
 use crate::{Bounds, Color, Command};
 use std::{
-    rc::Rc,
+    sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
+
+fn executor() -> Arc<Executor> {
+    Arc::new(Executor::new(crate::work::Limits {
+        participants: NonZeroUsize::new(4).unwrap(),
+        tasks: 8,
+    }))
+}
 
 pub(crate) fn program(key: u64) -> PaintProgram {
     PaintProgram::new(
         key,
         (320.0, 320.0),
         1.0,
-        Rc::new(
+        Arc::new(
             (0..1024)
                 .map(|i| Command::Fill {
                     bounds: Bounds::new((i % 32 * 10) as f32, (i / 32 * 10) as f32, 8.0, 8.0),
@@ -34,10 +42,13 @@ fn complete(background: &mut Background) {
 
 #[test]
 fn queue_is_bounded_deduplicated_and_publishes_only_original_live_programs() {
-    let mut background = Background::new(AnalysisPolicy {
-        jobs: 2,
-        ..AnalysisPolicy::desktop()
-    });
+    let mut background = Background::new(
+        AnalysisPolicy {
+            jobs: 2,
+            ..AnalysisPolicy::desktop()
+        },
+        executor(),
+    );
     let pause = background.pause();
     let old = program(1);
     let other = program(2);
@@ -51,7 +62,7 @@ fn queue_is_bounded_deduplicated_and_publishes_only_original_live_programs() {
     assert_eq!(stats.submitted, 2);
     assert!(stats.reserved_bytes > 0 && stats.reserved_bytes <= background.policy.bytes);
     assert!(!stats.running);
-    let resources = Rc::downgrade(old.commands());
+    let resources = Arc::downgrade(old.commands());
     drop(old);
     assert!(
         resources.upgrade().is_none(),
@@ -67,25 +78,28 @@ fn queue_is_bounded_deduplicated_and_publishes_only_original_live_programs() {
     assert!(background.submit(&replacement));
     complete(&mut background);
     assert!(replacement.has_replay_index());
-    let (target, _) = replacement.analysis_target();
+    let target = replacement.analysis_target();
     assert!(!target.publish(other.id(), ReplayIndex::build(&[], || false).unwrap()));
 }
 
 #[test]
 fn byte_admission_precedes_snapshot_allocation_and_teardown_joins_paused_worker() {
     let source = program(1);
-    let mut small = Background::new(AnalysisPolicy {
-        bytes: 1,
-        ..AnalysisPolicy::desktop()
-    });
+    let mut small = Background::new(
+        AnalysisPolicy {
+            bytes: 1,
+            ..AnalysisPolicy::desktop()
+        },
+        executor(),
+    );
     assert!(small.submit(&source));
     assert_eq!(small.stats().jobs, 0);
-    assert!(small.worker.is_none());
+    assert_eq!(small.executor.stats().queued, 0);
 
-    let mut background = Background::new(AnalysisPolicy::desktop());
+    let mut background = Background::new(AnalysisPolicy::desktop(), executor());
     let pause = background.pause();
     assert!(background.submit(&source));
-    let shared = Arc::downgrade(&background.shared);
+    let shared = Arc::downgrade(&background.executor);
     drop(background);
     assert!(!source.has_replay_index());
     drop(pause);
@@ -95,6 +109,6 @@ fn byte_admission_precedes_snapshot_allocation_and_teardown_joins_paused_worker(
 #[test]
 fn snapshots_and_results_are_send_but_carry_no_native_resources() {
     fn send<T: Send>() {}
-    send::<Job>();
-    send::<Completed>();
+    send::<Output<Option<ReplayIndex>>>();
+    send::<Submission>();
 }

@@ -15,13 +15,16 @@ fn foundry_drag_benchmark() {
         for over_grid in [false, true] {
             for mode in ["repair", "relocate"] {
                 let mut shell = Shell::new(Some(Snapshot::fixture()), scale).unwrap();
+                shell.pages.activity = json!({});
                 shell.resize((2560, 1440), 1.0).unwrap();
                 shell.set_page(Page::Foundry);
                 shell.foundry.update(crate::data::foundry::fixture());
                 let center = shell.geometry.center;
                 let viewport = shell.foundry.capture_bounds("foundry.grid").unwrap();
-                let x = (center.x + center.width - shell.px(9.0)) as f64;
-                let y = (center.y + viewport.y + shell.px(3.0)) as f64;
+                let thumb = shell.foundry.scrollbar();
+                let travel = viewport.height - thumb.height;
+                let x = (center.x + thumb.x + thumb.width / 2) as f64;
+                let y = (center.y + thumb.y + shell.px(3.0)) as f64;
                 shell.pointer_move((x, y));
                 shell.pointer_button(true, Instant::now());
                 let mut pixels = vec![0; 2560 * 1440 * 4];
@@ -31,6 +34,7 @@ fn foundry_drag_benchmark() {
                 for frame in 0..160 {
                     let process = cpu();
                     let start = Instant::now();
+                    let previous_offset = shell.foundry.offset;
                     for event in 0..8 {
                         let phase = ((frame * 8 + event) % 400) as f64 / 400.0;
                         let fraction = if phase < 0.5 { phase } else { 1.0 - phase };
@@ -40,13 +44,17 @@ fn foundry_drag_benchmark() {
                             } else {
                                 x
                             },
-                            y + fraction * f64::from(viewport.height - shell.px(40.0)),
+                            y + fraction * f64::from(travel),
                         );
                         // Native CursorMoved checks the cursor on both sides of dispatch.
                         std::hint::black_box(shell.cursor());
                         damage.invalidate(shell.pointer_move(position));
                         std::hint::black_box(shell.cursor());
                     }
+                    assert_ne!(
+                        shell.foundry.offset, previous_offset,
+                        "drag must move content at {scale}, frame {frame}"
+                    );
                     damage.invalidate(shell.tick(Instant::now()));
                     let input_end = Instant::now();
                     shell.prepare_paint();
@@ -75,6 +83,7 @@ fn foundry_drag_benchmark() {
                                 .unwrap();
                                 painter.repair(repair);
                                 painter.fill_rounded_rect(0, 0, 2560, 1440, 0, BACKGROUND);
+                                shell.prepare_rasters(&painter.visible_regions());
                                 shell.draw_prepared(&mut painter);
                                 submitted = Instant::now();
                                 painter.finish().map_err(|e| e.to_string())

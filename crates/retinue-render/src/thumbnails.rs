@@ -1,8 +1,10 @@
+use crate::work::{CpuStage, Executor};
 use crate::{
     painter::RasterImage,
     resources::{CacheStats, Resource, ResourceCache},
 };
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 use std::{io::Cursor, path::PathBuf};
 
 pub mod disk;
@@ -86,6 +88,7 @@ pub struct Thumbnails {
     disk: Option<DiskCache>,
     pub work: WorkStats,
     warnings: Vec<String>,
+    cpu: CpuStage,
 }
 
 impl Thumbnails {
@@ -96,11 +99,20 @@ impl Thumbnails {
             disk: None,
             work: WorkStats::default(),
             warnings: Vec::new(),
+            cpu: CpuStage::default(),
         }
     }
 
     pub fn with_disk(mut self, root: PathBuf) -> Self {
-        self.disk = Some(DiskCache::new(root));
+        self.disk = Some(DiskCache::new(root).with_cpu(self.cpu.clone()));
+        self
+    }
+
+    pub fn with_executor(mut self, executor: Arc<Executor>) -> Self {
+        self.cpu = CpuStage::new(executor);
+        if let Some(disk) = self.disk.take() {
+            self.disk = Some(disk.with_cpu(self.cpu.clone()));
+        }
         self
     }
 
@@ -189,45 +201,53 @@ impl Thumbnails {
                 }
                 Source::Embedded(bytes) => bytes.to_vec(),
             };
-            if <[u8; 32]>::from(Sha256::digest(&bytes)) != key.digest {
-                return Err("Source image changed before decoding".into());
-            }
-            let mut reader = image::ImageReader::new(Cursor::new(bytes))
-                .with_guessed_format()
-                .map_err(|e| e.to_string())?;
-            let mut limits = image::Limits::default();
-            limits.max_alloc = Some(32 * 1024 * 1024);
-            limits.max_image_width = Some(4096);
-            limits.max_image_height = Some(4096);
-            reader.limits(limits);
-            let mut image = reader.decode().map_err(|e| e.to_string())?;
-            if let Some([x, y, w, h]) = key.crop {
-                if w == 0
-                    || h == 0
-                    || x.saturating_add(w) > image.width()
-                    || y.saturating_add(h) > image.height()
-                {
-                    return Err("Invalid source display bounds".into());
+            self.cpu.run(move || {
+                if <[u8; 32]>::from(Sha256::digest(&bytes)) != key.digest {
+                    return Err("Source image changed before decoding".into());
                 }
-                image = image.crop_imm(x, y, w, h);
-            }
-            let mut image = image.into_rgba8();
-            if let Some([r, g, b, a]) = key.tint {
-                for pixel in image.pixels_mut() {
-                    *pixel =
-                        image::Rgba([r, g, b, ((pixel[3] as u16 * a as u16 + 127) / 255) as u8]);
+                let mut reader = image::ImageReader::new(Cursor::new(bytes))
+                    .with_guessed_format()
+                    .map_err(|e| e.to_string())?;
+                let mut limits = image::Limits::default();
+                limits.max_alloc = Some(32 * 1024 * 1024);
+                limits.max_image_width = Some(4096);
+                limits.max_image_height = Some(4096);
+                reader.limits(limits);
+                let mut image = reader.decode().map_err(|e| e.to_string())?;
+                if let Some([x, y, w, h]) = key.crop {
+                    if w == 0
+                        || h == 0
+                        || x.saturating_add(w) > image.width()
+                        || y.saturating_add(h) > image.height()
+                    {
+                        return Err("Invalid source display bounds".into());
+                    }
+                    image = image.crop_imm(x, y, w, h);
                 }
-            }
-            RasterImage::from_rgba(image).map_err(|e| e.to_string())
+                let mut image = image.into_rgba8();
+                if let Some([r, g, b, a]) = key.tint {
+                    for pixel in image.pixels_mut() {
+                        *pixel = image::Rgba([
+                            r,
+                            g,
+                            b,
+                            ((pixel[3] as u16 * a as u16 + 127) / 255) as u8,
+                        ]);
+                    }
+                }
+                RasterImage::from_rgba(image).map_err(|e| e.to_string())
+            })
         })?;
-        let (w, h) = image.dimensions();
-        let ratio = (key.width as f64 / w as f64).min(key.height as f64 / h as f64);
-        let resized = image
-            .resampled(
-                (w as f64 * ratio).round().max(1.0) as u32,
-                (h as f64 * ratio).round().max(1.0) as u32,
-            )
-            .map_err(|e| e.to_string())?;
+        let resized = self.cpu.run(move || {
+            let (w, h) = image.dimensions();
+            let ratio = (key.width as f64 / w as f64).min(key.height as f64 / h as f64);
+            image
+                .resampled(
+                    (w as f64 * ratio).round().max(1.0) as u32,
+                    (h as f64 * ratio).round().max(1.0) as u32,
+                )
+                .map_err(|e| e.to_string())
+        })?;
         self.work.resamples += 1;
         self.work.persistent_resamples += u64::from(request.origin.is_some());
         Ok(self.rendered.insert(key, resized))

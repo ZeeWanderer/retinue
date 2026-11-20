@@ -2,25 +2,20 @@ use super::{
     panel::{CONTENT, Node},
     slots::slot,
 };
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*};
+use retinue_render::Key;
+use retinue_ui::{
+    authoring::*,
+    layout::{Insets, anchors::AnchorPoint},
+};
 
-#[derive(PartialEq)]
-pub(super) struct ItemView {
-    pub scale: f32,
-    pub rows: Vec<(usize, f32)>,
-    pub height: f32,
-}
-
-impl View for ItemView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
-        ui! {
-            VStack(0.0) {
-                for (index, height) in &self.rows {
-                    slot(Node::Row(*index), CONTENT * self.scale, *height)
-                }
-            }.alignment(Alignment::Start)
-                .padding(Insets { top: 6.0 * self.scale, ..Insets::default() })
-                .frame_aligned(CONTENT * self.scale, self.height, AnchorPoint::TOP_LEADING)
-        }
+pub(super) fn item_view(scale: f32, rows: &[(usize, f32)], height: f32) -> impl Body + use<> {
+    ui! {
+        VStack(0.0) {
+            ForEach(rows.iter().copied(), |(index, _)| Key::from(Node::Row(*index))) { |(index, height)|
+                slot(Node::Row(index), CONTENT * scale, height)
+            }
+        }.alignment(HorizontalAlignment::Leading)
+            .padding(Insets { top: 6.0 * scale, ..Insets::default() })
+            .frame(Frame::new().width(CONTENT * scale).height(height).alignment(AnchorPoint::TOP_LEADING))
     }
 }

@@ -161,7 +161,7 @@ impl ModText {
             Frame::Amalgam | Frame::Riven => 160.0,
             _ => 159.0,
         };
-        let name = retinue_render::painter::wrap_text(
+        let name = retinue_ui::drawing::text::wrap_text(
             &ui.regular,
             text(upgrade, "name"),
             17.0,
@@ -175,7 +175,7 @@ impl ModText {
             .filter_map(Value::as_str)
             .flat_map(|effect| {
                 let text = clean_effects(effect);
-                retinue_render::painter::wrap_text(&ui.regular, &text, 13.0, 159.0)
+                retinue_ui::drawing::text::wrap_text(&ui.regular, &text, 13.0, 159.0)
                     .into_iter()
                     .map(str::to_owned)
                     .collect::<Vec<_>>()
@@ -350,8 +350,9 @@ fn mod_card(
     let name_y = y + name_top * scale;
     let line_h = 19.0 * scale;
     for (i, line) in layout.name.iter().enumerate() {
-        let width = retinue_render::painter::text_width(&ui.regular, line, 17.0 * scale * ui.scale)
-            / ui.scale;
+        let width =
+            retinue_ui::drawing::text::text_width(&ui.regular, line, 17.0 * scale * ui.scale)
+                / ui.scale;
         let bounds = ui.rect(
             x + (184.0 * scale - width) / 2.0,
             name_y + i as f32 * line_h,
@@ -664,8 +665,8 @@ fn arcane_card(ui: &mut ControlHost, upgrade: &Value, slot: &Value, x: f32, y: f
         asset(&upgrade["asset"]).as_ref(),
     );
     let name = text(upgrade, "name");
-    let width =
-        retinue_render::painter::text_width(&ui.regular, name, 14.0 * scale * ui.scale) / ui.scale;
+    let width = retinue_ui::drawing::text::text_width(&ui.regular, name, 14.0 * scale * ui.scale)
+        / ui.scale;
     ui.text(
         ui.rect(
             x + (160.0 * scale - width.min(170.0 * scale)) / 2.0,

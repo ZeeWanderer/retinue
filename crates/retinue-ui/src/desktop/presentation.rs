@@ -21,6 +21,47 @@ pub(super) enum Surface {
 }
 
 impl Surface {
+    pub fn leases(&self) -> bool {
+        matches!(self, Self::Wayland(_))
+    }
+
+    pub fn lease(
+        &mut self,
+        preserve_source: bool,
+    ) -> Result<Option<crate::presentation_buffers::Lease>, String> {
+        let Self::Wayland(surface) = self else {
+            return Err("surface does not support mapping leases".into());
+        };
+        Ok(surface
+            .acquire(preserve_source)?
+            .and_then(|index| surface.buffers.detach(index)))
+    }
+
+    pub fn present(
+        &mut self,
+        lease: crate::presentation_buffers::Lease,
+        plan: &Submission,
+    ) -> Result<bool, String> {
+        let Self::Wayland(surface) = self else {
+            return Err("surface does not support mapping leases".into());
+        };
+        let Some(index) = surface.buffers.restore(lease) else {
+            return Ok(false);
+        };
+        surface
+            .buffers
+            .present(index, &surface.surface, &plan.damage, || {})?;
+        surface.flush()?;
+        Ok(true)
+    }
+
+    pub fn waiting(&self) -> bool {
+        match self {
+            Self::Wayland(surface) => surface.wake.as_ref().is_some_and(|wake| wake.waiting()),
+            Self::Other(_) => false,
+        }
+    }
+
     pub fn new(window: Arc<Window>) -> Result<Self, String> {
         if matches!(
             window.display_handle().map_err(|e| e.to_string())?.as_raw(),
@@ -37,6 +78,9 @@ impl Surface {
         match self {
             Self::Wayland(surface) => {
                 if surface.size != (width.get(), height.get()) {
+                    if let Some(wake) = &surface.wake {
+                        wake.cancel();
+                    }
                     surface.buffers.clear();
                     surface.size = (width.get(), height.get());
                 }
@@ -102,6 +146,7 @@ impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for State {
 }
 
 pub(super) struct Wayland {
+    wake: Option<crate::presentation_buffers::readiness::QueueWake>,
     buffers: crate::presentation_buffers::Buffers,
     surface: wl_surface::WlSurface,
     events: EventQueue<State>,
@@ -138,6 +183,7 @@ impl Wayland {
         .map_err(|e| e.to_string())?;
         let surface = wl_surface::WlSurface::from_id(&connection, id).map_err(|e| e.to_string())?;
         Ok(Self {
+            wake: None,
             buffers: Default::default(),
             surface,
             events,
@@ -147,26 +193,55 @@ impl Wayland {
             _window: window,
         })
     }
+    fn acquire(&mut self, preserve_source: bool) -> Result<Option<usize>, String> {
+        self.events
+            .dispatch_pending(&mut self.state)
+            .map_err(|e| e.to_string())?;
+        let acquire = |this: &mut Self| {
+            this.buffers.acquire(
+                &this.state.shm,
+                this.size,
+                wl_shm::Format::Xrgb8888,
+                preserve_source,
+            )
+        };
+        let index = if let Some(index) = acquire(self)? {
+            index
+        } else {
+            if self.wake.is_none() {
+                let window = self._window.clone();
+                self.wake = Some(
+                    crate::presentation_buffers::readiness::QueueWake::new(
+                        self.connection.backend(),
+                        move || window.request_redraw(),
+                    )
+                    .map_err(|e| e.to_string())?,
+                );
+            }
+            self.wake
+                .as_ref()
+                .unwrap()
+                .arm()
+                .map_err(|e| e.to_string())?;
+            // A release may have been dispatched just before the waiter was armed.
+            let Some(index) = acquire(self)? else {
+                return Ok(None);
+            };
+            index
+        };
+        if let Some(wake) = &self.wake {
+            wake.cancel();
+        }
+        Ok(Some(index))
+    }
+
     fn draw(
         &mut self,
         preserve_source: bool,
         paint: impl FnOnce(u8, &mut [u8], Option<&[u8]>) -> Result<Option<Submission>, String>,
     ) -> Result<Option<Submission>, String> {
-        self.events
-            .dispatch_pending(&mut self.state)
-            .map_err(|e| e.to_string())?;
-        let index = loop {
-            if let Some(index) = self.buffers.acquire(
-                &self.state.shm,
-                self.size,
-                wl_shm::Format::Xrgb8888,
-                preserve_source,
-            )? {
-                break index;
-            }
-            self.events
-                .blocking_dispatch(&mut self.state)
-                .map_err(|e| e.to_string())?;
+        let Some(index) = self.acquire(preserve_source)? else {
+            return Ok(None);
         };
         let pixels = self
             .buffers
@@ -182,12 +257,17 @@ impl Wayland {
         };
         self.buffers
             .present(index, &self.surface, &plan.damage, || {})?;
+        self.flush()?;
+        Ok(Some(plan))
+    }
+
+    fn flush(&self) -> Result<(), String> {
         match self.connection.flush() {
             Ok(()) => {}
             Err(wayland_client::backend::WaylandError::Io(e))
                 if e.kind() == std::io::ErrorKind::WouldBlock => {}
             Err(e) => return Err(e.to_string()),
         }
-        Ok(Some(plan))
+        Ok(())
     }
 }

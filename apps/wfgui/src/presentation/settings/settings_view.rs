@@ -1,7 +1,7 @@
 use super::{CHROME, VIEWPORT};
-use crate::{presentation::widgets::place, presentation::widgets::slot};
+use crate::presentation::widgets::compiled::{frame, place, slot};
 use retinue_render::Bounds;
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*};
+use retinue_ui::{authoring::*, layout::anchors::AnchorPoint, state::State};
 
 #[derive(Clone, Copy, Default, PartialEq)]
 pub(in crate::presentation::settings) struct Viewport {
@@ -13,18 +13,19 @@ pub(in crate::presentation::settings) struct Viewport {
 
 #[derive(PartialEq)]
 pub(in crate::presentation::settings) struct SettingsView {
-    pub content: Element,
+    pub content: State<super::content_view::ContentView>,
     pub viewport: State<Viewport>,
 }
 
+#[view]
 impl View for SettingsView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let v = self.viewport.get();
         ui! {
             ZStack() {
-                place(ScrollViewport::new(self.content.clone()).position(0.0, v.offset), v.bounds).id(VIEWPORT)
+                place(ScrollViewport(compose(self.content.get())).position(0.0, v.offset), v.bounds).named(VIEWPORT)
                 place(slot(CHROME), Bounds::new(0.0, 0.0, v.width, v.height))
-            }.alignment(Alignment::Start).frame_aligned(v.width, v.height, AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(v.width, v.height))
         }
     }
 }

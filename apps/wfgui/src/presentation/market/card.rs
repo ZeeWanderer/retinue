@@ -1,6 +1,7 @@
 use super::*;
-use crate::presentation::widgets::aligned_label;
-use retinue_render::{painter::CachedFont, painter::text_width};
+use crate::presentation::widgets::compiled::aligned_label;
+use retinue_render::painter::CachedFont;
+use retinue_ui::drawing::text::text_width;
 
 const ACTIONS: [(&str, &str, &str); 5] = [
     ("list", "search", "View listings"),
@@ -160,8 +161,9 @@ pub(super) struct OrderCardView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for OrderCardView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let id = self.id;
         let card = self.card.read();
         let metrics = self.metrics.read();
@@ -172,16 +174,8 @@ impl View for OrderCardView {
             scale: metrics.scale,
         };
         let g = Geometry::new(&card, size, m.scale, &self.fonts.regular);
-        let label = |text: &str, size, center| {
-            fitted_label(
-                text,
-                self.fonts.regular.clone(),
-                size,
-                TEXT,
-                center,
-                m.scale,
-            )
-        };
+        let label =
+            |text: &str, size, center| label(text, self.fonts.regular.clone(), size, TEXT, center);
         ui! {
             ZStack() {
                 fill(crate::presentation::style::CARD, 18.0)
@@ -190,12 +184,12 @@ impl View for OrderCardView {
                 place(slot(child(id, "market.visibility.icon")), m.bounds(9.0, 4.0, 20.0, 20.0))
                 place(slot(child(id, "market.visibility.hit")), m.bounds(0.0, 0.0, 37.0, 28.0)).interactive()
                 place(label(&card.name, 14.67, false), g.title)
-                place(aligned_label(&card.owned, self.fonts.light.clone(), 13.33, MUTED, 0.0, m.scale), g.owned)
+                place(aligned_label(&card.owned, self.fonts.light.clone(), 13.33, MUTED, 0.0), g.owned)
                 if card.missing {
                     place(fill(crate::presentation::settings::rgb(0x9a3737), 18.0), g.warning)
                     place(fill(crate::presentation::settings::rgb(0x9a3737), 0.0), m.bounds(m.width - 37.0, 0.0, 18.0, 28.0))
                     place(fill(crate::presentation::settings::rgb(0x9a3737), 0.0), m.bounds(m.width - 37.0, 18.0, 37.0, 10.0))
-                    place(label("!", 16.0, true), g.warning).id(child(id, "market.warning")).interactive()
+                    place(label("!", 16.0, true), g.warning).named(child(id, "market.warning")).interactive()
                 }
                 place(slot(child(id, "market.select")), g.select).interactive()
                 place(fill(crate::presentation::style::INSET_PANEL, 18.0), m.bounds(0.0, 28.0, 70.0, 79.0))
@@ -208,14 +202,14 @@ impl View for OrderCardView {
                 place(slot(child(id, "market.quantity.icon")), g.numbers[0].1)
                 place(label(&card.price, 14.67, false), g.numbers[1].0)
                 place(slot(child(id, "market.price.icon")), g.numbers[1].1)
-                place(label(&card.extra, 14.0, true), g.extra).id(child(id, "market.details")).interactive()
+                place(label(&card.extra, 14.0, true), g.extra).named(child(id, "market.details")).interactive()
                 place(label(&card.comparison, 13.33, false), g.comparison)
-                for (i, (hit, outline, icon)) in g.actions.iter().enumerate() {
+                ForEach(g.actions.iter().enumerate(), |(i, _)| *i as u64) { |(i, (hit, outline, icon))|
                     place(slot(action(id, "market.action.outline", i)), *outline)
                     place(slot(action(id, "market.action.icon", i)), *icon)
                     place(slot(action(id, "market.action.hit", i)), *hit).interactive()
                 }
-            }.alignment(Alignment::Start).frame(size.width, size.height)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(size.width, size.height))
         }
     }
 }

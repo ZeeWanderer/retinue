@@ -225,12 +225,16 @@ pub(super) fn remaining(rect: Rect, covered: impl IntoIterator<Item = Rect>) -> 
     } else {
         vec![rect]
     };
+    let mut next = Vec::new();
     for cover in covered {
-        regions = regions
-            .into_iter()
-            .flat_map(|r| uncovered(r, cover))
-            .filter(|r| !r.is_empty())
-            .collect();
+        next.clear();
+        next.extend(
+            regions
+                .drain(..)
+                .flat_map(|r| uncovered(r, cover))
+                .filter(|r| !r.is_empty()),
+        );
+        std::mem::swap(&mut regions, &mut next);
         if regions.is_empty() {
             break;
         }

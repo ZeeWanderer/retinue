@@ -1,5 +1,8 @@
 use std::time::{Duration, Instant, SystemTime};
 
+mod queue;
+pub(crate) use queue::Timing;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FrameTime {
     pub instant: Instant,
@@ -92,7 +95,7 @@ fn until_next(elapsed: Duration, interval: Duration) -> Option<Duration> {
     ))
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct Deadlines {
     pub next: Option<Instant>,
     pub wall_clock: bool,

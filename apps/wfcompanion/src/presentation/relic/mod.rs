@@ -15,23 +15,23 @@ mod reward;
 mod suggestion;
 
 struct SuggestionIcons {
-    trace: Rc<RasterImage>,
-    vaulted: Rc<RasterImage>,
-    close: Rc<RasterImage>,
+    trace: std::sync::Arc<RasterImage>,
+    vaulted: std::sync::Arc<RasterImage>,
+    close: std::sync::Arc<RasterImage>,
 }
 
 impl SuggestionIcons {
     fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            trace: Rc::new(load_icon(include_bytes!(concat!(
+            trace: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/trace.png"
             )))?),
-            vaulted: Rc::new(load_icon(include_bytes!(concat!(
+            vaulted: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/vaulted.png"
             )))?),
-            close: Rc::new(load_icon(include_bytes!(concat!(
+            close: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/close.png"
             )))?),
@@ -40,21 +40,21 @@ impl SuggestionIcons {
 }
 
 pub(super) struct Assets {
-    platinum_icon: Rc<RasterImage>,
-    ducat_icon: Rc<RasterImage>,
+    platinum_icon: std::sync::Arc<RasterImage>,
+    ducat_icon: std::sync::Arc<RasterImage>,
     icons: SuggestionIcons,
-    permanent_images: BTreeMap<String, Rc<RasterImage>>,
+    permanent_images: BTreeMap<String, std::sync::Arc<RasterImage>>,
     pub(super) scene_assets: SceneAssets,
 }
 
 impl Assets {
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            platinum_icon: Rc::new(load_icon(include_bytes!(concat!(
+            platinum_icon: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/platinum.png"
             )))?),
-            ducat_icon: Rc::new(load_icon(include_bytes!(concat!(
+            ducat_icon: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/ducats.png"
             )))?),
@@ -83,10 +83,10 @@ impl Assets {
 
 struct Resources<'a> {
     font: &'a Rc<CachedFont>,
-    platinum_icon: &'a Rc<RasterImage>,
-    ducat_icon: &'a Rc<RasterImage>,
+    platinum_icon: &'a std::sync::Arc<RasterImage>,
+    ducat_icon: &'a std::sync::Arc<RasterImage>,
     icons: &'a SuggestionIcons,
-    permanent_images: &'a BTreeMap<String, Rc<RasterImage>>,
+    permanent_images: &'a BTreeMap<String, std::sync::Arc<RasterImage>>,
     scene_images: &'a BTreeMap<String, Resource<RasterImage>>,
 }
 
@@ -126,11 +126,12 @@ pub(super) fn draw_static_relic_scene(
     }
 }
 
-fn permanent_images() -> Result<BTreeMap<String, Rc<RasterImage>>, Box<dyn std::error::Error>> {
+fn permanent_images()
+-> Result<BTreeMap<String, std::sync::Arc<RasterImage>>, Box<dyn std::error::Error>> {
     let mut images = BTreeMap::new();
     images.insert(
         crate::assets::FORMA_ASSET.image.key.to_owned(),
-        Rc::new(load_icon(crate::assets::FORMA_ASSET.image.bytes)?),
+        std::sync::Arc::new(load_icon(crate::assets::FORMA_ASSET.image.bytes)?),
     );
     Ok(images)
 }
@@ -146,7 +147,7 @@ pub(super) fn draw_loading_pulse(
 
 fn draw_vaulted_icon(
     painter: &mut Canvas,
-    icon: &Rc<RasterImage>,
+    icon: &std::sync::Arc<RasterImage>,
     x: u32,
     y: u32,
     width: u32,

@@ -243,8 +243,7 @@ impl Layout for GridLayout {
         children: &mut Subviews<'_, '_>,
         _: &mut (),
     ) -> Result<(), LayoutError> {
-        for child in 0..children.len() {
-            let key = children.key(child).unwrap();
+        children.place_each(|_, key| {
             let index = self
                 .order
                 .index(key)
@@ -252,8 +251,7 @@ impl Layout for GridLayout {
             let mut cell = self.grid.bounds(index)?;
             cell.x += bounds.x;
             cell.y += bounds.y;
-            children.place(child, cell)?;
-        }
-        Ok(())
+            Ok(cell)
+        })
     }
 }

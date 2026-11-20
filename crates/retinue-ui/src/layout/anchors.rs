@@ -14,6 +14,10 @@ impl AnchorPoint {
     pub const BOTTOM_LEADING: Self = Self { x: 0.0, y: 1.0 };
     pub const BOTTOM_TRAILING: Self = Self { x: 1.0, y: 1.0 };
     pub const CENTER: Self = Self { x: 0.5, y: 0.5 };
+    pub const LEADING: Self = Self { x: 0.0, y: 0.5 };
+    pub const TRAILING: Self = Self { x: 1.0, y: 0.5 };
+    pub const TOP: Self = Self { x: 0.5, y: 0.0 };
+    pub const BOTTOM: Self = Self { x: 0.5, y: 1.0 };
     fn valid(self) -> bool {
         self.x.is_finite() && self.y.is_finite()
     }

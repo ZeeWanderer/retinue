@@ -10,8 +10,9 @@ pub(super) struct AccountView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for AccountView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.model.metrics.get();
         let state = self.model.account.read();
         let frame = |y, h| {
@@ -23,18 +24,11 @@ impl View for AccountView {
             )
         };
         let label = |text: &str, size, color| {
-            fitted_label(
-                text,
-                self.fonts.regular.clone(),
-                size,
-                color,
-                false,
-                m.scale,
-            )
+            super::label(text, self.fonts.regular.clone(), size, color, false)
         };
         ui! {
             ZStack() {
-                place(fitted_label("Warframe.market", self.fonts.bold.clone(), 24.0, TEXT, false, m.scale), frame(42.0, 35.0))
+                place(super::label("Warframe.market", self.fonts.bold.clone(), 24.0, TEXT, false), frame(42.0, 35.0))
                 if state.authenticated.is_none() {
                     if let Some(error) = &state.account_error {
                         place(label(error, 14.0, BAD), frame(88.0, 65.0))
@@ -53,7 +47,7 @@ impl View for AccountView {
                         place(label(error, 14.0, BAD), frame(340.0, 70.0))
                     }
                 }
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.height, retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(super::frame(m.width, m.height))
         }
     }
 }

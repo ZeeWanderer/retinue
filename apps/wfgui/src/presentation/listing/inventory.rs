@@ -3,7 +3,8 @@ use crate::{
     presentation::style::CARD, presentation::style::CARD_HOVER, presentation::widgets::AssetImage,
     presentation::widgets::ComponentImage,
 };
-use retinue_render::{painter::CachedFont, painter::text_width};
+use retinue_render::painter::CachedFont;
+use retinue_ui::drawing::text::text_width;
 
 fn child(id: Key, name: &'static str) -> Key {
     Key::new(name, id.value)
@@ -129,40 +130,39 @@ pub(super) struct InventoryCardView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for InventoryCardView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let id = self.id;
         let cell = self.cell.read();
         let m = self.metrics.read();
         let size = m.uniform_grid().cell();
         let g = Geometry::new(&cell, size, m.scale, &self.fonts.regular);
-        let label = |text: String, size, font, center| {
-            fitted_label(text, font, size, TEXT, center, m.scale)
-        };
+        let label = |text: String, size, font, center| label(text, font, size, TEXT, center);
         ui! {
             LayoutView(Positioned::new(size)) {
                 fill(if cell.hovered { CARD_HOVER } else { CARD }, 20.0)
-                place(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height))), g.image).id(child(id, "inventory.image"))
+                place(compose(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height)))), g.image).named(child(id, "inventory.image"))
                 place(label(cell.item.name.clone(), 17.0, self.fonts.medium.clone(), true), g.title)
-                    .id(child(id, "inventory.title")).interactive()
+                    .named(child(id, "inventory.title")).interactive()
                 if cell.item.ducats > 0 {
                     place(label(cell.item.ducats.to_string(), 16.0, self.fonts.medium.clone(), false), g.ducats)
-                    place(AssetImage::icon("ducats", m.px(g.ducat_icon.width)), g.ducat_icon).id(child(id, "inventory.ducats"))
+                    place(compose(AssetImage::icon("ducats", m.px(g.ducat_icon.width))), g.ducat_icon).named(child(id, "inventory.ducats"))
                 }
                 place(label(format!("x{}", cell.item.quantity), 14.0, self.fonts.regular.clone(), false), g.amount)
                 if has_vault(&cell.item) {
-                    place(AssetImage::icon(if cell.item.vaulted == Some(true) { "vaulted" } else { "unvaulted" }, m.px(g.vault_icon.width)), g.vault_icon).id(child(id, "inventory.vault"))
+                    place(compose(AssetImage::icon(if cell.item.vaulted == Some(true) { "vaulted" } else { "unvaulted" }, m.px(g.vault_icon.width))), g.vault_icon).named(child(id, "inventory.vault"))
                     if cell.item.group != "sets" {
                         place(label(vault_label(&cell.item).into(), 14.0, self.fonts.regular.clone(), false), g.vault_label)
                     }
                 }
                 if cell.item.mastered {
-                    place(AssetImage::icon("owned", m.px(g.mastered.width)), g.mastered).id(child(id, "inventory.mastered"))
+                    place(compose(AssetImage::icon("owned", m.px(g.mastered.width))), g.mastered).named(child(id, "inventory.mastered"))
                 }
-                for (i, (image, count)) in g.parts.iter().enumerate() {
+                ForEach(g.parts.iter().enumerate(), |(i, _)| *i as u64) { |(i, (image, count))|
                     let part = &cell.item.components[i];
-                    place(ComponentImage { asset: part.asset.clone(), owned: part.blueprint_owned > 0 || (part.required > 0 && part.owned >= part.required),
-                        edge: m.px(image.width), scale: m.scale }, *image).id(part_key(id, i, false)).interactive()
+                    place(compose(ComponentImage { asset: part.asset.clone(), owned: part.blueprint_owned > 0 || (part.required > 0 && part.owned >= part.required),
+                        edge: m.px(image.width), scale: m.scale }), *image).named(part_key(id, i, false)).interactive()
                     place(slot(part_key(id, i, true)), *count)
                 }
                 if cell.item.market_name.as_ref().is_some_and(|s| !s.is_empty()) {

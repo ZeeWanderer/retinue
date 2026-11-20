@@ -1,6 +1,6 @@
 use super::{Policy, minimize, runner, scenarios};
 use crate::{Bounds, Color, Command, optimize};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[test]
 fn policy_space_respects_pass_prerequisites() {
@@ -20,19 +20,19 @@ fn simplification_has_semantic_positive_and_negative_cases() {
         radius,
         color: Color::rgba(60, 90, 120, alpha),
     };
-    let (_, summary) = optimize::compile(&Rc::new(vec![fill(0, 0.0)]), 1.0);
+    let (_, summary) = optimize::compile(&Arc::new(vec![fill(0, 0.0)]), 1.0);
     assert_eq!(summary.removed, 1);
     for top in [fill(180, 0.0), fill(255, 4.0)] {
-        let (_, summary) = optimize::compile(&Rc::new(vec![fill(255, 0.0), top]), 1.0);
+        let (_, summary) = optimize::compile(&Arc::new(vec![fill(255, 0.0), top]), 1.0);
         assert_eq!(summary.removed, 0);
     }
     let (compiled, summary) =
-        optimize::compile(&Rc::new(vec![fill(255, 0.0), fill(255, 0.0)]), 1.0);
+        optimize::compile(&Arc::new(vec![fill(255, 0.0), fill(255, 0.0)]), 1.0);
     assert_eq!(summary.removed, 1);
     assert_eq!(compiled.len(), 1);
     let (again, summary) = optimize::compile(&compiled, 1.0);
     assert_eq!(summary.removed, 0);
-    assert!(Rc::ptr_eq(&compiled, &again));
+    assert!(Arc::ptr_eq(&compiled, &again));
 }
 
 #[test]

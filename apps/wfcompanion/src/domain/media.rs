@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::relic::{AssetRefresh, Scene};
-use retinue_render::painter::{RasterImage, load_scene_icon};
+use retinue_render::painter::{RasterImage, decode_scene_icon, read_scene_icon};
 use retinue_render::resources::{Resource, ResourceCache};
 use retinue_ui::preparation::Preparation;
 
@@ -62,12 +62,14 @@ pub(crate) struct SceneAssets {
 
 pub(crate) struct Preparer {
     cache: ResourceCache<[u8; 32], RasterImage>,
+    cpu: retinue_render::work::CpuStage,
 }
 
 impl Default for Preparer {
     fn default() -> Self {
         Self {
             cache: ResourceCache::new(DECODED_BUDGET),
+            cpu: Default::default(),
         }
     }
 }
@@ -118,7 +120,14 @@ impl Preparer {
                     Err("image exceeds decoded asset budget".to_owned())
                 }
             } else {
-                load_scene_icon(&asset.path, remaining.min(IMAGE_BUDGET))
+                read_scene_icon(&asset.path)
+                    .map_err(|error| error.to_string())
+                    .and_then(|bytes| {
+                        self.cpu.run(move || {
+                            decode_scene_icon(bytes, remaining.min(IMAGE_BUDGET))
+                                .map_err(|error| error.to_string())
+                        })
+                    })
                     .map(|image| self.cache.insert(key, image))
                     .map_err(|error| error.to_string())
             };
@@ -150,8 +159,14 @@ pub(crate) struct Loader {
 }
 
 impl Loader {
-    pub(crate) fn spawn(notify: impl Fn() + Send + 'static) -> std::io::Result<Self> {
-        let mut preparer = Preparer::default();
+    pub(crate) fn spawn(
+        executor: std::sync::Arc<retinue_render::work::Executor>,
+        notify: impl Fn() + Send + 'static,
+    ) -> std::io::Result<Self> {
+        let mut preparer = Preparer {
+            cpu: retinue_render::work::CpuStage::new(executor),
+            ..Preparer::default()
+        };
         Ok(Self {
             worker: Some(Preparation::spawn(
                 "wf-overlay-assets",
@@ -400,9 +415,12 @@ mod tests {
     #[test]
     fn loader_notifies_and_delivers_prepared_scene() {
         let (ready, results) = std::sync::mpsc::channel();
-        let mut loader = Loader::spawn(move || {
-            let _ = ready.send(());
-        })
+        let mut loader = Loader::spawn(
+            retinue_render::RenderHost::new(retinue_render::HostPolicy::overlay()).executor(),
+            move || {
+                let _ = ready.send(());
+            },
+        )
         .unwrap();
         loader.request(crate::presentation::screens::mock_relic_scene());
         results

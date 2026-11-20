@@ -1,10 +1,10 @@
 use super::{Bounds, Key, OptimizationContext, PaintProgram};
 use crate::{
     Rect,
-    painter::{CachedFont, Painter, RasterImage},
+    painter::{Painter, RasterImage},
     resources::Resource,
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color([u8; 4]);
@@ -44,7 +44,7 @@ pub enum ImageFit {
 
 #[derive(Clone)]
 pub enum ImageSource {
-    Shared(Rc<RasterImage>),
+    Shared(Arc<RasterImage>),
     Cached(Resource<RasterImage>),
 }
 
@@ -64,13 +64,13 @@ impl PartialEq for ImageSource {
     }
 }
 
-impl From<Rc<RasterImage>> for ImageSource {
-    fn from(image: Rc<RasterImage>) -> Self {
+impl From<Arc<RasterImage>> for ImageSource {
+    fn from(image: Arc<RasterImage>) -> Self {
         Self::Shared(image)
     }
 }
-impl From<&Rc<RasterImage>> for ImageSource {
-    fn from(image: &Rc<RasterImage>) -> Self {
+impl From<&Arc<RasterImage>> for ImageSource {
+    fn from(image: &Arc<RasterImage>) -> Self {
         Self::Shared(image.clone())
     }
 }
@@ -113,13 +113,10 @@ pub enum Command {
         thickness: f32,
         color: Color,
     },
-    Text {
-        bounds: Bounds,
-        size: f32,
-        text: String,
-        font: Rc<CachedFont>,
+    GlyphRun {
+        origin: (f32, f32),
+        run: crate::text::GlyphRun,
         color: Color,
-        align: TextAlignment,
     },
     InsetShadow {
         bounds: Bounds,
@@ -135,11 +132,11 @@ pub enum Command {
     },
     Clip {
         bounds: Bounds,
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
     },
     Translate {
         offset: (f32, f32),
-        commands: Rc<Vec<Command>>,
+        commands: Arc<Vec<Command>>,
     },
     Line {
         from: (f32, f32),
@@ -165,7 +162,7 @@ impl Command {
         matches!(
             self,
             Self::Fill { .. }
-                | Self::Text { .. }
+                | Self::GlyphRun { .. }
                 | Self::Image { .. }
                 | Self::InsetShadow { .. }
                 | Self::Clip { .. }
@@ -175,10 +172,21 @@ impl Command {
 
     pub fn bounds(&self) -> Bounds {
         match self {
+            Self::GlyphRun { origin, run, .. } => {
+                let ink = run.ink_bounds();
+                if ink.width <= 0.0 || ink.height <= 0.0 {
+                    return Bounds::default();
+                }
+                Bounds::new(
+                    origin.0 + ink.x - 1.0,
+                    origin.1 + ink.y - 1.0,
+                    ink.width + 2.0,
+                    ink.height + 2.0,
+                )
+            }
             Self::Fragment { program, .. } => program.logical_bounds(),
             Self::Fill { bounds, .. }
             | Self::Outline { bounds, .. }
-            | Self::Text { bounds, .. }
             | Self::InsetShadow { bounds, .. }
             | Self::Image { bounds, .. }
             | Self::Clip { bounds, .. }
@@ -258,12 +266,12 @@ impl Command {
         compiled: bool,
         cull: bool,
         stats: &mut PaintStats,
-        fragments: &mut impl FnMut(&PaintProgram, &OptimizationContext) -> Option<Rc<RasterImage>>,
+        fragments: &mut impl FnMut(&PaintProgram, &OptimizationContext) -> Option<Arc<RasterImage>>,
     ) {
         if cull {
             let invisible = match self {
                 Self::Fill { color, .. }
-                | Self::Text { color, .. }
+                | Self::GlyphRun { color, .. }
                 | Self::InsetShadow { color, .. } => color.0[3] == 0,
                 _ => false,
             };
@@ -278,6 +286,22 @@ impl Command {
         }
         stats.replayed_commands += 1;
         match self {
+            Self::GlyphRun {
+                origin: offset,
+                run,
+                color,
+            } => {
+                painter.draw_retained_glyph_run(
+                    run,
+                    (
+                        origin.0 as f64 + offset.0 as f64 * scale as f64,
+                        origin.1 as f64 + offset.1 as f64 * scale as f64,
+                    ),
+                    scale as f64,
+                    *color,
+                );
+                return;
+            }
             Self::Fragment { program, context } => {
                 if let Some(image) = fragments(program, context) {
                     let bounds = program.bounds();
@@ -410,39 +434,6 @@ impl Command {
 
     fn paint_primitive(&self, p: &mut Painter<'_>, rect: Rect, scale: f32) -> bool {
         match self {
-            Self::Text {
-                size,
-                text,
-                font,
-                color,
-                align,
-                ..
-            } => {
-                p.viewport(rect, (0, 0), |p| match align {
-                    TextAlignment::Top => p.draw_text(
-                        font.as_ref(),
-                        rect.x,
-                        rect.y,
-                        size * scale,
-                        text,
-                        color.bgra(),
-                    ),
-                    TextAlignment::Center => p.draw_text_vertically_centered(
-                        font.as_ref(),
-                        crate::painter::TextLine::new(rect.x, rect.y, rect.height),
-                        size * scale,
-                        text,
-                        color.bgra(),
-                    ),
-                    TextAlignment::WrappedCenter => p.draw_centered_text(
-                        font.as_ref(),
-                        crate::painter::TextBox::new(rect.x, rect.y, rect.width),
-                        size * scale,
-                        text,
-                        color.bgra(),
-                    ),
-                });
-            }
             Self::Fill { radius, color, .. } => p.fill_rounded_rect(
                 rect.x,
                 rect.y,
@@ -584,6 +575,7 @@ pub enum RasterMode {
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct PaintStats {
+    pub prepared_fonts: usize,
     pub indexed_nodes: usize,
     pub indexed_commands_skipped: usize,
     pub fragment_candidates: usize,

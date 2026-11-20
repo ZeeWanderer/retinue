@@ -171,15 +171,21 @@ impl Drop for ServerThread {
 
 #[test]
 fn released_targets_borrow_busy_sources_without_copying_or_overwriting_them() {
-    exercise_buffers(4);
+    exercise_buffers(4, false);
 }
 
 #[test]
 fn legacy_surfaces_use_surface_damage_with_the_same_submission_lifecycle() {
-    exercise_buffers(3);
+    exercise_buffers(3, false);
 }
 
-fn exercise_buffers(version: u32) {
+#[cfg(feature = "desktop")]
+#[test]
+fn release_wakes_a_blocked_host_without_event_thread_dispatch() {
+    exercise_buffers(4, true);
+}
+
+fn exercise_buffers(version: u32, _async_release: bool) {
     let mut display = Display::<Server>::new().unwrap();
     let mut handle = display.handle();
     handle.create_global::<Server, server::wl_compositor::WlCompositor, _>(version, ());
@@ -203,13 +209,38 @@ fn exercise_buffers(version: u32) {
             }
         })),
     );
-    let connection = Connection::from_socket(client).unwrap();
+    let display_owner = Connection::from_socket(client).unwrap();
+    #[cfg(feature = "desktop")]
+    let connection = if _async_release {
+        // Match Winit interop: a separate native queue on an externally owned display.
+        Connection::from_backend(unsafe {
+            wayland_client::backend::Backend::from_foreign_display(
+                display_owner.backend().display_ptr(),
+            )
+        })
+    } else {
+        display_owner.clone()
+    };
+    #[cfg(not(feature = "desktop"))]
+    let connection = display_owner.clone();
     let (globals, mut queue) = registry_queue_init::<ClientState>(&connection).unwrap();
     let qh = queue.handle();
     let compositor: client::wl_compositor::WlCompositor =
         globals.bind(&qh, version..=version, ()).unwrap();
     let surface = compositor.create_surface(&qh, ());
     let mut state = ClientState(Shm::bind(&globals, &qh).unwrap());
+    #[cfg(feature = "desktop")]
+    let wake = _async_release.then(|| {
+        let (tx, rx) = mpsc::channel();
+        let wake = retinue_ui::presentation_buffers::readiness::QueueWake::new(
+            connection.backend(),
+            move || {
+                tx.send(()).unwrap();
+            },
+        )
+        .unwrap();
+        (wake, rx)
+    });
     let mut buffers = Buffers::default();
     let size = (83, 59);
     let format = client::wl_shm::Format::Argb8888;
@@ -291,6 +322,24 @@ fn exercise_buffers(version: u32) {
             .is_none()
     );
     recorded.lock().unwrap()[0].release();
+    #[cfg(feature = "desktop")]
+    if let Some((wake, rx)) = &wake {
+        while !buffers.drawable() {
+            wake.arm().unwrap();
+            rx.recv_timeout(Duration::from_secs(3))
+                .expect("release must wake the host");
+        }
+        assert!(!wake.waiting());
+        assert!(
+            rx.recv_timeout(Duration::from_millis(20)).is_err(),
+            "idle waiter must not poll"
+        );
+        wake.arm().unwrap();
+        wake.cancel();
+    } else {
+        queue.roundtrip(&mut state).unwrap();
+    }
+    #[cfg(not(feature = "desktop"))]
     queue.roundtrip(&mut state).unwrap();
     assert!(buffers.drawable());
     assert_eq!(
@@ -302,11 +351,38 @@ fn exercise_buffers(version: u32) {
     let (from, source) = pixels.source.unwrap();
     assert_eq!(from, 2);
     assert_eq!(Some(source.as_ptr()), previous_pointer);
+    let target_address = pixels.target.as_ptr() as usize;
+    let source_address = source.as_ptr() as usize;
+    let mut lease = buffers.detach(0).unwrap();
+    assert!(buffers.pixels(0).is_none());
+    assert!(
+        buffers
+            .acquire(&state.0, size, format, true)
+            .unwrap()
+            .is_none()
+    );
+    lease = thread::spawn(move || {
+        let pixels = lease.pixels().unwrap();
+        assert_eq!(pixels.target.as_ptr() as usize, target_address);
+        assert_eq!(pixels.source.unwrap().1.as_ptr() as usize, source_address);
+        pixels.target.fill(99);
+        lease
+    })
+    .join()
+    .unwrap();
+    assert_eq!(buffers.restore(lease), Some(0));
+    let pixels = buffers.pixels(0).unwrap();
+    let (_, source) = pixels.source.unwrap();
     pixels.target.fill(99);
     assert!(source.iter().all(|v| *v == 3));
     // An abandoned target is not promoted to source.
     assert_eq!(buffers.pixels(0).unwrap().source.unwrap().0, 2);
     assert!(buffers.acquire(&state.0, (84, 59), format, true).is_err());
+    drop(buffers.detach(0).unwrap());
+    assert_eq!(
+        buffers.acquire(&state.0, size, format, true).unwrap(),
+        Some(0)
+    );
     buffers.buffer(0).attach_to(&surface).unwrap();
     surface.commit();
     queue.roundtrip(&mut state).unwrap();
@@ -323,7 +399,9 @@ fn exercise_buffers(version: u32) {
         "same-target fallback must not alias"
     );
 
+    let stale = buffers.detach(2).unwrap();
     buffers.clear();
+    assert_eq!(buffers.restore(stale), None);
     assert_eq!(
         buffers.acquire(&state.0, (40, 30), format, true).unwrap(),
         Some(0)
@@ -340,4 +418,140 @@ fn exercise_buffers(version: u32) {
         1,
         "disabled relocation must not allocate a source slot"
     );
+    exercise_render_job(&state.0);
+    #[cfg(feature = "desktop")]
+    if let Some((wake, _rx)) = wake {
+        // Shutdown must interrupt a waiter even if the compositor sends no more events.
+        wake.arm().unwrap();
+        drop(wake);
+    }
+}
+
+fn exercise_render_job(shm: &Shm) {
+    use retinue_render::{
+        Color, DrawPacket, HostPolicy, PacketJob, RenderHost, Wake,
+        damage::Damage,
+        painter::RasterImage,
+        surface::Buffered,
+        work::{Graph, Priority},
+    };
+    use retinue_ui::presentation_buffers::render::RenderJob;
+    use std::num::{NonZeroU32, NonZeroUsize};
+    let host = RenderHost::new(HostPolicy {
+        threads: 2,
+        ..HostPolicy::overlay()
+    });
+    let threads = host.task_threads(NonZeroU32::new(2).unwrap());
+    for (reset, raster) in [(false, false), (true, false), (false, true), (true, true)] {
+        let mut buffers = Buffers::default();
+        let index = buffers
+            .acquire(shm, (40, 30), client::wl_shm::Format::Argb8888, true)
+            .unwrap()
+            .unwrap();
+        let mut repair = Buffered::default();
+        repair.add_buffer();
+        repair.invalidate(Damage::Full);
+        let pixels = buffers.pixels(index).unwrap();
+        let address = pixels.target.as_ptr() as usize;
+        let work = repair
+            .plan_queued(index, (40, 30), None, pixels.target, pixels.source, threads)
+            .unwrap()
+            .unwrap()
+            .into_work();
+        let rect = Rect {
+            x: 0,
+            y: 0,
+            width: 40,
+            height: 30,
+        };
+        let image = Arc::new(
+            RasterImage::render(40, 30, |p| {
+                p.fill_rounded_rect(0, 0, 40, 30, 0, Color::rgb(0x123456).bgra())
+            })
+            .unwrap(),
+        );
+        let packet = DrawPacket::image(image, (0, 0), rect);
+        let (release, gate) = mpsc::channel();
+        let (entered, running) = mpsc::channel();
+        let mut graph = Graph::default();
+        graph.add(
+            &[],
+            NonZeroUsize::new(threads.get() as usize).unwrap(),
+            move |_| {
+                entered.send(()).unwrap();
+                gate.recv_timeout(Duration::from_secs(5))
+                    .expect("test did not release the rendering participant");
+                Ok(())
+            },
+        );
+        let hold = host
+            .executor()
+            .submit(graph, Priority::Foreground, || {})
+            .unwrap();
+        running.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (wake, woke) = mpsc::channel();
+        let wake: Wake = Arc::new(move || {
+            let _ = wake.send(());
+        });
+        let mut packet = PacketJob::ready(packet);
+        if raster {
+            packet = packet.rasterize((40, 30), Arc::default(), rect, &host, threads, wake.clone());
+        }
+        let mut job = RenderJob::submit(
+            &host,
+            threads,
+            buffers.detach(index).unwrap(),
+            work,
+            packet,
+            [0; 4],
+            wake,
+        )
+        .unwrap();
+        woke.recv_timeout(Duration::from_secs(5))
+            .expect("the host must poll a new frame");
+        assert!(job.poll().is_none());
+        assert_eq!(host.executor().stats().queued, 1);
+        let late = Rect {
+            x: 3,
+            y: 5,
+            width: 9,
+            height: 7,
+        };
+        repair.invalidate(Damage::rect(late));
+        if reset {
+            buffers.clear();
+            repair.reset();
+        }
+        release.send(()).unwrap();
+        hold.wait().unwrap();
+        woke.recv_timeout(Duration::from_secs(5))
+            .expect("worker completion must wake an idle host");
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let rendered = loop {
+            if let Some(result) = job.poll() {
+                break result.unwrap().unwrap();
+            }
+            woke.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                .unwrap();
+        };
+        assert_eq!(repair.can_submit(&rendered.submission), !reset);
+        assert_eq!(buffers.restore(rendered.lease), (!reset).then_some(index));
+        if !reset {
+            let pixels = buffers.pixels(index).unwrap();
+            assert_eq!(pixels.target.as_ptr() as usize, address);
+            assert!(
+                pixels
+                    .target
+                    .chunks_exact(4)
+                    .all(|pixel| pixel == Color::rgb(0x123456).bgra())
+            );
+            assert!(repair.submitted(rendered.submission));
+            assert!(repair.is_dirty(), "late damage must survive publication");
+            let next = repair
+                .plan_queued(index, (40, 30), None, pixels.target, pixels.source, threads)
+                .unwrap()
+                .unwrap();
+            assert!(next.repair().intersects(late));
+        }
+    }
 }

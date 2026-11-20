@@ -8,15 +8,13 @@ use std::{
 };
 
 fn source(scale: f32, revision: u64) -> PaintProgram {
-    let image = Rc::new(
+    let image = Arc::new(
         RasterImage::render(10, 10, |p| {
             p.fill_rounded_rect(0, 0, 10, 10, 3, [50, 120, 240, 200])
         })
         .unwrap(),
     );
-    let font = Rc::new(
-        crate::painter::load_overlay_font(&crate::painter::GlyphCache::new(1024 * 1024)).unwrap(),
-    );
+    let font = Arc::new(crate::painter::load_overlay_font().unwrap());
     let commands = (0..1024)
         .map(|i| {
             let bounds = Bounds::new((i % 32 * 10) as f32, (i / 32 * 10) as f32, 13.0, 13.0);
@@ -26,17 +24,17 @@ fn source(scale: f32, revision: u64) -> PaintProgram {
                     image: image.clone().into(),
                     fit: ImageFit::Stretch,
                 },
-                2 => Command::Text {
+                2 => crate::text::fixture::label(
+                    &font,
+                    "Aa",
+                    9.0,
                     bounds,
-                    size: 9.0,
-                    text: "Aa".into(),
-                    font: font.clone(),
-                    color: Color::rgb(0xffffff),
-                    align: crate::TextAlignment::Top,
-                },
+                    crate::TextAlignment::Top,
+                    Color::rgb(0xffffff),
+                ),
                 3 => Command::Clip {
                     bounds,
-                    commands: Rc::new(vec![Command::Fill {
+                    commands: Arc::new(vec![Command::Fill {
                         bounds,
                         radius: 1.0,
                         color: Color::rgba(220, 180, 0, 170),
@@ -65,7 +63,7 @@ fn source(scale: f32, revision: u64) -> PaintProgram {
         PaintKey::new(1.into(), revision),
         (320.0, 320.0),
         scale,
-        Rc::new(commands),
+        Arc::new(commands),
     )
     .unwrap()
 }
@@ -171,10 +169,12 @@ fn indexed_fragments_preserve_external_callback_order_and_raw_escape_path() {
             },
         );
     }
-    let program = PaintProgram::new(5, (320.0, 320.0), 1.25, Rc::new(commands)).unwrap();
+    let program = PaintProgram::new(5, (320.0, 320.0), 1.25, Arc::new(commands)).unwrap();
     assert!(host.analyze(&program));
     drop(pass);
     settle(&host);
+    let (fonts, _) = crate::text::preparation::PreparedFonts::default().update([&program]);
+    let fonts = Arc::new(fonts);
     let command = Command::Fragment {
         program,
         context: OptimizationContext::default(),
@@ -191,19 +191,21 @@ fn indexed_fragments_preserve_external_callback_order_and_raw_escape_path() {
         });
         let mut stats = PaintStats::default();
         let mut callbacks = Vec::new();
-        command.paint(
-            &mut painter,
-            1.25,
-            (-3, -7),
-            &mut |key, p| {
-                callbacks.push(key);
-                p.fill_rounded_rect(25, 31, 35, 40, 0, [20, 80, 30, 100]);
-            },
-            optimized,
-            optimized,
-            &mut stats,
-            &mut |_, _| None,
-        );
+        painter.with_text_fonts(&fonts, |painter| {
+            command.paint(
+                painter,
+                1.25,
+                (-3, -7),
+                &mut |key, p| {
+                    callbacks.push(key);
+                    p.fill_rounded_rect(25, 31, 35, 40, 0, [20, 80, 30, 100]);
+                },
+                optimized,
+                optimized,
+                &mut stats,
+                &mut |_, _| None,
+            )
+        });
         painter.finish().unwrap();
         assert_eq!(callbacks, vec![3.into(), 2.into()]);
         if optimized && host.stats().analysis.submitted != 0 {

@@ -3,19 +3,21 @@ use super::{
     materialization::{Recipe, Repair, area},
     residency::{Reservation, Residency},
 };
-use crate::{
-    Rect,
-    painter::{RasterImage, render_thread_budget},
-};
+use crate::{Rect, painter::RasterImage};
 use std::{
     collections::{HashMap, HashSet},
+    num::NonZeroU32,
     ops::Range,
-    rc::Rc,
+    sync::Arc,
 };
+
+mod completion;
+pub(crate) mod parallel;
+pub(super) use completion::{Completion, Outcome};
 
 #[derive(Clone)]
 pub(super) struct Materialization {
-    pub image: Rc<RasterImage>,
+    pub image: Arc<RasterImage>,
     pub recipe: Recipe,
 }
 
@@ -29,6 +31,18 @@ pub(super) enum PaintDemand<'a> {
 }
 
 impl PaintDemand<'_> {
+    pub fn area(self, bounds: Rect) -> u64 {
+        let area = |rect: Rect| u64::from(rect.width) * u64::from(rect.height);
+        match self {
+            Self::Full => area(bounds),
+            Self::Repair(region) => region
+                .rects()
+                .iter()
+                .map(|rect| area(rect.intersection(bounds)))
+                .sum(),
+        }
+    }
+
     pub fn intersects(self, bounds: Rect) -> bool {
         !bounds.is_empty()
             && match self {
@@ -44,19 +58,32 @@ impl PaintDemand<'_> {
 
 #[derive(Clone)]
 pub(super) enum Input {
-    Ready(Rc<RasterImage>),
+    Ready(Arc<RasterImage>),
     Task(TaskId),
 }
 
 impl Input {
-    pub fn resolve<'a>(
-        &'a self,
-        results: &'a [Option<Materialization>],
-    ) -> Option<&'a Rc<RasterImage>> {
+    fn resolve<'a>(&'a self, results: &'a (impl Inputs + ?Sized)) -> Option<&'a Arc<RasterImage>> {
         match self {
             Self::Ready(image) => Some(image),
-            Self::Task(task) => results[task.0].as_ref().map(|result| &result.image),
+            Self::Task(task) => results.image(*task),
         }
+    }
+}
+
+trait Inputs {
+    fn image(&self, task: TaskId) -> Option<&Arc<RasterImage>>;
+}
+
+impl Inputs for [Outcome] {
+    fn image(&self, task: TaskId) -> Option<&Arc<RasterImage>> {
+        self[task.0].result().map(|result| &result.image)
+    }
+}
+
+impl Inputs for Vec<Outcome> {
+    fn image(&self, task: TaskId) -> Option<&Arc<RasterImage>> {
+        self.as_slice().image(task)
     }
 }
 
@@ -77,12 +104,11 @@ pub(super) struct Task {
     repair: Repair,
     substitutes: Vec<Substitute>,
     threads: u32,
-    reservation: Option<Reservation>,
     fragments: HashMap<ProgramId, Input>,
 }
 
 struct Rendered {
-    image: Rc<RasterImage>,
+    image: Arc<RasterImage>,
     reads: HashSet<ProgramId>,
     blits: usize,
     substitutions: usize,
@@ -90,12 +116,10 @@ struct Rendered {
 
 #[derive(Default)]
 pub(super) struct Preparation {
-    tasks: Vec<Task>,
+    tasks: Vec<Arc<Task>>,
+    reservations: Vec<Option<Reservation>>,
     pub edges: usize,
-    elapsed: Vec<u64>,
     fragments: HashMap<ProgramId, Input>,
-    pub used_fragments: HashSet<ProgramId>,
-    deferred: HashSet<TaskId>,
 }
 
 impl Preparation {
@@ -111,17 +135,14 @@ impl Preparation {
         substitutes: Vec<Substitute>,
         threads: u32,
     ) -> Option<TaskId> {
-        let reservation = if recipe
-            .repair(previous.as_ref().map(|old| &old.recipe))
-            .regions
-            .is_empty()
-        {
+        let repair = recipe.repair(previous.as_ref().map(|old| &old.recipe));
+        let reservation = if repair.regions.is_empty() {
             None
         } else {
             Some(residency.reserve(&recipe)?)
         };
-        let task = self.add(recipe, previous, substitutes, threads);
-        self.tasks[task.0].reservation = reservation;
+        let task = self.add_planned(recipe, previous, repair, substitutes, threads);
+        self.reservations[task.0] = reservation;
         Some(task)
     }
 
@@ -129,6 +150,18 @@ impl Preparation {
         &mut self,
         recipe: Recipe,
         previous: Option<Materialization>,
+        substitutes: Vec<Substitute>,
+        threads: u32,
+    ) -> TaskId {
+        let repair = recipe.repair(previous.as_ref().map(|old| &old.recipe));
+        self.add_planned(recipe, previous, repair, substitutes, threads)
+    }
+
+    fn add_planned(
+        &mut self,
+        recipe: Recipe,
+        previous: Option<Materialization>,
+        repair: Repair,
         substitutes: Vec<Substitute>,
         threads: u32,
     ) -> TaskId {
@@ -162,7 +195,6 @@ impl Preparation {
                 }
             }
         }
-        let repair = recipe.repair(previous.as_ref().map(|old| &old.recipe));
         let mut fragments = HashMap::new();
         for fragment in recipe.fragments.iter() {
             collect_inputs(&fragment.program, &self.fragments, &mut fragments);
@@ -177,150 +209,170 @@ impl Preparation {
             }
         }
         let id = TaskId(self.tasks.len());
-        self.tasks.push(Task {
+        self.tasks.push(Arc::new(Task {
             recipe,
             previous,
             repair,
             substitutes,
             threads,
-            reservation: None,
             fragments,
-        });
+        }));
+        self.reservations.push(None);
         id
     }
 
     #[cfg(test)]
-    pub fn execute(&mut self, stats: &mut PaintStats) -> Vec<Option<Materialization>> {
+    pub fn execute(&self, stats: &mut PaintStats) -> Completion {
         self.execute_with(stats, |task, results| task.render(results).ok())
     }
 
     pub fn execute_on(
-        &mut self,
+        &self,
         host: &RenderHost,
-        stats: &mut PaintStats,
-    ) -> Vec<Option<Materialization>> {
-        self.execute_budgeted(Some(host), stats, |task, results, threads| {
-            task.render_with_threads(results, threads).ok()
+        fonts: &Arc<crate::text::preparation::PreparedFonts>,
+    ) -> Completion {
+        if self
+            .tasks
+            .iter()
+            .filter(|task| task.pixels() != 0)
+            .take(2)
+            .count()
+            > 1
+            && let Some(running) = self.dispatch(host, fonts, || {})
+        {
+            return running.wait(host);
+        }
+        self.execute_budgeted(Some(host), |task, results, threads| {
+            task.render_with_threads(
+                results,
+                NonZeroU32::new(threads).expect("admitted native pass includes its caller"),
+                fonts,
+            )
+            .ok()
         })
     }
 
     #[cfg(test)]
     fn execute_with(
-        &mut self,
+        &self,
         stats: &mut PaintStats,
-        mut render: impl FnMut(&Task, &[Option<Materialization>]) -> Option<Rendered>,
-    ) -> Vec<Option<Materialization>> {
-        self.execute_budgeted(None, stats, |task, results, _| render(task, results))
+        mut render: impl FnMut(&Task, &[Outcome]) -> Option<Rendered>,
+    ) -> Completion {
+        let completed = self.execute_budgeted(None, |task, results, _| render(task, results));
+        completed.accumulate(stats);
+        completed
     }
 
     fn execute_budgeted(
-        &mut self,
+        &self,
         host: Option<&RenderHost>,
-        stats: &mut PaintStats,
-        mut render: impl FnMut(&Task, &[Option<Materialization>], u32) -> Option<Rendered>,
-    ) -> Vec<Option<Materialization>> {
-        stats.preparation_tasks += self.tasks.len();
-        stats.preparation_edges += self.edges;
-        let mut results = Vec::with_capacity(self.tasks.len());
-        self.elapsed.clear();
-        self.used_fragments.clear();
-        self.deferred.clear();
+        mut render: impl FnMut(&Task, &[Outcome], u32) -> Option<Rendered>,
+    ) -> Completion {
+        let mut results = Completion::new(self.tasks.len());
+        results.edges = self.edges;
         for (index, task) in self.tasks.iter().enumerate() {
-            let pixels = task.repair.regions.iter().map(|r| area(*r)).sum::<usize>()
-                + if task.repair.copy && !task.repair.regions.is_empty() {
-                    area(task.recipe.canvas())
-                } else {
-                    0
-                };
+            let (inputs, output) = results.outputs.split_at_mut(index);
+            let pixels = task.pixels();
             let threads = if pixels == 0 {
-                Some(task.threads)
+                Some(task.threads.max(1))
             } else {
                 host.map_or(Some(task.threads), |host| host.admit(pixels, task.threads))
             };
             let Some(threads) = threads else {
-                self.deferred.insert(TaskId(index));
-                stats.deferred_preparations += 1;
-                self.elapsed.push(0);
-                results.push(None);
+                output[0] = Outcome::Deferred;
                 continue;
             };
-            let started = std::time::Instant::now();
-            let result = render(task, &results, threads).map(|rendered| {
-                self.used_fragments.extend(rendered.reads);
-                stats.fragment_blits += rendered.blits;
-                stats.preparation_blits += rendered.substitutions;
-                stats.repaired_pixels +=
-                    task.repair.regions.iter().map(|r| area(*r)).sum::<usize>();
-                if task.repair.copy && !task.repair.regions.is_empty() {
-                    stats.copied_pixels += area(task.recipe.canvas());
-                }
-                Materialization {
-                    image: rendered.image,
-                    recipe: task.recipe.clone(),
-                }
-            });
+            output[0] = task.run_with(inputs, threads, &mut render);
             if pixels != 0
                 && let Some(host) = host
             {
-                host.charge(started.elapsed());
+                host.charge(std::time::Duration::from_nanos(output[0].elapsed()));
             }
-            stats.failed_preparations += usize::from(result.is_none());
-            self.elapsed.push(started.elapsed().as_nanos() as u64);
-            results.push(result);
-        }
-        #[cfg(any(test, feature = "benchmark"))]
-        {
-            stats.materialization_ns += self.elapsed.iter().sum::<u64>();
         }
         results
-    }
-
-    pub fn deferred(&self, task: TaskId) -> bool {
-        self.deferred.contains(&task)
-    }
-
-    pub fn has_deferred(&self) -> bool {
-        !self.deferred.is_empty()
-    }
-
-    pub fn result<'a>(
-        &self,
-        task: TaskId,
-        results: &'a [Option<Materialization>],
-    ) -> Option<&'a Materialization> {
-        results[task.0].as_ref()
     }
 
     pub fn rasterized(&self, task: TaskId) -> bool {
         !self.tasks[task.0].repair.regions.is_empty()
     }
 
-    pub fn elapsed(&self, task: TaskId) -> u64 {
-        self.elapsed[task.0]
-    }
-
     pub fn complete(&mut self, task: TaskId) {
-        self.tasks[task.0].reservation = None;
+        self.reservations[task.0] = None;
     }
 
     pub fn reserve(&mut self, task: TaskId, reservation: Reservation) {
-        self.tasks[task.0].reservation = Some(reservation);
+        self.reservations[task.0] = Some(reservation);
     }
 }
 
 impl Task {
-    #[cfg(test)]
-    fn render(
+    fn pixels(&self) -> usize {
+        self.repair.regions.iter().map(|r| area(*r)).sum::<usize>()
+            + if self.repair.copy && !self.repair.regions.is_empty() {
+                area(self.recipe.canvas())
+            } else {
+                0
+            }
+    }
+
+    fn run_with<R: Inputs + ?Sized>(
         &self,
-        results: &[Option<Materialization>],
-    ) -> Result<Rendered, crate::painter::PainterError> {
-        self.render_with_threads(results, self.threads)
+        inputs: &R,
+        threads: u32,
+        render: &mut impl FnMut(&Self, &R, u32) -> Option<Rendered>,
+    ) -> Outcome {
+        let started = std::time::Instant::now();
+        let rendered = render(self, inputs, threads);
+        let elapsed = started.elapsed().as_nanos() as u64;
+        match rendered {
+            Some(rendered) => Outcome::Finished {
+                result: Some(Materialization {
+                    image: rendered.image,
+                    recipe: self.recipe.clone(),
+                }),
+                elapsed,
+                reads: rendered.reads,
+                blits: rendered.blits,
+                substitutions: rendered.substitutions,
+                repaired_pixels: self.repair.regions.iter().map(|r| area(*r)).sum(),
+                copied_pixels: if self.repair.copy && !self.repair.regions.is_empty() {
+                    area(self.recipe.canvas())
+                } else {
+                    0
+                },
+            },
+            None => Outcome::Finished {
+                result: None,
+                elapsed,
+                reads: HashSet::new(),
+                blits: 0,
+                substitutions: 0,
+                repaired_pixels: 0,
+                copied_pixels: 0,
+            },
+        }
+    }
+
+    #[cfg(test)]
+    fn render(&self, results: &[Outcome]) -> Result<Rendered, crate::painter::PainterError> {
+        let (fonts, _) = crate::text::preparation::PreparedFonts::default().update(
+            self.recipe
+                .fragments
+                .iter()
+                .map(|fragment| &fragment.program),
+        );
+        self.render_with_threads(
+            results,
+            crate::painter::render_thread_budget(self.threads),
+            &Arc::new(fonts),
+        )
     }
 
     fn render_with_threads(
         &self,
-        results: &[Option<Materialization>],
-        threads: u32,
+        results: &(impl Inputs + ?Sized),
+        threads: NonZeroU32,
+        fonts: &Arc<crate::text::preparation::PreparedFonts>,
     ) -> Result<Rendered, crate::painter::PainterError> {
         if self.repair.regions.is_empty() {
             return Ok(Rendered {
@@ -336,85 +388,83 @@ impl Task {
         let image = RasterImage::render_with_threads(
             self.recipe.size.0,
             self.recipe.size.1,
-            render_thread_budget(threads),
+            threads,
             |painter| {
-                if self.repair.copy {
-                    let previous = self.previous.as_ref().unwrap();
-                    painter.draw_image(
-                        &previous.image,
-                        0,
-                        0,
-                        self.recipe.size.0,
-                        self.recipe.size.1,
-                    );
-                }
-                for region in &self.repair.regions {
-                    painter.viewport(*region, (0, 0), |painter| {
-                        painter.clear();
-                        let mut index = 0;
-                        let mut substitutes = self.substitutes.iter().peekable();
-                        while index < self.recipe.fragments.len() {
-                            if let Some(substitute) =
-                                substitutes.peek().filter(|s| s.fragments.start == index)
-                            {
-                                let mut covered = Vec::new();
-                                for source in &substitute.regions {
-                                    let Some(image) = source.source.resolve(results) else {
-                                        continue;
-                                    };
-                                    let (width, height) = image.dimensions();
-                                    let clip = super::PaintExtent {
-                                        x: 0,
-                                        y: 0,
-                                        width,
-                                        height,
-                                    }
-                                    .visible(source.origin, source.clip)
-                                    .intersection(*region);
-                                    if clip.is_empty() {
-                                        continue;
-                                    }
-                                    painter.viewport(clip, (0, 0), |painter| {
-                                        painter.translated(source.origin, |painter| {
-                                            let (width, height) = image.dimensions();
-                                            painter.draw_image(image, 0, 0, width, height);
-                                        });
-                                    });
-                                    covered.push(clip);
-                                    substitutions += 1;
-                                }
-                                for gap in super::coverage::remaining(*region, covered) {
-                                    painter.viewport(gap, (0, 0), |painter| {
-                                        self.replay(
-                                            substitute.fragments.clone(),
-                                            painter,
-                                            gap,
-                                            results,
-                                            &mut reads,
-                                            &mut stats,
-                                        );
-                                    });
-                                }
-                                index = substitute.fragments.end;
-                                substitutes.next();
-                                continue;
+                painter.with_text_fonts(fonts, |painter| {
+                    if self.repair.copy {
+                        let previous = self.previous.as_ref().unwrap();
+                        painter.seed_image(&previous.image);
+                    }
+                    for region in &self.repair.regions {
+                        painter.viewport(*region, (0, 0), |painter| {
+                            if self.repair.copy {
+                                painter.clear();
                             }
-                            self.replay(
-                                index..index + 1,
-                                painter,
-                                *region,
-                                results,
-                                &mut reads,
-                                &mut stats,
-                            );
-                            index += 1;
-                        }
-                    });
-                }
+                            let mut index = 0;
+                            let mut substitutes = self.substitutes.iter().peekable();
+                            while index < self.recipe.fragments.len() {
+                                if let Some(substitute) =
+                                    substitutes.peek().filter(|s| s.fragments.start == index)
+                                {
+                                    let mut covered = Vec::new();
+                                    for source in &substitute.regions {
+                                        let Some(image) = source.source.resolve(results) else {
+                                            continue;
+                                        };
+                                        let (width, height) = image.dimensions();
+                                        let clip = super::PaintExtent {
+                                            x: 0,
+                                            y: 0,
+                                            width,
+                                            height,
+                                        }
+                                        .visible(source.origin, source.clip)
+                                        .intersection(*region);
+                                        if clip.is_empty() {
+                                            continue;
+                                        }
+                                        painter.viewport(clip, (0, 0), |painter| {
+                                            painter.translated(source.origin, |painter| {
+                                                let (width, height) = image.dimensions();
+                                                painter.draw_image(image, 0, 0, width, height);
+                                            });
+                                        });
+                                        covered.push(clip);
+                                        substitutions += 1;
+                                    }
+                                    for gap in super::coverage::remaining(*region, covered) {
+                                        painter.viewport(gap, (0, 0), |painter| {
+                                            self.replay(
+                                                substitute.fragments.clone(),
+                                                painter,
+                                                gap,
+                                                results,
+                                                &mut reads,
+                                                &mut stats,
+                                            );
+                                        });
+                                    }
+                                    index = substitute.fragments.end;
+                                    substitutes.next();
+                                    continue;
+                                }
+                                self.replay(
+                                    index..index + 1,
+                                    painter,
+                                    *region,
+                                    results,
+                                    &mut reads,
+                                    &mut stats,
+                                );
+                                index += 1;
+                            }
+                        });
+                    }
+                })
             },
         )?;
         Ok(Rendered {
-            image: Rc::new(image),
+            image: Arc::new(image),
             reads,
             blits: stats.fragment_blits,
             substitutions,
@@ -426,7 +476,7 @@ impl Task {
         range: Range<usize>,
         painter: &mut crate::painter::Painter<'_>,
         repair: Rect,
-        results: &[Option<Materialization>],
+        results: &(impl Inputs + ?Sized),
         reads: &mut HashSet<ProgramId>,
         stats: &mut PaintStats,
     ) {

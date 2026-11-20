@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) struct DialogView {
     pub content: State<Option<Content>>,
     pub fields: Items<NumberField>,
@@ -8,21 +8,20 @@ pub(super) struct DialogView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for DialogView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
-        let Some(c) = self.content.get() else {
-            return empty();
-        };
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        ui! {
+        if let Some(c) = self.content.get() {
         let m = self.metrics.get();
         let frame = |r| m.local(c.bounds(&m), r);
         let label = |text: &str, size, color| {
-            fitted_label(
+            super::label(
                 text,
                 self.fonts.regular.clone(),
                 size,
                 color,
                 false,
-                m.scale,
             )
         };
         ui! {
@@ -31,10 +30,10 @@ impl View for DialogView {
                 place(ui! {
                     ZStack() {
                         fill(controls::POPOVER, 8.0)
-                        place(fitted_label(&c.title, self.fonts.bold.clone(), 18.0, TEXT, false, m.scale), frame(Bounds::new(16.0, 12.0, 298.0, 30.0)))
+                        place(super::label(&c.title, self.fonts.bold.clone(), 18.0, TEXT, false), frame(Bounds::new(16.0, 12.0, 298.0, 30.0)))
                         if c.edit {
                             place(label(&c.subtitle, 14.0, TEXT), frame(Bounds::new(16.0, 44.0, 298.0, 26.0)))
-                            for &id in self.fields.order().keys() {
+                            ForEach(self.fields.order().keys().iter().copied(), |id| *id) { |id|
                                 let f = self.fields.get(id).unwrap();
                                 let x = 16.0 + (f.index % 2) as f32 * 158.0;
                                 let y = 76.0 + (f.index / 2) as f32 * 65.0;
@@ -53,9 +52,11 @@ impl View for DialogView {
                         if let Some(error) = &c.error {
                             place(label(error, 12.0, BAD), frame(Bounds::new(16.0, c.height - 85.0, 298.0, 28.0)))
                         }
-                    }.alignment(Alignment::Start)
-                }, c.bounds(&m)).id(PANEL)
-            }.alignment(Alignment::Start).frame(m.width, m.height).role(Role::Overlay)
+                    }.alignment(AnchorPoint::TOP_LEADING)
+                }, c.bounds(&m)).named(PANEL)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(super::frame(m.width, m.height)).role(Role::Overlay)
+        }
+        }
         }
     }
 }

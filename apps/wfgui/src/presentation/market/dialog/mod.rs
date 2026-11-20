@@ -62,14 +62,17 @@ impl Dialog {
         }
     }
 
-    pub fn view(&self, metrics: State<Metrics>, fonts: Fonts) -> Element {
+    pub fn view(
+        &self,
+        metrics: State<Metrics>,
+        fonts: Fonts,
+    ) -> impl View + Clone + PartialEq + use<> {
         dialog_view::DialogView {
             content: self.content.clone(),
             fields: self.fields.clone(),
             metrics,
             fonts,
         }
-        .into_element()
     }
 
     pub fn sync(&self, market: &Market) {

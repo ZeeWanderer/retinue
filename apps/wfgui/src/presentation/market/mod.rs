@@ -873,12 +873,18 @@ mod tests;
 mod toolbar;
 
 use crate::{
-    presentation::widgets::Fonts, presentation::widgets::fill, presentation::widgets::fitted_label,
-    presentation::widgets::key, presentation::widgets::place, presentation::widgets::slot,
+    presentation::widgets::compiled::{fill, frame, label, place, slot},
+    presentation::widgets::{Fonts, key},
 };
 use market_model::Model;
 use retinue_render::{Bounds, CacheHint, Key};
-use retinue_ui::{layout::grid::UniformGrid, prelude::*, semantics::Role};
+use retinue_ui::{
+    authoring::*,
+    layout::{Insets, LayoutSize, anchors::AnchorPoint, grid::UniformGrid},
+    semantics::Role,
+    state::{Items, KeyedOrder, State},
+    timeline::FrameTime,
+};
 
 const GRID: Key = Key::new("market.grid", 0);
 const SCROLL: Key = Key::new("market.scroll", 0);
@@ -1002,14 +1008,13 @@ impl MarketController {
         }
     }
 
-    fn view(&self, ui: &ControlHost) -> Element {
+    fn view(&self, ui: &ControlHost) -> impl View + use<> {
         let fonts = Fonts::new(ui);
         market_view::MarketPageView {
             model: self.model.clone(),
             dialog: self.dialog.view(self.model.metrics.clone(), fonts.clone()),
             fonts,
         }
-        .into_element()
     }
 
     fn project(&mut self, market: &mut Market, inventory: &Listing) {
@@ -1107,7 +1112,8 @@ impl MarketController {
         self.project(market, inventory);
         let grid = m.grid();
         market.scroll.resize(
-            grid.content_height(self.orders.len()) as f32,
+            grid.content_height(self.orders.len()) as f32
+                + crate::presentation::style::SCROLL_CONTENT_INSET * ui.scale,
             m.viewport().height * ui.scale,
             now,
         );
@@ -1161,6 +1167,7 @@ impl MarketController {
 
 impl Pages {
     pub(in crate::presentation) fn layout_market(&mut self) {
+        let time = self.ui.layout_time(FrameTime::now());
         let state = AccountState {
             authenticated: self.market.account["authenticated"].as_bool(),
             busy: self.pending.keys().any(|k| k.starts_with("market:write")),
@@ -1180,13 +1187,16 @@ impl Pages {
             &mut self.market,
             &self.inventory,
             state,
-            Instant::now(),
+            time.instant,
         );
         if !view.installed {
-            self.ui.install_view(view.view(&self.ui));
+            self.ui.install_compiled(view.view(&self.ui));
             view.installed = true;
         }
-        self.ui.update_view(FrameTime::now());
+        if !self.ui.resolve_view(time) {
+            return;
+        }
+        self.ui.begin(self.ui.size, self.ui.scale);
         view.bind(&mut self.ui, &self.market, self.connected);
         let requests = view
             .model

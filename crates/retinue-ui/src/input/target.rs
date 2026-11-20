@@ -1,5 +1,6 @@
 use super::EventHandler;
 use crate::{Bounds, runtime::ViewId, state::State};
+use std::sync::Arc;
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Interaction {
@@ -121,14 +122,79 @@ pub struct Target {
     pub parent: Option<ViewId>,
     pub bounds: Bounds,
     pub clip: Bounds,
+    /// Precise fragments for an owner without a single layout box. `bounds`
+    /// remains the event-coordinate envelope, not a clickable union rectangle.
+    pub regions: Option<Arc<[HitRegion]>>,
     pub enabled: bool,
     pub input: InputOptions,
 }
 
 impl Target {
+    pub(crate) fn place(&mut self, mut regions: impl ExactSizeIterator<Item = HitRegion>) {
+        if regions.len() <= 1 {
+            let region = regions.next();
+            self.bounds = region.map(|r| r.bounds).unwrap_or_default();
+            self.clip = region.map(|r| r.clip).unwrap_or_default();
+            self.regions = None;
+            return;
+        }
+        if let Some(old) = &mut self.regions
+            && old.len() == regions.len()
+        {
+            let fragments = Arc::make_mut(old);
+            for (dst, src) in fragments.iter_mut().zip(regions) {
+                *dst = src;
+            }
+        } else {
+            self.regions = Some(regions.collect());
+        }
+        let fragments = self.regions.as_deref().unwrap();
+        self.bounds = fragments[0].bounds;
+        self.clip = fragments[0].clip;
+        for fragment in &fragments[1..] {
+            self.bounds = self.bounds.union(fragment.bounds);
+            self.clip = self.clip.union(fragment.clip);
+        }
+    }
+
+    #[inline]
     pub fn contains(&self, point: (f32, f32)) -> bool {
         (self.enabled || self.input.blocks_when_disabled)
-            && HitShape::Rectangle.contains(self.clip, point)
-            && self.input.shape.contains(self.bounds, point)
+            && self.regions.as_ref().map_or_else(
+                || {
+                    HitShape::Rectangle.contains(self.clip, point)
+                        && self.input.shape.contains(self.bounds, point)
+                },
+                |regions| {
+                    regions
+                        .iter()
+                        .any(|region| region.contains(self.input.shape, point))
+                },
+            )
+    }
+
+    pub(super) fn visible(&self) -> bool {
+        self.regions.as_ref().map_or_else(
+            || self.clip.width > 0.0 && self.clip.height > 0.0,
+            |regions| {
+                regions.iter().any(|region| {
+                    let visible = region.bounds.intersection(region.clip);
+                    visible.width > 0.0 && visible.height > 0.0
+                })
+            },
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HitRegion {
+    pub bounds: Bounds,
+    pub clip: Bounds,
+}
+
+impl HitRegion {
+    #[inline]
+    fn contains(&self, shape: HitShape, point: (f32, f32)) -> bool {
+        HitShape::Rectangle.contains(self.clip, point) && shape.contains(self.bounds, point)
     }
 }

@@ -1,5 +1,7 @@
 use super::{Command, paint::Pixels};
 use crate::resources::ResourceId;
+use crate::text::preparation::{FontKey, FontRequest};
+use std::collections::HashMap;
 
 #[cfg(test)]
 mod tests;
@@ -8,6 +10,7 @@ mod tests;
 pub enum ResourceRead {
     Image(ResourceId),
     Font(ResourceId),
+    OutlineFont(u64, u32),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -42,15 +45,17 @@ pub struct Analysis {
     pub operations: usize,
     pub retained_bytes: usize,
     pub(crate) operations_effects: Vec<Effects>,
+    pub(crate) fonts: Box<[FontRequest]>,
 }
 
 impl Analysis {
     pub(super) fn new(commands: &[Command], scale: f32) -> Self {
         let mut resources = Vec::new();
+        let mut fonts = HashMap::new();
         let mut operations = 0;
         let operations_effects: Vec<_> = commands
             .iter()
-            .map(|c| analyze(c, scale, &mut resources, &mut operations))
+            .map(|c| analyze(c, scale, &mut resources, &mut operations, &mut fonts))
             .collect();
         let effects = operations_effects
             .iter()
@@ -58,12 +63,15 @@ impl Analysis {
             .fold(Effects::default(), Effects::union);
         resources.sort_unstable();
         resources.dedup();
+        let mut fonts: Vec<_> = fonts.into_values().collect();
+        fonts.sort_unstable_by_key(FontRequest::key);
         Self {
             effects,
             resources,
             operations,
             retained_bytes: commands.iter().map(Command::retained_bytes).sum(),
             operations_effects,
+            fonts: fonts.into_boxed_slice(),
         }
     }
 }
@@ -109,7 +117,9 @@ pub(super) fn changed_writes(
             .into_iter()
             .flatten()
             .fold(Pixels::default(), |damage, command| {
-                damage.union(analyze(command, scale, &mut Vec::new(), &mut 0).writes)
+                damage.union(
+                    analyze(command, scale, &mut Vec::new(), &mut 0, &mut HashMap::new()).writes,
+                )
             }),
     }
 }
@@ -119,19 +129,25 @@ fn analyze(
     scale: f32,
     resources: &mut Vec<ResourceRead>,
     operations: &mut usize,
+    fonts: &mut HashMap<FontKey, FontRequest>,
 ) -> Effects {
     *operations += 1;
     match command {
         Command::Fragment { program, .. } => {
             let analysis = program.analysis();
             resources.extend(&analysis.resources);
+            for request in &analysis.fonts {
+                fonts
+                    .entry(request.key())
+                    .or_insert_with(|| request.clone());
+            }
             *operations += analysis.operations;
             analysis.effects
         }
         Command::Translate { offset, commands } => {
             let effects = commands
                 .iter()
-                .map(|c| analyze(c, scale, resources, operations))
+                .map(|c| analyze(c, scale, resources, operations, fonts))
                 .fold(Effects::default(), Effects::union);
             let delta = (
                 (offset.0 * scale).round() as i32,
@@ -146,7 +162,7 @@ fn analyze(
         Command::Clip { bounds, commands } => {
             let effects = commands
                 .iter()
-                .map(|c| analyze(c, scale, resources, operations))
+                .map(|c| analyze(c, scale, resources, operations, fonts))
                 .fold(Effects::default(), Effects::union);
             let clip = bounds.pixels(scale);
             Effects {
@@ -158,7 +174,12 @@ fn analyze(
         _ => {
             match command {
                 Command::Image { image, .. } => resources.push(ResourceRead::Image(image.id())),
-                Command::Text { font, .. } => resources.push(ResourceRead::Font(font.id())),
+                Command::GlyphRun { run, .. } => {
+                    let (bytes, index) = run.font().identity();
+                    resources.push(ResourceRead::OutlineFont(bytes, index));
+                    let request = FontRequest::from_run(run);
+                    fonts.entry(request.key()).or_insert(request);
+                }
                 _ => {}
             }
             let writes = command.bounds().pixels(scale);

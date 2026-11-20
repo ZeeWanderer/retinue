@@ -47,13 +47,16 @@ impl Dialog {
             kind,
         });
     }
-    pub fn view(&self, metrics: State<Metrics>, fonts: Fonts) -> Element {
+    pub fn view(
+        &self,
+        metrics: State<Metrics>,
+        fonts: Fonts,
+    ) -> impl View + Clone + PartialEq + use<> {
         dialog_view::DialogView {
             metrics,
             state: self.state.clone(),
             fonts,
         }
-        .into_element()
     }
     pub fn bind(&self, ui: &mut ControlHost, b: &Builds, busy: bool) {
         let s = self.state.get();

@@ -1,14 +1,14 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use image::ImageFormat;
 
 use crate::presentation::geometry::{Rect, ScreenOutput};
 use retinue_render::Key;
 use retinue_render::painter::{
-    CachedFont, GlyphCache, Painter, load_overlay_font, render_thread_budget, straight_rgba,
+    CachedFont, Painter, load_overlay_font, render_thread_budget, straight_rgba,
 };
 use retinue_ui::input::{Activation, ControlRegion, Controls, PointerPhase};
 use retinue_ui::{drawing::PixelLayers as Recording, runtime::ViewSurface as PaintSurface};
@@ -39,7 +39,7 @@ pub(super) struct FrameKey {
 
 pub(super) struct Frame {
     pub(super) key: FrameKey,
-    pub(super) pixels: Vec<u8>,
+    image: Arc<std::sync::OnceLock<Arc<retinue_render::painter::RasterImage>>>,
     pub(super) output: ScreenOutput,
     content: Rect,
     #[cfg(test)]
@@ -54,6 +54,9 @@ pub(super) enum SurfaceScene<'a> {
 }
 
 impl Frame {
+    fn image(&self) -> &Arc<retinue_render::painter::RasterImage> {
+        self.image.get().expect("relic raster completed")
+    }
     #[cfg(test)]
     pub(super) fn contains_surface_point(
         &self,
@@ -68,7 +71,7 @@ impl Frame {
     #[cfg(test)]
     fn restore(&self, target: &mut [u8], bounds: Rect) {
         if bounds.width == self.key.width && bounds.height == self.key.height {
-            target.copy_from_slice(&self.pixels);
+            target.copy_from_slice(self.image().bgra());
             return;
         }
         let stride = self.key.width as usize * 4;
@@ -77,7 +80,7 @@ impl Frame {
         for row in bounds.y as usize..(bounds.y + bounds.height) as usize {
             let start = row * stride + x;
             target[start..start + row_bytes]
-                .copy_from_slice(&self.pixels[start..start + row_bytes]);
+                .copy_from_slice(&self.image().bgra()[start..start + row_bytes]);
         }
     }
 }
@@ -100,7 +103,7 @@ impl Renderer {
         let mut transient_paint = PaintSurface::default();
         transient_paint.set_render_host(render_host.clone());
         Ok(Self {
-            font: Rc::new(load_overlay_font(&GlyphCache::new(2 * 1024 * 1024))?),
+            font: Rc::new(load_overlay_font()?),
             assets,
             frame: None,
             render_budget: render_thread_budget(2),
@@ -128,13 +131,44 @@ impl Renderer {
     }
 
     pub(super) fn prepare_frame(&mut self, key: FrameKey) -> Result<bool, String> {
-        let frame = self.render_host.begin_frame(self.render_budget);
+        let changed = self.prepare_frame_layout(key)?;
+        let cached = self.frame.as_mut().unwrap();
+        if cached.image.get().is_none() {
+            let size = (cached.key.width, cached.key.height);
+            let host = self.static_paint.render_host();
+            let _pass = host.begin_pass(0);
+            let repair = Rect {
+                width: size.0,
+                height: size.1,
+                ..Rect::default()
+            };
+            self.static_paint.prepare_rasters(&repair.into());
+            let pass = host.begin_frame(self.render_budget);
+            let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
+            let mut painter = Painter::with_threads(&mut pixels, size.0, size.1, pass.threads())
+                .map_err(|error| error.to_string())?;
+            self.static_paint
+                .draw_prepared(&mut painter, repair, |_, _| {});
+            #[cfg(test)]
+            {
+                cached.render_threads = painter.thread_count();
+            }
+            painter.finish().map_err(|error| error.to_string())?;
+            let image = Arc::new(
+                retinue_render::painter::RasterImage::from_bgra(pixels, size.0, size.1)
+                    .map_err(|error| error.to_string())?,
+            );
+            let _ = cached.image.set(image);
+        }
+        Ok(changed)
+    }
+
+    pub(super) fn prepare_frame_layout(&mut self, key: FrameKey) -> Result<bool, String> {
         let changed = ensure_frame(
             &mut self.frame,
             key,
             &self.font,
             &self.assets,
-            frame.threads(),
             &mut self.static_paint,
         )?;
         if changed {
@@ -169,6 +203,15 @@ impl Renderer {
     ) -> Option<crate::presentation::geometry::HitTarget> {
         self.input
             .hit((position.0 as f32, position.1 as f32))
+            .copied()
+    }
+
+    pub(super) fn move_pointer(
+        &mut self,
+        position: (f64, f64),
+    ) -> Option<crate::presentation::geometry::HitTarget> {
+        self.input
+            .move_pointer((position.0 as f32, position.1 as f32))
             .copied()
     }
 
@@ -238,7 +281,6 @@ impl Renderer {
         repair: impl Into<retinue_render::damage::Region>,
         scene: SurfaceScene<'_>,
     ) -> Result<(), String> {
-        let frame = self.surface_frame();
         let length = size
             .0
             .checked_mul(size.1)
@@ -256,6 +298,9 @@ impl Renderer {
         if repair.is_empty() {
             return Ok(());
         }
+        let _pass = self.render_host.begin_pass(0);
+        self.prepare_rasters(&repair, scene);
+        let frame = self.surface_frame();
         let mut painter = Painter::with_threads(pixels, size.0, size.1, frame.threads())
             .map_err(|error| error.to_string())?;
         painter.repair(&repair);
@@ -265,6 +310,25 @@ impl Renderer {
 
     pub(super) fn surface_frame(&self) -> retinue_render::RenderPass {
         self.render_host.begin_frame(self.render_budget)
+    }
+
+    pub(super) fn render_host(&self) -> retinue_render::RenderHost {
+        self.render_host.clone()
+    }
+
+    pub(super) fn render_threads(&self) -> NonZeroU32 {
+        self.render_budget
+    }
+
+    pub(super) fn prepare_rasters(
+        &self,
+        repair: &retinue_render::damage::Region,
+        scene: SurfaceScene<'_>,
+    ) {
+        if let SurfaceScene::Ducats(_) = scene {
+            super::ducats::prepare_rasters(&self.assets.ducats, repair);
+        }
+        self.transient_paint.borrow_mut().prepare_rasters(repair);
     }
 
     pub(super) fn draw_surface<'a>(
@@ -310,7 +374,7 @@ impl Renderer {
                 );
             }
             let source = retinue_render::painter::PixelSource::new(
-                &cache.pixels,
+                cache.image().bgra(),
                 cache.key.width,
                 cache.key.height,
             )
@@ -328,6 +392,55 @@ impl Renderer {
             .borrow_mut()
             .draw_prepared(painter, repair.bounds(), |_, _| {});
         Ok(())
+    }
+
+    pub(super) fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        scene: SurfaceScene<'_>,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        let _pass = self.render_host.begin_pass(0);
+        let mut packets = Vec::new();
+        match scene {
+            SurfaceScene::Relic(_) => {
+                let frame = self.frame().ok_or("no prepared relic frame")?;
+                if let Some(image) = frame.image.get() {
+                    packets.push(retinue_render::PacketJob::ready(
+                        retinue_render::DrawPacket::image(image.clone(), (0, 0), frame.content),
+                    ));
+                } else {
+                    let size = (frame.key.width, frame.key.height);
+                    let full = Rect {
+                        width: size.0,
+                        height: size.1,
+                        ..Rect::default()
+                    };
+                    packets.push(
+                        self.static_paint
+                            .prepare_packet(&full.into(), wake.clone())?
+                            .rasterize(
+                                size,
+                                frame.image.clone(),
+                                frame.content,
+                                &self.render_host,
+                                self.render_budget,
+                                wake.clone(),
+                            ),
+                    );
+                }
+            }
+            SurfaceScene::Ducats(_) => {
+                packets.push(super::ducats::prepare_packet(
+                    &self.assets.ducats,
+                    repair,
+                    wake.clone(),
+                )?);
+            }
+            SurfaceScene::Empty => {}
+        }
+        packets.push(self.transient_paint.borrow().prepare_packet(repair, wake)?);
+        Ok(retinue_render::PacketJob::stack(packets))
     }
 
     fn prepare_transients(
@@ -372,6 +485,9 @@ impl Renderer {
     ) {
         self.prepare_transients((painter.width(), painter.height()), animation, status)
             .unwrap();
+        self.transient_paint
+            .borrow_mut()
+            .prepare_rasters(&painter.visible_regions());
         self.transient_paint.borrow_mut().draw_prepared(
             painter,
             painter.visible_bounds(),
@@ -534,7 +650,7 @@ fn render_relic_scene_preview_with_view(
             view,
         },
     })?;
-    let mut overlay = vec![0; renderer.frame().unwrap().pixels.len()];
+    let mut overlay = vec![0; renderer.frame().unwrap().image().byte_len()];
     renderer.paint_surface(
         &mut overlay,
         dimensions,
@@ -633,42 +749,21 @@ fn ensure_frame(
     key: FrameKey,
     font: &Rc<CachedFont>,
     assets: &Assets,
-    threads: NonZeroU32,
     composition: &mut PaintSurface,
 ) -> Result<bool, String> {
     if cache.as_ref().is_some_and(|cached| cached.key == key) {
         return Ok(false);
     }
 
-    let length = key
-        .width
+    key.width
         .checked_mul(key.height)
         .and_then(|pixels| pixels.checked_mul(4))
         .and_then(|bytes| usize::try_from(bytes).ok())
         .ok_or_else(|| "relic frame dimensions overflow".to_owned())?;
-    let mut pixels = vec![0; length];
-    let mut painter = Painter::with_threads(&mut pixels, key.width, key.height, threads)
-        .map_err(|error| format!("could not create relic frame painter: {error}"))?;
-    painter.clear();
     let mut recording = Recording::new((key.width, key.height));
     let output = screens::draw_static(&mut recording, font, assets, &key.scene, key.scale);
-    composition.draw(
-        recording.finish(),
-        &mut painter,
-        Rect {
-            width: key.width,
-            height: key.height,
-            ..Rect::default()
-        },
-        |_, _| {},
-    )?;
-    #[cfg(test)]
-    let render_threads = painter.thread_count();
-    painter
-        .finish()
-        .map_err(|error| format!("could not render relic frame: {error}"))?;
+    composition.update(recording.finish(), (key.width, key.height))?;
     let content = composition
-        .tree
         .frame()
         .instances()
         .iter()
@@ -680,12 +775,12 @@ fn ensure_frame(
             ..Rect::default()
         });
     *cache = Some(Frame {
+        image: Default::default(),
         key,
-        pixels,
         output,
         content,
         #[cfg(test)]
-        render_threads,
+        render_threads: 0,
     });
     Ok(true)
 }
@@ -722,15 +817,85 @@ mod tests {
     }
 
     #[test]
+    fn async_relic_and_tooltip_packets_match_direct_rendering() {
+        use std::{sync::mpsc, time::Instant};
+        for size in [(1280, 720), (1920, 1080)] {
+            for relic in [false, true] {
+                let mut renderer = Renderer::load().unwrap();
+                let mut oracle = Renderer::load().unwrap();
+                if relic {
+                    let key = reading_key(size, 1);
+                    renderer.prepare_frame_layout(key.clone()).unwrap();
+                    assert!(renderer.frame().unwrap().image.get().is_none());
+                    oracle.prepare_frame(key).unwrap();
+                }
+                let tooltip = super::super::ducats::fixture(size);
+                let scene = if relic {
+                    SurfaceScene::Relic(Duration::from_millis(350))
+                } else {
+                    SurfaceScene::Ducats(&tooltip)
+                };
+                renderer.prepare_surface(size, scene, None).unwrap();
+                let repair = Damage::Full.regions(size);
+                let (wake, wakes) = mpsc::channel();
+                let mut job = renderer
+                    .prepare_packet(
+                        &repair,
+                        scene,
+                        Arc::new(move || {
+                            let _ = wake.send(());
+                        }),
+                    )
+                    .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(10);
+                let packet = loop {
+                    if let Some(packet) = job.poll() {
+                        break packet.unwrap();
+                    }
+                    wakes
+                        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        .unwrap();
+                };
+                if relic {
+                    assert!(renderer.frame().unwrap().image.get().is_some());
+                }
+                drop(renderer);
+                let actual = std::thread::spawn(move || {
+                    let mut pixels = vec![0; (size.0 * size.1 * 4) as usize];
+                    let mut painter =
+                        Painter::with_threads(&mut pixels, size.0, size.1, NonZeroU32::MIN)
+                            .unwrap();
+                    packet.draw(&mut painter);
+                    painter.finish().unwrap();
+                    pixels
+                })
+                .join()
+                .unwrap();
+                let mut expected = vec![0; actual.len()];
+                oracle
+                    .paint_surface(&mut expected, size, repair, scene, None)
+                    .unwrap();
+                let mismatch = actual
+                    .iter()
+                    .zip(&expected)
+                    .position(|(a, b)| a.abs_diff(*b) > 1);
+                assert_eq!(mismatch, None, "size {size:?}, relic {relic}");
+            }
+        }
+    }
+
+    #[test]
     fn frame_rect_copy_leaves_other_pixels_untouched() {
         let frame = Frame {
             key: reading_key((8, 6), 1),
-            pixels: vec![7; 8 * 6 * 4],
+            image: Arc::new(std::sync::OnceLock::from(Arc::new(
+                retinue_render::painter::RasterImage::from_bgra(vec![7; 8 * 6 * 4], 8, 6).unwrap(),
+            ))),
             output: ScreenOutput::default(),
             content: Damage::Full.bounds((8, 6)).unwrap(),
             render_threads: 1,
         };
-        let mut target = vec![3; frame.pixels.len()];
+        let mut target = vec![3; frame.image().byte_len()];
         frame.restore(
             &mut target,
             Rect {
@@ -751,7 +916,7 @@ mod tests {
             }
         }
         frame.restore(&mut target, Damage::Full.bounds((8, 6)).unwrap());
-        assert_eq!(target, frame.pixels);
+        assert_eq!(target, frame.image().bgra());
     }
 
     #[test]
@@ -803,7 +968,10 @@ mod tests {
                     target,
                     source,
                     pass.threads(),
-                    |painter, repair| renderer.draw_surface(painter, repair, scene),
+                    |painter, repair| {
+                        renderer.prepare_rasters(repair, scene);
+                        renderer.draw_surface(painter, repair, scene)
+                    },
                 )
                 .unwrap()
                 .unwrap();
@@ -858,9 +1026,9 @@ mod tests {
                         show_hud.then(|| overlapping_status(scale, pulse)),
                     )
                     .unwrap();
-                repaint.submitted(index);
+                repaint.submitted(index, plan.ticket);
 
-                let mut expected = renderer.frame().unwrap().pixels.clone();
+                let mut expected = renderer.frame().unwrap().image().bgra().to_vec();
                 let mut painter = Painter::new(&mut expected, size.0, size.1).unwrap();
                 renderer.draw_transients(
                     &mut painter,
@@ -922,10 +1090,10 @@ mod tests {
             renderer
                 .paint_surface(&mut pixels, size, plan.repair, scene, None)
                 .unwrap();
-            repaint.submitted(0);
+            repaint.submitted(0, plan.ticket);
             match step {
                 0 => assert!(pixels.iter().any(|byte| *byte != 0)),
-                2 => assert!(pixels == renderer.frame().unwrap().pixels),
+                2 => assert!(pixels == renderer.frame().unwrap().image().bgra()),
                 3 => assert!(pixels.iter().all(|byte| *byte == 0)),
                 _ => {}
             }
@@ -996,13 +1164,19 @@ mod tests {
         };
 
         assert!(renderer.prepare_frame(key.clone()).unwrap());
+        let cached = renderer.frame().unwrap().image.get().unwrap().clone();
         assert!(!renderer.prepare_frame(key.clone()).unwrap());
+        assert!(Arc::ptr_eq(
+            &cached,
+            renderer.frame().unwrap().image.get().unwrap()
+        ));
         assert!(renderer.frame().unwrap().output.animation_bounds.is_none());
-        let misses = renderer.font.cache_stats().misses;
-        assert!(misses > 0);
         renderer.frame = None;
         assert!(renderer.prepare_frame(key).unwrap());
-        assert_eq!(renderer.font.cache_stats().misses, misses);
+        assert!(!Arc::ptr_eq(
+            &cached,
+            renderer.frame().unwrap().image.get().unwrap()
+        ));
 
         let reading = FrameKey {
             width: 2560,
@@ -1045,12 +1219,12 @@ mod tests {
                 .unwrap();
             let frame = renderer.frame().unwrap();
             assert!(frame.output.animation_bounds.is_none());
-            let mut surface = frame.pixels.clone();
+            let mut surface = frame.image().bgra().to_vec();
             let mut painter = Painter::new(&mut surface, 1920, 1080).unwrap();
             renderer.draw_transients(&mut painter, Some(Duration::from_millis(750)), None);
             painter.finish().unwrap();
             assert!(
-                surface == frame.pixels,
+                surface == frame.image().bgra(),
                 "completed frame gained transient pixels"
             );
         }
@@ -1239,14 +1413,14 @@ mod tests {
                         },
                     })
                     .unwrap();
-                let pixels = &renderer.frame().unwrap().pixels;
+                let pixels = renderer.frame().unwrap().image().bgra();
                 if let Some(reference) = &reference {
                     assert!(
                         pixels == reference,
                         "pixel mismatch: size {width}x{height}, threads {threads}"
                     );
                 } else {
-                    reference = Some(pixels.clone());
+                    reference = Some(pixels.to_vec());
                 }
             }
         }
@@ -1290,13 +1464,13 @@ mod tests {
                                 None,
                             )
                             .unwrap();
-                        repaint.submitted(buffer_index);
+                        repaint.submitted(buffer_index, plan.ticket);
                     },
                     |(renderer, buffers, _)| {
                         serde_json::json!({
                             "canvas_bytes": buffers.iter().map(Vec::len).sum::<usize>(),
                             "buffer_count": buffers.len(),
-                            "static_frame_bytes": renderer.frame().unwrap().pixels.len(),
+                            "static_frame_bytes": renderer.frame().unwrap().image().byte_len(),
                             "content_bounds": format!("{:?}", renderer.frame().unwrap().content),
                             "render_threads": renderer.frame().unwrap().render_threads,
                             "assets": "embedded UI; no daemon assets",
@@ -1356,6 +1530,7 @@ mod tests {
                                 .unwrap()
                                 .restore(pixels, Damage::Full.bounds(size).unwrap());
                             let mut painter = Painter::new(pixels, size.0, size.1).unwrap();
+                            renderer.transient_paint.borrow_mut().prepare_rasters(&painter.visible_regions());
                             renderer.transient_paint.borrow_mut().draw_prepared(
                                 &mut painter,
                                 Damage::Full.bounds(size).unwrap(),
@@ -1375,20 +1550,11 @@ mod tests {
                         }
                     },
                     |(renderer, pixels, _)| {
-                        let glyphs = renderer.font.cache_stats();
                         serde_json::json!({
                             "canvas_bytes": pixels.len(),
                             "render_threads": if name == "static-frame-copy-cpu" { 1 } else { renderer.frame().unwrap().render_threads },
-                            "static_frame_bytes": renderer.frame().unwrap().pixels.len(),
+                            "static_frame_bytes": renderer.frame().unwrap().image().byte_len(),
                             "content_bounds": format!("{:?}", renderer.frame().unwrap().content),
-                            "glyph_cache": {
-                                "entries": glyphs.entries,
-                                "cached_bytes": glyphs.cached_bytes,
-                                "live_bytes": glyphs.live_bytes,
-                                "hits": glyphs.hits,
-                                "misses": glyphs.misses,
-                                "evictions": glyphs.evictions,
-                            },
                             "assets": "embedded UI and mock scene; no daemon assets",
                             "scale_kind": "buffer scale; layout uses output dimensions"
                         })

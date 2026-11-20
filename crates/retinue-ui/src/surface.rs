@@ -7,7 +7,9 @@ use retinue_render::{
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
 mod clipboard;
+mod cursor;
 use crate::layer::OverlayLayerState;
+pub use cursor::PublishedCursor;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState, Region},
     delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
@@ -79,6 +81,7 @@ pub enum Input {
 }
 
 pub trait Application {
+    fn set_waker(&mut self, _wake: retinue_render::Wake) {}
     fn visible(&self) -> bool;
     fn keyboard_interactive(&self) -> bool;
     fn text_cursor(&self) -> bool {
@@ -100,14 +103,35 @@ pub trait Application {
     fn prepare(&mut self, _size: (u32, u32), _scale: u32) -> Result<Damage, String> {
         Ok(Damage::None)
     }
+    fn poll_prepare(
+        &mut self,
+        size: (u32, u32),
+        scale: u32,
+    ) -> Result<std::task::Poll<Damage>, String> {
+        self.prepare(size, scale).map(std::task::Poll::Ready)
+    }
     fn paint_scene(&self) -> Option<Snapshot> {
         None
     }
+    fn presented(&mut self) {}
     fn relocation(&self) -> retinue_render::surface::Relocation {
         retinue_render::surface::Relocation::Auto
     }
-    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
+    fn render_host(&self) -> Option<retinue_render::RenderHost> {
         None
+    }
+    fn render_threads(&self) -> std::num::NonZeroU32 {
+        std::num::NonZeroU32::MIN
+    }
+    fn prepare_rasters(&mut self, _repair: &retinue_render::damage::Region) -> Result<(), String> {
+        Ok(())
+    }
+    fn prepare_packet(
+        &mut self,
+        _repair: &retinue_render::damage::Region,
+        _wake: retinue_render::Wake,
+    ) -> Result<Option<retinue_render::PacketJob>, String> {
+        Ok(None)
     }
     /// Clear and repaint every layer within repair, preserving pixels outside it.
     fn paint(
@@ -193,15 +217,29 @@ pub fn run_measured(
 
 fn run_inner(
     name: &str,
-    app: Box<dyn Application>,
+    mut app: Box<dyn Application>,
     stopping: Arc<AtomicBool>,
     wake: PingSource,
     #[cfg(feature = "benchmark")] measurement: Option<(benchmark::Capture, benchmark::Policy)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let connection = Connection::connect_to_env()?;
     let (globals, queue) = registry_queue_init(&connection)?;
+    if let Some(host) = app.render_host() {
+        crate::drawing::text::prepare_host_fonts(&host);
+    }
     let qh = queue.handle();
     let mut events: EventLoop<Surface> = EventLoop::try_new()?;
+    let (render_wake, render_source) = crate::schedule::make_ping()?;
+    events
+        .handle()
+        .insert_source(render_source, |(), _, _| {})?;
+    let (prepare_wake, prepare_source) = crate::schedule::make_ping()?;
+    events
+        .handle()
+        .insert_source(prepare_source, |(), _, state| {
+            state.preparation.wake();
+        })?;
+    app.set_waker(Arc::new(move || prepare_wake.ping()));
     WaylandSource::new(connection.clone(), queue).insert(events.handle())?;
     #[cfg(feature = "benchmark")]
     let event_driven = measurement
@@ -247,6 +285,7 @@ fn run_inner(
         shm,
         layer,
         pointer: None,
+        cursor: PublishedCursor::default(),
         keyboard: None,
         modifiers: Modifiers::default(),
         buffers: crate::presentation_buffers::Buffers::default(),
@@ -257,6 +296,12 @@ fn run_inner(
         keyboard_interactive: false,
         pointer_regions: Vec::new(),
         frame_pending: false,
+        preparation: Default::default(),
+        rendering: None,
+        render_regions: Vec::new(),
+        #[cfg(feature = "benchmark")]
+        render_started: None,
+        render_wake,
         repaint: Buffered::default(),
         closed: false,
         app,
@@ -268,7 +313,7 @@ fn run_inner(
             .transpose()?,
     };
     while !stopping.load(Ordering::Acquire) && !state.closed {
-        let drawable = !state.mapped || state.drawable();
+        let drawable = (!state.mapped || state.drawable()) && state.preparation.can_sample();
         state.repaint.invalidate(state.app.tick(drawable));
         if !state.app.keyboard_interactive() || state.clipboard.expired() {
             state.cancel_paste();
@@ -306,7 +351,12 @@ fn run_inner(
                 .set_keyboard_interactivity(state.keyboard_mode());
             state.layer.commit();
         }
-        if state.mapped && state.configured && state.repaint.is_dirty() && !state.frame_pending {
+        state.finish_render(&qh)?;
+        if state.mapped
+            && state.configured
+            && (state.repaint.is_dirty() || state.preparation.ready())
+            && !state.frame_pending
+        {
             state.draw(&qh)?;
         }
         if stopping.load(Ordering::Acquire) || state.closed {
@@ -336,6 +386,7 @@ fn run_inner(
             )?;
         }
     }
+    state.rendering.take();
     Ok(())
 }
 
@@ -347,6 +398,7 @@ struct Surface {
     shm: Shm,
     layer: LayerSurface,
     pointer: Option<ThemedPointer>,
+    cursor: PublishedCursor,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     modifiers: Modifiers,
     buffers: crate::presentation_buffers::Buffers,
@@ -357,6 +409,12 @@ struct Surface {
     keyboard_interactive: bool,
     pointer_regions: Vec<Rect>,
     frame_pending: bool,
+    preparation: crate::schedule::FramePreparation,
+    rendering: Option<crate::presentation_buffers::render::RenderJob>,
+    render_regions: Vec<Rect>,
+    #[cfg(feature = "benchmark")]
+    render_started: Option<Instant>,
+    render_wake: crate::schedule::Ping,
     repaint: Buffered,
     closed: bool,
     app: Box<dyn Application>,
@@ -368,7 +426,12 @@ struct Surface {
 
 impl Surface {
     fn drawable(&mut self) -> bool {
-        self.mapped && self.configured && !self.frame_pending && self.buffers.drawable()
+        self.mapped
+            && self.configured
+            && !self.frame_pending
+            && !self.preparation.waiting()
+            && self.rendering.is_none()
+            && self.buffers.drawable()
     }
 
     fn keyboard_mode(&self) -> KeyboardInteractivity {
@@ -380,6 +443,9 @@ impl Surface {
     }
 
     fn draw(&mut self, qh: &QueueHandle<Self>) -> Result<(), Box<dyn std::error::Error>> {
+        if self.rendering.is_some() || self.preparation.waiting() {
+            return Ok(());
+        }
         let (width, height) = crate::presentation_buffers::buffer_size(self.size, self.scale)?;
         let count = self.buffers.len();
         let Some(index) = self.buffers.acquire(
@@ -397,31 +463,81 @@ impl Surface {
         #[cfg(feature = "benchmark")]
         let paint_start = Instant::now();
         // Keep actionable geometry on the displayed frame while buffers are busy.
-        self.repaint
-            .invalidate(self.app.prepare((width, height), self.scale)?);
+        match self.app.poll_prepare((width, height), self.scale)? {
+            std::task::Poll::Ready(damage) => self.repaint.invalidate(damage),
+            std::task::Poll::Pending => {
+                self.preparation.pending();
+                return Ok(());
+            }
+        }
         let scene = self.app.paint_scene();
+        self.preparation.finish();
         self.repaint.set_relocation(self.app.relocation());
-        let frame = self.app.render_frame();
-        let threads = frame.as_ref().map_or(
-            std::num::NonZeroU32::MIN,
-            retinue_render::RenderPass::threads,
-        );
+        let host = self.app.render_host();
+        let _pass = host.as_ref().map(|host| host.begin_pass(0));
+        let threads = self.app.render_threads();
         let pixels = self
             .buffers
             .pixels(index)
             .ok_or("overlay buffer unavailable")?;
-        let Some(plan) = self.repaint.render_queued(
+        let Some(planned) = self.repaint.plan_queued(
             index,
             (width, height),
             scene,
             pixels.target,
             pixels.source,
             threads,
-            |painter, repair| self.app.paint(painter, (width, height), self.scale, repair),
         )?
         else {
             return Ok(());
         };
+        let planned = planned.into_work();
+        #[cfg(feature = "benchmark")]
+        if let Some(measurement) = &self.measurement {
+            measurement.prepared();
+        }
+        let ping = self.render_wake.clone();
+        let wake: retinue_render::Wake = std::sync::Arc::new(move || ping.ping());
+        if let Some(host) = &host
+            && let Some(packet) = self.app.prepare_packet(planned.repair(), wake.clone())?
+        {
+            self.render_regions = self
+                .app
+                .pointer_regions()
+                .into_iter()
+                .map(|rect| surface_rect(rect, self.scale))
+                .collect();
+            let lease = self
+                .buffers
+                .detach(index)
+                .ok_or("overlay buffer lease unavailable")?;
+            self.rendering = Some(crate::presentation_buffers::render::RenderJob::submit(
+                host, threads, lease, planned, packet, [0; 4], wake,
+            )?);
+            #[cfg(feature = "benchmark")]
+            {
+                self.render_started = Some(paint_start);
+            }
+            return Ok(());
+        }
+        self.app.prepare_rasters(planned.repair())?;
+        let frame = host.as_ref().map(|host| host.begin_frame(threads));
+        let threads = frame
+            .as_ref()
+            .map_or(threads, retinue_render::RenderPass::threads);
+        let pixels = self
+            .buffers
+            .pixels(index)
+            .ok_or("overlay buffer unavailable")?;
+        let plan = planned.execute(
+            pixels.target,
+            pixels.source.map(|(_, source)| source),
+            threads,
+            |painter, repair| self.app.paint(painter, (width, height), self.scale, repair),
+        )?;
+        if !self.repaint.can_submit(&plan) {
+            return Err("presentation plan is obsolete".into());
+        }
         #[cfg(feature = "benchmark")]
         let paint_end = Instant::now();
         let regions: Vec<_> = self
@@ -457,6 +573,61 @@ impl Surface {
             })?;
         self.frame_pending = true;
         self.repaint.submitted(plan);
+        self.app.presented();
+        Ok(())
+    }
+
+    fn finish_render(&mut self, qh: &QueueHandle<Self>) -> Result<(), Box<dyn std::error::Error>> {
+        let Some(result) = self.rendering.as_mut().and_then(|job| job.poll()) else {
+            return Ok(());
+        };
+        self.rendering.take();
+        let Some(rendered) = result? else {
+            return Ok(());
+        };
+        let Some(index) = self.buffers.restore(rendered.lease) else {
+            return Ok(());
+        };
+        if !self.mapped || !self.configured || !self.repaint.can_submit(&rendered.submission) {
+            return Ok(());
+        }
+        if self.render_regions != self.pointer_regions {
+            let region = Region::new(&self.compositor)?;
+            for rect in &self.render_regions {
+                region.add(
+                    rect.x as i32,
+                    rect.y as i32,
+                    rect.width as i32,
+                    rect.height as i32,
+                );
+            }
+            self.layer
+                .wl_surface()
+                .set_input_region(Some(region.wl_region()));
+            self.pointer_regions = std::mem::take(&mut self.render_regions);
+        }
+        self.buffers.present(
+            index,
+            self.layer.wl_surface(),
+            &rendered.submission.damage,
+            || {
+                self.layer
+                    .wl_surface()
+                    .frame(qh, self.layer.wl_surface().clone());
+                #[cfg(feature = "benchmark")]
+                if let Some(measurement) = &mut self.measurement {
+                    measurement.submit(
+                        self.layer.wl_surface(),
+                        qh,
+                        self.render_started.take().unwrap(),
+                        rendered.finished,
+                    );
+                }
+            },
+        )?;
+        self.frame_pending = true;
+        self.repaint.submitted(rendered.submission);
+        self.app.presented();
         Ok(())
     }
 }
@@ -466,9 +637,19 @@ impl CompositorHandler for Surface {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &wl_surface::WlSurface,
+        surface: &wl_surface::WlSurface,
         scale: i32,
     ) {
+        if self
+            .pointer
+            .as_ref()
+            .is_some_and(|p| p.surface() == surface)
+        {
+            self.cursor.invalidate();
+        }
+        if surface != self.layer.wl_surface() || self.scale == scale.max(1) as u32 {
+            return;
+        }
         self.scale = scale.max(1) as u32;
         self.layer.wl_surface().set_buffer_scale(self.scale as i32);
         self.buffers.clear();
@@ -590,6 +771,7 @@ impl SeatHandler for Surface {
             }
         }
         if capability == Capability::Pointer {
+            self.cursor.invalidate();
             if let Some(p) = self.pointer.take() {
                 p.pointer().release();
             }
@@ -605,11 +787,18 @@ impl PointerHandler for Surface {
         _: &wl_pointer::WlPointer,
         events: &[PointerEvent],
     ) {
+        #[cfg(feature = "benchmark")]
+        if let Some(measurement) = &self.measurement {
+            measurement.pointer_frame(events, self.layer.wl_surface(), self.rendering.is_some());
+        }
         for event in events {
             if &event.surface != self.layer.wl_surface() {
                 continue;
             }
             let (x, y) = event.position;
+            if matches!(event.kind, PointerEventKind::Enter { .. }) {
+                self.cursor.invalidate();
+            }
             let input = match event.kind {
                 PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => {
                     Input::Motion(x, y)
@@ -641,13 +830,13 @@ impl PointerHandler for Surface {
             if !matches!(event.kind, PointerEventKind::Leave { .. })
                 && let Some(p) = &self.pointer
             {
-                let _ = p.set_cursor(
-                    connection,
+                self.cursor.publish(
                     if self.app.text_cursor() {
                         CursorIcon::Text
                     } else {
                         CursorIcon::Default
                     },
+                    |icon| p.set_cursor(connection, icon),
                 );
             }
         }

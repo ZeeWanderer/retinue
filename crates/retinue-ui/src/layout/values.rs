@@ -1,21 +1,25 @@
 use std::{
     any::{Any, TypeId, type_name},
     fmt,
-    rc::Rc,
+    sync::Arc,
 };
 
 pub trait LayoutValueKey: 'static {
-    type Value: Clone + PartialEq + fmt::Debug + 'static;
+    type Value: Clone + PartialEq + fmt::Debug + Send + Sync + 'static;
     fn default_value() -> Self::Value;
 }
 
-trait Value: fmt::Debug {
+trait Value: fmt::Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
     fn same(&self, other: &dyn Value) -> bool;
 }
 
-impl<T: PartialEq + fmt::Debug + 'static> Value for T {
+impl<T: PartialEq + fmt::Debug + Send + Sync + 'static> Value for T {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
     fn same(&self, other: &dyn Value) -> bool {
@@ -27,14 +31,35 @@ impl<T: PartialEq + fmt::Debug + 'static> Value for T {
 struct Entry {
     kind: TypeId,
     name: &'static str,
-    value: Rc<dyn Value>,
+    value: Arc<dyn Value>,
 }
 
 /// Values consumed by the immediate arranging parent, without inheritance.
 #[derive(Clone, Default)]
-pub struct LayoutValues(Option<Rc<Vec<Entry>>>);
+pub struct LayoutValues(Option<Arc<Vec<Entry>>>);
 
 impl LayoutValues {
+    pub(crate) fn is_single<K: LayoutValueKey>(&self, value: &K::Value) -> bool {
+        self.0.as_ref().is_some_and(|v| {
+            v.len() == 1 && v[0].kind == TypeId::of::<K>() && v[0].value.as_ref().same(value)
+        })
+    }
+
+    pub(crate) fn replace_single<K: LayoutValueKey>(&mut self, value: K::Value) {
+        if let Some(entries) = self.0.as_mut().and_then(Arc::get_mut)
+            && let [entry] = entries.as_mut_slice()
+            && entry.kind == TypeId::of::<K>()
+        {
+            if let Some(old) = Arc::get_mut(&mut entry.value) {
+                *old.as_any_mut().downcast_mut::<K::Value>().unwrap() = value;
+            } else {
+                entry.value = Arc::new(value);
+            }
+        } else {
+            *self = Self::default().with::<K>(value);
+        }
+    }
+
     pub fn get<K: LayoutValueKey>(&self) -> K::Value {
         self.explicit::<K>()
             .cloned()
@@ -54,11 +79,11 @@ impl LayoutValues {
         if self.explicit::<K>() == Some(&value) {
             return self;
         }
-        let entries = Rc::make_mut(self.0.get_or_insert_with(|| Rc::new(Vec::new())));
+        let entries = Arc::make_mut(self.0.get_or_insert_with(|| Arc::new(Vec::new())));
         let entry = Entry {
             kind: TypeId::of::<K>(),
             name: type_name::<K>(),
-            value: Rc::new(value),
+            value: Arc::new(value),
         };
         match entries.binary_search_by_key(&entry.kind, |entry| entry.kind) {
             Ok(index) => entries[index] = entry,
@@ -70,7 +95,7 @@ impl LayoutValues {
         if let Some(entries) = &mut self.0 {
             if let Ok(index) = entries.binary_search_by_key(&TypeId::of::<K>(), |entry| entry.kind)
             {
-                Rc::make_mut(entries).remove(index);
+                Arc::make_mut(entries).remove(index);
             }
             if entries.is_empty() {
                 self.0 = None;
@@ -86,7 +111,7 @@ impl LayoutValues {
         if self.0.is_none() {
             return Self(Some(overrides.clone()));
         }
-        let entries = Rc::make_mut(self.0.as_mut().unwrap());
+        let entries = Arc::make_mut(self.0.as_mut().unwrap());
         for entry in overrides.iter() {
             match entries.binary_search_by_key(&entry.kind, |entry| entry.kind) {
                 Ok(index) => entries[index] = entry.clone(),
@@ -102,7 +127,7 @@ impl PartialEq for LayoutValues {
         match (&self.0, &other.0) {
             (None, None) => true,
             (Some(a), Some(b)) => {
-                Rc::ptr_eq(a, b)
+                Arc::ptr_eq(a, b)
                     || a.len() == b.len()
                         && a.iter().zip(b.iter()).all(|(a, b)| {
                             a.kind == b.kind && a.value.as_ref().same(b.value.as_ref())
@@ -146,6 +171,37 @@ mod tests {
     }
 
     #[test]
+    fn singleton_edits_reuse_exclusive_storage_without_mutating_snapshots() {
+        let mut values = LayoutValues::default().with::<Weight>(1);
+        let storage = |v: &LayoutValues| {
+            let entries = v.0.as_ref().unwrap();
+            (
+                Arc::as_ptr(entries),
+                Arc::as_ptr(&entries[0].value) as *const (),
+            )
+        };
+        let first = storage(&values);
+        values.replace_single::<Weight>(2);
+        assert_eq!(storage(&values), first);
+        assert!(values.is_single::<Weight>(&2));
+
+        let snapshot = values.clone();
+        values.replace_single::<Weight>(3);
+        assert!(snapshot.is_single::<Weight>(&2));
+        let mut separate_map = values.clone().with::<Priority>(9).without::<Priority>();
+        assert_eq!(storage(&separate_map).1, storage(&values).1);
+        separate_map.replace_single::<Weight>(4);
+        assert!(values.is_single::<Weight>(&3));
+        assert!(separate_map.is_single::<Weight>(&4));
+
+        let mut mixed = values.with::<Priority>(9);
+        assert!(!mixed.is_single::<Weight>(&3));
+        mixed.replace_single::<Weight>(3);
+        assert!(mixed.is_single::<Weight>(&3));
+        assert_eq!(mixed.explicit::<Priority>(), None);
+    }
+
+    #[test]
     fn keys_are_distinct_and_copies_only_diverge_on_changes() {
         let empty = LayoutValues::default();
         assert!(empty.0.is_none());
@@ -157,7 +213,7 @@ mod tests {
             .with::<Weight>(4);
         assert_eq!(a, b);
         let same = a.clone().with::<Weight>(4);
-        assert!(Rc::ptr_eq(a.0.as_ref().unwrap(), same.0.as_ref().unwrap()));
+        assert!(Arc::ptr_eq(a.0.as_ref().unwrap(), same.0.as_ref().unwrap()));
         let changed = a.clone().with::<Weight>(9);
         assert_eq!(a.get::<Weight>(), 4);
         assert_eq!(changed.get::<Weight>(), 9);

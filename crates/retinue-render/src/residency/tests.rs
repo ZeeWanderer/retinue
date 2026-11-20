@@ -7,7 +7,7 @@ fn recipe(key: u64) -> Recipe {
             key,
             (16.0, 16.0),
             1.0,
-            Rc::new(vec![Command::Fill {
+            Arc::new(vec![Command::Fill {
                 bounds: Bounds::new(0.0, 0.0, 16.0, 16.0),
                 radius: 0.0,
                 color: Color::rgb(0x225577),
@@ -25,7 +25,7 @@ fn value(recipe: Recipe) -> Materialization {
     })
     .unwrap();
     Materialization {
-        image: Rc::new(image),
+        image: Arc::new(image),
         recipe,
     }
 }
@@ -213,13 +213,13 @@ fn selected_consumers_ignore_warm_limits_and_share_allocations() {
 #[test]
 fn warm_entries_release_source_assets_and_expire() {
     let mut residency = Residency::new(ResidencyPolicy::desktop(65536));
-    let source = Rc::new(RasterImage::render(128, 128, |_| {}).unwrap());
-    let weak = Rc::downgrade(&source);
+    let source = Arc::new(RasterImage::render(128, 128, |_| {}).unwrap());
+    let weak = Arc::downgrade(&source);
     let program = PaintProgram::new(
         1,
         (16.0, 16.0),
         1.0,
-        Rc::new(vec![Command::Image {
+        Arc::new(vec![Command::Image {
             bounds: Bounds::new(0.0, 0.0, 16.0, 16.0),
             image: source.into(),
             fit: crate::ImageFit::Contain,
@@ -253,7 +253,7 @@ fn only_matching_nearby_content_returns_from_warm_storage() {
     residency.drawn(id);
     residency.release(id, Retention::Nearby, Instant::now());
     let mut changed = recipe.clone();
-    Rc::make_mut(&mut changed.fragments)[0].origin.0 += 1;
+    Arc::make_mut(&mut changed.fragments)[0].origin.0 += 1;
     assert_eq!(residency.acquire(owner, &changed), None);
     assert_eq!(residency.acquire(owner, &recipe), Some(id));
     assert_eq!(residency.stats().warm_bytes, 0);

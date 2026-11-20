@@ -16,4 +16,4 @@ syn = { version = "2", features = ["full", "extra-traits", "visit-mut"] }
 
 [dev-dependencies]
 # Exercise expansion from a caller that renames the runtime dependency.
-ui_alias = { package = "retinue-ui", path = "../retinue-ui", default-features = false }
+ui_alias = { package = "retinue-ui", path = "../retinue-ui", default-features = false, features = ["reference-frontend"] }

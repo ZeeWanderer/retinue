@@ -1,9 +1,9 @@
 use super::Snapshot;
-use std::{collections::VecDeque, rc::Rc};
+use std::{collections::VecDeque, sync::Arc};
 
 #[derive(Default)]
 pub(crate) struct History {
-    frames: VecDeque<Rc<Snapshot>>,
+    frames: VecDeque<Arc<Snapshot>>,
 }
 
 impl History {
@@ -11,17 +11,17 @@ impl History {
         self.frames.clear();
     }
     pub fn latest(&self) -> Option<&Snapshot> {
-        self.frames.front().map(Rc::as_ref)
+        self.frames.front().map(Arc::as_ref)
     }
-    pub fn latest_owned(&self) -> Option<Rc<Snapshot>> {
+    pub fn latest_owned(&self) -> Option<Arc<Snapshot>> {
         self.frames.front().cloned()
     }
     pub fn at_age(&self, age: u8) -> Option<&Snapshot> {
         age.checked_sub(1)
             .and_then(|n| self.frames.get(usize::from(n)))
-            .map(Rc::as_ref)
+            .map(Arc::as_ref)
     }
-    pub fn submitted(&mut self, scene: Rc<Snapshot>) {
+    pub fn submitted(&mut self, scene: Arc<Snapshot>) {
         self.frames.push_front(scene);
         self.frames.truncate(9);
     }
@@ -29,8 +29,8 @@ impl History {
 
 #[derive(Default)]
 pub(crate) struct SlotHistory {
-    slots: Vec<Option<Rc<Snapshot>>>,
-    latest: Option<Rc<Snapshot>>,
+    slots: Vec<Option<Arc<Snapshot>>>,
+    latest: Option<Arc<Snapshot>>,
 }
 
 impl SlotHistory {
@@ -44,13 +44,13 @@ impl SlotHistory {
     pub fn latest(&self) -> Option<&Snapshot> {
         self.latest.as_deref()
     }
-    pub fn take(&mut self, index: usize) -> Option<Rc<Snapshot>> {
+    pub fn take(&mut self, index: usize) -> Option<Arc<Snapshot>> {
         self.slots[index].take()
     }
-    pub fn at(&self, index: usize) -> Option<Rc<Snapshot>> {
+    pub fn at(&self, index: usize) -> Option<Arc<Snapshot>> {
         self.slots.get(index)?.clone()
     }
-    pub fn submitted(&mut self, index: usize, scene: Option<Rc<Snapshot>>) {
+    pub fn submitted(&mut self, index: usize, scene: Option<Arc<Snapshot>>) {
         self.slots[index] = scene.clone();
         self.latest = scene;
     }

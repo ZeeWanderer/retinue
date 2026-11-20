@@ -1,4 +1,6 @@
-use super::{Element, IntoElement, Primitive, PrimitiveOutput, ViewContext};
+#[cfg(any(test, feature = "reference-frontend"))]
+use super::{Element, IntoElement};
+use super::{Primitive, PrimitiveOutput, ViewContext};
 use crate::{
     Bounds,
     drawing::{CanvasContent, DrawingContext, TextStyle},
@@ -59,6 +61,7 @@ impl Primitive for Image {
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl IntoElement for Image {
     fn into_element(self) -> Element {
         Element::primitive(self)

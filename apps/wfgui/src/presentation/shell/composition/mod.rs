@@ -1,10 +1,15 @@
 use super::{Control, Geometry, Page, ShellView, shell_model::ShellModel, shell_model::Viewport};
-use retinue_render::{RasterMode, Renderer, damage::Damage};
+use retinue_render::{Renderer, damage::Damage};
 use retinue_ui::{
-    Key, Rect, drawing::DrawList, prelude::*, runtime::ViewTree, semantics::WindowAction,
+    Key, Rect,
+    drawing::DrawList,
+    environment::Environment,
+    ir::{InstanceGraph, Work},
+    semantics::WindowAction,
     semantics::WindowCapabilities,
+    timeline::FrameTime,
 };
-use std::{cell::Cell, cell::RefCell, time::Duration, time::Instant};
+use std::{cell::Cell, cell::RefCell, rc::Rc, time::Duration, time::Instant};
 
 pub const TITLE: Key = Key::new("shell", 1);
 pub const LEFT: Key = Key::new("shell", 2);
@@ -63,8 +68,9 @@ pub struct Layout {
 }
 
 pub struct Composition {
-    pub tree: RefCell<ViewTree>,
-    pub renderer: RefCell<Renderer>,
+    pub tree: RefCell<InstanceGraph>,
+    pub work: Cell<Work>,
+    pub renderer: Rc<RefCell<Renderer>>,
     model: ShellModel,
     time: Cell<FrameTime>,
 }
@@ -72,9 +78,17 @@ pub struct Composition {
 impl Default for Composition {
     fn default() -> Self {
         let model = ShellModel::default();
+        let mut tree = InstanceGraph::default();
+        let root = tree
+            .mount_view(ShellView(model.clone()), Environment::default())
+            .expect("valid shell");
+        tree.set_root(Some(root)).unwrap();
         Self {
-            tree: RefCell::new(ViewTree::new(ShellView(model.clone()), || {})),
-            renderer: RefCell::new(Renderer::new(retinue_render::ResidencyPolicy::desktop(0))),
+            tree: RefCell::new(tree),
+            work: Cell::default(),
+            renderer: Rc::new(RefCell::new(Renderer::new(
+                retinue_render::ResidencyPolicy::desktop(0),
+            ))),
             model,
             time: Cell::new(FrameTime::now()),
         }
@@ -95,23 +109,21 @@ impl Composition {
         self.model.tooltip.set(layout.tooltip);
         self.model.page.set(layout.page);
         self.time.set(self.time.get().at(now));
-        let damage = self.flush();
-        if damage != Damage::None {
-            self.renderer.get_mut().prepare_for(
-                self.tree.borrow().frame(),
-                RasterMode::Replay,
-                &Default::default(),
-            );
-        }
-        damage
+        self.flush()
     }
 
     fn flush(&self) -> Damage {
         let v = self.model.viewport.get();
-        self.tree
+        let update = self
+            .tree
             .borrow_mut()
-            .update_at(v.size, v.scale, self.time.get())
-            .expect("valid shell view")
+            .advance_at(v.size, v.scale, self.time.get(), None)
+            .expect("valid shell view");
+        self.work.set(update.work);
+        match update.completion.expect("valid shell layout") {
+            std::task::Poll::Ready(damage) => damage,
+            std::task::Poll::Pending => unreachable!("inline shell layout"),
+        }
     }
 
     pub fn record(&self, paints: impl IntoIterator<Item = (Key, Vec<retinue_render::Command>)>) {
@@ -128,16 +140,12 @@ impl Composition {
         self.tree.borrow().next_deadline()
     }
     pub fn rail_animating(&self, _: Key) -> bool {
-        let tree = self.tree.borrow();
-        tree.unique(BODY)
-            .expect("one shell body")
-            .is_some_and(|id| tree.animating(id))
+        self.tree.borrow().motion_active()
     }
     pub fn rect(&self, key: Key) -> Rect {
         let tree = self.tree.borrow();
-        tree.unique(key)
+        tree.named_bounds(key)
             .expect("unique shell name")
-            .and_then(|id| tree.geometry(id))
             .map(|geometry| geometry.hit)
             .unwrap_or_default()
     }
@@ -152,9 +160,8 @@ impl Composition {
 
     pub fn invalidate(&self, key: Key, damage: Damage) -> Damage {
         let tree = self.tree.borrow();
-        tree.unique(key)
+        tree.named_bounds(key)
             .expect("unique shell name")
-            .and_then(|id| tree.geometry(id))
             .map_or(Damage::None, |node| {
                 tree.scene().invalidate(node.key, damage)
             })
@@ -192,18 +199,18 @@ impl Composition {
     ) -> Option<(Key, WindowAction)> {
         let tree = self.tree.borrow();
         let (key, action) = tree.scene().window_action(position, capabilities)?;
-        Some((tree.authored_key(key)?, action))
+        Some((tree.enclosing_name(key)?, action))
     }
     pub fn declaration_report(&self) -> serde_json::Value {
         let tree = self.tree.borrow();
         serde_json::json!({
-            "bodies_evaluated": tree.stats.bodies, "motion_samples": tree.stats.motion_samples,
-            "mounted": tree.stats.mounted, "unmounted": tree.stats.unmounted,
+            "owners_evaluated": self.work.get().owners_evaluated,
+            "mounted": self.work.get().instances_mounted, "unmounted": self.work.get().instances_unmounted,
+            "instances": tree.len(), "animating": tree.motion_active(),
             "pages": PAGES.map(|page| format!("{page:?}")),
-            "nodes": tree.inspect().into_iter().map(|node| serde_json::json!({
-                "id": node.id.0, "parent": node.parent.map(|id| id.0),
-                "key": node.key.map(|key| (key.namespace, key.value)), "kind": node.kind,
-                "dependencies": node.dependencies, "animating": node.animating,
+            "nodes": tree.scene().geometry().iter().map(|node| serde_json::json!({
+                "id": node.key.value, "parent": node.parent.map(|key| key.value),
+                "key": tree.authored_key(node.key).map(|key| (key.namespace, key.value)),
             })).collect::<Vec<_>>(),
         })
     }

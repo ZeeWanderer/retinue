@@ -14,7 +14,7 @@ use retinue_render::{
     painter::{Painter, render_thread_budget},
     surface::{Aged, Snapshot},
 };
-use std::{num::NonZeroU32, path::PathBuf, sync::Arc, time::Instant};
+use std::{num::NonZeroU32, path::PathBuf, sync::Arc, task::Poll, time::Instant};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -28,10 +28,28 @@ pub trait Application {
     fn attributes(&self) -> WindowAttributes;
     fn resize(&mut self, size: (u32, u32), display_scale: f64);
     fn event(&mut self, event: &WindowEvent, window: &Window) -> Damage;
+    fn sync_input_method(&mut self, _window: &Window) -> Damage {
+        Damage::None
+    }
     fn message(&mut self, message: Self::Message) -> Damage;
     fn prepare(&mut self) -> Result<Option<Snapshot>, String> {
         Ok(None)
     }
+    fn set_waker(&mut self, _wake: retinue_render::Wake) {}
+    fn poll_prepare(&mut self) -> Result<Poll<Option<Snapshot>>, String> {
+        self.prepare().map(Poll::Ready)
+    }
+    fn prepare_rasters(&mut self, _repair: &retinue_render::damage::Region) -> Result<(), String> {
+        Ok(())
+    }
+    fn prepare_packet(
+        &mut self,
+        _repair: &retinue_render::damage::Region,
+        _wake: retinue_render::Wake,
+    ) -> Result<Option<retinue_render::PacketJob>, String> {
+        Ok(None)
+    }
+    fn prepared(&mut self) {}
     fn paint(&mut self, painter: &mut Painter<'_>) -> Result<(), String>;
     fn background(&self) -> [u8; 4];
     fn accessibility(&self) -> TreeUpdate;
@@ -65,6 +83,8 @@ pub trait Application {
 pub enum Event<M> {
     Message(M),
     Accessibility(accesskit_winit::Event),
+    RenderComplete,
+    PrepareComplete,
 }
 
 impl<M> From<accesskit_winit::Event> for Event<M> {
@@ -105,7 +125,11 @@ pub fn run<A: Application>(
         .build()
         .map_err(|e| e.to_string())?;
     let proxy = events.create_proxy();
-    let app = create(Sender(proxy.clone()))?;
+    let mut app = create(Sender(proxy.clone()))?;
+    let wake = proxy.clone();
+    app.set_waker(Arc::new(move || {
+        let _ = wake.send_event(Event::PrepareComplete);
+    }));
     let mut host = Host {
         app,
         proxy,
@@ -116,9 +140,12 @@ pub fn run<A: Application>(
         occluded: false,
         threads: render_threads(),
         frames: FrameClock::default(),
+        rendering: None,
+        preparation: Default::default(),
+        render_capture: None,
     };
     events.run_app(&mut host).map_err(|e| e.to_string())?;
-    host.failure.map_or(Ok(()), Err)
+    host.failure.take().map_or(Ok(()), Err)
 }
 
 struct NativeWindow {
@@ -133,11 +160,20 @@ struct Host<A: Application> {
     proxy: EventLoopProxy<Event<A::Message>>,
     native: Option<NativeWindow>,
     damage: Aged,
+    preparation: crate::schedule::FramePreparation,
     options: Options,
     failure: Option<String>,
     occluded: bool,
     threads: NonZeroU32,
     frames: FrameClock,
+    rendering: Option<crate::presentation_buffers::render::RenderJob>,
+    render_capture: Option<PathBuf>,
+}
+
+impl<A: Application> Drop for Host<A> {
+    fn drop(&mut self) {
+        self.rendering.take();
+    }
 }
 
 impl<A: Application> Host<A> {
@@ -177,59 +213,142 @@ impl<A: Application> Host<A> {
     }
 
     fn draw(&mut self, events: &ActiveEventLoop) -> Result<(), String> {
+        if self.rendering.is_some() || self.preparation.waiting() {
+            return Ok(());
+        }
         let Some(native) = &mut self.native else {
             return Ok(());
         };
         // A requested window resize can precede its event and the matching buffer resize.
         let size = native.size;
-        if size.width == 0 || size.height == 0 || !self.damage.is_dirty() {
+        if size.width == 0
+            || size.height == 0
+            || (!self.damage.is_dirty() && !self.preparation.ready())
+        {
             return Ok(());
         }
-        let scene = self.app.prepare()?;
+        let scene = match self.app.poll_prepare()? {
+            Poll::Ready(scene) => scene,
+            Poll::Pending => {
+                self.preparation.pending();
+                return Ok(());
+            }
+        };
         self.damage.set_relocation(self.app.relocation());
-        let frame = self
-            .app
-            .render_host()
-            .map(|host| host.begin_frame(self.threads));
-        let threads = frame
-            .as_ref()
-            .map_or(self.threads, retinue_render::RenderPass::threads);
+        let host = self.app.render_host();
+        let _pass = host.as_ref().map(|host| host.begin_pass(0));
         let capture = self
             .options
             .capture
             .as_ref()
             .filter(|_| self.app.ready())
             .cloned();
+        if native.surface.leases() {
+            let Some(mut lease) = native
+                .surface
+                .lease(self.app.relocation() != retinue_render::surface::Relocation::Disabled)?
+            else {
+                return Ok(());
+            };
+            let pixels = lease.pixels().ok_or("desktop mapping unavailable")?;
+            self.preparation.finish();
+            let Some(planned) = self.damage.plan_queued(
+                pixels.age,
+                (size.width, size.height),
+                scene,
+                pixels.target,
+                pixels.source.map(|(_, source)| source),
+                self.threads,
+            )?
+            else {
+                return Ok(());
+            };
+            let work = planned.into_work();
+            let proxy = self.proxy.clone();
+            let wake: retinue_render::Wake = Arc::new(move || {
+                let _ = proxy.send_event(Event::RenderComplete);
+            });
+            if let Some(host) = &host
+                && let Some(packet) = self.app.prepare_packet(work.repair(), wake.clone())?
+            {
+                self.render_capture = capture;
+                self.rendering = Some(crate::presentation_buffers::render::RenderJob::submit(
+                    host,
+                    self.threads,
+                    lease,
+                    work,
+                    packet,
+                    self.app.background(),
+                    wake,
+                )?);
+                return Ok(());
+            }
+            self.app.prepare_rasters(work.repair())?;
+            let frame = host.as_ref().map(|host| host.begin_frame(self.threads));
+            let threads = frame
+                .as_ref()
+                .map_or(self.threads, retinue_render::RenderPass::threads);
+            let pixels = lease.pixels().ok_or("desktop mapping unavailable")?;
+            let submission = work.execute(
+                pixels.target,
+                pixels.source.map(|(_, source)| source),
+                threads,
+                |p, repair| {
+                    let r = repair.bounds();
+                    p.fill_rounded_rect(r.x, r.y, r.width, r.height, 0, self.app.background());
+                    self.app.paint(p)
+                },
+            )?;
+            return self.present(
+                crate::presentation_buffers::render::Rendered {
+                    lease,
+                    submission,
+                    #[cfg(feature = "benchmark")]
+                    finished: Instant::now(),
+                },
+                capture,
+                events,
+            );
+        }
         let Some(plan) = native.surface.draw(
             self.app.relocation() != retinue_render::surface::Relocation::Disabled,
             |age, pixels, source| {
-                let Some(plan) = self.damage.render_queued(
+                self.preparation.finish();
+                let Some(planned) = self.damage.plan_queued(
                     age,
                     (size.width, size.height),
                     scene,
                     pixels,
                     source,
-                    threads,
-                    |painter, repair| {
-                        let background = self.app.background();
-                        if background[3] != 255 {
-                            return Err("desktop background must be opaque".into());
-                        }
-                        let repair = repair.bounds();
-                        painter.fill_rounded_rect(
-                            repair.x,
-                            repair.y,
-                            repair.width,
-                            repair.height,
-                            0,
-                            background,
-                        );
-                        self.app.paint(painter)
-                    },
+                    self.threads,
                 )?
                 else {
                     return Ok(None);
                 };
+                self.app.prepare_rasters(planned.repair())?;
+                let frame = host.as_ref().map(|host| host.begin_frame(self.threads));
+                let threads = frame
+                    .as_ref()
+                    .map_or(self.threads, retinue_render::RenderPass::threads);
+                let plan = planned.execute(threads, |painter, repair| {
+                    let background = self.app.background();
+                    if background[3] != 255 {
+                        return Err("desktop background must be opaque".into());
+                    }
+                    let repair = repair.bounds();
+                    painter.fill_rounded_rect(
+                        repair.x,
+                        repair.y,
+                        repair.width,
+                        repair.height,
+                        0,
+                        background,
+                    );
+                    self.app.paint(painter)
+                })?;
+                if !self.damage.can_submit(&plan) {
+                    return Err("presentation plan is obsolete".into());
+                }
                 if let Some(path) = &capture {
                     let image = image::RgbImage::from_fn(size.width, size.height, |x, y| {
                         let n = ((y * size.width + x) * 4) as usize;
@@ -249,6 +368,61 @@ impl<A: Application> Host<A> {
             self.options.capture = None;
             if self.options.exit_after_capture {
                 events.exit();
+            }
+        }
+        Ok(())
+    }
+
+    fn finish_render(&mut self, events: &ActiveEventLoop) -> Result<(), String> {
+        let Some(result) = self.rendering.as_mut().and_then(|job| job.poll()) else {
+            return Ok(());
+        };
+        self.rendering.take();
+        let capture = self.render_capture.take();
+        self.app.prepared();
+        if let Some(rendered) = result? {
+            self.present(rendered, capture, events)?;
+        }
+        Ok(())
+    }
+
+    fn present(
+        &mut self,
+        mut rendered: crate::presentation_buffers::render::Rendered,
+        capture: Option<PathBuf>,
+        events: &ActiveEventLoop,
+    ) -> Result<(), String> {
+        let Some(native) = &mut self.native else {
+            return Ok(());
+        };
+        if !self.damage.can_submit(&rendered.submission) {
+            return Ok(());
+        }
+        if let Some(path) = &capture {
+            let size = native.size;
+            let pixels = rendered
+                .lease
+                .pixels()
+                .ok_or("capture mapping unavailable")?
+                .target;
+            image::RgbImage::from_fn(size.width, size.height, |x, y| {
+                let n = ((y * size.width + x) * 4) as usize;
+                image::Rgb([pixels[n + 2], pixels[n + 1], pixels[n]])
+            })
+            .save(path)
+            .map_err(|error| error.to_string())?;
+        }
+        native.window.pre_present_notify();
+        if native
+            .surface
+            .present(rendered.lease, &rendered.submission)?
+        {
+            self.damage.submitted(rendered.submission);
+            if capture.is_some() {
+                self.options.capture = None;
+                if self.options.exit_after_capture {
+                    events.exit();
+                }
             }
         }
         Ok(())
@@ -274,6 +448,9 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
                 _ => return Err("desktop presentation requires Wayland or X11".into()),
             }
             let surface = Surface::new(window.clone())?;
+            if let Some(host) = self.app.render_host() {
+                crate::drawing::text::prepare_host_fonts(&host);
+            }
             self.native = Some(NativeWindow {
                 adapter,
                 surface,
@@ -291,12 +468,23 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
     }
 
     fn suspended(&mut self, _events: &ActiveEventLoop) {
+        self.rendering.take();
         self.native = None;
         self.damage.reset();
     }
 
-    fn user_event(&mut self, _events: &ActiveEventLoop, event: Event<A::Message>) {
+    fn user_event(&mut self, events: &ActiveEventLoop, event: Event<A::Message>) {
         let damage = match event {
+            Event::RenderComplete => {
+                if let Err(error) = self.finish_render(events) {
+                    self.fail(events, error);
+                }
+                Damage::None
+            }
+            Event::PrepareComplete => {
+                self.preparation.wake();
+                Damage::None
+            }
             Event::Message(message) => self.app.message(message),
             Event::Accessibility(event) => {
                 let Some(native) = &mut self.native else {
@@ -340,8 +528,10 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
             }
             WindowEvent::RedrawRequested => {
                 self.frames.frame_started();
-                let damage = self.app.tick(Instant::now());
-                self.invalidate(damage);
+                if self.preparation.can_sample() && self.rendering.is_none() {
+                    let damage = self.app.tick(Instant::now());
+                    self.invalidate(damage);
+                }
                 self.frames.schedule(self.app.deadline());
                 if let Err(error) = self.draw(events) {
                     self.fail(events, error);
@@ -362,6 +552,10 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
     }
 
     fn about_to_wait(&mut self, events: &ActiveEventLoop) {
+        if let Some(native) = &self.native {
+            let damage = self.app.sync_input_method(&native.window);
+            self.invalidate(damage);
+        }
         if self.app.close_requested() {
             events.exit();
             return;
@@ -375,7 +569,14 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
             self.app.maintain(now);
         }
         let maintenance = self.app.maintenance_deadline();
-        if self.occluded {
+        if self.occluded
+            || self.rendering.is_some()
+            || self.preparation.waiting()
+            || self
+                .native
+                .as_ref()
+                .is_some_and(|native| native.surface.waiting())
+        {
             events.set_control_flow(
                 self.frames
                     .wake_deadline(maintenance, false)
@@ -386,10 +587,11 @@ impl<A: Application> ApplicationHandler<Event<A::Message>> for Host<A> {
         if self.options.capture.is_some() && self.app.ready() {
             self.damage.invalidate(Damage::Full);
         }
-        if self
-            .frames
-            .request(self.damage.is_dirty(), self.app.deadline(), now)
-        {
+        if self.frames.request(
+            self.damage.is_dirty() || self.preparation.ready(),
+            self.app.deadline(),
+            now,
+        ) {
             if let Some(native) = &self.native {
                 native.window.request_redraw();
             }

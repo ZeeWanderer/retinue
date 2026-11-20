@@ -3,7 +3,7 @@ use crate::{
     Bounds, Color, Command, Key, PaintFrame, PaintInstance, PaintKey, ProgramStore, RasterMode,
     Renderer, ResidencyPolicy, painter::Painter,
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 const SIZE: (u32, u32) = (440, 340);
 const BACKGROUND: Color = Color::rgb(0x151a20);
@@ -68,7 +68,7 @@ fn frames(
                 PaintKey::new(key, 0),
                 (440.0, 340.0),
                 1.0,
-                Rc::new(commands),
+                Arc::new(commands),
             ),
             origin,
             clip,
@@ -135,7 +135,7 @@ fn frames(
             rect(0, 0, SIZE.0, SIZE.1),
             vec![Command::Clip {
                 bounds: Bounds::new(28.0, 25.0, 320.0, 245.0),
-                commands: Rc::new(vec![Command::External {
+                commands: Arc::new(vec![Command::External {
                     bounds: Bounds::new(28.0, 25.0, 326.0, 251.0),
                     key: PAGE,
                 }]),
@@ -200,14 +200,14 @@ fn nested_surface_scroll_hover_and_opaque_content_match_full_paint() {
     for rounded in [false, true] {
         for count in [1, 3] {
             let mut buffers = vec![vec![0; SIZE.0 as usize * SIZE.1 as usize * 4]; count];
-            let mut states: Vec<Option<Rc<Scene>>> = (0..count).map(|_| None).collect();
+            let mut states: Vec<Option<Arc<Scene>>> = (0..count).map(|_| None).collect();
             let mut root = PaintFrame::default();
             let mut page = PaintFrame::default();
             let mut store = ProgramStore::default();
             let mut copied = 0;
             for step in 0..24 {
                 frames(&mut root, &mut page, &mut store, step, rounded);
-                let scene = Rc::new(record(&root, &page));
+                let scene = Arc::new(record(&root, &page));
                 let index = step as usize % count;
                 let full = Region::from(scene.bounds());
                 let plan = Plan::new(&scene, states[index].as_deref(), &full);
@@ -253,10 +253,12 @@ fn metadata_does_not_retain_frames_and_age_history_is_bounded() {
     let mut root = PaintFrame::default();
     let mut page = PaintFrame::default();
     frames(&mut root, &mut page, &mut ProgramStore::default(), 0, false);
-    let weak = Rc::downgrade(&page.identity);
-    let scene = Rc::new(record(&root, &page));
+    let weak = Arc::downgrade(page.instances()[0].program.commands());
+    let id = page.identity;
+    let scene = Arc::new(record(&root, &page));
     drop(page);
     assert!(weak.upgrade().is_none());
+    assert_ne!(PaintFrame::default().identity, id);
     let mut history = History::default();
     for _ in 0..20 {
         history.submitted(scene.clone());

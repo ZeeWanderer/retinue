@@ -1,6 +1,7 @@
+use super::text::{LabelAlignment, label_commands, text_width};
 use crate::Rect;
-use retinue_render::painter::{CachedFont, TextBox, TextLine, text_width, wrap_text};
-use retinue_render::{Bounds, Color, Command, ImageFit, ImageSource, TextAlignment};
+use retinue_render::painter::{CachedFont, TextBox, TextLine};
+use retinue_render::{Bounds, Color, Command, ImageFit, ImageSource};
 use std::rc::Rc;
 
 /// Records custom pixel-layout painting into the same retained command stream.
@@ -46,6 +47,23 @@ impl PixelCanvas {
         });
     }
 
+    pub fn editor(
+        &mut self,
+        editor: &mut crate::line_edit::LineEdit,
+        rect: Rect,
+        size: f32,
+        colors: crate::line_edit::Colors,
+    ) {
+        let commands = editor
+            .commands_scaled(Rect { x: 0, y: 0, ..rect }, size, self.scale, colors)
+            .expect("valid editor geometry");
+        let bounds = self.bounds(rect);
+        self.commands.push(Command::Translate {
+            offset: (bounds.x, bounds.y),
+            commands: std::sync::Arc::new(commands),
+        });
+    }
+
     pub fn draw_line(&mut self, from: (f64, f64), to: (f64, f64), thickness: f64, color: [u8; 4]) {
         let local = |point: (f64, f64)| {
             (
@@ -69,24 +87,22 @@ impl PixelCanvas {
         text: &str,
         color: [u8; 4],
     ) {
-        let lines = wrap_text(font, text, size, bounds.width as f32).len();
-        let height = font
-            .horizontal_line_metrics(size)
-            .map_or(size, |m| m.new_line_size)
-            * lines.max(1) as f32;
-        self.commands.push(Command::Text {
-            bounds: self.bounds(Rect {
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width,
-                height: height.ceil() as u32 + 2,
-            }),
-            font: font.clone(),
-            text: text.into(),
-            size: size / self.scale,
-            color: Color::from_bgra(color),
-            align: TextAlignment::WrappedCenter,
-        });
+        self.commands.extend(
+            label_commands(
+                font,
+                self.bounds(Rect {
+                    x: bounds.x,
+                    y: bounds.y,
+                    width: bounds.width,
+                    height: 0,
+                }),
+                size / self.scale,
+                text,
+                Color::from_bgra(color),
+                LabelAlignment::WrappedCenter,
+            )
+            .expect("valid canvas label"),
+        );
     }
 
     pub fn bounds(&self, r: Rect) -> Bounds {
@@ -137,14 +153,17 @@ impl PixelCanvas {
     }
 
     pub fn text(&mut self, r: Rect, font: Rc<CachedFont>, text: String, size: f32, color: [u8; 4]) {
-        self.commands.push(Command::Text {
-            bounds: self.bounds(r),
-            font,
-            text,
-            size,
-            color: Color::from_bgra(color),
-            align: TextAlignment::Center,
-        });
+        self.commands.extend(
+            label_commands(
+                &font,
+                self.bounds(r),
+                size,
+                &text,
+                Color::from_bgra(color),
+                LabelAlignment::Center,
+            )
+            .expect("valid canvas label"),
+        );
     }
 
     pub fn image(&mut self, r: Rect, image: impl Into<ImageSource>, fit: ImageFit) {
@@ -180,7 +199,7 @@ impl PixelCanvas {
         draw(&mut nested);
         self.commands.push(Command::Clip {
             bounds: self.bounds(bounds),
-            commands: Rc::new(nested.commands),
+            commands: std::sync::Arc::new(nested.commands),
         });
     }
 
@@ -252,29 +271,22 @@ impl PixelCanvas {
         text: &str,
         color: [u8; 4],
     ) {
-        let width = text
-            .lines()
-            .map(|line| text_width(font, line, size))
-            .fold(0.0, f32::max)
-            .ceil() as u32
-            + 4;
-        let height = font
-            .horizontal_line_metrics(size)
-            .map_or(size, |m| m.new_line_size)
-            * text.lines().count().max(1) as f32;
-        self.commands.push(Command::Text {
-            bounds: self.bounds(Rect {
-                x,
-                y,
-                width,
-                height: height.ceil() as u32 + 2,
-            }),
-            font: font.clone(),
-            text: text.into(),
-            size: size / self.scale,
-            color: Color::from_bgra(color),
-            align: TextAlignment::Top,
-        });
+        self.commands.extend(
+            label_commands(
+                font,
+                self.bounds(Rect {
+                    x,
+                    y,
+                    width: 0,
+                    height: 0,
+                }),
+                size / self.scale,
+                text,
+                Color::from_bgra(color),
+                LabelAlignment::Top,
+            )
+            .expect("valid canvas label"),
+        );
     }
 
     pub fn draw_text_vertically_centered(

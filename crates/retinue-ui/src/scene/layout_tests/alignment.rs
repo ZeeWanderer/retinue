@@ -61,12 +61,12 @@ fn child_values_invalidate_only_the_arranging_parent_and_ancestors() {
     let parents = Rc::new(Cell::new(0));
     let children = Rc::new(Cell::new(0));
     let mut child = container(1, vec![leaf(2, 10.0, 10.0)], vec![]);
-    child.algorithm = Algorithm::Custom(LayoutAlgorithm::new(Tracked {
+    child.algorithm = Algorithm::Custom(LayoutAlgorithm::owner(Tracked {
         offset: 0.0,
         updates: children.clone(),
     }));
     let mut root = container(0, vec![child], vec![]);
-    root.algorithm = Algorithm::Custom(LayoutAlgorithm::new(ValueParent(Tracked {
+    root.algorithm = Algorithm::Custom(LayoutAlgorithm::owner(ValueParent(Tracked {
         offset: 0.0,
         updates: parents.clone(),
     })));

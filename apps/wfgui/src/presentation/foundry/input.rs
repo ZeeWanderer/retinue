@@ -474,7 +474,19 @@ impl Foundry {
                 });
             }
             if *action == Action::Search {
-                node.set_value(self.search.borrow().text());
+                let mut search = self.search.borrow_mut();
+                if self.focus == Some(Action::Search) {
+                    search.accessible_text(
+                        &mut node,
+                        &mut nodes,
+                        self.search_field,
+                        14.0 * self.scale,
+                        self.scale,
+                        crate::presentation::text_run_id,
+                    );
+                } else {
+                    node.set_value(search.text());
+                }
                 node.add_action(accesskit::Action::SetValue);
             }
             children.push(id);
@@ -595,6 +607,13 @@ impl Foundry {
             accesskit::Action::SetValue if action == Action::Search => {
                 if let Some(accesskit::ActionData::Value(value)) = request.data {
                     self.set_search(&value);
+                }
+            }
+            accesskit::Action::SetTextSelection
+                if action == Action::Search && self.focus == Some(action) =>
+            {
+                if let Some(accesskit::ActionData::SetTextSelection(selection)) = request.data {
+                    self.search.borrow_mut().select_accessible_text(&selection);
                 }
             }
             _ => (),

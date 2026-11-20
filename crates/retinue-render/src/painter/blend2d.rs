@@ -11,6 +11,8 @@ use std::num::NonZeroU32;
 
 const BL_SUCCESS: u32 = 0;
 
+pub(crate) mod font;
+
 #[repr(C)]
 struct RetinueBlendPainter {
     _private: [u8; 0],
@@ -143,6 +145,14 @@ pub fn runtime_resources() -> Result<RuntimeResources, Error> {
 #[derive(Debug)]
 struct Pixels(Vec<u8>);
 
+struct PixelLease(Arc<Pixels>);
+
+impl AsRef<[u8]> for PixelLease {
+    fn as_ref(&self) -> &[u8] {
+        &self.0.0
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ImageStorage {
     pixels: std::sync::Weak<Pixels>,
@@ -238,6 +248,10 @@ impl Image {
 
     pub(super) fn pixels(&self) -> &[u8] {
         &self.pixels.0
+    }
+
+    pub(super) fn pixel_lease(&self) -> impl AsRef<[u8]> + Send + Sync + 'static {
+        PixelLease(self.pixels.clone())
     }
 
     pub(super) fn heap_bytes(&self) -> usize {
@@ -387,6 +401,7 @@ unsafe extern "C" {
         center_y: f64,
         radius: f64,
     ) -> u32;
+    #[cfg(test)]
     fn retinue_bl_fill_a8_mask(
         painter: *mut RetinueBlendPainter,
         mask: *const NativeImage,
@@ -408,49 +423,48 @@ pub(super) struct Context<'a> {
     _pixels: PhantomData<&'a mut [u8]>,
 }
 
-#[derive(Debug)]
-pub struct Error {
-    operation: &'static str,
-    code: Option<u32>,
-    deferred: bool,
+#[derive(Clone, Copy, Debug)]
+pub enum Error {
+    Invalid(&'static str),
+    Native { operation: &'static str, code: u32 },
+    Deferred(u32),
+    Text(crate::text::TextError),
 }
 
 impl Error {
-    pub(super) fn invalid(operation: &'static str) -> Self {
-        Self {
-            operation,
-            code: None,
-            deferred: false,
-        }
+    pub(crate) fn invalid(operation: &'static str) -> Self {
+        Self::Invalid(operation)
     }
 
     fn blend2d(operation: &'static str, code: u32) -> Self {
-        Self {
-            operation,
-            code: Some(code),
-            deferred: false,
-        }
+        Self::Native { operation, code }
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.code {
-            Some(code) if self.deferred => write!(
+        match self {
+            Self::Deferred(code) => write!(
                 formatter,
                 "Blend2D deferred rendering failed with flags {code:#010x}"
             ),
-            Some(code) => write!(
+            Self::Native { operation, code } => write!(
                 formatter,
-                "Blend2D {} failed with BLResult {code:#010x}",
-                self.operation
+                "Blend2D {operation} failed with BLResult {code:#010x}"
             ),
-            None => write!(formatter, "invalid Blend2D {} arguments", self.operation),
+            Self::Invalid(operation) => write!(formatter, "invalid Blend2D {operation} arguments"),
+            Self::Text(error) => write!(formatter, "text rendering failed: {error}"),
         }
     }
 }
 
 impl std::error::Error for Error {}
+
+impl From<crate::text::TextError> for Error {
+    fn from(error: crate::text::TextError) -> Self {
+        Self::Text(error)
+    }
+}
 
 impl<'a> Context<'a> {
     pub(super) fn new(
@@ -844,23 +858,45 @@ impl<'a> Context<'a> {
         );
     }
 
+    pub(super) fn seed_image(&mut self, source: &Image) {
+        if source.width != self.width || source.height != self.height {
+            self.record_invalid("seed image dimensions");
+            return;
+        }
+        self.copy_image(
+            source.handle,
+            (source.width, source.height),
+            crate::Rect {
+                x: 0,
+                y: 0,
+                width: self.width,
+                height: self.height,
+            },
+            (0, 0),
+        );
+    }
+
     pub(super) fn copy_source(
         &mut self,
         source: &PixelSource<'a>,
         area: crate::Rect,
         target: (u32, u32),
     ) {
+        self.copy_image(source.handle, (source.width, source.height), area, target);
+    }
+
+    fn copy_image(
+        &mut self,
+        source: NonNull<NativeImage>,
+        size: (u32, u32),
+        area: crate::Rect,
+        target: (u32, u32),
+    ) {
         if area.is_empty() || self.failed() {
             return;
         }
-        if area
-            .x
-            .checked_add(area.width)
-            .is_none_or(|x| x > source.width)
-            || area
-                .y
-                .checked_add(area.height)
-                .is_none_or(|y| y > source.height)
+        if area.x.checked_add(area.width).is_none_or(|x| x > size.0)
+            || area.y.checked_add(area.height).is_none_or(|y| y > size.1)
             || target
                 .0
                 .checked_add(area.width)
@@ -884,7 +920,7 @@ impl<'a> Context<'a> {
             |raw| unsafe {
                 retinue_bl_copy_prgb32(
                     raw,
-                    source.handle.as_ptr(),
+                    source.as_ptr(),
                     area.x as c_int,
                     area.y as c_int,
                     area.width as c_int,
@@ -942,6 +978,7 @@ impl<'a> Context<'a> {
         );
     }
 
+    #[cfg(test)]
     pub(super) fn fill_a8_mask_rgba32(
         &mut self,
         mask: &Image,
@@ -982,11 +1019,7 @@ impl<'a> Context<'a> {
             return Err(Error::blend2d("context finish", finish_result));
         }
         if deferred != 0 {
-            return Err(Error {
-                operation: "rendering",
-                code: Some(deferred),
-                deferred: true,
-            });
+            return Err(Error::Deferred(deferred));
         }
         Ok(())
     }

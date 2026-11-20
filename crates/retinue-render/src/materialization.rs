@@ -4,7 +4,7 @@ use crate::{
     Rect,
     painter::{Painter, RasterImage},
 };
-use std::{ops::Range, rc::Rc};
+use std::{ops::Range, sync::Arc};
 
 #[derive(Clone)]
 pub(super) struct Fragment {
@@ -27,13 +27,13 @@ impl Fragment {
 #[derive(Clone)]
 pub(super) struct Recipe {
     pub size: (u32, u32),
-    pub fragments: Rc<Vec<Fragment>>,
+    pub fragments: Arc<Vec<Fragment>>,
 }
 
 impl PartialEq for Recipe {
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size
-            && (Rc::ptr_eq(&self.fragments, &other.fragments)
+            && (Arc::ptr_eq(&self.fragments, &other.fragments)
                 || (self.fragments.len() == other.fragments.len()
                     && self
                         .fragments
@@ -48,7 +48,7 @@ impl Recipe {
         let bounds = program.bounds();
         Self {
             size: (bounds.width, bounds.height),
-            fragments: Rc::new(vec![Fragment {
+            fragments: Arc::new(vec![Fragment {
                 key: 0.into(),
                 program: program.clone(),
                 origin: (-bounds.x, -bounds.y),
@@ -84,7 +84,7 @@ impl Recipe {
             .collect::<Option<Vec<_>>>()?;
         Some(Self {
             size,
-            fragments: Rc::new(fragments),
+            fragments: Arc::new(fragments),
         })
     }
 
@@ -215,7 +215,7 @@ impl Recipe {
         index: usize,
         painter: &mut Painter<'_>,
         repair: Rect,
-        fragments: &mut impl FnMut(&PaintProgram, &OptimizationContext) -> Option<Rc<RasterImage>>,
+        fragments: &mut impl FnMut(&PaintProgram, &OptimizationContext) -> Option<Arc<RasterImage>>,
         stats: &mut PaintStats,
     ) {
         let fragment = &self.fragments[index];

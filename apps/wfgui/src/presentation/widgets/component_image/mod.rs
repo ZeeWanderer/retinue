@@ -4,8 +4,8 @@ use crate::{
 };
 use retinue_render::{Color, ImageFit, ImageSource};
 use retinue_ui::{
-    drawing::CanvasContent, drawing::DrawingContext, drawing::Typography, prelude::*,
-    view::Primitive, view::PrimitiveOutput,
+    authoring::{Canvas, ViewContext},
+    drawing::{CanvasContent, DrawingContext},
 };
 
 #[cfg(test)]
@@ -19,8 +19,8 @@ pub(crate) struct ComponentImage {
     pub scale: f32,
 }
 
-impl Primitive for ComponentImage {
-    fn resolve(&self, cx: &mut ViewContext<'_>) -> PrimitiveOutput {
+impl ComponentImage {
+    fn paint(&self, cx: &mut ViewContext<'_>) -> ComponentPaint {
         let inset = (2.0 * self.scale).round() as u32;
         let fit = if self
             .asset
@@ -33,25 +33,22 @@ impl Primitive for ComponentImage {
         };
         let image =
             AssetImage::new(self.asset.as_ref(), self.edge.saturating_sub(inset * 2)).resolve(cx);
-        PrimitiveOutput::new(
-            ComponentPaint {
-                pixels: image.as_ref().and_then(ImageHandle::pixels),
-                image,
-                fit,
-                inset: inset as f32 / self.scale,
-                radius: (self.edge / 2) as f32 / self.scale,
-                owned: self.owned,
-                scale: self.scale,
-            },
-            cx.environment().get::<Typography>(),
-        )
-        .fill_available()
+        ComponentPaint {
+            pixels: image.as_ref().and_then(ImageHandle::pixels),
+            image,
+            fit,
+            inset: inset as f32 / self.scale,
+            radius: (self.edge / 2) as f32 / self.scale,
+            owned: self.owned,
+            scale: self.scale,
+        }
     }
 }
 
-impl IntoElement for ComponentImage {
-    fn into_element(self) -> Element {
-        Element::primitive(self)
+#[retinue_ui::authoring::view]
+impl retinue_ui::authoring::View for ComponentImage {
+    fn body(&self, cx: &mut ViewContext<'_>) -> impl retinue_ui::authoring::Body {
+        Canvas(self.paint(cx))
     }
 }
 

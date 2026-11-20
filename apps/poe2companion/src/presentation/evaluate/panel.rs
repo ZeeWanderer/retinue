@@ -5,17 +5,18 @@ use crate::data::evaluation::{Item, Profile};
 use retinue_render::{
     CacheHint, Key, LayerPolicy,
     damage::Damage,
-    fontdue::{Font, FontSettings},
-    painter::{CachedFont, GlyphCache, Painter, TextLine, css_rgba as rgba, text_width, wrap_text},
+    painter::{CachedFont, Painter, TextLine, css_rgba as rgba},
 };
+use retinue_ui::drawing::text::{text_width, wrap_text};
 use retinue_ui::{
     Rect,
+    authoring::View,
     drawing::{PixelCanvas as Canvas, PixelLayers as Recording},
     input::{Activation, ControlRegion, Controls, PointerPhase},
+    ir::InstanceGraph,
     line_edit::{Colors, LineEdit},
     runtime::ViewSurface as Surface,
-    runtime::ViewTree,
-    view::empty,
+    state::State,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -257,10 +258,10 @@ pub struct EvaluatePanel {
     ui_semibold: Rc<CachedFont>,
     item: Rc<CachedFont>,
     composition: Surface,
-    layout_scene: RefCell<ViewTree>,
+    layout_scene: RefCell<InstanceGraph>,
+    layout_inputs: State<EvaluateView>,
+    layout_execution: Option<retinue_ui::runtime::LayoutExecution>,
     editor_bounds: Option<Rect>,
-    #[cfg(test)]
-    glyphs: GlyphCache,
     artwork: Artwork,
     pub hits: Vec<Hit>,
     input: Controls<(Target, usize)>,
@@ -299,7 +300,6 @@ impl EvaluatePanel {
             }));
     }
     pub fn new() -> Result<Self, String> {
-        let glyphs = GlyphCache::new(2 * 1024 * 1024);
         let render_budget = retinue_render::painter::render_thread_budget(4);
         let mut composition = Surface::with_layers(
             retinue_render::ResidencyPolicy::overlay(0),
@@ -311,42 +311,53 @@ impl EvaluatePanel {
                 ..retinue_render::HostPolicy::overlay()
             },
         ));
-        Ok(Self {
-            currencies: Default::default(),
-            ui: Rc::new(CachedFont::from_bytes(
+        let ui = Rc::new(
+            CachedFont::from_bytes(
                 include_bytes!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/assets/Lato-Regular.ttf"
                 ))
                 .as_slice(),
-                FontSettings::default(),
-                &glyphs,
-            )?),
-            ui_bold: Rc::new(CachedFont::from_bytes(
-                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Lato-Bold.ttf"))
+            )
+            .map_err(|e| e.to_string())?,
+        );
+        let editor = LineEdit::new(&ui).map_err(|error| error.to_string())?;
+        let layout_inputs = State::<EvaluateView>::default();
+        let inputs = layout_inputs.clone();
+        let mut layout_scene = InstanceGraph::default();
+        let root = layout_scene.mount_body(move |cx| inputs.read().body(cx), Default::default())?;
+        layout_scene.set_root(Some(root))?;
+        Ok(Self {
+            currencies: Default::default(),
+            ui,
+            ui_bold: Rc::new(
+                CachedFont::from_bytes(
+                    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/Lato-Bold.ttf"))
+                        .as_slice(),
+                )
+                .map_err(|e| e.to_string())?,
+            ),
+            ui_semibold: Rc::new(
+                CachedFont::from_bytes(
+                    include_bytes!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/assets/Lato-Semibold.ttf"
+                    ))
                     .as_slice(),
-                FontSettings::default(),
-                &glyphs,
-            )?),
-            ui_semibold: Rc::new(CachedFont::from_bytes(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/Lato-Semibold.ttf"
-                ))
-                .as_slice(),
-                FontSettings::default(),
-                &glyphs,
-            )?),
-            item: Rc::new(CachedFont::from_bytes(
-                include_bytes!(concat!(env!("OUT_DIR"), "/Fontin-SmallCaps.ttf")).as_slice(),
-                FontSettings::default(),
-                &glyphs,
-            )?),
+                )
+                .map_err(|e| e.to_string())?,
+            ),
+            item: Rc::new(
+                CachedFont::from_bytes(
+                    include_bytes!(concat!(env!("OUT_DIR"), "/Fontin-SmallCaps.ttf")).as_slice(),
+                )
+                .map_err(|e| e.to_string())?,
+            ),
             composition,
-            layout_scene: RefCell::new(ViewTree::new(empty(), || {})),
+            layout_scene: RefCell::new(layout_scene),
+            layout_inputs,
+            layout_execution: None,
             editor_bounds: None,
-            #[cfg(test)]
-            glyphs,
             artwork: Artwork::new()?,
             render_budget,
             #[cfg(test)]
@@ -372,13 +383,7 @@ impl EvaluatePanel {
             item_rows: 0,
             visible_listings: 0,
             visible_options: 0,
-            editor: LineEdit::new(
-                include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/assets/Lato-Regular.ttf"
-                )),
-                "Lato",
-            ),
+            editor,
             preview_time: None,
             scale: 1.0,
             animation: Damage::None,
@@ -391,6 +396,13 @@ impl EvaluatePanel {
     pub fn hit(&self, x: f64, y: f64) -> Option<Target> {
         self.input
             .hit((x as f32 / self.scale, y as f32 / self.scale))
+            .map(|id| id.0)
+    }
+
+    pub fn move_pointer(&mut self, x: f64, y: f64) -> Option<Target> {
+        self.pointer = (x, y);
+        self.input
+            .move_pointer((x as f32 / self.scale, y as f32 / self.scale))
             .map(|id| id.0)
     }
 
@@ -485,7 +497,8 @@ impl EvaluatePanel {
     pub fn begin_edit(&mut self, target: Target, value: &str, select: bool) {
         self.editor.set_text(value, select);
         if let Some(rect) = self.field_rect(target) {
-            self.editor.layout(rect, 12.0 * self.scale);
+            self.editor
+                .layout_scaled(rect, 12.0 * self.scale, self.scale);
         }
     }
 
@@ -568,6 +581,22 @@ impl EvaluatePanel {
         model: &EvaluateModel,
         interaction: &Interaction,
     ) -> Result<Damage, String> {
+        match self.poll_prepare(render, model, interaction)? {
+            std::task::Poll::Ready(damage) => Ok(damage),
+            std::task::Poll::Pending => Err("Evaluate layout pending".into()),
+        }
+    }
+
+    pub fn set_layout_execution(&mut self, execution: retinue_ui::runtime::LayoutExecution) {
+        self.layout_execution = Some(execution);
+    }
+
+    pub fn poll_prepare(
+        &mut self,
+        render: Frame,
+        model: &EvaluateModel,
+        interaction: &Interaction,
+    ) -> Result<std::task::Poll<Damage>, String> {
         #[cfg(test)]
         let profile_start = std::time::Instant::now();
         let Frame {
@@ -576,14 +605,9 @@ impl EvaluatePanel {
             zoom,
             phase,
         } = render;
-        self.hits.clear();
-        self.animation = Damage::None;
-        self.age_deadline = None;
-        self.editor_bounds = None;
         let s = scale
             .min(size.0 as f32 / (MAIN + RAIL + 24.0))
             .min(size.1 as f32 / 640.0);
-        self.scale = s;
         let width = ((MAIN + RAIL) * s).round() as u32;
         let preferred = interaction
             .position
@@ -593,12 +617,11 @@ impl EvaluatePanel {
             preferred.1.min(size.1.saturating_sub((640.0 * s) as u32)),
         );
         let rows = self.rows(model, s);
-        self.item_rows = rows.len();
         let two_titles = model
             .evaluation
             .as_ref()
             .is_some_and(|e| !e.item.name.is_empty() && e.item.name != e.item.base);
-        let layout = self.layout(
+        let std::task::Poll::Ready(layout) = self.poll_layout(
             size,
             origin,
             s,
@@ -606,7 +629,16 @@ impl EvaluatePanel {
             interaction.item_scroll,
             two_titles,
             model,
-        )?;
+        )?
+        else {
+            return Ok(std::task::Poll::Pending);
+        };
+        self.hits.clear();
+        self.animation = Damage::None;
+        self.age_deadline = None;
+        self.editor_bounds = None;
+        self.scale = s;
+        self.item_rows = rows.len();
         self.prepare_artwork(&layout, model, interaction, s)?;
         let mut p = Recording::new(size);
         let main = layout.bounds(Node::Main);
@@ -1090,7 +1122,7 @@ impl EvaluatePanel {
         }
         let damage = self.composition.update(drawing, render.size)?;
         self.prepared = Some(render);
-        Ok(damage)
+        Ok(std::task::Poll::Ready(damage))
     }
 
     pub fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
@@ -1111,6 +1143,9 @@ impl EvaluatePanel {
             .as_ref()
             .ok_or("Evaluate frame was not prepared")?
             .size;
+        let repair = repair.into();
+        let _pass = self.composition.render_host().begin_pass(0);
+        self.prepare_rasters(&repair);
         let render_frame = self.begin_frame();
         let mut painter = Painter::with_threads(pixels, size.0, size.1, render_frame.threads())
             .map_err(|e| e.to_string())?;
@@ -1118,7 +1153,6 @@ impl EvaluatePanel {
         {
             self.render_threads = painter.thread_count();
         }
-        let repair = repair.into();
         painter.repair(&repair);
         self.draw_prepared(&mut painter, &repair)?;
         #[cfg(test)]
@@ -1133,6 +1167,35 @@ impl EvaluatePanel {
 
     pub fn begin_frame(&self) -> retinue_render::RenderPass {
         self.composition.begin_frame(self.render_budget)
+    }
+
+    pub fn render_host(&self) -> retinue_render::RenderHost {
+        self.composition.render_host()
+    }
+
+    pub fn render_threads(&self) -> std::num::NonZeroU32 {
+        self.render_budget
+    }
+
+    pub fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) {
+        self.composition.prepare_rasters(repair);
+    }
+
+    pub fn prepare_packet(
+        &mut self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        self.prepared
+            .take()
+            .ok_or("Evaluate frame was not prepared")?;
+        self.composition.prepare_packet(repair, wake)
+    }
+
+    pub fn prepared(&mut self) {
+        if self.composition.has_deferred() {
+            self.animation = std::mem::take(&mut self.animation).union(Damage::rect(self.bounds));
+        }
     }
 
     pub fn draw_prepared(
@@ -1152,28 +1215,9 @@ impl EvaluatePanel {
             return Err("Evaluate target size mismatch".into());
         }
         painter.clear();
-        let s = self.scale;
-        let editor_bounds = self.editor_bounds;
-        let editor = &mut self.editor;
         self.composition
-            .draw_prepared(painter, repair.bounds(), |key, p| {
-                if key == Key::new("evaluate.editor", 0) {
-                    if let Some(bounds) = editor_bounds {
-                        editor.paint(
-                            p,
-                            Rect {
-                                x: 0,
-                                y: 0,
-                                ..bounds
-                            },
-                            12.0 * s,
-                            Colors {
-                                text: INK,
-                                selection: rgba(70, 63, 43, 255),
-                            },
-                        );
-                    }
-                }
+            .draw_prepared(painter, repair.bounds(), |_, _| {
+                unreachable!("Evaluate ink is recorded")
             });
         if self.composition.has_deferred() {
             self.animation = std::mem::take(&mut self.animation).union(Damage::rect(self.bounds));
@@ -1734,7 +1778,15 @@ impl EvaluatePanel {
         if interaction.focus == Some(target) {
             let bounds = field.inset(px(3, s));
             self.editor_bounds = Some(bounds);
-            p.external(Key::new("evaluate.editor", 0), bounds);
+            p.editor(
+                &mut self.editor,
+                bounds,
+                12.0 * s,
+                Colors {
+                    text: INK,
+                    selection: rgba(70, 63, 43, 255),
+                },
+            );
         } else {
             self.label(
                 p,
@@ -1820,7 +1872,24 @@ impl EvaluatePanel {
         }
         rows
     }
+    #[cfg(test)]
     fn layout(
+        &self,
+        size: (u32, u32),
+        origin: (u32, u32),
+        scale: f32,
+        rows: &[Row],
+        scroll: usize,
+        two_titles: bool,
+        model: &EvaluateModel,
+    ) -> Result<Layout, String> {
+        match self.poll_layout(size, origin, scale, rows, scroll, two_titles, model)? {
+            std::task::Poll::Ready(layout) => Ok(layout),
+            std::task::Poll::Pending => Err("Evaluate layout pending".into()),
+        }
+    }
+
+    fn poll_layout(
         &self,
         size: (u32, u32),
         origin: (u32, u32),
@@ -1829,7 +1898,7 @@ impl EvaluatePanel {
         scroll: usize,
         two_titles: bool,
         model: &EvaluateModel,
-    ) -> Result<Layout, String> {
+    ) -> Result<std::task::Poll<Layout>, String> {
         let header_height = if two_titles { 54.0 } else { 34.0 };
         let results = model.results.is_some();
         let error_height = model
@@ -1892,7 +1961,7 @@ impl EvaluatePanel {
             sections.push((Node::Footer, 40.0));
         }
         let mut tree = self.layout_scene.borrow_mut();
-        tree.set_root(EvaluateView {
+        self.layout_inputs.set(EvaluateView {
             scale: s,
             origin,
             rows: visible,
@@ -1902,13 +1971,17 @@ impl EvaluatePanel {
             error: error_height * s,
             sections,
         });
-        tree.update(size, 1.0)?;
-        Ok(Layout(
+        let progress = tree
+            .advance(size, 1.0, self.layout_execution.as_ref())?
+            .completion?;
+        if progress.is_pending() {
+            return Ok(std::task::Poll::Pending);
+        }
+        Ok(std::task::Poll::Ready(Layout(
             tree.named_geometry()
-                .iter()
                 .map(|node| (node.key, node.hit))
                 .collect(),
-        ))
+        )))
     }
     fn button(
         &mut self,
@@ -2165,7 +2238,7 @@ fn search_ornament_rects(button: Rect, scale: f32, offset: u32) -> [Rect; 2] {
     })
 }
 
-fn elide(font: &Font, text: &str, size: f32, width: u32) -> String {
+fn elide(font: &CachedFont, text: &str, size: f32, width: u32) -> String {
     if text_width(font, text, size) <= width as f32 {
         return text.into();
     }
@@ -2175,7 +2248,7 @@ fn elide(font: &Font, text: &str, size: f32, width: u32) -> String {
     }
     format!("{result}...")
 }
-fn wrap(font: &Font, text: &str, size: f32, width: u32) -> Vec<String> {
+fn wrap(font: &CachedFont, text: &str, size: f32, width: u32) -> Vec<String> {
     wrap_text(font, text, size, width as f32)
         .into_iter()
         .map(str::to_owned)
@@ -2185,6 +2258,71 @@ fn wrap(font: &Font, text: &str, size: f32, width: u32) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn async_evaluate_packet_keeps_editor_ink_after_edit_and_drop() {
+        use std::{
+            sync::{Arc, mpsc},
+            time::{Duration, Instant},
+        };
+        for scale in [1.0, 1.2] {
+            let size = (1920, 1080);
+            let mut view = EvaluatePanel::new().unwrap();
+            let mut oracle = EvaluatePanel::new().unwrap();
+            let mut model = fixture();
+            model.level.enabled = true;
+            let interaction = Interaction {
+                focus: Some(Target::LevelMinimum),
+                ..Interaction::default()
+            };
+            let frame = || Frame {
+                size,
+                scale,
+                zoom: scale,
+                phase: 0.0,
+            };
+            view.begin_edit(Target::LevelMinimum, "83", true);
+            oracle.begin_edit(Target::LevelMinimum, "83", true);
+            view.prepare(frame(), &model, &interaction).unwrap();
+            let repair = retinue_render::damage::Damage::Full.regions(size);
+            let (wake, wakes) = mpsc::channel();
+            let mut job = view
+                .prepare_packet(
+                    &repair,
+                    Arc::new(move || {
+                        let _ = wake.send(());
+                    }),
+                )
+                .unwrap();
+            view.begin_edit(Target::LevelMinimum, "999", false);
+            drop(view);
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let packet = loop {
+                if let Some(packet) = job.poll() {
+                    break packet.unwrap();
+                }
+                wakes
+                    .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                    .unwrap();
+            };
+            let actual = std::thread::spawn(move || {
+                let mut pixels = vec![0; (size.0 * size.1 * 4) as usize];
+                let mut painter =
+                    Painter::with_threads(&mut pixels, size.0, size.1, std::num::NonZeroU32::MIN)
+                        .unwrap();
+                packet.draw(&mut painter);
+                painter.finish().unwrap();
+                pixels
+            })
+            .join()
+            .unwrap();
+            let mut expected = vec![0; actual.len()];
+            oracle
+                .paint(&mut expected, frame(), &model, &interaction)
+                .unwrap();
+            assert_same_pixels(&actual, &expected, size.0, "async editor");
+        }
+    }
 
     fn assert_same_pixels(actual: &[u8], expected: &[u8], width: u32, label: &str) {
         // Native clipping can round antialiased coverage by one channel level.
@@ -2246,6 +2384,7 @@ mod tests {
                         |painter, repair| {
                             view.prepared = Some(frame());
                             reduced |= repair.area() < u64::from(size.0) * u64::from(size.1);
+                            view.prepare_rasters(repair);
                             view.draw_prepared(painter, repair)
                         },
                     )
@@ -2329,7 +2468,7 @@ mod tests {
                     size.0,
                     &format!("{target:?}, scale={scale}, step={step}, {plan:?}"),
                 );
-                tracker.submitted(index);
+                tracker.submitted(index, plan.ticket);
             }
             // Removal of a translucent popup must also restore its old background.
             interaction.tooltip = true;
@@ -2338,7 +2477,7 @@ mod tests {
             let plan = tracker.plan(0, size).unwrap();
             view.paint_region(&mut buffers[0], frame(), &model, &interaction, plan.repair)
                 .unwrap();
-            tracker.submitted(0);
+            tracker.submitted(0, plan.ticket);
             interaction.tooltip = false;
             interaction.hover = None;
             tracker.invalidate(Damage::Full);
@@ -2792,8 +2931,11 @@ mod tests {
                 .rect;
             assert_eq!(rect.width, px(400, scale));
             let tree = view.layout_scene.borrow();
-            let id = tree.unique(Key::from(Node::RateBudget)).unwrap().unwrap();
-            let logical = tree.geometry(id).unwrap().layout;
+            let logical = tree
+                .named_bounds(Key::from(Node::RateBudget))
+                .unwrap()
+                .unwrap()
+                .layout;
             assert_eq!(logical.height, 3.0 * scale);
             assert!(rect.height.abs_diff(px(3, scale)) <= 1);
             let pixel = |x| {
@@ -2978,7 +3120,6 @@ mod tests {
             .unwrap();
         }
         let chrome_misses = view.artwork.cache_stats().misses;
-        let glyph_misses = view.glyphs.stats().misses;
         for scale in [1.0, 1.25, 1.0] {
             interaction.hover = Some(Target::Search);
             view.paint(
@@ -2994,11 +3135,9 @@ mod tests {
             )
             .unwrap();
             assert_eq!(view.artwork.cache_stats().misses, chrome_misses);
-            assert_eq!(view.glyphs.stats().misses, glyph_misses);
             assert!(
                 view.artwork.cache_stats().cached_bytes <= view.artwork.cache_stats().budget_bytes
             );
-            assert!(view.glyphs.stats().cached_bytes <= view.glyphs.stats().budget_bytes);
         }
     }
 
@@ -3130,8 +3269,14 @@ mod tests {
     #[ignore = "make bench-overlays"]
     fn overlay_benchmark() {
         let mut cases = Vec::new();
+        let mut modes = [("inline", false), ("queued", true)];
+        let run = std::env::var("RETINUE_BENCH_RUN_INDEX")
+            .unwrap_or_default()
+            .parse::<usize>()
+            .unwrap_or(0);
+        modes.rotate_left(run % 2);
         for size in [(1920, 1080), (2560, 1440)] {
-            for scale in [1.0, 1.25, 1.5, 2.0] {
+            for scale in [1.0, 1.2, 1.5] {
                 for scenario in [
                     "warm-repaint",
                     "hover",
@@ -3139,11 +3284,13 @@ mod tests {
                     "listing-scroll",
                     "scale-change",
                 ] {
-                    if !crate::render_bench::selected(scenario) {
-                        continue;
-                    }
-                    cases.push(crate::render_bench::measure(
-                        scenario,
+                    for (label, queued) in modes {
+                        let name = format!("{scenario}-{label}");
+                        if !crate::render_bench::selected(&name) {
+                            continue;
+                        }
+                        cases.push(crate::render_bench::measure(
+                        &name,
                         size,
                         scale,
                         || {
@@ -3169,14 +3316,28 @@ mod tests {
                             }
                             let mut view = EvaluatePanel::new().unwrap();
                             view.render_budget = crate::render_bench::render_threads();
+                            let host = retinue_render::RenderHost::new(retinue_render::HostPolicy {
+                                threads: view.render_budget.get(),
+                                analysis: retinue_render::AnalysisPolicy::disabled(),
+                                ..retinue_render::HostPolicy::overlay()
+                            });
+                            view.composition.set_render_host(host.clone());
+                            let (send, wake) = std::sync::mpsc::channel();
+                            if queued {
+                                view.set_layout_execution(retinue_ui::runtime::LayoutExecution::new(
+                                    &host, std::sync::Arc::new(move || { let _ = send.send(()); }),
+                                ));
+                            }
                             (
                                 view,
                                 model,
                                 Interaction::default(),
                                 vec![0; (size.0 * size.1 * 4) as usize],
+                                wake,
+                                0_usize,
                             )
                         },
-                        |(view, model, interaction, pixels), index| {
+                        |(view, model, interaction, pixels, wake, waits), index| {
                             let previous = interaction.hover;
                             if matches!(scenario, "hover" | "hover-partial") {
                                 interaction.hover = (index % 2 == 0).then_some(Target::Search);
@@ -3195,25 +3356,26 @@ mod tests {
                             } else {
                                 Rect { x: 0, y: 0, width: size.0, height: size.1 }
                             };
-                            view.paint_region(
-                                pixels,
-                                Frame {
+                            let frame = Frame {
                                     size,
                                     scale,
                                     zoom: scale,
                                     phase: 0.0,
-                                },
-                                model,
-                                interaction,
-                                repair,
-                            )
-                            .unwrap();
+                                };
+                            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                            while view.poll_prepare(frame, model, interaction).unwrap().is_pending() {
+                                *waits += 1;
+                                wake.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())).unwrap();
+                            }
+                            view.paint_prepared(pixels, repair).unwrap();
                         },
-                        |(view, _, _, pixels)| {
-                            let glyphs = view.glyphs.stats();
+                        |(view, _, _, pixels, _, waits)| {
+                            assert_eq!(view.layout_execution.is_some(), queued);
+                            assert!(queued || *waits == 0, "inline layout cannot await a worker");
                             let chrome = view.artwork.cache_stats();
                             serde_json::json!({
                                 "canvas_bytes": pixels.len(),
+                                "layout_waits": waits,
                                 "repair_pixels": if scenario == "hover-partial" {
                                     view.target_damage(Some(Target::Search)).bounds(size)
                                         .map_or(0, |rect| u64::from(rect.width) * u64::from(rect.height))
@@ -3223,7 +3385,7 @@ mod tests {
                                 "render_threads": view.render_threads,
                                 "phase_totals_ns": {
                                     "frames": view.composition.profile.frames,
-                                    "layout_updates": view.composition.profile.layout_updates,
+                                    "layer_updates": view.composition.profile.layer_updates,
                                     "description": view.paint_profile[0],
                                     "scene_update": view.composition.profile.update_ns,
                                     "prepare": view.composition.profile.prepare_ns,
@@ -3233,15 +3395,6 @@ mod tests {
                                     "peak_layer_bytes": view.composition.profile.peak_layer_bytes,
                                     "simplified_commands": view.composition.profile.simplified_commands,
                                     "finish": view.paint_profile[1],
-                                },
-                                "glyph_cache": {
-                                    "entries": glyphs.entries,
-                                    "cached_bytes": glyphs.cached_bytes,
-                                    "live_bytes": glyphs.live_bytes,
-                                    "retained_bytes": glyphs.retained_bytes,
-                                    "hits": glyphs.hits,
-                                    "misses": glyphs.misses,
-                                    "evictions": glyphs.evictions,
                                 },
                                 "chrome_cache": {
                                     "entries": chrome.entries,
@@ -3258,6 +3411,7 @@ mod tests {
                             })
                         },
                     ));
+                    }
                 }
             }
         }
@@ -3323,7 +3477,7 @@ mod tests {
                 let plan = repaint.plan(index, size).unwrap();
                 view.paint_prepared(&mut buffers[index], plan.repair)
                     .unwrap();
-                repaint.submitted(index);
+                repaint.submitted(index, plan.ticket);
                 let mut full = vec![0; buffers[index].len()];
                 reference
                     .paint(&mut full, render, &model, &interaction)
@@ -3448,6 +3602,103 @@ mod tests {
             assert_eq!(view.hit(point.0, point.1), Some(Target::Popup));
             assert!(view.prepared.is_some());
         }
+    }
+
+    #[test]
+    fn queued_layout_keeps_input_and_coalesces_the_latest_position() {
+        use retinue_render::{
+            HostPolicy, RenderHost,
+            work::{Graph, Priority},
+        };
+        use std::{
+            num::NonZeroUsize,
+            sync::{Arc, mpsc},
+            time::{Duration, Instant},
+        };
+
+        let mut view = EvaluatePanel::new().unwrap();
+        let mut model = fixture();
+        // The compact search-only panel fits below the executor's admission threshold.
+        model.results = Some(Default::default());
+        let mut frame = Frame {
+            size: (2560, 1600),
+            scale: 1.2,
+            zoom: 1.2,
+            phase: 0.0,
+        };
+        let mut interaction = Interaction::default();
+        view.prepare(frame, &model, &interaction).unwrap();
+        let bounds = view.bounds;
+        let close = view
+            .hits
+            .iter()
+            .find(|hit| hit.target == Target::Close)
+            .unwrap()
+            .rect;
+        let point = (
+            (close.x + close.width / 2) as f64,
+            (close.y + close.height / 2) as f64,
+        );
+        let host = RenderHost::new(HostPolicy {
+            threads: 2,
+            ..HostPolicy::overlay()
+        });
+        let (send, wake) = mpsc::channel();
+        view.set_layout_execution(retinue_ui::runtime::LayoutExecution::new(
+            &host,
+            Arc::new(move || {
+                let _ = send.send(());
+            }),
+        ));
+        let (release, blocked) = mpsc::channel();
+        let (started, entered) = mpsc::channel();
+        let mut graph = Graph::default();
+        let width =
+            NonZeroUsize::new(host.task_threads(std::num::NonZeroU32::MAX).get() as usize).unwrap();
+        graph.add_owned(&[], width, move |_| {
+            started.send(()).unwrap();
+            blocked.recv_timeout(Duration::from_secs(10)).unwrap();
+            Ok(())
+        });
+        host.executor()
+            .submit(graph, Priority::Foreground, || {})
+            .unwrap();
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        interaction.position = Some((20, 50));
+        frame.scale = 1.3;
+        let pending = view
+            .poll_prepare(frame, &model, &interaction)
+            .unwrap()
+            .is_pending();
+        let input = view.hit(point.0, point.1);
+        let retained = view.bounds;
+        interaction.position = Some((200, 100));
+        frame.scale = 1.4;
+        let latest = view.poll_prepare(frame, &model, &interaction).unwrap();
+        release.send(()).unwrap();
+        assert!(pending && latest.is_pending());
+        assert_eq!(retained, bounds);
+        assert_eq!(input, Some(Target::Close));
+        let until = Instant::now() + Duration::from_secs(10);
+        while view
+            .poll_prepare(frame, &model, &interaction)
+            .unwrap()
+            .is_pending()
+        {
+            wake.recv_timeout(until.saturating_duration_since(Instant::now()))
+                .unwrap();
+        }
+        let mut reference = EvaluatePanel::new().unwrap();
+        reference.prepare(frame, &model, &interaction).unwrap();
+        assert_eq!(view.bounds, reference.bounds);
+        let hits = |panel: &EvaluatePanel| {
+            panel
+                .hits
+                .iter()
+                .map(|hit| (hit.target, hit.rect))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(hits(&view), hits(&reference));
     }
 
     #[test]
@@ -3696,6 +3947,27 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn item_scroll_keeps_surviving_rows_and_retires_departed_names() {
+        let view = EvaluatePanel::new().unwrap();
+        let model = fixture();
+        let rows = view.rows(&model, 1.0);
+        let layout = |scroll| {
+            view.layout((1920, 1080), (16, 32), 1.0, &rows, scroll, true, &model)
+                .unwrap()
+        };
+        let address = |node| view.layout_scene.borrow().unique(Key::from(node)).unwrap();
+        layout(0);
+        let survivor = address(Node::Row(1)).unwrap();
+        assert!(address(Node::Row(0)).is_some());
+        layout(1);
+        assert!(address(Node::Row(0)).is_none());
+        assert_eq!(address(Node::Row(1)), Some(survivor));
+        layout(0);
+        assert!(address(Node::Row(0)).is_some());
+        assert_eq!(address(Node::Row(1)), Some(survivor));
+    }
+
     #[test]
     fn scrolling_never_moves_search_or_changes_panel_height() {
         let view = EvaluatePanel::new().unwrap();

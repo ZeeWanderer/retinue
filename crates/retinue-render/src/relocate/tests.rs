@@ -1,5 +1,6 @@
 use super::*;
 use crate::{Bounds, CachePolicy, PaintInstance, PaintKey, ProgramStore, ResidencyPolicy};
+use std::sync::Arc;
 
 fn renderer() -> Renderer {
     Renderer::new(ResidencyPolicy::desktop(0))
@@ -66,7 +67,7 @@ fn scene(frame: &mut PaintFrame, store: &mut ProgramStore, step: usize, motion: 
             PaintKey::new(id.into(), 0),
             (bounds.width, bounds.height),
             1.0,
-            Rc::new(vec![Command::Fill {
+            Arc::new(vec![Command::Fill {
                 bounds,
                 radius: 0.0,
                 color,
@@ -244,7 +245,7 @@ fn fallback_and_failed_frames_do_not_reuse_stale_pixels() {
         PaintKey::new(1.into(), 1),
         (180.0, 140.0),
         1.0,
-        Rc::new(vec![Command::External {
+        Arc::new(vec![Command::External {
             bounds: Bounds::new(0.0, 0.0, 180.0, 140.0),
             key: 1.into(),
         }]),
@@ -283,7 +284,7 @@ fn translated_panel_works_with_transparent_backdrop_and_rotating_targets() {
         PaintKey::new(1.into(), 0),
         (70.0, 80.0),
         1.0,
-        Rc::new(vec![Command::Fill {
+        Arc::new(vec![Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 70.0, 80.0),
             radius: 7.0,
             color: Color::rgba(30, 50, 90, 170),
@@ -369,7 +370,7 @@ fn stationary_cursor_changes_hover_without_losing_scroll_reuse() {
             PaintKey::new(hovered.into(), 1),
             (28.0, 20.0),
             1.0,
-            Rc::new(vec![Command::Fill {
+            Arc::new(vec![Command::Fill {
                 bounds: Bounds::new(0.0, 0.0, 28.0, 20.0),
                 radius: 0.0,
                 color: Color::rgba(160, 220, 100, 210),
@@ -394,7 +395,7 @@ fn rounded_background_reuses_only_proven_uniform_interiors() {
         PaintKey::new(1.into(), 0),
         (180.0, 140.0),
         1.0,
-        Rc::new(vec![Command::Fill {
+        Arc::new(vec![Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 180.0, 140.0),
             radius: 25.0,
             color: Color::rgba(20, 30, 40, 120),

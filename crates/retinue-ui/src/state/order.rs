@@ -1,5 +1,5 @@
 use crate::Key;
-use std::{collections::HashMap, fmt, rc::Rc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DuplicateKey(pub Key);
@@ -11,7 +11,7 @@ impl fmt::Display for DuplicateKey {
 impl std::error::Error for DuplicateKey {}
 
 #[derive(Clone, Debug, Default)]
-pub struct KeyedOrder(Rc<Order>);
+pub struct KeyedOrder(Arc<Order>);
 #[derive(Debug, Default)]
 struct Order {
     keys: Vec<Key>,
@@ -20,7 +20,7 @@ struct Order {
 
 impl PartialEq for KeyedOrder {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0) || self.0.keys == other.0.keys
+        Arc::ptr_eq(&self.0, &other.0) || self.0.keys == other.0.keys
     }
 }
 impl Eq for KeyedOrder {}
@@ -34,7 +34,7 @@ impl KeyedOrder {
                 return Err(DuplicateKey(key));
             }
         }
-        Ok(Self(Rc::new(Order { keys, indices })))
+        Ok(Self(Arc::new(Order { keys, indices })))
     }
     pub fn keys(&self) -> &[Key] {
         &self.0.keys

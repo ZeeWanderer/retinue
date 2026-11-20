@@ -1,14 +1,8 @@
-use super::{
-    PaintProgram, ProgramId, paint::Pixels, program::AnalysisTarget, replay_index::ReplayIndex,
-};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{
-        Arc, Condvar, Mutex, Weak,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::{self, JoinHandle},
-};
+use super::{PaintProgram, ProgramId, program::AnalysisTarget, replay_index::ReplayIndex};
+use crate::work::{Executor, Graph, Output, Priority, Submission};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
+
+pub(super) use crate::work::Pause;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AnalysisPolicy {
@@ -27,7 +21,6 @@ impl AnalysisPolicy {
             max_commands: 4096,
         }
     }
-
     pub const fn overlay() -> Self {
         Self {
             jobs: 2,
@@ -36,7 +29,6 @@ impl AnalysisPolicy {
             max_commands: 1024,
         }
     }
-
     pub const fn disabled() -> Self {
         Self {
             jobs: 0,
@@ -52,91 +44,51 @@ pub struct AnalysisStats {
     pub jobs: usize,
     pub reserved_bytes: usize,
     pub running: bool,
+    pub participants: usize,
     pub submitted: u64,
     pub published: u64,
     pub discarded: u64,
     pub failures: u64,
 }
 
-struct Job {
-    id: ProgramId,
-    bounds: Vec<Option<Pixels>>,
-    alive: Weak<()>,
+struct Pending {
+    target: AnalysisTarget,
+    output: Output<Option<ReplayIndex>>,
+    submission: Submission,
     bytes: usize,
-}
-
-struct Completed {
-    id: ProgramId,
-    index: Option<ReplayIndex>,
-    bytes: usize,
-}
-
-#[derive(Default)]
-struct Queue {
-    jobs: VecDeque<Job>,
-    completed: VecDeque<Completed>,
-    paused: usize,
-    running: bool,
-}
-
-#[derive(Default)]
-struct Shared {
-    queue: Mutex<Queue>,
-    wake: Condvar,
-    stopping: AtomicBool,
-}
-
-pub(super) struct Pause {
-    shared: Arc<Shared>,
-    pub running: bool,
-}
-
-impl Drop for Pause {
-    fn drop(&mut self) {
-        let mut queue = self.shared.queue.lock().unwrap();
-        queue.paused -= 1;
-        if queue.paused == 0 {
-            self.shared.wake.notify_one();
-        }
-    }
 }
 
 pub(super) struct Background {
     policy: AnalysisPolicy,
-    shared: Arc<Shared>,
-    worker: Option<JoinHandle<()>>,
-    targets: HashMap<ProgramId, AnalysisTarget>,
+    executor: Arc<Executor>,
+    targets: HashMap<ProgramId, Pending>,
     stats: AnalysisStats,
 }
 
 impl Background {
-    pub fn new(policy: AnalysisPolicy) -> Self {
+    pub fn new(policy: AnalysisPolicy, executor: Arc<Executor>) -> Self {
         Self {
             policy,
-            shared: Arc::default(),
-            worker: None,
+            executor,
             targets: HashMap::new(),
             stats: AnalysisStats::default(),
         }
     }
 
     pub fn pause(&self) -> Pause {
-        let mut queue = self.shared.queue.lock().unwrap();
-        queue.paused += 1;
-        Pause {
-            shared: self.shared.clone(),
-            running: queue.running,
-        }
+        self.executor.pause_background()
     }
 
-    pub fn running(&self) -> bool {
-        self.shared.queue.lock().unwrap().running
+    pub fn running(&self) -> usize {
+        self.executor.stats().background_participants
     }
 
     pub fn stats(&self) -> AnalysisStats {
+        let participants = self.running();
         AnalysisStats {
             jobs: self.targets.len(),
-            running: self.running(),
+            running: participants != 0,
+            participants,
             ..self.stats
         }
     }
@@ -152,11 +104,7 @@ impl Background {
         {
             return true;
         }
-        let Some(bytes) = ReplayIndex::reservation(count).and_then(|output| {
-            count
-                .checked_mul(size_of::<Option<Pixels>>())?
-                .checked_add(output)
-        }) else {
+        let Some(bytes) = ReplayIndex::reservation(count) else {
             return true;
         };
         if bytes > self.policy.bytes {
@@ -167,111 +115,70 @@ impl Background {
         {
             return false;
         }
-        let bounds: Vec<_> = program
-            .optimized()
-            .iter()
-            .map(|command| command.cull_bounds(program.scale()))
-            .collect();
-        if bounds.iter().all(Option::is_none) {
-            return true;
-        }
-        if self.worker.is_none() {
-            let shared = self.shared.clone();
-            match thread::Builder::new()
-                .name("render-analysis".into())
-                .spawn(move || run(shared))
-            {
-                Ok(worker) => self.worker = Some(worker),
-                Err(_) => {
-                    self.stats.failures += 1;
-                    return true;
-                }
+        let target = program.analysis_target();
+        let input = target.clone();
+        let mut graph = Graph::default();
+        let output = graph.add(&[], NonZeroUsize::MIN, move |cancel| {
+            Ok(input.build(|| cancel.is_cancelled()))
+        });
+        let submission = match self.executor.submit(graph, Priority::Background, || {}) {
+            Ok(submission) => submission,
+            Err(crate::work::SubmitError::Full) => return false,
+            Err(_) => {
+                self.stats.failures += 1;
+                return true;
             }
-        }
-        let (target, alive) = program.analysis_target();
-        self.targets.insert(program.id(), target);
+        };
+        self.targets.insert(
+            program.id(),
+            Pending {
+                target,
+                output,
+                submission,
+                bytes,
+            },
+        );
         self.stats.reserved_bytes += bytes;
         self.stats.submitted += 1;
-        self.shared.queue.lock().unwrap().jobs.push_back(Job {
-            id: program.id(),
-            bounds,
-            alive,
-            bytes,
-        });
-        self.shared.wake.notify_one();
         true
     }
 
     pub fn collect(&mut self) {
-        let completed = std::mem::take(&mut self.shared.queue.lock().unwrap().completed);
-        for result in completed {
-            self.stats.reserved_bytes -= result.bytes;
-            let target = self.targets.remove(&result.id).unwrap();
-            if result
-                .index
-                .is_some_and(|index| target.publish(result.id, index))
-            {
+        let completed: Vec<_> = self
+            .targets
+            .iter()
+            .filter_map(|(&id, pending)| {
+                pending
+                    .submission
+                    .try_complete()
+                    .ok()
+                    .map(|report| (id, report))
+            })
+            .collect();
+        for (id, report) in completed {
+            let pending = self.targets.remove(&id).unwrap();
+            self.stats.reserved_bytes -= pending.bytes;
+            self.stats.failures += report.failed as u64;
+            let index = pending
+                .output
+                .into_result()
+                .ok()
+                .and_then(Result::ok)
+                .flatten();
+            if index.is_some_and(|index| pending.target.publish(id, index)) {
                 self.stats.published += 1;
             } else {
                 self.stats.discarded += 1;
             }
-        }
-        if self.worker.as_ref().is_some_and(JoinHandle::is_finished) {
-            let failed = self.worker.take().unwrap().join().is_err();
-            self.stats.failures += u64::from(failed);
-            self.stats.discarded += self.targets.len() as u64;
-            self.targets.clear();
-            self.stats.reserved_bytes = 0;
-            let mut queue = self.shared.queue.lock().unwrap();
-            queue.running = false;
-            queue.jobs.clear();
-            queue.completed.clear();
         }
     }
 }
 
 impl Drop for Background {
     fn drop(&mut self) {
-        {
-            let mut queue = self.shared.queue.lock().unwrap();
-            self.shared.stopping.store(true, Ordering::Relaxed);
-            queue.jobs.clear();
-            self.shared.wake.notify_one();
+        for pending in self.targets.values() {
+            pending.submission.cancel();
         }
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
-    }
-}
-
-fn run(shared: Arc<Shared>) {
-    loop {
-        let job = {
-            let mut queue = shared.queue.lock().unwrap();
-            while !shared.stopping.load(Ordering::Relaxed)
-                && (queue.paused != 0 || queue.jobs.is_empty())
-            {
-                queue = shared.wake.wait(queue).unwrap();
-            }
-            if shared.stopping.load(Ordering::Relaxed) {
-                return;
-            }
-            queue.running = true;
-            queue.jobs.pop_front().unwrap()
-        };
-        let index = ReplayIndex::build(&job.bounds, || {
-            job.alive.strong_count() == 0 || shared.stopping.load(Ordering::Relaxed)
-        });
-        let mut queue = shared.queue.lock().unwrap();
-        queue.running = false;
-        if shared.stopping.load(Ordering::Relaxed) {
-            return;
-        }
-        queue.completed.push_back(Completed {
-            id: job.id,
-            index,
-            bytes: job.bytes,
-        });
     }
 }
 

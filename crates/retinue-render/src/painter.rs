@@ -1,21 +1,19 @@
-use fontdue::{Font, FontSettings};
 use image::RgbaImage;
 use std::num::NonZeroU32;
 
-mod blend2d;
+pub(crate) mod blend2d;
 mod font;
 #[cfg(test)]
 mod repair_tests;
-mod text;
 
-pub use font::{CachedFont, FontFaces, GlyphCache, GlyphMask, LabelFont};
-pub use text::{text_width, wrap_text};
+pub use font::{CachedFont, FontFaces};
 
 /// Blend2D painter borrowing a premultiplied BGRA buffer.
 pub struct Painter<'a> {
     context: blend2d::Context<'a>,
     clip: crate::Rect,
     origin: (i64, i64),
+    text_fonts: Option<std::sync::Arc<crate::text::preparation::PreparedFonts>>,
 }
 
 pub(crate) use blend2d::ImageStorage;
@@ -25,6 +23,7 @@ pub use blend2d::{
 };
 
 /// Total concurrency, including the caller; bounded to six and available CPUs.
+/// Resolve at host setup, not per raster: CPU discovery may read cgroup files.
 pub fn render_thread_budget(preferred: u32) -> NonZeroU32 {
     let available = std::thread::available_parallelism()
         .map(|count| count.get())
@@ -82,6 +81,7 @@ impl<'a> Painter<'a> {
                 height,
             },
             origin: (0, 0),
+            text_fonts: None,
         })
     }
 
@@ -92,6 +92,10 @@ impl<'a> Painter<'a> {
     /// Queue an exact pixel replacement in target coordinates. Both leases last through completion.
     pub fn copy_source(&mut self, source: &PixelSource<'a>, area: crate::Rect, target: (u32, u32)) {
         self.context.copy_source(source, area, target);
+    }
+
+    pub(crate) fn seed_image(&mut self, image: &RasterImage) {
+        self.context.seed_image(&image.native);
     }
 
     pub fn fail(&mut self, error: PainterError) {
@@ -110,6 +114,64 @@ impl<'a> Painter<'a> {
         self.context.clear_all();
     }
 
+    pub fn draw_glyph_run(
+        &mut self,
+        font: &crate::text::PreparedFont,
+        run: &crate::text::GlyphRun,
+        origin: (f64, f64),
+        scale: f64,
+        color: crate::Color,
+    ) {
+        self.context.fill_glyph_run(
+            font,
+            run,
+            (
+                origin.0 + self.origin.0 as f64,
+                origin.1 + self.origin.1 as f64,
+            ),
+            scale,
+            u32::from_le_bytes(color.bgra()),
+        );
+    }
+
+    pub(crate) fn with_text_fonts<T>(
+        &mut self,
+        fonts: &std::sync::Arc<crate::text::preparation::PreparedFonts>,
+        paint: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let previous = self.text_fonts.replace(fonts.clone());
+        let result = paint(self);
+        self.text_fonts = previous;
+        result
+    }
+
+    pub(crate) fn draw_retained_glyph_run(
+        &mut self,
+        run: &crate::text::GlyphRun,
+        origin: (f64, f64),
+        scale: f64,
+        color: crate::Color,
+    ) {
+        let font = self
+            .text_fonts
+            .as_ref()
+            .ok_or_else(|| PainterError::invalid("unprepared glyph fonts"))
+            .and_then(|fonts| fonts.get(run));
+        match font {
+            Ok(font) => self.context.fill_glyph_run(
+                font,
+                run,
+                (
+                    origin.0 + self.origin.0 as f64,
+                    origin.1 + self.origin.1 as f64,
+                ),
+                scale,
+                u32::from_le_bytes(color.bgra()),
+            ),
+            Err(error) => self.context.fail(error),
+        }
+    }
+
     /// Restrict this target to disjoint repair regions in buffer coordinates.
     pub fn repair(&mut self, region: &crate::damage::Region) {
         let region = region.intersection_with(&self.context.regions(self.clip));
@@ -119,22 +181,7 @@ impl<'a> Painter<'a> {
 
     /// Disjoint visible bounds in the current local coordinate system.
     pub fn visible_regions(&self) -> crate::damage::Region {
-        let region = self.context.regions(self.clip);
-        if self.origin == (0, 0) {
-            return region;
-        }
-        crate::damage::Region::new(region.rects().iter().map(|r| {
-            let x = (r.x as i64 - self.origin.0).max(0) as u32;
-            let y = (r.y as i64 - self.origin.1).max(0) as u32;
-            let right = (r.x as i64 + r.width as i64 - self.origin.0).max(0) as u32;
-            let bottom = (r.y as i64 + r.height as i64 - self.origin.1).max(0) as u32;
-            crate::Rect {
-                x,
-                y,
-                width: right - x,
-                height: bottom - y,
-            }
-        }))
+        self.context.regions(self.clip).local(self.origin)
     }
 
     pub fn intersects(&self, rect: crate::Rect) -> bool {
@@ -440,127 +487,8 @@ impl<'a> Painter<'a> {
         );
     }
 
-    pub fn draw_text(
-        &mut self,
-        font: &impl LabelFont,
-        x: u32,
-        y: u32,
-        size: f32,
-        text: &str,
-        color: [u8; 4],
-    ) {
-        let Some(metrics) = font.face().horizontal_line_metrics(size) else {
-            return;
-        };
-        for (index, line) in text.split('\n').enumerate() {
-            self.draw_glyph_line(
-                font,
-                (
-                    x as f32,
-                    y as f32 + metrics.ascent + index as f32 * metrics.new_line_size,
-                ),
-                size,
-                line,
-                color,
-            );
-        }
-    }
-
-    pub fn draw_text_vertically_centered(
-        &mut self,
-        font: &impl LabelFont,
-        line: TextLine,
-        size: f32,
-        text: &str,
-        color: [u8; 4],
-    ) {
-        let Some(metrics) = font.face().horizontal_line_metrics(size) else {
-            return;
-        };
-        let extra_lines = text.bytes().filter(|&c| c == b'\n').count() as f32;
-        let baseline = line.y as f32
-            + (line.height as f32 - metrics.ascent + metrics.descent
-                - extra_lines * metrics.new_line_size)
-                / 2.0
-            + metrics.ascent;
-        for (index, text) in text.split('\n').enumerate() {
-            self.draw_glyph_line(
-                font,
-                (
-                    line.x as f32,
-                    baseline + index as f32 * metrics.new_line_size,
-                ),
-                size,
-                text,
-                color,
-            );
-        }
-    }
-
-    pub fn draw_centered_text(
-        &mut self,
-        font: &impl LabelFont,
-        bounds: TextBox,
-        size: f32,
-        text: &str,
-        color: [u8; 4],
-    ) {
-        let Some(metrics) = font.face().horizontal_line_metrics(size) else {
-            return;
-        };
-        for (index, line) in wrap_text(font.face(), text, size, bounds.width as f32)
-            .iter()
-            .enumerate()
-        {
-            let x =
-                bounds.x as f32 + (bounds.width as f32 - text_width(font.face(), line, size)) / 2.0;
-            let baseline = bounds.y as f32 + metrics.ascent + index as f32 * metrics.new_line_size;
-            self.draw_glyph_line(font, (x, baseline), size, line, color);
-        }
-    }
-
     pub fn finish(self) -> Result<(), PainterError> {
         self.context.finish()
-    }
-
-    fn draw_glyph_line(
-        &mut self,
-        font: &impl LabelFont,
-        origin: (f32, f32),
-        size: f32,
-        text: &str,
-        color: [u8; 4],
-    ) {
-        let (mut x, baseline) = origin;
-        let mut previous = None;
-        for character in text.chars().filter(|c| !c.is_control()) {
-            if self.context.failed() {
-                return;
-            }
-            if let Some(previous) = previous {
-                x += font
-                    .face()
-                    .horizontal_kern(previous, character, size)
-                    .unwrap_or(0.0);
-            }
-            let result = font.with_glyph(character, size, |metrics, mask| {
-                if let Some(mask) = mask {
-                    self.context.fill_a8_mask_rgba32(
-                        &mask.0,
-                        (x + metrics.xmin as f32).round() as i64 + self.origin.0,
-                        (baseline - metrics.ymin as f32 - metrics.height as f32).round() as i64
-                            + self.origin.1,
-                        blend2d_rgba32(color),
-                    );
-                }
-                x += metrics.advance_width;
-            });
-            if let Err(error) = result {
-                self.fail(error);
-                return;
-            }
-            previous = Some(character);
-        }
     }
 
     #[cfg(test)]
@@ -636,6 +564,22 @@ impl RasterImage {
         (self.native.width, self.native.height)
     }
 
+    /// Adopt completed premultiplied BGRA storage without another pixel copy.
+    pub fn from_bgra(pixels: Vec<u8>, width: u32, height: u32) -> Result<Self, PainterError> {
+        Ok(Self {
+            id: crate::resources::ResourceId::next(),
+            native: blend2d::Image::new(pixels, width, height, false)?,
+        })
+    }
+
+    pub fn bgra(&self) -> &[u8] {
+        self.native.pixels()
+    }
+
+    pub(crate) fn pixel_lease(&self) -> impl AsRef<[u8]> + Send + Sync + 'static {
+        self.native.pixel_lease()
+    }
+
     pub fn resampled(&self, width: u32, height: u32) -> Result<Self, PainterError> {
         Ok(Self {
             id: crate::resources::ResourceId::next(),
@@ -674,14 +618,6 @@ impl RasterImage {
     }
 }
 
-pub fn fit_text_size(font: &Font, text: &str, preferred: f32, minimum: f32, max_width: u32) -> f32 {
-    let mut size = preferred;
-    while size > minimum && text_width(font, text, size) > max_width as f32 {
-        size -= 0.5;
-    }
-    size
-}
-
 pub fn load_icon(bytes: &[u8]) -> Result<RasterImage, Box<dyn std::error::Error>> {
     Ok(RasterImage::from_rgba(
         image::load_from_memory(bytes)?.into_rgba8(),
@@ -692,8 +628,27 @@ pub fn load_scene_icon(
     path: &str,
     budget: usize,
 ) -> Result<RasterImage, Box<dyn std::error::Error>> {
+    decode_scene_icon(read_scene_icon(path)?, budget)
+}
+
+pub fn read_scene_icon(path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(16 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 16 * 1024 * 1024 {
+        return Err("image exceeds encoded asset budget".into());
+    }
+    Ok(bytes)
+}
+
+pub fn decode_scene_icon(
+    bytes: Vec<u8>,
+    budget: usize,
+) -> Result<RasterImage, Box<dyn std::error::Error>> {
     use image::ImageDecoder;
-    let mut reader = image::ImageReader::open(path)?.with_guessed_format()?;
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
     let mut limits = image::Limits::default();
     limits.max_alloc = Some(64 * 1024 * 1024);
     reader.limits(limits);
@@ -707,13 +662,10 @@ pub fn load_scene_icon(
     )?)
 }
 
-pub fn load_overlay_font(cache: &GlyphCache) -> Result<CachedFont, Box<dyn std::error::Error>> {
-    CachedFont::from_bytes(
-        include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf").as_slice(),
-        FontSettings::default(),
-        cache,
-    )
-    .map_err(Into::into)
+pub fn load_overlay_font() -> Result<CachedFont, crate::text::TextError> {
+    CachedFont::from_bytes(include_bytes!(
+        "../../../assets/fonts/roboto/Roboto-Regular.ttf"
+    ))
 }
 
 /// Convert conventional CSS/RGBA channel order to little-endian ARGB8888 SHM bytes.
@@ -776,7 +728,7 @@ mod tests {
             image::Rgba([(x * 13) as u8, (y * 19) as u8, 120, 195])
         }))
         .unwrap();
-        let font = load_overlay_font(&GlyphCache::new(8192)).unwrap();
+        let font = load_overlay_font().unwrap();
         let draw = |p: &mut Painter<'_>, native: bool| {
             p.fill_rounded_rect(0, 0, 190, 140, 9, [25, 40, 80, 210]);
             p.outline(
@@ -826,14 +778,14 @@ mod tests {
                 1.0,
                 [90, 230, 40, 255],
             );
-            p.draw_text(&font, 17, 93, 13.25, "Blueprint", [240, 240, 240, 255]);
-            p.draw_text_vertically_centered(
-                &font,
-                TextLine::new(135, 92, 30),
-                12.5,
-                "Owned",
-                [190, 255, 180, 255],
-            );
+            for (origin, size, text, center) in [
+                ((17.0, 93.0), 13.25, "Blueprint", None),
+                ((135.0, 92.0), 12.5, "Owned", Some(30.0)),
+            ] {
+                let run = crate::text::fixture::run(&font, text, size, center);
+                let face = crate::text::PreparedFont::new(run.font(), size).unwrap();
+                p.draw_glyph_run(&face, &run, origin, 1.0, crate::Color::rgb(0xeeffdd));
+            }
         };
         for threads in [1, 4] {
             for origin in [(-9, -7), (0, 0), (17, 23)] {
@@ -1378,51 +1330,6 @@ mod tests {
             let alpha = pixel[3];
             alpha > 0 && alpha < 255
         }));
-    }
-
-    #[test]
-    fn bundled_font_matches_aleca_line_height() {
-        let font = load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap();
-        let metrics = font.horizontal_line_metrics(19.0).unwrap();
-
-        assert_eq!(metrics.new_line_size.ceil(), 23.0);
-    }
-
-    #[test]
-    fn measured_text_fits_one_line_at_fractional_scales() {
-        let font = load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap();
-        let text = "While this Gem is Socketed you can view Monster Categories on Enemies";
-        for size in [15.0, 18.0, 18.75, 22.5] {
-            assert_eq!(
-                wrap_text(&font, text, size, text_width(&font, text, size)),
-                [text]
-            );
-        }
-    }
-
-    #[test]
-    fn rendered_glyph_positions_do_not_accumulate_rounding() {
-        let font = load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap();
-        for size in [14.4, 18.0, 19.0, 23.75] {
-            let mut pixels = vec![0; 400 * 60 * 4];
-            let mut painter = Painter::new(&mut pixels, 400, 60).unwrap();
-            painter.draw_text(&font, 10, 5, size, "iiiiiiiiiiiiiiiiiiii", [255; 4]);
-            painter.finish().unwrap();
-            let mut columns = pixels
-                .chunks_exact(4)
-                .enumerate()
-                .filter(|(_, pixel)| pixel[3] != 0)
-                .map(|(index, _)| index % 400)
-                .collect::<Vec<_>>();
-            columns.sort_unstable();
-            let span = (columns.last().unwrap() - columns.first().unwrap()) as f32;
-            let metrics = font.metrics('i', size);
-            let expected = 19.0 * metrics.advance_width + metrics.width as f32 - 1.0;
-            assert!(
-                (span - expected).abs() <= 2.0,
-                "{size}: {span} vs {expected}"
-            );
-        }
     }
 
     #[test]

@@ -1,15 +1,23 @@
-use crate::Rect;
-use cosmic_text::{
-    Action, Attrs, Buffer, Color, Cursor, Edit, Editor, Family, FontSystem, Metrics, Motion,
-    Selection, Shaping, SwashCache, Wrap, fontdb,
+use crate::{Rect, drawing::text::font::TextFace};
+use parley::{
+    StyleProperty,
+    editing::{PlainEditor, PlainEditorDriver},
 };
-use image::{Pixel, Rgba, RgbaImage};
-use retinue_render::painter::{Painter, RasterImage};
+use retinue_render::{
+    Bounds, Color,
+    painter::{CachedFont, Painter},
+    text::{GlyphRun, PreparedFont, TextError},
+};
 use std::{
-    cell::RefCell,
     rc::Rc,
     time::{Duration, Instant},
 };
+use unicode_segmentation::UnicodeSegmentation;
+
+#[cfg(feature = "desktop")]
+mod accessibility;
+mod composition;
+mod drawing;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Colors {
@@ -17,28 +25,16 @@ pub struct Colors {
     pub selection: [u8; 4],
 }
 
-struct Resources {
-    fonts: FontSystem,
-    glyphs: SwashCache,
-}
-
 #[derive(Clone)]
 pub struct EditResources {
-    shared: Rc<RefCell<Resources>>,
-    family: String,
+    face: Rc<TextFace>,
 }
 
 impl EditResources {
-    pub fn new(font: &[u8], family: &str) -> Self {
-        let mut db = fontdb::Database::new();
-        db.load_font_data(font.to_vec());
-        Self {
-            shared: Rc::new(RefCell::new(Resources {
-                fonts: FontSystem::new_with_locale_and_db("en-US".into(), db),
-                glyphs: SwashCache::new(),
-            })),
-            family: family.into(),
-        }
+    pub fn new(font: &CachedFont) -> Result<Self, TextError> {
+        Ok(Self {
+            face: TextFace::for_font(font)?,
+        })
     }
 
     pub fn editor(&self) -> LineEdit {
@@ -50,18 +46,22 @@ impl EditResources {
         editor.masked = Some(Box::new(self.editor()));
         editor
     }
-
-    pub fn clear_glyphs(&self) {
-        self.shared.borrow_mut().glyphs = SwashCache::new();
-    }
 }
 
 pub struct LineEdit {
     resources: EditResources,
-    editor: Editor<'static>,
-    frame: Option<(u32, u32, f32)>,
-    colors: Option<Colors>,
-    raster: Option<RasterImage>,
+    editor: PlainEditor<()>,
+    composition: Option<Box<composition::Original>>,
+    #[cfg(feature = "desktop")]
+    access_runs: Vec<accessibility::Span>,
+    ime_bounds: std::cell::Cell<Option<(Rect, Rect)>>,
+    frame: Option<(f32, f32)>,
+    size: f32,
+    scale: f32,
+    scroll: f32,
+    glyphs: Option<Result<Vec<GlyphRun>, TextError>>,
+    fonts: rustc_hash::FxHashMap<((u64, u32), u32), PreparedFont>,
+    fallback_stack: Option<parley::FontFamily<'static>>,
     changed: Instant,
     last_click: Option<(Instant, f32)>,
     caret_on: bool,
@@ -69,22 +69,29 @@ pub struct LineEdit {
 }
 
 impl LineEdit {
-    pub fn new(font: &[u8], family: &str) -> Self {
-        EditResources::new(font, family).editor()
+    pub fn new(font: &CachedFont) -> Result<Self, TextError> {
+        Ok(EditResources::new(font)?.editor())
     }
 
     fn with_resources(resources: EditResources) -> Self {
-        let mut buffer = Buffer::new(
-            &mut resources.shared.borrow_mut().fonts,
-            Metrics::new(12.0, 16.0),
-        );
-        buffer.set_wrap(Wrap::None);
+        let mut editor = resources.face.editor();
+        resources
+            .face
+            .edit(&mut editor, |driver| driver.refresh_layout());
         Self {
             resources,
-            editor: Editor::new(buffer),
+            editor,
+            composition: None,
+            #[cfg(feature = "desktop")]
+            access_runs: Vec::new(),
+            ime_bounds: Default::default(),
             frame: None,
-            colors: None,
-            raster: None,
+            size: 12.0,
+            scale: 1.0,
+            scroll: 0.0,
+            glyphs: None,
+            fonts: Default::default(),
+            fallback_stack: None,
             changed: Instant::now(),
             last_click: None,
             caret_on: true,
@@ -92,79 +99,96 @@ impl LineEdit {
         }
     }
 
-    pub fn password(font: &[u8], family: &str) -> Self {
-        EditResources::new(font, family).password()
+    pub fn password(font: &CachedFont) -> Result<Self, TextError> {
+        Ok(EditResources::new(font)?.password())
+    }
+
+    fn edit(&mut self, action: impl FnOnce(&mut PlainEditorDriver<'_, ()>)) {
+        self.resources.face.edit(&mut self.editor, |driver| {
+            action(driver);
+            driver.refresh_layout();
+        });
     }
 
     fn sync_mask(&self, display: &mut LineEdit) {
-        let text = self.text();
-        let hidden = "*".repeat(text.chars().count());
-        let cursor = Cursor::new(0, text[..self.editor.cursor().index].chars().count());
-        let selection = match self.editor.selection() {
-            Selection::Normal(c) => {
-                Selection::Normal(Cursor::new(0, text[..c.index].chars().count()))
-            }
-            _ => Selection::None,
-        };
-        if display.text() != hidden {
-            display.set_text(&hidden, false);
+        let text = self.editor.raw_text();
+        let length = text.graphemes(true).count();
+        if display.editor.raw_text().len() != length {
+            display.set_text(&"*".repeat(length), false);
         }
-        if display.editor.cursor() != cursor || display.editor.selection() != selection {
-            display.editor.set_cursor(cursor);
-            display.editor.set_selection(selection);
-            display.changed();
+        let selection = self.editor.raw_selection();
+        let index = |index| text[..index].graphemes(true).count();
+        let anchor = index(selection.anchor().index());
+        let focus = index(selection.focus().index());
+        let selected = display.editor.raw_selection();
+        if selected.anchor().index() != anchor || selected.focus().index() != focus {
+            display.edit(|driver| driver.select_byte_range(anchor, focus));
+            display.changed(false);
         }
         display.changed = self.changed;
         display.caret_on = self.caret_on;
     }
 
     fn adopt_mask_selection(&mut self, display: &LineEdit) {
-        let text = self.text();
+        let text = self.editor.raw_text();
         let index = |n| {
-            text.char_indices()
-                .map(|(i, _)| i)
+            text.grapheme_indices(true)
                 .nth(n)
-                .unwrap_or(text.len())
+                .map_or(text.len(), |(i, _)| i)
         };
-        self.editor
-            .set_cursor(Cursor::new(0, index(display.editor.cursor().index)));
-        self.editor.set_selection(match display.editor.selection() {
-            Selection::Normal(c) => Selection::Normal(Cursor::new(0, index(c.index))),
-            _ => Selection::None,
-        });
-        self.changed();
+        let selected = display.editor.raw_selection();
+        let anchor = index(selected.anchor().index());
+        let focus = index(selected.focus().index());
+        self.edit(|driver| driver.select_byte_range(anchor, focus));
+        self.changed(false);
     }
 
     pub fn text(&self) -> String {
-        self.editor
-            .with_buffer(|buffer| buffer.lines[0].text().to_owned())
+        self.composition.as_ref().map_or_else(
+            || self.editor.raw_text().to_owned(),
+            |original| original.text.clone(),
+        )
+    }
+
+    pub fn is_password(&self) -> bool {
+        self.masked.is_some()
+    }
+
+    pub fn display_text(&self) -> std::borrow::Cow<'_, str> {
+        let text = self.editor.raw_text();
+        if self.is_password() {
+            "*".repeat(text.graphemes(true).count()).into()
+        } else {
+            text.into()
+        }
     }
 
     pub fn set_text(&mut self, text: &str, select: bool) {
         assert!(!text.chars().any(char::is_control));
-        self.editor.with_buffer_mut(|buffer| {
-            buffer.set_text(
-                text,
-                &Attrs::new().family(Family::Name(&self.resources.family)),
-                Shaping::Advanced,
-                None,
-            )
-        });
-        self.editor.set_cursor(Cursor::new(0, text.len()));
-        self.editor.set_selection(if select {
-            Selection::Normal(Cursor::new(0, 0))
-        } else {
-            Selection::None
+        self.cancel_preedit();
+        let changed = self.editor.raw_text() != text;
+        if changed {
+            self.editor.set_text(text);
+        }
+        self.edit(|driver| {
+            if select {
+                driver.select_all();
+            } else {
+                driver.move_to_text_end();
+            }
         });
         self.last_click = None;
-        self.changed();
+        self.changed(changed);
     }
 
     pub fn selected_text(&self) -> Option<String> {
         if self.masked.is_some() {
             return None;
         }
-        self.editor.copy_selection().filter(|s| !s.is_empty())
+        self.editor
+            .selected_text()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
     }
 
     pub fn edit_stamp(&self) -> Instant {
@@ -172,97 +196,59 @@ impl LineEdit {
     }
 
     pub fn insert(&mut self, text: &str, accept: impl FnOnce(&str) -> bool) -> bool {
+        self.cancel_preedit();
         if text.is_empty() || text.chars().any(char::is_control) {
             return false;
         }
         let mut candidate = self.text();
-        let cursor = self.editor.cursor();
-        let (start, end) = self.editor.selection_bounds().unwrap_or((cursor, cursor));
-        candidate.replace_range(start.index..end.index, text);
+        candidate.replace_range(self.editor.raw_selection().text_range(), text);
         if !accept(&candidate) {
             return false;
         }
-        self.editor.insert_string(text, None);
-        self.changed();
+        self.edit(|driver| driver.insert_or_replace_selection(text));
+        self.changed(true);
         true
     }
 
     pub fn delete_selection(&mut self) -> bool {
-        let changed = self.editor.delete_selection();
-        if changed {
-            self.changed();
+        self.cancel_preedit();
+        if self.editor.raw_selection().is_collapsed() {
+            return false;
         }
-        changed
+        self.edit(|driver| driver.delete_selection());
+        self.changed(true);
+        true
     }
 
     pub fn key(&mut self, symbol: u32, control: bool, shift: bool) -> bool {
-        let motion = match symbol {
-            0xff51 if control => Some(Motion::PreviousWord),
-            0xff53 if control => Some(Motion::NextWord),
-            0xff51 => Some(Motion::Left),
-            0xff53 => Some(Motion::Right),
-            0xff50 => Some(Motion::Home),
-            0xff57 => Some(Motion::End),
-            _ => None,
+        let action: fn(&mut PlainEditorDriver<'_, ()>) = match (symbol, control, shift) {
+            (0xff51, true, true) => |d| d.select_word_left(),
+            (0xff53, true, true) => |d| d.select_word_right(),
+            (0xff51, true, false) => |d| d.move_word_left(),
+            (0xff53, true, false) => |d| d.move_word_right(),
+            (0xff51, false, true) => |d| d.select_left(),
+            (0xff53, false, true) => |d| d.select_right(),
+            (0xff51, false, false) => |d| d.move_left(),
+            (0xff53, false, false) => |d| d.move_right(),
+            (0xff50, _, true) => |d| d.select_to_text_start(),
+            (0xff57, _, true) => |d| d.select_to_text_end(),
+            (0xff50, _, false) => |d| d.move_to_text_start(),
+            (0xff57, _, false) => |d| d.move_to_text_end(),
+            (0x61 | 0x41, true, _) => |d| d.select_all(),
+            (0xff08, true, _) => |d| d.backdelete_word(),
+            (0xffff, true, _) => |d| d.delete_word(),
+            (0xff08, false, _) => |d| d.backdelete(),
+            (0xffff, false, _) => |d| d.delete(),
+            _ => return false,
         };
-        if let Some(motion) = motion {
-            if shift {
-                if self.editor.selection() == Selection::None {
-                    self.editor
-                        .set_selection(Selection::Normal(self.editor.cursor()));
-                }
-            } else if matches!(motion, Motion::Left | Motion::Right)
-                && let Some((start, end)) = self.editor.selection_bounds()
-            {
-                self.editor
-                    .set_cursor(if motion == Motion::Left { start } else { end });
-                self.editor.set_selection(Selection::None);
-                self.changed();
-                return true;
-            } else {
-                self.editor.set_selection(Selection::None);
-            }
-            self.editor.action(
-                &mut self.resources.shared.borrow_mut().fonts,
-                Action::Motion(motion),
-            );
-        } else {
-            match symbol {
-                0x61 | 0x41 if control => {
-                    self.editor
-                        .set_selection(Selection::Normal(Cursor::new(0, 0)));
-                    self.editor.set_cursor(Cursor::new(0, self.text().len()));
-                }
-                0xff08 | 0xffff => {
-                    if control && self.editor.selection() == Selection::None {
-                        self.editor
-                            .set_selection(Selection::Normal(self.editor.cursor()));
-                        self.editor.action(
-                            &mut self.resources.shared.borrow_mut().fonts,
-                            Action::Motion(if symbol == 0xff08 {
-                                Motion::PreviousWord
-                            } else {
-                                Motion::NextWord
-                            }),
-                        );
-                    }
-                    self.editor.action(
-                        &mut self.resources.shared.borrow_mut().fonts,
-                        if symbol == 0xff08 {
-                            Action::Backspace
-                        } else {
-                            Action::Delete
-                        },
-                    );
-                }
-                _ => return false,
-            }
-        }
-        self.changed();
+        self.cancel_preedit();
+        self.edit(action);
+        self.changed(matches!(symbol, 0xff08 | 0xffff));
         true
     }
 
     pub fn click(&mut self, x: f32, shift: bool) {
+        self.cancel_preedit();
         if let Some(mut display) = self.masked.take() {
             self.sync_mask(&mut display);
             display.click(x, shift);
@@ -270,30 +256,26 @@ impl LineEdit {
             self.masked = Some(display);
             return;
         }
-        let x = x + self.horizontal_scroll();
         let now = Instant::now();
         let double = self.last_click.is_some_and(|(at, previous)| {
             now.duration_since(at) < Duration::from_millis(400) && (x - previous).abs() < 4.0
         });
         self.last_click = if double { None } else { Some((now, x)) };
-        if shift && self.editor.selection() == Selection::None {
-            self.editor
-                .set_selection(Selection::Normal(self.editor.cursor()));
-        }
-        self.editor.action(
-            &mut self.resources.shared.borrow_mut().fonts,
+        let x = x / self.scale + self.scroll;
+        self.edit(|driver| {
             if shift {
-                Action::Drag { x: x as i32, y: 1 }
+                driver.shift_click_extension(x, 1.0);
             } else if double {
-                Action::DoubleClick { x: x as i32, y: 1 }
+                driver.select_word_at_point(x, 1.0);
             } else {
-                Action::Click { x: x as i32, y: 1 }
-            },
-        );
-        self.changed();
+                driver.move_to_point(x, 1.0);
+            }
+        });
+        self.changed(false);
     }
 
     pub fn drag(&mut self, x: f32) {
+        self.cancel_preedit();
         if let Some(mut display) = self.masked.take() {
             self.sync_mask(&mut display);
             display.drag(x);
@@ -301,12 +283,9 @@ impl LineEdit {
             self.masked = Some(display);
             return;
         }
-        let x = x + self.horizontal_scroll();
-        self.editor.action(
-            &mut self.resources.shared.borrow_mut().fonts,
-            Action::Drag { x: x as i32, y: 1 },
-        );
-        self.changed();
+        let x = x / self.scale + self.scroll;
+        self.edit(|driver| driver.extend_selection_to_point(x, 1.0));
+        self.changed(false);
     }
 
     pub fn tick(&mut self) -> bool {
@@ -326,353 +305,182 @@ impl LineEdit {
     }
 
     pub fn layout(&mut self, rect: Rect, size: f32) {
-        if let Some(mut display) = self.masked.take() {
-            self.sync_mask(&mut display);
-            display.layout(rect, size);
-            self.masked = Some(display);
-        }
-        let frame = (rect.width, rect.height, size);
-        if self.frame != Some(frame) {
-            self.frame = Some(frame);
-            self.editor.with_buffer_mut(|buffer| {
-                buffer.set_metrics_and_size(
-                    Metrics::new(size, rect.height as f32),
-                    Some(rect.width.saturating_sub(2) as f32),
-                    Some(rect.height as f32),
-                );
-            });
-            self.raster = None;
-            let cursor = self.editor.cursor();
-            self.editor.with_buffer_mut(|buffer| {
-                buffer.shape_until_cursor(
-                    &mut self.resources.shared.borrow_mut().fonts,
-                    cursor,
-                    false,
-                )
-            });
-            self.clamp_horizontal_scroll();
-        }
+        self.layout_scaled(rect, size, 1.0);
     }
 
-    pub fn paint(&mut self, painter: &mut Painter<'_>, rect: Rect, size: f32, colors: Colors) {
+    /// Accepts device-pixel geometry and input while retaining logical text layout.
+    pub fn layout_scaled(&mut self, rect: Rect, size: f32, scale: f32) {
+        if !size.is_finite() || size <= 0.0 || !scale.is_finite() || scale <= 0.0 {
+            return;
+        }
         if let Some(mut display) = self.masked.take() {
             self.sync_mask(&mut display);
-            display.paint(painter, rect, size, colors);
+            display.layout_scaled(rect, size, scale);
             self.masked = Some(display);
-            return;
         }
+        let size = size / scale;
+        let frame = Some((rect.width as f32 / scale, rect.height as f32 / scale));
+        if self.scale != scale || self.size != size || self.frame != frame {
+            self.ime_bounds.set(None);
+        }
+        self.scale = scale;
+        if self.size != size {
+            self.size = size;
+            self.editor
+                .edit_styles()
+                .insert(StyleProperty::FontSize(size));
+            self.edit(|_| {});
+            self.glyphs = None;
+            self.fonts.clear();
+        }
+        self.frame = frame;
+        self.reveal_caret();
+    }
+
+    fn visit_ink(
+        &mut self,
+        rect: Rect,
+        size: f32,
+        scale: f32,
+        colors: Colors,
+        emit: &mut impl FnMut(drawing::Ink<'_>),
+    ) -> Result<(), TextError> {
         if rect.width == 0 || rect.height == 0 {
-            return;
+            return Ok(());
         }
-        self.layout(rect, size);
-        if self.colors != Some(colors) {
-            self.colors = Some(colors);
-            self.raster = None;
+        if !size.is_finite() || size <= 0.0 || !scale.is_finite() || scale <= 0.0 {
+            return Err(TextError::InvalidSize);
         }
-        if self.raster.is_none() {
-            let mut bitmap = RgbaImage::new(rect.width, rect.height);
-            let color = |c: [u8; 4]| Color::rgba(c[2], c[1], c[0], c[3]);
-            let mut resources = self.resources.shared.borrow_mut();
-            let Resources { fonts, glyphs } = &mut *resources;
-            self.editor.shape_as_needed(fonts, false);
-            let horizontal = self.horizontal_scroll().round() as i32;
-            self.editor.draw(
-                fonts,
-                glyphs,
-                color(colors.text),
-                Color::rgba(0, 0, 0, 0),
-                color(colors.selection),
-                color(colors.text),
-                |x, y, w, h, c| {
-                    let x = x - horizontal;
-                    let pixel = Rgba([c.r(), c.g(), c.b(), c.a()]);
-                    for iy in y.max(0)..(y + h as i32).min(rect.height as i32) {
-                        for ix in x.max(0)..(x + w as i32).min(rect.width as i32) {
-                            bitmap.get_pixel_mut(ix as u32, iy as u32).blend(&pixel);
-                        }
-                    }
-                },
+        if let Some(mut display) = self.masked.take() {
+            self.sync_mask(&mut display);
+            let result = display.visit_ink(rect, size, scale, colors, emit);
+            self.masked = Some(display);
+            return result;
+        }
+        self.layout_scaled(rect, size, scale);
+        let size = size / scale;
+        let layout = self
+            .editor
+            .try_layout()
+            .expect("editor layout refreshed after edits");
+        let runs = self
+            .glyphs
+            .get_or_insert_with(|| self.resources.face.glyphs(layout))
+            .as_ref()
+            .map_err(|error| *error)?;
+        let y = (rect.height as f32 / scale - layout.height()) * 0.5;
+        let fill =
+            |emit: &mut dyn FnMut(drawing::Ink<'_>), x0: f32, y0: f32, x1: f32, y1: f32, color| {
+                let left = (x0 * scale).floor().clamp(0.0, rect.width as f32) / scale;
+                let right = (x1 * scale).ceil().clamp(0.0, rect.width as f32) / scale;
+                let top = (y0 * scale).floor().clamp(0.0, rect.height as f32) / scale;
+                let bottom = (y1 * scale).ceil().clamp(0.0, rect.height as f32) / scale;
+                emit(drawing::Ink::Fill(
+                    Bounds::new(left, top, (right - left).max(0.0), (bottom - top).max(0.0)),
+                    color,
+                ));
+            };
+        self.editor.selection_geometry_with(|selection, _| {
+            fill(
+                emit,
+                selection.x0 as f32 - self.scroll,
+                selection.y0 as f32 + y,
+                selection.x1 as f32 - self.scroll,
+                selection.y1 as f32 + y,
+                colors.selection,
             );
-            match RasterImage::from_rgba(bitmap) {
-                Ok(image) => self.raster = Some(image),
-                Err(error) => {
-                    painter.fail(error);
-                    return;
-                }
-            }
+        });
+        for run in runs.iter() {
+            emit(drawing::Ink::Glyph(run, (-self.scroll, y), colors.text));
         }
-        if let Some(image) = &self.raster {
-            painter.draw_image(image, rect.x, rect.y, rect.width, rect.height);
+        if let Some(range) = self.editor.raw_compose() {
+            use parley::{
+                editing::{Cursor, Selection},
+                layout::Affinity,
+            };
+            let marked = Selection::new(
+                Cursor::from_byte_index(layout, range.start, Affinity::Downstream),
+                Cursor::from_byte_index(layout, range.end, Affinity::Upstream),
+            );
+            marked.geometry_with(layout, |r, _| {
+                let bottom = (r.y1 as f32 + y).min(rect.height as f32 / scale);
+                fill(
+                    emit,
+                    r.x0 as f32 - self.scroll,
+                    bottom - 1.0 / scale,
+                    r.x1 as f32 - self.scroll,
+                    bottom,
+                    colors.text,
+                );
+            });
         }
         if self.caret_on
-            && let Some(x) = self.caret_x()
+            && let Some(caret) = self.editor.cursor_geometry((size / 12.0).max(1.0))
         {
-            let x = rect.x + (x.max(0.0) as u32).min(rect.width.saturating_sub(1));
-            let pad = rect.height.saturating_sub(size.ceil() as u32) / 2;
-            painter.fill_rounded_rect(
-                x,
-                rect.y + pad,
-                (size / 12.0).round().max(1.0) as u32,
-                rect.height.saturating_sub(pad * 2),
-                0,
+            fill(
+                emit,
+                caret.x0 as f32 - self.scroll,
+                caret.y0 as f32 + y,
+                caret.x1 as f32 - self.scroll,
+                caret.y1 as f32 + y,
                 colors.text,
             );
         }
+        Ok(())
     }
 
-    fn changed(&mut self) {
-        self.editor
-            .shape_as_needed(&mut self.resources.shared.borrow_mut().fonts, false);
-        self.clamp_horizontal_scroll();
-        self.raster = None;
+    fn changed(&mut self, text: bool) {
+        self.ime_bounds.set(None);
+        if text {
+            #[cfg(feature = "desktop")]
+            self.access_runs.clear();
+            self.glyphs = None;
+            if self.masked.is_none() {
+                let family = self.resources.face.families(self.editor.raw_text());
+                let mixed = matches!(family, parley::FontFamily::List(_));
+                if mixed || self.fallback_stack.is_some() {
+                    let family = family.into_owned();
+                    if mixed.then_some(&family) != self.fallback_stack.as_ref() {
+                        self.fallback_stack = mixed.then(|| family.clone());
+                        self.editor
+                            .edit_styles()
+                            .insert(StyleProperty::FontFamily(family));
+                        self.edit(|_| {});
+                    }
+                }
+            }
+        }
+        self.reveal_caret();
         self.changed = Instant::now();
         self.caret_on = true;
     }
 
-    fn horizontal_scroll(&self) -> f32 {
-        self.editor.with_buffer(|buffer| buffer.scroll().horizontal)
+    fn reveal_caret(&mut self) {
+        let Some((width, _)) = self.frame else {
+            return;
+        };
+        let layout = self
+            .editor
+            .try_layout()
+            .expect("editor layout refreshed after edits");
+        let width = (width - (self.size / 12.0).max(1.0)).max(0.0);
+        let Some(caret) = self.editor.cursor_geometry(1.0) else {
+            return;
+        };
+        self.scroll = self
+            .scroll
+            .min(caret.x0 as f32)
+            .max(caret.x0 as f32 - width)
+            .clamp(0.0, (layout.full_width() - width).max(0.0));
     }
 
-    fn clamp_horizontal_scroll(&mut self) {
-        self.editor.with_buffer_mut(|buffer| {
-            let Some(width) = buffer.size().0 else {
-                return;
-            };
-            let content = buffer
-                .layout_runs()
-                .map(|run| run.line_w)
-                .fold(0.0_f32, f32::max);
-            let mut scroll = buffer.scroll();
-            // Cosmic-text reveals the caret but does not remove overscroll after resize/deletion.
-            scroll.horizontal = scroll.horizontal.min((content - width).max(0.0));
-            buffer.set_scroll(scroll);
-        });
-    }
-
+    #[cfg(test)]
     fn caret_x(&self) -> Option<f32> {
         self.editor
-            .cursor_position()
-            .map(|(x, _)| x as f32 - self.horizontal_scroll())
+            .cursor_geometry(1.0)
+            .map(|caret| caret.x0 as f32 - self.scroll)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shared_resources_keep_editors_independent_and_match_standalone_pixels() {
-        let resources = EditResources::new(
-            include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
-            "Roboto",
-        );
-        let mut a = resources.editor();
-        let mut b = resources.password();
-        assert!(Rc::ptr_eq(&a.resources.shared, &b.resources.shared));
-        assert!(Rc::ptr_eq(
-            &b.resources.shared,
-            &b.masked.as_ref().unwrap().resources.shared
-        ));
-        a.set_text("Mesa Prime", true);
-        b.set_text("private", false);
-        for scale in [1.0, 1.25, 2.0] {
-            let rect = Rect {
-                x: 0,
-                y: 0,
-                width: (220.0 * scale) as u32,
-                height: (36.0 * scale) as u32,
-            };
-            let paint = |e: &mut LineEdit| {
-                let mut pixels = vec![0; rect.width as usize * rect.height as usize * 4];
-                let mut p = Painter::new(&mut pixels, rect.width, rect.height).unwrap();
-                e.paint(
-                    &mut p,
-                    rect,
-                    14.0 * scale,
-                    Colors {
-                        text: [255; 4],
-                        selection: [120, 60, 40, 255],
-                    },
-                );
-                p.finish().unwrap();
-                pixels
-            };
-            let mut oracle = editor();
-            oracle.set_text("Mesa Prime", true);
-            assert_eq!(paint(&mut a), paint(&mut oracle));
-            paint(&mut b);
-            resources.clear_glyphs();
-        }
-        assert_eq!(a.selected_text().as_deref(), Some("Mesa Prime"));
-        assert_eq!(b.text(), "private");
-        assert_eq!(b.selected_text(), None);
-    }
-
-    fn editor() -> LineEdit {
-        LineEdit::new(
-            include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
-            "Roboto",
-        )
-    }
-
-    #[test]
-    fn password_mask_tracks_unicode_editing_without_exposing_clipboard_text() {
-        let mut e = LineEdit::password(
-            include_bytes!("../../../assets/fonts/roboto/Roboto-Regular.ttf"),
-            "Roboto",
-        );
-        e.set_text("a\u{00e9}\u{1f512}z", false);
-        e.layout(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 300,
-                height: 32,
-            },
-            14.0,
-        );
-        assert_eq!(e.masked.as_ref().unwrap().text(), "****");
-        e.key(0xff51, false, false);
-        e.key(0xff08, false, false);
-        assert_eq!(e.text(), "a\u{00e9}z");
-        e.key(0x61, true, false);
-        assert_eq!(e.selected_text(), None);
-        e.insert("replacement", |_| true);
-        assert_eq!(e.text(), "replacement");
-        e.layout(
-            Rect {
-                x: 0,
-                y: 0,
-                width: 300,
-                height: 32,
-            },
-            14.0,
-        );
-        assert_eq!(e.masked.as_ref().unwrap().text(), "***********");
-        e.click(0.0, false);
-        e.insert("x", |_| true);
-        assert_eq!(e.text(), "xreplacement");
-    }
-
-    #[test]
-    fn resize_and_shorter_text_remove_overscroll_without_moving_caret() {
-        let mut e = editor();
-        let small = Rect {
-            x: 0,
-            y: 0,
-            width: 60,
-            height: 32,
-        };
-        e.layout(small, 14.0);
-        e.set_text("Ash Prime Neuroptics Blueprint", false);
-        assert!(e.horizontal_scroll() > 0.0);
-        let cursor = e.editor.cursor();
-        e.layout(
-            Rect {
-                width: 400,
-                ..small
-            },
-            14.0,
-        );
-        assert_eq!(e.horizontal_scroll(), 0.0);
-        assert_eq!(e.editor.cursor(), cursor);
-        e.layout(small, 14.0);
-        assert!(e.horizontal_scroll() > 0.0);
-        e.set_text("Ash", false);
-        assert_eq!(e.horizontal_scroll(), 0.0);
-        e.layout(Rect { x: 200, ..small }, 14.0);
-        assert_eq!(e.horizontal_scroll(), 0.0);
-    }
-    #[test]
-    fn caret_deadline_tracks_edit_phase_and_missed_blinks() {
-        let mut editor = editor();
-        let start = Instant::now();
-        editor.changed = start;
-        assert_eq!(editor.next_blink(start), start + Duration::from_millis(500));
-        let late = start + Duration::from_millis(750);
-        assert_eq!(editor.next_blink(late), late);
-        editor.caret_on = false;
-        assert_eq!(editor.next_blink(late), start + Duration::from_secs(1));
-        let late = start + Duration::from_millis(1250);
-        assert_eq!(editor.next_blink(late), late);
-    }
-    #[test]
-    fn insertion_selection_and_directional_delete() {
-        let mut e = editor();
-        e.set_text("1234", false);
-        e.key(0xff51, false, false);
-        e.insert("5", |_| true);
-        assert_eq!(e.text(), "12354");
-        e.key(0xff51, false, true);
-        assert_eq!(e.selected_text().as_deref(), Some("5"));
-        e.key(0xffff, false, false);
-        assert_eq!(e.text(), "1234");
-        e.key(0xff08, false, false);
-        assert_eq!(e.text(), "124");
-        e.key(0xff50, false, false);
-        e.key(0xffff, false, false);
-        assert_eq!(e.text(), "24");
-    }
-    #[test]
-    fn rejected_paste_preserves_selection_and_value() {
-        let mut e = editor();
-        e.set_text("15", true);
-        assert!(!e.insert("not a number", |s| s.parse::<f64>().is_ok()));
-        assert!(!e.insert("5\n6", |_| true));
-        assert_eq!(e.selected_text().as_deref(), Some("15"));
-        assert!(e.insert("-12.5", |s| s.parse::<f64>().is_ok()));
-        assert_eq!(e.text(), "-12.5");
-    }
-    #[test]
-    fn collapsed_editor_does_not_create_an_empty_native_image() {
-        let mut e = editor();
-        let mut pixels = vec![0; 16 * 16 * 4];
-        let mut p = Painter::new(&mut pixels, 16, 16).unwrap();
-        e.paint(
-            &mut p,
-            Rect {
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 18,
-            },
-            12.0,
-            Colors {
-                text: [255; 4],
-                selection: [255; 4],
-            },
-        );
-        p.finish().unwrap();
-        assert!(pixels.iter().all(|v| *v == 0));
-    }
-
-    #[test]
-    fn fractional_scale_hit_testing_and_overflow() {
-        for scale in [1.0, 1.25, 1.5, 2.0] {
-            let mut e = editor();
-            e.set_text("1234567890123456", false);
-            let mut pixels = vec![0; 300 * 100 * 4];
-            let mut p = Painter::new(&mut pixels, 300, 100).unwrap();
-            let rect = Rect {
-                x: 4,
-                y: 4,
-                width: (50.0 * scale) as u32,
-                height: (18.0 * scale) as u32,
-            };
-            let colors = Colors {
-                text: [255; 4],
-                selection: [120, 60, 40, 255],
-            };
-            e.paint(&mut p, rect, 12.0 * scale, colors);
-            assert!(e.caret_x().unwrap() <= rect.width as f32);
-            e.key(0xff50, false, false);
-            e.paint(&mut p, rect, 12.0 * scale, colors);
-            e.click(0.0, false);
-            assert_eq!(e.editor.cursor().index, 0);
-            e.drag(rect.width as f32 / 2.0);
-            assert!(e.selected_text().is_some());
-            p.finish().unwrap();
-            assert!(pixels.iter().any(|v| *v != 0));
-        }
-    }
-}
+mod tests;

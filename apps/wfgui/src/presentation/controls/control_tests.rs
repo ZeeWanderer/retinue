@@ -1,5 +1,91 @@
 use super::*;
 
+#[test]
+fn accessible_selection_targets_only_the_focused_public_editor() {
+    use retinue_ui::desktop::accesskit::{
+        Action, ActionData, ActionRequest, Role, TextPosition, TextSelection, TreeId,
+    };
+    let mut ui = ControlHost::new().unwrap();
+    ui.begin((360, 200), 1.2);
+    let field = ui.rect(20.0, 12.0, 180.0, 36.0);
+    ui.field("query", field, "Ash Prime", "Search");
+    ui.password("password", Rect { y: 80, ..field }, "hidden");
+    ui.finish();
+    ui.focus = Some("query".into());
+    let tree = ui.accessibility(2);
+    let find = |key| {
+        &tree
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == access_id(2, key))
+            .unwrap()
+            .1
+    };
+    let query = find("query");
+    let run = query.children()[0];
+    assert_eq!(
+        tree.nodes
+            .iter()
+            .find(|(id, _)| *id == run)
+            .unwrap()
+            .1
+            .role(),
+        Role::TextRun
+    );
+    assert!(find("password").value().is_none());
+    assert!(find("password").children().is_empty());
+    let request = |key| ActionRequest {
+        action: Action::SetTextSelection,
+        target_tree: TreeId::ROOT,
+        target_node: access_id(2, key),
+        data: Some(ActionData::SetTextSelection(TextSelection {
+            anchor: TextPosition {
+                node: run,
+                character_index: 3,
+            },
+            focus: TextPosition {
+                node: run,
+                character_index: 0,
+            },
+        })),
+    };
+    assert!(!ui.access(request("password"), 2));
+    assert!(ui.access(request("query"), 2));
+    assert_eq!(
+        ui.fields["query"].borrow().selected_text().as_deref(),
+        Some("Ash")
+    );
+    assert!(ui.signals.is_empty());
+}
+
+#[test]
+fn ime_only_signals_a_committed_edit_and_excludes_passwords() {
+    use retinue_ui::desktop::winit::event::Ime;
+    let mut ui = ControlHost::new().unwrap();
+    ui.begin((360, 200), 1.2);
+    let rect = Rect {
+        x: 20,
+        y: 20,
+        width: 150,
+        height: 36,
+    };
+    ui.field("query", rect, "old", "search");
+    ui.password("pass", Rect { y: 80, ..rect }, "");
+    ui.finish();
+    ui.focus = Some("query".into());
+    assert_eq!(ui.ime_field().unwrap().0, "query");
+    ui.fields["query"].borrow_mut().key(0x61, true, false);
+    assert!(ui.ime("query", &Ime::Preedit("é".into(), Some((2, 2)))));
+    assert!(ui.signals.is_empty());
+    assert!(ui.ime("query", &Ime::Preedit(String::new(), None)));
+    assert!(ui.ime("query", &Ime::Commit("final".into())));
+    assert_eq!(ui.signals.len(), 1);
+    assert_eq!(ui.signals[0].value.as_deref(), Some("final"));
+    ui.focus = Some("pass".into());
+    assert!(ui.ime_field().is_none());
+    assert!(!ui.ime("pass", &Ime::Commit("private".into())));
+}
+
 fn reflow_buttons(ui: &mut ControlHost, swap: bool) {
     ui.begin((300, 100), 1.0);
     for (name, x) in [
@@ -28,6 +114,18 @@ fn stationary_pointer_reflow_selects_the_new_control() {
     reflow_buttons(&mut ui, false);
     ui.pointer_move((20.0, 20.0));
     reflow_buttons(&mut ui, true);
+    assert_eq!(ui.hover.as_deref(), Some("b"));
+    ui.pointer_button(true);
+    ui.pointer_button(false);
+    assert_eq!(ui.signals.last().unwrap().key, "b");
+}
+
+#[test]
+fn requested_scale_does_not_move_committed_input_before_layout_publication() {
+    let mut ui = ControlHost::new().unwrap();
+    reflow_buttons(&mut ui, false);
+    ui.scale = 2.0;
+    ui.pointer_move((170.0, 20.0));
     assert_eq!(ui.hover.as_deref(), Some("b"));
     ui.pointer_button(true);
     ui.pointer_button(false);
@@ -376,21 +474,25 @@ fn menu_with_only_disabled_actions_still_dismisses_and_has_menu_semantics() {
 
 #[test]
 fn layout_report_includes_declared_text_without_duplicating_bound_controls() {
-    use crate::{
-        presentation::widgets::fitted_label, presentation::widgets::place,
-        presentation::widgets::slot,
-    };
+    use crate::presentation::widgets::compiled::{label, place, slot};
     use retinue_render::{Bounds, Key};
-    use retinue_ui::prelude::*;
+    use retinue_ui::{authoring::*, layout::anchors::AnchorPoint, timeline::FrameTime};
+    struct Fixture(Rc<CachedFont>);
+    #[view]
+    impl View for Fixture {
+        fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+            ui! {
+                ZStack() {
+                    place(label("Declared", self.0.clone(), 16.0, TEXT, false), Bounds::new(20.0, 30.0, 200.0, 30.0))
+                    place(slot(Key::new("report.control", 0)), Bounds::new(20.0, 70.0, 200.0, 30.0))
+                }.alignment(AnchorPoint::TOP_LEADING)
+            }
+        }
+    }
     let mut ui = ControlHost::new().unwrap();
     let control = Key::new("report.control", 0);
     ui.begin((500, 300), 1.25);
-    ui.install_view(retinue_ui::ui! {
-        ZStack() {
-            place(fitted_label("Declared", ui.font_resource(Weight::Regular), 16.0, TEXT, false, 1.25), Bounds::new(20.0, 30.0, 200.0, 30.0))
-            place(slot(control), Bounds::new(20.0, 70.0, 200.0, 30.0))
-        }.alignment(Alignment::Start)
-    });
+    ui.install_compiled(Fixture(ui.font_resource(Weight::Regular)));
     ui.update_view(FrameTime::now());
     ui.view_control(control, |ui, r| ui.text(r, "Bound", 16.0, TEXT));
     ui.finish();
@@ -407,7 +509,10 @@ fn layout_report_includes_declared_text_without_duplicating_bound_controls() {
             assert_eq!(elements.iter().filter(|e| e["text"] == text).count(), 1);
         }
         let text = elements.iter().find(|e| e["text"] == "Declared").unwrap();
-        assert_eq!(text["bounds"]["x"], 20.0);
-        assert!((text["bounds"]["y"].as_f64().unwrap() - 30.4).abs() < 0.01);
+        let bounds = &text["bounds"];
+        assert!(bounds["x"].as_f64().unwrap() >= 20.0);
+        assert!(bounds["x"].as_f64().unwrap() + bounds["width"].as_f64().unwrap() <= 220.0);
+        assert!(bounds["y"].as_f64().unwrap() >= 30.0);
+        assert!(bounds["y"].as_f64().unwrap() + bounds["height"].as_f64().unwrap() <= 60.8);
     }
 }

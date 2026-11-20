@@ -46,6 +46,7 @@ struct Panel {
     capture: Capture,
     scenario: &'static str,
     scale: f32,
+    dpr: u32,
     started: Option<Instant>,
     first_paint: Option<mpsc::SyncSender<Instant>>,
     updates: mpsc::Receiver<Signal>,
@@ -66,10 +67,37 @@ impl Application for Panel {
         false
     }
     fn pointer_regions(&self) -> Vec<Rect> {
-        Vec::new()
+        if self.scenario == "pointer-hover" {
+            self.view.pointer_regions()
+        } else {
+            Vec::new()
+        }
     }
-    fn input(&mut self, _: Input) -> Damage {
-        Damage::None
+    fn input(&mut self, event: Input) -> Damage {
+        if self.scenario != "pointer-hover" || !self.measuring {
+            return Damage::None;
+        }
+        let now = Instant::now();
+        let hit = match event {
+            Input::Motion(x, y) => self
+                .view
+                .move_pointer(x * self.dpr as f64, y * self.dpr as f64),
+            Input::PointerLeave => {
+                self.view
+                    .pointer(retinue_ui::input::PointerPhase::Leave, None);
+                None
+            }
+            _ => return Damage::None,
+        };
+        let old = std::mem::replace(&mut self.interaction.hover, hit);
+        if hit == old {
+            return Damage::None;
+        }
+        self.revision += 1;
+        self.capture.mark(self.revision, now);
+        self.view
+            .target_damage(old)
+            .union(self.view.target_damage(hit))
     }
 
     fn deadlines(&self, now: Instant) -> Deadlines {
@@ -101,6 +129,9 @@ impl Application for Panel {
         if !self.measuring {
             self.measuring = true;
             self.capture.begin_measurement();
+            if self.scenario == "pointer-hover" {
+                eprintln!("pointer capture ready: move across the panel's controls");
+            }
             self.next_change = started + WARMUP + ANIMATION;
         }
         let mut dirty = Damage::None;
@@ -128,6 +159,7 @@ impl Application for Panel {
     }
 
     fn prepare(&mut self, size: (u32, u32), dpr: u32) -> Result<Damage, String> {
+        self.dpr = dpr;
         *self.size.borrow_mut() = size;
         self.view.prepare(
             Frame {
@@ -144,8 +176,23 @@ impl Application for Panel {
     fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
         self.view.paint_scene()
     }
-    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
-        Some(self.view.begin_frame())
+    fn render_host(&self) -> Option<retinue_render::RenderHost> {
+        Some(self.view.render_host())
+    }
+    fn render_threads(&self) -> std::num::NonZeroU32 {
+        self.view.render_threads()
+    }
+    fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) -> Result<(), String> {
+        self.view.prepare_rasters(repair);
+        Ok(())
+    }
+
+    fn prepare_packet(
+        &mut self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<Option<retinue_render::PacketJob>, String> {
+        self.view.prepare_packet(repair, wake).map(Some)
     }
 
     fn paint(
@@ -156,13 +203,17 @@ impl Application for Panel {
         repair: &retinue_render::damage::Region,
     ) -> Result<(), String> {
         self.view.draw_prepared(painter, repair)?;
+        Ok(())
+    }
+
+    fn presented(&mut self) {
+        self.view.prepared();
         if let Some(send) = self.first_paint.take() {
             let start = Instant::now();
             self.started = Some(start);
             self.next_change = start;
             let _ = send.send(start);
         }
-        Ok(())
     }
 }
 
@@ -221,6 +272,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         let mut emitted = 0;
         match scenario {
             "idle" => wait(at + Duration::from_secs(2)),
+            "pointer-hover" => wait(at + Duration::from_secs(count)),
             "loading" => wait(at + ANIMATION * count as u32),
             _ => {
                 for revision in 1..=count {
@@ -256,6 +308,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         capture: capture.clone(),
         scenario,
         scale,
+        dpr: 1,
         started: None,
         first_paint: Some(ready),
         updates,
@@ -292,7 +345,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         .filter(|f| f.revision.is_some())
         .collect();
     let presented = frames.iter().filter(|f| f.presented_ns.is_some()).count();
-    if scenario != "idle" {
+    if !matches!(scenario, "idle" | "pointer-hover") {
         assert!(presented > 0, "no measured updates presented");
         assert!(
             frames.iter().any(|f| f.ready_to_present_ns().is_some()),
@@ -315,7 +368,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         ready_to_present["p95_ns"].as_u64().unwrap_or(0) as f64 / 1e6
     );
     json!({"case": scenario, "scale": scale, "size": *size.borrow(), "policy": policy, "pass": pass,
-        "warmup_ms": WARMUP.as_millis(), "source_updates": emitted,
+        "warmup_ms": WARMUP.as_millis(), "source_updates": if scenario == "pointer-hover" { report.marked_updates } else { emitted },
         "measured_frames": frames.len(), "presented_frames": presented,
         "discarded_frames": frames.iter().filter(|f| f.discarded).count(),
         "unresolved_feedback": frames.iter().filter(|f| !f.discarded && f.presented_ns.is_none()).count(),
@@ -363,6 +416,32 @@ fn overlay_scheduling_benchmark() {
         }
     }
     assert!(!cases.is_empty(), "no scheduling cases selected");
+}
+
+#[test]
+#[ignore = "make bench-overlay-pointer (interactive mapped fixture)"]
+fn overlay_pointer_benchmark() {
+    assert!(!cfg!(debug_assertions), "use release benchmark build");
+    let seconds = std::env::var("RETINUE_POINTER_SECONDS")
+        .unwrap_or_else(|_| "20".into())
+        .parse::<u64>()
+        .unwrap();
+    let scale = std::env::var("RETINUE_POINTER_SCALE")
+        .unwrap_or_else(|_| "1".into())
+        .parse::<f32>()
+        .unwrap();
+    assert!((2..=180).contains(&seconds) && (0.75..=2.0).contains(&scale));
+    let result = run("pointer-hover", scale, Policy::Deadlines, seconds, 0);
+    let presented = result["ready_to_present"]["samples"].as_u64().unwrap_or(0);
+    render_bench::report_with_scope(
+        "poe2-pointer",
+        vec![result],
+        "Real fixture pointer dispatch to compositor presentation, not hardware input latency. Pointer motion counts only; no coordinates or key events retained.",
+    );
+    assert!(
+        presented > 0,
+        "no timed hover changes presented; move across controls on the fixture"
+    );
 }
 
 #[test]

@@ -1,12 +1,13 @@
-use super::TextStyle;
+use super::{TextStyle, font::TextFace, shaping::ShapedText};
 use crate::{Bounds, drawing::DrawingContext, layout::LayoutSize};
+use parley::{Alignment, AlignmentOptions, ContentWidths};
 use retinue_render::{
     Color, Command,
-    painter::{CachedFont, text_width, wrap_text},
+    text::{Font, GlyphRun, TextError},
 };
 use std::{
-    cell::{OnceCell, RefCell},
-    rc::Rc,
+    cell::{Ref, RefCell},
+    sync::Arc,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -18,160 +19,413 @@ pub enum TextAlignment {
     Trailing,
 }
 
+impl TextAlignment {
+    fn native(self) -> Alignment {
+        match self {
+            Self::Leading => Alignment::Start,
+            Self::Center => Alignment::Center,
+            Self::Trailing => Alignment::End,
+        }
+    }
+    fn fraction(self, rtl: bool) -> f32 {
+        match (self, rtl) {
+            (Self::Center, _) => 0.5,
+            (Self::Leading, false) | (Self::Trailing, true) => 0.0,
+            _ => 1.0,
+        }
+    }
+}
+
 pub struct Paragraph {
-    pub text: Rc<str>,
-    pub font: Rc<CachedFont>,
-    pub font_size: f32,
-    pub line_height: f32,
-    pub line_limit: Option<usize>,
-    cache: RefCell<Vec<(u32, Rc<TextLayout>)>>,
-    ideal_width: OnceCell<f32>,
-    minimum_width: OnceCell<f32>,
+    spec: ParagraphSpec,
+    state: RefCell<ParagraphState>,
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct ParagraphSpec {
+    text: Arc<str>,
+    font: Font,
+    font_size: f32,
+    line_limit: Option<usize>,
+}
+
+#[derive(Default)]
+pub(crate) struct ParagraphState {
+    content: Option<Result<Content, TextError>>,
+}
+
+struct Content {
+    widths: ContentWidths,
+    state: Placement,
+}
+
+struct Placement {
+    full: Option<ShapedText>,
+    visible: Option<TextLayout>,
+    key: Option<(u32, TextAlignment)>,
+    error: Option<TextError>,
 }
 
 impl Paragraph {
-    pub fn new(text: impl Into<Rc<str>>, style: &TextStyle, line_limit: Option<usize>) -> Self {
-        let line_height = style
-            .font
-            .horizontal_line_metrics(style.size)
-            .map_or(style.size, |metrics| metrics.new_line_size);
+    pub fn new(text: impl Into<Arc<str>>, style: &TextStyle, line_limit: Option<usize>) -> Self {
+        Self {
+            spec: ParagraphSpec::new(text, style, line_limit),
+            state: RefCell::default(),
+        }
+    }
+
+    fn initialize(&self) -> Result<(), TextError> {
+        if self.state.borrow().content.is_none() {
+            self.state.borrow_mut().content(&self.spec)?;
+        }
+        self.state.borrow().current().map(|_| ())
+    }
+
+    pub fn ideal_width(&self) -> Result<f32, TextError> {
+        self.initialize()?;
+        Ok(self.state.borrow().current()?.widths.max)
+    }
+
+    pub fn minimum_width(&self) -> Result<f32, TextError> {
+        self.initialize()?;
+        Ok(self.state.borrow().current()?.widths.min)
+    }
+
+    /// Reuses shaped text for a new placement. Release the returned borrow before
+    /// requesting a different width or alignment; recorded glyph runs own their data.
+    pub fn layout(
+        &self,
+        width: f32,
+        alignment: TextAlignment,
+    ) -> Result<Ref<'_, TextLayout>, TextError> {
+        validate_width(width)?;
+        self.initialize()?;
+        let state = self.state.borrow();
+        let content = state.current()?;
+        if !content.placed(width, alignment)? {
+            drop(state);
+            self.state
+                .borrow_mut()
+                .layout(&self.spec, width, alignment)?;
+        }
+        Ok(Ref::map(self.state.borrow(), |state| {
+            state.placed().unwrap()
+        }))
+    }
+}
+
+impl ParagraphSpec {
+    pub(crate) fn new(
+        text: impl Into<Arc<str>>,
+        style: &TextStyle,
+        line_limit: Option<usize>,
+    ) -> Self {
         Self {
             text: text.into(),
-            font: style.font.clone(),
+            font: style.font.native(),
             font_size: style.size,
-            line_height,
             line_limit,
-            cache: RefCell::default(),
-            ideal_width: OnceCell::new(),
-            minimum_width: OnceCell::new(),
         }
     }
 
-    pub fn ideal_width(&self) -> f32 {
-        *self
-            .ideal_width
-            .get_or_init(|| text_width(&self.font, &self.text, self.font_size))
+    fn shape(&self, text: &str) -> Result<ShapedText, TextError> {
+        TextFace::cached(&self.font)?.shape(text, self.font_size)
     }
-    pub fn minimum_width(&self) -> f32 {
-        *self.minimum_width.get_or_init(|| {
-            self.text
-                .graphemes(true)
-                .map(|part| text_width(&self.font, part, self.font_size))
-                .fold(0.0, f32::max)
-        })
+}
+
+impl ParagraphState {
+    fn content(&mut self, spec: &ParagraphSpec) -> Result<&mut Content, TextError> {
+        self.content
+            .get_or_insert_with(|| {
+                let full = spec.shape(&spec.text)?;
+                let widths = full.layout().calculate_content_widths();
+                Ok(Content {
+                    widths,
+                    state: Placement {
+                        full: Some(full),
+                        visible: None,
+                        key: None,
+                        error: None,
+                    },
+                })
+            })
+            .as_mut()
+            .map_err(|error| *error)
     }
 
-    pub fn layout(&self, width: f32) -> Rc<TextLayout> {
-        let width = width.max(0.0).min(self.ideal_width());
-        let key = width.to_bits();
-        let mut cache = self.cache.borrow_mut();
-        if let Some(index) = cache.iter().position(|(candidate, _)| *candidate == key) {
-            let entry = cache.remove(index);
-            let layout = entry.1.clone();
-            cache.push(entry);
-            return layout;
+    fn current(&self) -> Result<&Content, TextError> {
+        self.content
+            .as_ref()
+            .expect("initialized paragraph")
+            .as_ref()
+            .map_err(|error| *error)
+    }
+
+    pub(crate) fn ideal_width(&mut self, spec: &ParagraphSpec) -> Result<f32, TextError> {
+        Ok(self.content(spec)?.widths.max)
+    }
+
+    pub(crate) fn minimum_width(&mut self, spec: &ParagraphSpec) -> Result<f32, TextError> {
+        Ok(self.content(spec)?.widths.min)
+    }
+
+    pub(crate) fn placed(&self) -> Result<&TextLayout, TextError> {
+        let state = &self.current()?.state;
+        if let Some(error) = state.error {
+            return Err(error);
         }
-        let mut lines: Vec<String> = wrap_text(&self.font, &self.text, self.font_size, width)
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        let truncated = self.line_limit.is_some_and(|limit| lines.len() > limit);
-        if let Some(limit) = self.line_limit {
-            lines.truncate(limit);
+        state
+            .visible
+            .as_ref()
+            .ok_or(TextError::UnsupportedLayout("paragraph not placed"))
+    }
+
+    pub(crate) fn layout(
+        &mut self,
+        spec: &ParagraphSpec,
+        width: f32,
+        alignment: TextAlignment,
+    ) -> Result<&TextLayout, TextError> {
+        validate_width(width)?;
+        let content = self.content(spec)?;
+        if content.placed(width, alignment)? {
+            return Ok(content.state.visible.as_ref().unwrap());
         }
-        if truncated && let Some(line) = lines.last_mut() {
-            let ellipsis = "\u{2026}";
-            let ends: Vec<_> = line
-                .grapheme_indices(true)
-                .map(|(at, _)| at)
-                .chain(std::iter::once(line.len()))
-                .collect();
-            let count = ends.partition_point(|&end| {
-                text_width(
-                    &self.font,
-                    &format!("{}{ellipsis}", &line[..end]),
-                    self.font_size,
-                ) <= width
-            });
-            line.truncate(ends[count.saturating_sub(1)]);
-            line.push_str(ellipsis);
+        let width = content.column_width(width);
+        let key = (width.to_bits(), alignment);
+        let state = &mut content.state;
+        if let Err(error) = state.place(spec, width, alignment) {
+            state.error = Some(error);
+            return Err(error);
         }
-        let widths: Vec<_> = lines
-            .iter()
-            .map(|line| text_width(&self.font, line, self.font_size))
-            .collect();
-        let size = LayoutSize::new(
-            widths.iter().copied().fold(0.0, f32::max),
-            self.line_height * lines.len() as f32,
-        );
-        let baseline = self
-            .font
-            .horizontal_line_metrics(self.font_size)
-            .map_or(self.font_size, |metrics| metrics.ascent);
-        let layout = Rc::new(TextLayout {
-            lines,
-            widths,
+        state.key = Some(key);
+        Ok(state.visible.as_ref().unwrap())
+    }
+}
+
+fn validate_width(width: f32) -> Result<(), TextError> {
+    if width.is_nan() || width < 0.0 {
+        return Err(TextError::UnsupportedLayout("invalid paragraph width"));
+    }
+    Ok(())
+}
+
+impl Content {
+    fn column_width(&self, width: f32) -> f32 {
+        let width = width.max(self.widths.min).min(self.widths.max);
+        // A scale round trip can undershoot the intrinsic width by one ULP.
+        if width.next_up() >= self.widths.max {
+            self.widths.max
+        } else {
+            width
+        }
+    }
+
+    fn placed(&self, width: f32, alignment: TextAlignment) -> Result<bool, TextError> {
+        if let Some(error) = self.state.error {
+            return Err(error);
+        }
+        let width = self.column_width(width);
+        Ok(self.state.key == Some((width.to_bits(), alignment)))
+    }
+}
+
+impl Placement {
+    fn place(
+        &mut self,
+        paragraph: &ParagraphSpec,
+        width: f32,
+        alignment: TextAlignment,
+    ) -> Result<(), TextError> {
+        // Only an elided display needs a second layout. Unclamped placement moves
+        // the existing shaping back out of the previous display; it never clones it.
+        let full = self
+            .full
+            .take()
+            .or_else(|| self.visible.take().map(|layout| layout.shaped))
+            .unwrap();
+        self.visible = None;
+        let full = full.reflow(Some(width), alignment.native(), AlignmentOptions::default())?;
+        let truncated = paragraph
+            .line_limit
+            .is_some_and(|limit| full.layout().len() > limit);
+        let (text, shaped) = if truncated {
+            let shown = elide(paragraph, &full, width, alignment)?;
+            self.full = Some(full);
+            shown
+        } else {
+            (paragraph.text.clone(), full)
+        };
+        let hidden = paragraph.line_limit == Some(0);
+        let layout = shaped.layout();
+        let size = if hidden {
+            LayoutSize::new(0.0, 0.0)
+        } else {
+            // The column is not the ink width: using shortened lines as the next
+            // proposal can change wrapping/elision during final placement.
+            LayoutSize::new(width, layout.height())
+        };
+        let baseline = if hidden {
+            0.0
+        } else {
+            layout.first_baseline().unwrap_or(0.0)
+        };
+        let last_baseline = if hidden {
+            0.0
+        } else {
+            layout.last_baseline().unwrap_or(0.0)
+        };
+        self.visible = Some(TextLayout {
+            text,
+            shaped,
             size,
             baseline,
-            font: self.font.clone(),
-            font_size: self.font_size,
-            line_height: self.line_height,
+            last_baseline,
+            width,
+            alignment,
+            hidden,
         });
-        if cache.len() == 4 {
-            cache.remove(0);
+        Ok(())
+    }
+}
+
+fn elide(
+    paragraph: &ParagraphSpec,
+    full: &ShapedText,
+    width: f32,
+    alignment: TextAlignment,
+) -> Result<(Arc<str>, ShapedText), TextError> {
+    let limit = paragraph.line_limit.unwrap();
+    let range = limit
+        .checked_sub(1)
+        .and_then(|line| full.layout().get(line))
+        .map(|line| line.text_range());
+    let (start, mut end) = range.map_or((0, 0), |range| {
+        (
+            range.start,
+            range.start + paragraph.text[range].trim_end().len(),
+        )
+    });
+    loop {
+        let text: Arc<str> = if limit == 0 {
+            "".into()
+        } else {
+            format!("{}\u{2026}", &paragraph.text[..end]).into()
+        };
+        let shaped = paragraph.shape(&text)?.reflow(
+            Some(width),
+            alignment.native(),
+            AlignmentOptions::default(),
+        )?;
+        if limit == 0 || (shaped.layout().len() <= limit && shaped.layout().width() <= width) {
+            return Ok((text, shaped));
         }
-        cache.push((key, layout.clone()));
-        layout
+        if end == start {
+            let text: Arc<str> = paragraph.text[..start].into();
+            let shaped = paragraph.shape(&text)?.reflow(
+                Some(width),
+                alignment.native(),
+                AlignmentOptions::default(),
+            )?;
+            return Ok((text, shaped));
+        }
+        end = start
+            + paragraph.text[start..end]
+                .grapheme_indices(true)
+                .next_back()
+                .unwrap()
+                .0;
     }
 }
 
 impl PartialEq for Paragraph {
     fn eq(&self, other: &Self) -> bool {
-        self.text == other.text
-            && self.font.id() == other.font.id()
-            && self.font_size == other.font_size
-            && self.line_height == other.line_height
-            && self.line_limit == other.line_limit
+        self.spec == other.spec
     }
 }
 
 pub struct TextLayout {
-    pub lines: Vec<String>,
-    pub widths: Vec<f32>,
+    text: Arc<str>,
+    shaped: ShapedText,
     pub size: LayoutSize,
     pub baseline: f32,
-    font: Rc<CachedFont>,
-    font_size: f32,
-    line_height: f32,
+    pub last_baseline: f32,
+    width: f32,
+    alignment: TextAlignment,
+    hidden: bool,
 }
 
-impl TextLayout {
-    pub fn draw(
-        &self,
-        context: &mut DrawingContext,
-        bounds: Bounds,
-        color: Color,
-        alignment: TextAlignment,
-    ) {
-        let fraction = match alignment {
-            TextAlignment::Leading => 0.0,
-            TextAlignment::Center => 0.5,
-            TextAlignment::Trailing => 1.0,
-        };
-        for (i, (line, width)) in self.lines.iter().zip(&self.widths).enumerate() {
-            context.emit(Command::Text {
-                bounds: Bounds::new(
-                    bounds.x + (bounds.width - width).max(0.0) * fraction,
-                    bounds.y + self.line_height * i as f32,
-                    *width,
-                    self.line_height,
-                ),
-                size: self.font_size,
-                text: line.clone(),
-                font: self.font.clone(),
+pub(crate) struct ParagraphDrawing {
+    runs: Arc<[GlyphRun]>,
+    width: f32,
+    alignment: TextAlignment,
+    rtl: bool,
+    hidden: bool,
+}
+
+impl ParagraphDrawing {
+    pub(crate) fn draw(&self, context: &mut DrawingContext, bounds: Bounds, color: Color) {
+        if self.hidden {
+            return;
+        }
+        let origin = (
+            bounds.x + (bounds.width - self.width).max(0.0) * self.alignment.fraction(self.rtl),
+            bounds.y,
+        );
+        for run in self.runs.iter() {
+            context.emit(Command::GlyphRun {
+                origin,
+                run: run.clone(),
                 color,
-                align: retinue_render::TextAlignment::Top,
             });
         }
     }
 }
+
+impl TextLayout {
+    pub(crate) fn drawing(&self) -> ParagraphDrawing {
+        ParagraphDrawing {
+            runs: self.shaped.shared_runs(),
+            width: self.width,
+            alignment: self.alignment,
+            rtl: self.shaped.layout().is_rtl(),
+            hidden: self.hidden,
+        }
+    }
+
+    pub fn lines(&self) -> impl Iterator<Item = &str> {
+        self.shaped
+            .layout()
+            .lines()
+            .take(if self.hidden { 0 } else { usize::MAX })
+            .map(|line| {
+                // Parley shapes a synthetic space for empty-text line metrics.
+                if self.text.is_empty() {
+                    ""
+                } else {
+                    self.text[line.text_range()].trim_end()
+                }
+            })
+    }
+
+    pub fn shaped(&self) -> &ShapedText {
+        &self.shaped
+    }
+
+    pub fn origin(&self, bounds: Bounds) -> (f32, f32) {
+        let extra = (bounds.width - self.width).max(0.0);
+        (
+            bounds.x + extra * self.alignment.fraction(self.shaped.layout().is_rtl()),
+            bounds.y,
+        )
+    }
+
+    pub fn draw(&self, context: &mut DrawingContext, bounds: Bounds, color: Color) {
+        if !self.hidden {
+            context.shaped_text(&self.shaped, self.origin(bounds), color);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

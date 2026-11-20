@@ -1,10 +1,17 @@
 //! Wayland presentation storage with disjoint read-only source and writable target leases.
 
+mod lease;
+#[cfg(feature = "desktop")]
+pub mod readiness;
+pub mod render;
+pub use lease::Lease;
+
 use retinue_render::damage::Region;
 use smithay_client_toolkit::shm::{
     Shm,
     slot::{Buffer, SlotPool},
 };
+use std::sync::{Arc, Mutex};
 use wayland_client::{
     Proxy,
     protocol::{wl_shm, wl_surface},
@@ -27,12 +34,26 @@ struct Slot {
     serial: Option<u64>,
 }
 
-#[derive(Default)]
 pub struct Buffers {
-    slots: Vec<Slot>,
+    slots: Vec<Option<Slot>>,
     latest: Option<usize>,
     serial: u64,
     geometry: Option<((u32, u32), wl_shm::Format)>,
+    returned: Arc<Mutex<Vec<(usize, Slot)>>>,
+    allocated: usize,
+}
+
+impl Default for Buffers {
+    fn default() -> Self {
+        Self {
+            slots: Vec::new(),
+            latest: None,
+            serial: 0,
+            geometry: None,
+            returned: Arc::default(),
+            allocated: 0,
+        }
+    }
 }
 
 pub struct Pixels<'a> {
@@ -50,20 +71,25 @@ impl Buffers {
     }
     /// Mapped pool capacity, not resident memory.
     pub fn allocated_bytes(&self) -> usize {
-        self.slots.iter().map(|slot| slot.pool.len()).sum()
+        self.allocated
     }
     pub fn clear(&mut self) {
         *self = Self::default();
     }
     pub fn drawable(&self) -> bool {
         self.slots.len() < 3
+            || !self.returned.lock().unwrap().is_empty()
             || self
                 .slots
                 .iter()
+                .flatten()
                 .any(|s| !s.buffer.slot().has_active_buffers())
     }
     pub fn buffer(&self, index: usize) -> &Buffer {
-        &self.slots[index].buffer
+        &self.slots[index]
+            .as_ref()
+            .expect("presentation slot is leased")
+            .buffer
     }
     pub fn acquire(
         &mut self,
@@ -72,6 +98,7 @@ impl Buffers {
         format: wl_shm::Format,
         preserve_source: bool,
     ) -> Result<Option<usize>, String> {
+        self.collect();
         if self
             .geometry
             .is_some_and(|geometry| geometry != (size, format))
@@ -80,6 +107,7 @@ impl Buffers {
         }
         let mut fallback = None;
         for (index, slot) in self.slots.iter().enumerate() {
+            let Some(slot) = slot else { continue };
             if slot.buffer.slot().has_active_buffers() {
                 continue;
             }
@@ -98,11 +126,12 @@ impl Buffers {
             let (buffer, _) = pool
                 .create_buffer(width as i32, height as i32, stride, format)
                 .map_err(|e| e.to_string())?;
-            self.slots.push(Slot {
+            self.allocated += pool.len();
+            self.slots.push(Some(Slot {
                 buffer,
                 pool,
                 serial: None,
-            });
+            }));
             self.geometry = Some((size, format));
             return Ok(Some(self.slots.len() - 1));
         }
@@ -110,12 +139,16 @@ impl Buffers {
     }
 
     pub fn pixels(&mut self, index: usize) -> Option<Pixels<'_>> {
+        self.collect();
         let age = self.slots[index]
+            .as_ref()?
             .serial
             .and_then(|last| self.serial.checked_sub(last)?.checked_add(1))
             .and_then(|age| u8::try_from(age).ok())
             .unwrap_or(0);
-        let previous = self.latest.filter(|from| *from != index);
+        let previous = self
+            .latest
+            .filter(|from| *from != index && self.slots[*from].is_some());
         let (target, source) = if let Some(from) = previous {
             let (target, source) = if index < from {
                 let (left, right) = self.slots.split_at_mut(from);
@@ -124,6 +157,7 @@ impl Buffers {
                 let (left, right) = self.slots.split_at_mut(index);
                 (&mut right[0], &mut left[from])
             };
+            let source = source.as_mut()?;
             let length = source.buffer.height() as usize * source.buffer.stride() as usize;
             // The compositor only reads this slot. Its pool cannot resize during this lease.
             let pixels = &source.pool.raw_data_mut(&source.buffer.slot())[..length];
@@ -133,7 +167,10 @@ impl Buffers {
         };
         Some(Pixels {
             age,
-            target: target.buffer.canvas(&mut target.pool)?,
+            target: {
+                let target = target.as_mut()?;
+                target.buffer.canvas(&mut target.pool)?
+            },
             source,
         })
     }
@@ -171,12 +208,15 @@ impl Buffers {
     pub fn submitted(&mut self, index: usize) {
         if self.serial == u64::MAX {
             self.serial = 0;
-            for slot in &mut self.slots {
+            for slot in self.slots.iter_mut().flatten() {
                 slot.serial = None;
             }
         }
         self.serial += 1;
-        self.slots[index].serial = Some(self.serial);
+        self.slots[index]
+            .as_mut()
+            .expect("presentation slot is leased")
+            .serial = Some(self.serial);
         self.latest = Some(index);
     }
 }

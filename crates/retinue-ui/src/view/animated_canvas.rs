@@ -1,4 +1,6 @@
-use super::{Element, IntoElement, Primitive, PrimitiveOutput, ViewContext};
+#[cfg(any(test, feature = "reference-frontend"))]
+use super::{Element, IntoElement};
+use super::{Primitive, PrimitiveOutput, ViewContext};
 use crate::drawing::{AnimatedDrawing, CanvasContent, DrawingContext, Typography};
 use std::rc::Rc;
 
@@ -44,6 +46,7 @@ impl<C: AnimatedDrawing> Primitive for AnimatedCanvas<C> {
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl<C: AnimatedDrawing> IntoElement for AnimatedCanvas<C> {
     fn into_element(self) -> Element {
         Element::primitive(self)

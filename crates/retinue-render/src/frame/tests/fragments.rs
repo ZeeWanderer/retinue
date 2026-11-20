@@ -9,7 +9,7 @@ fn glow(color: Color) -> PaintProgram {
         77,
         (40.0, 40.0),
         1.0,
-        Rc::new(vec![Command::InsetShadow {
+        Arc::new(vec![Command::InsetShadow {
             bounds: Bounds::new(0.0, 0.0, 40.0, 40.0),
             radius: 20.0,
             blur: 4.0,
@@ -48,7 +48,7 @@ fn populate(
                 index as u64 + 1,
                 (64.0, 60.0),
                 scale,
-                Rc::new(vec![
+                Arc::new(vec![
                     Command::Fill {
                         bounds: Bounds::new(0.0, 0.0, 64.0, 60.0),
                         radius: 4.0,
@@ -56,7 +56,7 @@ fn populate(
                     },
                     Command::Translate {
                         offset: (12.0, 10.0),
-                        commands: Rc::new(vec![fragment(glow(color))]),
+                        commands: Arc::new(vec![fragment(glow(color))]),
                     },
                 ]),
             )
@@ -247,17 +247,17 @@ fn cached_child_avoids_redundant_parent_and_keeps_clips_during_motion() {
             88,
             (60.0, 55.0),
             scale,
-            Rc::new(vec![
+            Arc::new(vec![
                 Command::Fill {
                     bounds: Bounds::new(0.0, 0.0, 60.0, 55.0),
-                    radius: 3.0,
+                    radius: 0.0,
                     color: Color::rgba(40, 60, 90, 120),
                 },
                 Command::Clip {
                     bounds: Bounds::new(3.25, 4.5, 35.0, 41.0),
-                    commands: Rc::new(vec![Command::Translate {
+                    commands: Arc::new(vec![Command::Translate {
                         offset: (8.25, 9.5),
-                        commands: Rc::new(vec![fragment(leaf.clone())]),
+                        commands: Arc::new(vec![fragment(leaf.clone())]),
                     }]),
                 },
             ]),
@@ -279,7 +279,7 @@ fn cached_child_avoids_redundant_parent_and_keeps_clips_during_motion() {
                         i as u64,
                         (60.0, 60.0),
                         scale,
-                        Rc::new(vec![fragment(program)]),
+                        Arc::new(vec![fragment(program)]),
                     )
                     .unwrap();
                 PaintInstance::new((i as u64).into(), program, (-7 + 70 * i as i32, 10), clip)
@@ -318,13 +318,14 @@ fn external_paint_inside_a_named_fragment_remains_a_barrier() {
         1,
         (20.0, 20.0),
         1.0,
-        Rc::new(vec![Command::External {
+        Arc::new(vec![Command::External {
             key: 9.into(),
             bounds: Bounds::new(0.0, 0.0, 20.0, 20.0),
         }]),
     )
     .unwrap();
-    let program = PaintProgram::new(2, (20.0, 20.0), 1.0, Rc::new(vec![fragment(native)])).unwrap();
+    let program =
+        PaintProgram::new(2, (20.0, 20.0), 1.0, Arc::new(vec![fragment(native)])).unwrap();
     let clip = Rect {
         width: 100,
         height: 30,

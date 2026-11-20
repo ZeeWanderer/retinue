@@ -8,6 +8,74 @@ typedef struct RetinueBlendPainter {
   BLContextCore context;
 } RetinueBlendPainter;
 
+typedef struct RetinueGlyph {
+  uint32_t id;
+  double x;
+  double y;
+} RetinueGlyph;
+
+BLFontCore* retinue_bl_font_create(
+    const uint8_t* bytes, size_t len, uint32_t index, float size,
+    BLDestroyExternalDataFunc destroy, void* user_data, BLResult* result_out) {
+  BLFontDataCore data;
+  BLFontFaceCore face;
+  bl_font_data_init(&data);
+  bl_font_face_init(&face);
+  BLFontCore* font = NULL;
+  *result_out = bl_font_data_create_from_data(&data, bytes, len, destroy, user_data);
+  if (*result_out != BL_SUCCESS) {
+    destroy(NULL, (void*)bytes, user_data);
+  } else {
+    *result_out = bl_font_face_create_from_data(&face, &data, index);
+    if (*result_out == BL_SUCCESS) {
+      font = (BLFontCore*)malloc(sizeof(BLFontCore));
+      if (!font) {
+        *result_out = BL_ERROR_OUT_OF_MEMORY;
+      } else {
+        bl_font_init(font);
+        *result_out = bl_font_create_from_face(font, &face, size);
+        if (*result_out != BL_SUCCESS) {
+          bl_font_destroy(font);
+          free(font);
+          font = NULL;
+        }
+      }
+    }
+  }
+  bl_font_face_destroy(&face);
+  bl_font_data_destroy(&data);
+  return font;
+}
+
+void retinue_bl_font_destroy(BLFontCore* font) {
+  bl_font_destroy(font);
+  free(font);
+}
+
+BLResult retinue_bl_fill_glyph_run(
+    RetinueBlendPainter* painter, const BLFontCore* font,
+    const RetinueGlyph* glyphs, size_t count, double x, double y,
+    double scale, uint32_t color) {
+  if (!count) return BL_SUCCESS;
+  BLGlyphRun run = {0};
+  run.glyph_data = (void*)&glyphs[0].id;
+  run.placement_data = (void*)&glyphs[0].x;
+  run.size = count;
+  run.glyph_advance = sizeof(RetinueGlyph);
+  run.placement_advance = sizeof(RetinueGlyph);
+  run.placement_type = BL_GLYPH_PLACEMENT_TYPE_USER_UNITS;
+  BLPoint factor = {scale, scale};
+  BLPoint origin = {x / scale, y / scale};
+  BLResult result = bl_context_save(&painter->context, NULL);
+  if (result != BL_SUCCESS) return result;
+  result = bl_context_apply_transform_op(&painter->context, BL_TRANSFORM_OP_SCALE, &factor);
+  if (result == BL_SUCCESS) {
+    result = bl_context_fill_glyph_run_d_rgba32(&painter->context, &origin, font, &run, color);
+  }
+  BLResult restored = bl_context_restore(&painter->context, NULL);
+  return result == BL_SUCCESS ? restored : result;
+}
+
 BLResult retinue_bl_runtime_resources(size_t* values) {
   BLRuntimeResourceInfo info = {0};
   BLResult result = bl_runtime_query_info(BL_RUNTIME_INFO_TYPE_RESOURCE, &info);
@@ -183,6 +251,11 @@ BLResult retinue_bl_fill_round_rect(
     double height,
     double radius,
     uint32_t rgba32) {
+  if (radius == 0.0) {
+    BLRect rect = {x, y, width, height};
+    return bl_context_fill_geometry_rgba32(
+        &painter->context, BL_GEOMETRY_TYPE_RECTD, &rect, rgba32);
+  }
   BLRoundRect rect = {x, y, width, height, radius, radius};
   return bl_context_fill_geometry_rgba32(
       &painter->context, BL_GEOMETRY_TYPE_ROUND_RECT, &rect, rgba32);

@@ -1,7 +1,7 @@
 use super::*;
 use retinue_render::{
     Bounds, CachePolicy, Color, Command, ImageFit, Key as ElementKey, LayerPolicy, RasterMode,
-    Renderer,
+    Renderer, damage::Damage,
 };
 use retinue_ui::{drawing::PixelCanvas as Canvas, scene::Scene};
 
@@ -9,8 +9,7 @@ const OVERLAYS: ElementKey = super::view_host::OVERLAYS;
 const CHROME: ElementKey = super::view_host::CHROME;
 
 pub(super) struct Composition {
-    pub(super) renderer: RefCell<Renderer>,
-    targets: HashMap<ElementKey, usize>,
+    pub(super) renderer: Rc<RefCell<Renderer>>,
     pub(super) host: super::view_host::Host,
     images: HashMap<ElementKey, Request>,
     slots: HashMap<ElementKey, std::ops::Range<usize>>,
@@ -31,9 +30,8 @@ impl Default for Composition {
             renderer
         };
         Self {
-            renderer: RefCell::new(renderer),
-            targets: HashMap::new(),
-            host: super::view_host::Host::new(retinue_ui::view::empty()),
+            renderer: Rc::new(RefCell::new(renderer)),
+            host: super::view_host::Host::empty(),
             images: HashMap::new(),
             slots: HashMap::new(),
             #[cfg(all(test, feature = "profiling"))]
@@ -45,11 +43,10 @@ impl Default for Composition {
 impl Composition {
     pub fn begin_bindings(&mut self) {
         self.slots.clear();
-        self.targets.clear();
     }
 
     pub(super) fn scene(&self) -> &Scene {
-        self.host.tree.scene()
+        self.host.scene()
     }
 
     pub(super) fn bounds(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
@@ -57,9 +54,7 @@ impl Composition {
     }
 
     pub(super) fn input_bounds(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
-        self.host
-            .tree
-            .geometry(self.host.tree.unique(key).expect("unique input owner")?)
+        self.host.input_bounds(key)
     }
 
     pub fn assets(&self) -> Vec<Asset> {
@@ -75,7 +70,7 @@ impl Composition {
     }
 
     pub fn deadline(&self, _now: Instant) -> Option<Instant> {
-        self.host.tree.next_deadline()
+        self.host.next_deadline()
     }
 
     pub fn image_damage(
@@ -91,24 +86,35 @@ impl Composition {
                 bind_icon(&self.host, key, request, media);
             }
         }
-        if self.host.tree.needs_update() {
-            self.host
+        if self.host.needs_update() {
+            match self
+                .host
                 .update(size, scale, retinue_ui::timeline::FrameTime::now())
+            {
+                std::task::Poll::Ready(damage) => damage,
+                std::task::Poll::Pending => Damage::None,
+            }
         } else {
             Default::default()
         }
     }
 
     fn reset_view(&mut self) {
-        self.install_view(retinue_ui::view::empty());
-    }
-
-    fn install_view(&mut self, view: impl retinue_ui::view::IntoElement) {
-        self.host = super::view_host::Host::new(view);
-        self.targets.clear();
+        let execution = self.host.execution.take();
+        self.host = super::view_host::Host::empty();
+        self.host.execution = execution;
         self.images.clear();
         self.slots.clear();
-        self.renderer.get_mut().clear_cache();
+        self.renderer.borrow_mut().clear_cache();
+    }
+
+    fn install_compiled(&mut self, view: impl retinue_ui::authoring::View) {
+        let execution = self.host.execution.clone();
+        self.host = super::view_host::Host::compiled(view);
+        self.host.execution = execution;
+        self.images.clear();
+        self.slots.clear();
+        self.renderer.borrow_mut().clear_cache();
     }
 
     fn update_view(
@@ -116,8 +122,11 @@ impl Composition {
         size: (u32, u32),
         scale: f32,
         time: retinue_ui::timeline::FrameTime,
-    ) -> retinue_render::damage::Damage {
+    ) -> std::task::Poll<retinue_render::damage::Damage> {
         let damage = self.host.update(size, scale, time);
+        if damage.is_pending() {
+            return damage;
+        }
         self.images.retain(|key, _| {
             self.host
                 .bounds(*key)
@@ -127,11 +136,11 @@ impl Composition {
     }
 
     pub fn set_render_host(&mut self, host: retinue_render::RenderHost) {
-        self.renderer.get_mut().set_host(host);
+        self.renderer.borrow_mut().set_host(host);
     }
 
     pub fn clear_cache(&mut self) {
-        self.renderer.get_mut().clear_cache();
+        self.renderer.borrow_mut().clear_cache();
     }
 
     pub fn cache_stats(&self) -> retinue_render::ResidencyStats {
@@ -142,33 +151,21 @@ impl Composition {
         self.host.prepare(ui.size, ui.scale);
     }
 
-    fn command(
-        &mut self,
-        ui: &ControlHost,
-        media: &Media,
-        index: usize,
-        key: ElementKey,
-    ) -> Option<Command> {
+    fn command(&mut self, ui: &ControlHost, media: &Media, index: usize) -> Option<Command> {
         let draw = &ui.visuals[index].0;
         let bounds = draw.bounds(ui.scale);
-        if draw.live() {
-            self.targets.insert(key, index);
-            Some(Command::External {
-                key,
-                bounds: logical(bounds, ui.scale),
-            })
-        } else {
-            Some(Command::Translate {
-                offset: (bounds.x as f32 / ui.scale, bounds.y as f32 / ui.scale),
-                commands: Rc::new(draw.commands(ui, Some(media))?),
-            })
-        }
+        Some(Command::Translate {
+            offset: (bounds.x as f32 / ui.scale, bounds.y as f32 / ui.scale),
+            commands: std::sync::Arc::new(draw.commands(ui, Some(media))?),
+        })
     }
 
     pub fn prepare_paint(&mut self, ui: &ControlHost, media: &Media) {
+        if self.host.is_layout_pending() {
+            return;
+        }
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
-        self.targets.clear();
         let mut canvas = Canvas::new(ui.scale);
         ui.paint_overlays(&mut canvas);
         self.host
@@ -195,11 +192,7 @@ impl Composition {
             let mut commands = Vec::new();
             for index in indices.clone() {
                 bound[index] = true;
-                let target = ElementKey::new(
-                    "page.control.live",
-                    identity_hash((key, index - indices.start)),
-                );
-                let Some(command) = self.command(ui, media, index, target) else {
+                let Some(command) = self.command(ui, media, index) else {
                     continue;
                 };
                 let (clip, offset) = ui.visuals[index]
@@ -210,12 +203,12 @@ impl Composition {
                 } else {
                     Command::Clip {
                         bounds: local_clip(clip),
-                        commands: Rc::new(vec![Command::Translate {
+                        commands: std::sync::Arc::new(vec![Command::Translate {
                             offset: (
                                 (offset.0 - origin.0) as f32 / ui.scale,
                                 (offset.1 - origin.1) as f32 / ui.scale,
                             ),
-                            commands: Rc::new(vec![command]),
+                            commands: std::sync::Arc::new(vec![command]),
                         }]),
                     }
                 });
@@ -224,7 +217,7 @@ impl Composition {
                 key,
                 vec![Command::Clip {
                     bounds: Bounds::new(0.0, 0.0, node.layout.width, node.layout.height),
-                    commands: Rc::new(commands),
+                    commands: std::sync::Arc::new(commands),
                 }],
                 CachePolicy::Never,
             );
@@ -236,8 +229,7 @@ impl Composition {
             if bound[index] {
                 continue;
             }
-            let target = ElementKey::new("page.chrome.live", index as u64);
-            let Some(command) = self.command(ui, media, index, target) else {
+            let Some(command) = self.command(ui, media, index) else {
                 continue;
             };
             let (clip, offset) = viewport.unwrap_or((
@@ -250,9 +242,9 @@ impl Composition {
             ));
             commands.push(Command::Clip {
                 bounds: logical(clip, ui.scale),
-                commands: Rc::new(vec![Command::Translate {
+                commands: std::sync::Arc::new(vec![Command::Translate {
                     offset: (offset.0 as f32 / ui.scale, offset.1 as f32 / ui.scale),
-                    commands: Rc::new(vec![command]),
+                    commands: std::sync::Arc::new(vec![command]),
                 }]),
             });
         }
@@ -268,14 +260,19 @@ impl Composition {
         }
     }
 
-    pub fn draw_prepared(&mut self, ui: &ControlHost, p: &mut Painter<'_>) {
+    pub fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) {
         #[cfg(all(test, feature = "profiling"))]
-        let prepared = Instant::now();
-        self.renderer.borrow_mut().prepare_for(
-            self.scene().frame(),
-            RasterMode::Explicit,
-            &p.visible_regions(),
-        );
+        let started = Instant::now();
+        self.renderer
+            .borrow_mut()
+            .prepare_for(self.scene().frame(), RasterMode::Explicit, repair);
+        #[cfg(all(test, feature = "profiling"))]
+        {
+            self.paint_profile.1 = started.elapsed();
+        }
+    }
+
+    pub fn draw_prepared(&mut self, ui: &ControlHost, p: &mut Painter<'_>) {
         #[cfg(all(test, feature = "profiling"))]
         let drawing = Instant::now();
         self.renderer.borrow_mut().draw_with(
@@ -286,36 +283,26 @@ impl Composition {
                 height: ui.size.1,
                 ..Rect::default()
             },
-            |key, p| {
-                let Some(&index) = self.targets.get(&key) else {
-                    return;
-                };
-                let draw = &ui.visuals[index].0;
-                let bounds = draw.bounds(ui.scale);
-                // External callbacks start at the leaf; editors retain slot-local rectangles.
-                p.translated((-(bounds.x as i32), -(bounds.y as i32)), |p| {
-                    ui.paint_live(p, draw)
-                });
-            },
+            |_, _| unreachable!("control ink is recorded"),
         );
         #[cfg(all(test, feature = "profiling"))]
         {
-            self.paint_profile = (self.paint_profile.0, drawing - prepared, drawing.elapsed());
+            self.paint_profile.2 = drawing.elapsed();
         }
     }
 
     pub fn report(&self) -> serde_json::Value {
         let renderer = self.renderer.borrow();
-        let tree = &self.host.tree;
+        let stats = self.host.stats();
         serde_json::json!({"declarative":true, "view":{
-            "bodies":tree.stats.bodies,"mounted":tree.stats.mounted,
-            "unmounted":tree.stats.unmounted,"projected":tree.stats.projected,
+            "bodies":stats.bodies,"mounted":stats.mounted,
+            "unmounted":stats.unmounted,"projected":stats.projected,
         },
             "nodes":self.scene().stats.nodes,"chunks":self.scene().stats.visible_chunks,"layout_computations":self.scene().stats.layout_computations,"recordings":self.scene().stats.recordings,
             "rasters":renderer.stats.prepared_rasters,"blits":renderer.stats.blits,"repaired_pixels":renderer.stats.repaired_pixels,"raster_bytes":renderer.residency_stats().live_bytes,
             "simplified_commands":renderer.stats.simplified_commands,"promoted_layers":renderer.stats.promoted_layers,"demoted_layers":renderer.stats.demoted_layers,
             "layer_bytes":renderer.stats.layer_bytes,"layer_prepare_ns":renderer.stats.layer_prepare_ns,
-            "geometry":tree.named_geometry().iter().map(|node|serde_json::json!({
+            "geometry":self.host.named_geometry().map(|node|serde_json::json!({
                 "scope":node.key.namespace,"id":node.key.value,"parent":node.parent.map(|key|(key.namespace,key.value)),
                 "layout":[node.layout.x,node.layout.y,node.layout.width,node.layout.height],
                 "hit":[node.hit.x,node.hit.y,node.hit.width,node.hit.height],
@@ -327,11 +314,7 @@ impl Composition {
     pub fn declared_elements(&self) -> Vec<serde_json::Value> {
         let mut elements = Vec::new();
         for instance in self.scene().frame().instances() {
-            let key = self
-                .host
-                .tree
-                .authored_key(instance.key)
-                .unwrap_or(instance.key);
+            let key = self.host.authored_key(instance.key).unwrap_or(instance.key);
             if self.slots.contains_key(&key)
                 || key == CHROME
                 || key == OVERLAYS
@@ -373,6 +356,15 @@ impl ControlHost {
         let Some(node) = self.composition.borrow().bounds(key) else {
             return;
         };
+        if (node.layout.width * self.scale).round() == 0.0
+            || (node.layout.height * self.scale).round() == 0.0
+        {
+            self.composition
+                .get_mut()
+                .host
+                .record(key, Vec::new(), CachePolicy::Never);
+            return;
+        }
         if node.hit.is_empty() {
             return;
         }
@@ -419,8 +411,8 @@ impl ControlHost {
             .slots
             .insert(key, first..self.visuals.len());
     }
-    pub fn install_view(&mut self, view: impl retinue_ui::view::IntoElement) {
-        self.composition.get_mut().install_view(view);
+    pub fn install_compiled(&mut self, view: impl retinue_ui::authoring::View) {
+        self.composition.get_mut().install_compiled(view);
     }
 
     pub fn reset_view(&mut self) {
@@ -435,8 +427,40 @@ impl ControlHost {
             .composition
             .borrow_mut()
             .update_view(self.size, self.scale, time);
-        self.sync_input();
-        damage
+        match damage {
+            std::task::Poll::Ready(damage) => {
+                self.sync_input();
+                damage
+            }
+            std::task::Poll::Pending => Damage::None,
+        }
+    }
+
+    pub fn set_layout_execution(&mut self, execution: retinue_ui::runtime::LayoutExecution) {
+        self.composition.get_mut().host.execution = Some(execution);
+    }
+
+    pub fn resolve_view(&mut self, time: retinue_ui::timeline::FrameTime) -> bool {
+        self.composition
+            .borrow_mut()
+            .update_view(self.size, self.scale, time)
+            .is_ready()
+    }
+
+    pub fn layout_time(
+        &self,
+        time: retinue_ui::timeline::FrameTime,
+    ) -> retinue_ui::timeline::FrameTime {
+        self.composition.borrow().host.layout_time(time)
+    }
+
+    pub fn layout_pending(&self) -> bool {
+        self.composition.borrow().host.is_layout_pending()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scene_update_stats(&self) -> retinue_ui::scene::UpdateStats {
+        self.composition.borrow().scene().stats
     }
 
     #[cfg(all(test, feature = "profiling"))]
@@ -449,12 +473,12 @@ impl ControlHost {
         retinue_ui::scene::UpdateStats,
     ) {
         let composition = self.composition.borrow();
-        let tree = &composition.host.tree;
+        let host = &composition.host;
         (
-            tree.stats,
-            tree.profile,
-            tree.scene().profile,
-            tree.scene().stats,
+            host.stats(),
+            host.profile(),
+            host.scene().profile,
+            host.scene().stats,
         )
     }
 
@@ -555,14 +579,14 @@ impl ControlHost {
     }
 
     pub(crate) fn set_layer_caching(&mut self, enabled: bool) {
-        self.composition.get_mut().renderer = RefCell::new(if enabled {
+        self.composition.get_mut().renderer = Rc::new(RefCell::new(if enabled {
             Renderer::with_layers(
                 retinue_render::ResidencyPolicy::desktop(16 * 1024 * 1024),
                 LayerPolicy::desktop(),
             )
         } else {
             Renderer::new(retinue_render::ResidencyPolicy::desktop(16 * 1024 * 1024))
-        });
+        }));
     }
 
     pub(crate) fn paint_stats(&self) -> retinue_render::PaintStats {
@@ -579,10 +603,6 @@ impl ControlHost {
 }
 
 impl Visual {
-    fn live(&self) -> bool {
-        matches!(self, Self::Field(..))
-    }
-
     fn commands(&self, ui: &ControlHost, media: Option<&Media>) -> Option<Vec<Command>> {
         let bounds = self.bounds(ui.scale);
         let mut canvas = Canvas::at((bounds.x, bounds.y), ui.scale);
@@ -678,7 +698,7 @@ impl Visual {
                 retinue_ui::scene::LoadingFrame::sample(ui.animation_elapsed, false)
                     .progress(canvas.bounds(*r), Color::from_bgra(ACCENT)),
             ),
-            Self::Field(..) => return None,
+            Self::Field(r, key, hint) => ui.paint_field(&mut canvas, *r, key, hint),
         }
         Some(canvas.commands)
     }
@@ -702,17 +722,15 @@ mod tests {
         visible: retinue_ui::state::State<bool>,
         controls: bool,
     }
-    impl retinue_ui::view::View for BoundTree {
+    #[retinue_ui::authoring::view]
+    impl retinue_ui::authoring::View for BoundTree {
         fn body(
             &self,
             _: &mut retinue_ui::view::ViewContext<'_>,
-        ) -> impl retinue_ui::view::IntoElement {
-            use crate::{
-                presentation::widgets::fill, presentation::widgets::place,
-                presentation::widgets::slot,
-            };
-            use retinue_ui::prelude::*;
-            retinue_ui::ui! {
+        ) -> impl retinue_ui::authoring::Body {
+            use crate::presentation::widgets::compiled::{fill, frame, place, slot};
+            use retinue_ui::{authoring::*, layout::anchors::AnchorPoint};
+            ui! {
                 ZStack() {
                     fill(PANEL, 0.0)
                     if self.controls {
@@ -722,9 +740,9 @@ mod tests {
                     } else {
                         place(slot(ElementKey::new("test.control", 0)), Bounds::new(20.0, 20.0, 200.0, 80.0))
                         place(slot(ElementKey::new("test.icon", 0)), Bounds::new(240.0, 20.0, 32.0, 32.0))
-                        if self.visible.get() { empty().frame(1.0, 1.0) }
+                        if self.visible.get() { empty().frame(frame(1.0, 1.0)) }
                     }
-                }.alignment(Alignment::Start)
+                }.alignment(AnchorPoint::TOP_LEADING)
             }
         }
     }
@@ -738,7 +756,7 @@ mod tests {
         for scale in [1.0, 1.25, 2.0] {
             let branch = State::new(false);
             let mut ui = ControlHost::new().unwrap();
-            ui.install_view(BoundTree {
+            ui.install_compiled(BoundTree {
                 visible: branch.clone(),
                 controls: false,
             });
@@ -806,17 +824,17 @@ mod tests {
 
     #[test]
     fn scrolling_does_not_rerecord_viewport_clipped_slot_content() {
-        use retinue_ui::prelude::*;
+        use crate::presentation::widgets::compiled::{frame, place, slot};
+        use retinue_ui::{authoring::*, state::State, timeline::FrameTime};
         const SLOT: ElementKey = ElementKey::new("test.scroll.content", 0);
         #[derive(PartialEq)]
         struct Scrolling(State<f32>);
+        #[view]
         impl View for Scrolling {
-            fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
-                crate::presentation::widgets::place(
-                    ScrollViewport::new(
-                        crate::presentation::widgets::slot(SLOT).frame(100.0, 160.0),
-                    )
-                    .position(0.0, self.0.get()),
+            fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+                place(
+                    ScrollViewport::new(slot(SLOT).frame(frame(100.0, 160.0)))
+                        .position(0.0, self.0.get()),
                     Bounds::new(20.0, 32.0, 100.0, 80.0),
                 )
             }
@@ -828,7 +846,7 @@ mod tests {
         for scale in [1.0, 1.25, 2.0] {
             let offset = State::new(0.0);
             let mut ui = ControlHost::new().unwrap();
-            ui.install_view(Scrolling(offset.clone()));
+            ui.install_compiled(Scrolling(offset.clone()));
             let media = Media::default();
             for (step, y) in [0.0, 8.0, 32.0, 60.0, 12.0].into_iter().enumerate() {
                 offset.set(y);
@@ -870,7 +888,7 @@ mod tests {
             let mut declared = ControlHost::new().unwrap();
             let mut legacy = ControlHost::new().unwrap();
             let visible = State::new(true);
-            declared.install_view(BoundTree {
+            declared.install_compiled(BoundTree {
                 visible: visible.clone(),
                 controls: true,
             });
@@ -950,54 +968,64 @@ mod tests {
     #[derive(PartialEq)]
     struct CachedSlot(ElementKey);
 
-    impl retinue_ui::view::Primitive for CachedSlot {
-        fn resolve(
+    #[retinue_ui::authoring::view]
+    impl retinue_ui::authoring::View for CachedSlot {
+        fn body(
             &self,
             cx: &mut retinue_ui::view::ViewContext<'_>,
-        ) -> retinue_ui::view::PrimitiveOutput {
-            let mut output = super::super::view_host::PaintSlot(self.0).resolve(cx);
-            output.cache = CachePolicy::Prefer;
-            output
+        ) -> impl retinue_ui::authoring::Body {
+            super::super::view_host::paint_slot::PaintSlot(self.0)
+                .canvas(cx)
+                .cache_policy(CachePolicy::Prefer)
         }
     }
 
-    #[derive(PartialEq)]
-    struct CardsView {
+    #[derive(Clone, PartialEq)]
+    struct Cards {
         scale: f32,
         offset: u32,
     }
 
-    impl retinue_ui::view::View for CardsView {
+    #[derive(PartialEq)]
+    struct CardsView(retinue_ui::state::State<Cards>);
+
+    #[retinue_ui::authoring::view]
+    impl retinue_ui::authoring::View for CardsView {
         fn body(
             &self,
             _: &mut retinue_ui::view::ViewContext<'_>,
-        ) -> impl retinue_ui::view::IntoElement {
-            use crate::{presentation::widgets::fill, presentation::widgets::place};
-            use retinue_ui::prelude::*;
-            retinue_ui::ui! {
+        ) -> impl retinue_ui::authoring::Body {
+            use crate::presentation::widgets::compiled::{fill, frame, place};
+            use retinue_ui::{authoring::*, layout::anchors::AnchorPoint};
+            let state = self.0.get();
+            ui! {
                 ZStack() {
                     fill(PANEL, 0.0)
-                    place(ScrollViewport::new(retinue_ui::ui! {
+                    place(ScrollViewport::new(ui! {
                         ZStack() {
-                            for i in 0..2 {
-                                place(Element::primitive(CachedSlot(ElementKey::new("test.card", i)))
-                                    .id(ElementKey::new("test.card", i)),
+                            ForEach(0..2, |i| *i) { |i|
+                                place(compose(CachedSlot(ElementKey::new("test.card", i)))
+                                    .named(ElementKey::new("test.card", i)),
                                     Bounds::new(4.0, 7.0 + i as f32 * 74.0, 230.0, 68.0))
                             }
-                        }.alignment(Alignment::Start).frame(260.0, 160.0)
-                    }).position(0.0, self.offset as f32 / self.scale),
+                        }.alignment(AnchorPoint::TOP_LEADING).frame(frame(260.0, 160.0))
+                    }).position(0.0, state.offset as f32 / state.scale),
                         Bounds::new(20.0, 30.0, 260.0, 140.0))
-                }.alignment(Alignment::Start)
+                }.alignment(AnchorPoint::TOP_LEADING)
             }
         }
     }
 
-    fn layout(ui: &mut ControlHost, scale: f32, offset: u32, popup: bool, changed: bool) {
+    fn layout(
+        ui: &mut ControlHost,
+        state: &retinue_ui::state::State<Cards>,
+        scale: f32,
+        offset: u32,
+        popup: bool,
+        changed: bool,
+    ) {
         ui.begin((700, 500), scale);
-        ui.composition
-            .get_mut()
-            .host
-            .set_view(CardsView { scale, offset });
+        state.set(Cards { scale, offset });
         ui.update_view(retinue_ui::timeline::FrameTime::now());
         for i in 0..2 {
             ui.view_control(ElementKey::new("test.card", i), |ui, r| {
@@ -1037,11 +1065,14 @@ mod tests {
         for scale in [1.0, 1.25, 2.0] {
             let mut cached = ControlHost::new().unwrap();
             let mut replay = ControlHost::new().unwrap();
+            let state = retinue_ui::state::State::new(Cards { scale, offset: 0 });
+            cached.install_compiled(CardsView(state.clone()));
+            replay.install_compiled(CardsView(state.clone()));
             replay
                 .composition
                 .get_mut()
                 .renderer
-                .get_mut()
+                .borrow_mut()
                 .set_optimizations(false);
             let media = Media::default();
             for (offset, popup, changed, expected) in [
@@ -1051,8 +1082,8 @@ mod tests {
                 (19, true, true, Some(1)),
                 (23, false, true, Some(0)),
             ] {
-                layout(&mut cached, scale, offset, popup, changed);
-                layout(&mut replay, scale, offset, popup, changed);
+                layout(&mut cached, &state, scale, offset, popup, changed);
+                layout(&mut replay, &state, scale, offset, popup, changed);
                 let expected = expected.unwrap_or(2);
                 let actual = render(&cached, &media);
                 let oracle = render(&replay, &media);
@@ -1086,7 +1117,12 @@ mod tests {
     fn late_scroll_artwork_repairs_cached_content_without_layout() {
         use retinue_render::{image, resources::ResourceCache};
         let mut ui = ControlHost::new().unwrap();
-        layout(&mut ui, 1.25, 12, false, false);
+        let state = retinue_ui::state::State::new(Cards {
+            scale: 1.25,
+            offset: 12,
+        });
+        ui.install_compiled(CardsView(state.clone()));
+        layout(&mut ui, &state, 1.25, 12, false, false);
         let mut media = Media::default();
         let empty = render(&ui, &media);
         let requests = ui.requests(&media);

@@ -1,7 +1,7 @@
 use super::suggestion_view;
 use crate::presentation::geometry::Rect;
 use retinue_render::Key;
-use retinue_ui::runtime::ViewTree;
+use retinue_ui::ir::InstanceGraph;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Slot {
@@ -68,20 +68,16 @@ fn build(
     item_count: usize,
 ) -> Result<SuggestionGeometry, String> {
     let card_count = item_count.min(4);
-    let mut tree = ViewTree::new(
+    let mut tree = InstanceGraph::with_root_view(
         suggestion_view::SuggestionView {
             width: screen_width,
             height: screen_height,
             count: card_count,
         },
-        || {},
-    );
-    tree.update((screen_width, screen_height), 1.0)?;
-    let bounds = |slot: Slot| {
-        tree.geometry(tree.unique(Key::from(slot)).unwrap().unwrap())
-            .unwrap()
-            .hit
-    };
+        Default::default(),
+    )?;
+    tree.update_inline((screen_width, screen_height), 1.0)?;
+    let bounds = |slot: Slot| tree.named_bounds(Key::from(slot)).unwrap().unwrap().hit;
     Ok(SuggestionGeometry {
         shell: bounds(Slot::Shell),
         header: bounds(Slot::Header),

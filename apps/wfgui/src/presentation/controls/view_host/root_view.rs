@@ -1,17 +1,24 @@
-use super::{CHROME, OVERLAYS, PaintSlot};
-use retinue_ui::prelude::*;
+use super::{CHROME, OVERLAYS, paint_slot::PaintSlot};
+use retinue_ui::{authoring::*, layout::anchors::AnchorPoint};
 
-#[derive(PartialEq)]
-pub(super) struct RootView(pub Element);
+pub(super) struct Empty;
+#[view]
+impl View for Empty {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        ()
+    }
+}
 
-impl View for RootView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+pub(super) struct RootView<V>(pub V);
+#[view]
+impl<V: View> View for RootView<V> {
+    fn body(&self, cx: &mut ViewContext<'_>) -> impl Body {
         ui! {
             ZStack() {
-                self.0.clone()
-                PaintSlot(CHROME)
-                PaintSlot(OVERLAYS)
-            }.alignment(Alignment::Start)
+                self.0.body(cx)
+                compose(PaintSlot(CHROME))
+                compose(PaintSlot(OVERLAYS))
+            }.alignment(AnchorPoint::TOP_LEADING)
         }
     }
 }

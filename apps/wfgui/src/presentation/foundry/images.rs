@@ -29,9 +29,10 @@ pub fn cache(root: Option<PathBuf>) -> Thumbnails {
 
 pub fn spawn(
     root: Option<PathBuf>,
+    executor: std::sync::Arc<retinue_render::work::Executor>,
     notify: impl Fn() + Send + 'static,
 ) -> Result<Preparation<Input, Batch>, String> {
-    let mut cache = cache(root);
+    let mut cache = cache(root).with_executor(executor);
     let mut generation = 0;
     Preparation::spawn_streaming(
         "wfgui-images",
@@ -133,9 +134,13 @@ mod tests {
         let fast = Request::embedded(bytes, 16, None);
         let slow = Request::embedded(bytes, 32, None).persistent("test", "disk");
         let (send, wake) = mpsc::channel();
-        let mut worker = spawn(Some(root.path().into()), move || {
-            send.send(()).unwrap();
-        })
+        let mut worker = spawn(
+            Some(root.path().into()),
+            retinue_render::RenderHost::new(retinue_render::HostPolicy::desktop()).executor(),
+            move || {
+                send.send(()).unwrap();
+            },
+        )
         .unwrap();
         worker
             .request(Input {

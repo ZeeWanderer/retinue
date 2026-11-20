@@ -7,7 +7,7 @@ use retinue_render::{
     damage::Damage,
     painter::{Painter, straight_rgba},
 };
-use retinue_ui::runtime::ViewTree;
+use retinue_ui::ir::InstanceGraph;
 use serde_json::json;
 use std::{fs, path::PathBuf};
 
@@ -20,12 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut report = Vec::new();
     for scale in [1.0, 1.25, 2.0] {
         let model = model::Model::default();
-        let mut tree = ViewTree::new(
+        let mut tree = InstanceGraph::with_root_view(
             dashboard::Dashboard {
                 initial: model.clone(),
             },
-            || {},
-        );
+            Default::default(),
+        )?;
         let size = ((300.0 * scale) as u32, (140.0 * scale) as u32);
         let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
         for (name, filled, details) in [
@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ] {
             model.filled.set(filled);
             model.details.set(details);
-            tree.update(size, scale)?;
+            let work = tree.update_inline(size, scale)?;
             renderer.prepare(tree.frame(), RasterMode::Replay);
             let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
             let mut painter =
@@ -50,9 +50,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             straight_rgba(&pixels, size.0, size.1)?
                 .save(output.join(format!("retained-{}-{name}.png", (scale * 100.0) as u32)))?;
             report.push(
-                json!({ "case": name, "scale": scale, "bodies": tree.stats.bodies,
-                    "mounted": tree.stats.mounted, "unmounted": tree.stats.unmounted,
-                    "projected": tree.stats.projected, "nodes": tree.node_count(),
+                json!({ "case": name, "scale": scale, "bodies": work.owners_evaluated,
+                    "mounted": work.instances_mounted, "unmounted": work.instances_unmounted,
+                    "projected": work.nodes_materialized,
                     "layout_computations": tree.scene().stats.layout_computations,
                     "recordings": tree.scene().stats.recordings,
                 }),

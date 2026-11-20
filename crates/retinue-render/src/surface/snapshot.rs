@@ -6,11 +6,10 @@ use crate::{
     renderer::cost::{Estimate, Work},
 };
 use rustc_hash::FxHashMap;
-use std::rc::{Rc, Weak};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct PaintKey {
-    frame: usize,
+    frame: crate::frame::Identity,
     occurrence: u32,
     instance: Key,
     segment: u32,
@@ -37,8 +36,7 @@ pub struct Snapshot {
     background: Color,
     pub(crate) paint: Vec<Paint>,
     work: Vec<Work>,
-    sources: Vec<Weak<()>>,
-    occurrences: FxHashMap<usize, u32>,
+    occurrences: FxHashMap<crate::frame::Identity, u32>,
     origin: (i32, i32),
     clip: Rect,
     valid: bool,
@@ -51,7 +49,6 @@ impl Snapshot {
             background,
             paint: Vec::new(),
             work: Vec::new(),
-            sources: Vec::new(),
             occurrences: FxHashMap::default(),
             origin: (0, 0),
             clip: Rect {
@@ -89,11 +86,10 @@ impl Snapshot {
         estimate: Option<&Estimate<'_>>,
         mut external: impl FnMut(Key, &mut Self) -> bool,
     ) {
-        let source = Rc::as_ptr(&frame.identity) as usize;
+        let source = frame.identity;
         let count = self.occurrences.entry(source).or_default();
         let occurrence = *count;
         *count += 1;
-        self.sources.push(Rc::downgrade(&frame.identity));
         for (index, instance) in frame.instances().iter().enumerate() {
             let Some(origin) = add(self.origin, instance.origin()) else {
                 self.valid = false;

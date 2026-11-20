@@ -7,9 +7,8 @@ use retinue_render::painter::CachedFont;
 
 use super::{PaintOptions, Resources};
 use crate::presentation::geometry::Rect;
-use retinue_render::painter::{
-    RasterImage, TextBox, TextLine, css_rgba, fit_text_size, text_width,
-};
+use retinue_render::painter::{RasterImage, TextBox, TextLine, css_rgba};
+use retinue_ui::drawing::text::{fit_text_size, text_width};
 
 mod card_layout;
 mod card_view;
@@ -397,7 +396,7 @@ fn draw_message_panel(
 }
 
 struct PrimaryPrice<'a> {
-    icon: &'a Rc<RasterImage>,
+    icon: &'a std::sync::Arc<RasterImage>,
     bounds: Rect,
     scale: u32,
     icon_size: u32,

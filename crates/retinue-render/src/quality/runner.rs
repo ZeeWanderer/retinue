@@ -180,7 +180,7 @@ pub(super) fn run(
                     {"pass": "materialization", "kind": if stats.preparation_tasks > 0 { "passed" } else { "analysis" }, "prepared": stats.preparation_tasks, "rejected": stats.rejected_rasters, "deferred": stats.deferred_preparations, "resident_bytes": raster_bytes},
                     {"pass": "relocation", "kind": if sample.copied_pixels > 0 { "passed" } else { "analysis" }, "copied_pixels": sample.copied_pixels, "repaired_pixels": sample.repaired_pixels}
                 ],
-                "effective_full_replay_work": {"solid": work.solid, "blended": work.blended, "sampled": work.sampled, "commands": work.commands, "edges": work.edges, "glyphs": work.glyphs}
+                "effective_full_replay_work": {"solid": work.solid, "blended": work.blended, "sampled": work.sampled, "commands": work.commands, "edges": work.edges, "glyphs": work.glyphs, "native_glyphs": work.native_glyphs}
             }));
         }
         inspect(index, trial.pixels(presented));

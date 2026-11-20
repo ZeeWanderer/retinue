@@ -1,3 +1,4 @@
+#[cfg(any(test, feature = "reference-frontend"))]
 use super::{Element, IntoElement, Kind};
 use retinue_render::Color;
 
@@ -17,6 +18,7 @@ impl Rectangle {
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl IntoElement for Rectangle {
     fn into_element(self) -> Element {
         Element::new(Kind::Rectangle(self))

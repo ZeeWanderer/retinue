@@ -1,10 +1,14 @@
-use super::{Element, IntoElement, Kind, ViewContext};
+use super::ViewContext;
+#[cfg(any(test, feature = "reference-frontend"))]
+use super::{Element, IntoElement, Kind};
 use crate::{
     drawing::{CanvasContent, Drawing, DrawingContext, TextStyle, Typography},
     scene::Algorithm,
 };
 use retinue_render::{Bounds, CachePolicy};
-use std::{any::Any, rc::Rc};
+#[cfg(any(test, feature = "reference-frontend"))]
+use std::any::Any;
+use std::rc::Rc;
 
 /// Resolve observed inputs into immutable layout and recording descriptions.
 pub trait Primitive: PartialEq + 'static {
@@ -40,12 +44,14 @@ impl PrimitiveOutput {
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl Element {
     pub fn primitive(content: impl Primitive) -> Self {
         Self::new(Kind::Primitive(Rc::new(content)))
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 pub(crate) trait ErasedPrimitive {
     fn name(&self) -> &'static str;
     fn value(&self) -> &dyn Any;
@@ -53,6 +59,7 @@ pub(crate) trait ErasedPrimitive {
     fn resolve(&self, context: &mut ViewContext<'_>) -> PrimitiveOutput;
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl<P: Primitive> ErasedPrimitive for P {
     fn name(&self) -> &'static str {
         std::any::type_name::<P>()
@@ -108,16 +115,19 @@ impl<C: CanvasContent> CanvasContent for Shared<C> {
 
 impl<C: CanvasContent> Primitive for Canvas<C> {
     fn resolve(&self, context: &mut ViewContext<'_>) -> PrimitiveOutput {
-        let mut output = PrimitiveOutput::new(
-            Shared(self.content.clone()),
-            context.environment().get::<Typography>(),
-        )
-        .fill_available();
+        self.resolve_with(context.environment().get::<Typography>())
+    }
+}
+
+impl<C: CanvasContent> Canvas<C> {
+    pub(crate) fn resolve_with(&self, style: TextStyle) -> PrimitiveOutput {
+        let mut output = PrimitiveOutput::new(Shared(self.content.clone()), style).fill_available();
         output.cache = self.cache;
         output
     }
 }
 
+#[cfg(any(test, feature = "reference-frontend"))]
 impl<C: CanvasContent> IntoElement for Canvas<C> {
     fn into_element(self) -> Element {
         Element::primitive(self)
@@ -130,10 +140,11 @@ pub(crate) fn paint(
 ) -> crate::scene::Paint {
     let drawing = output.drawing.clone();
     let text_style = output.text_style.clone();
-    let mut paint = crate::scene::Paint::new(key, move |size| {
-        drawing.record(
+    let mut paint = crate::scene::Paint::with_layout(key, move |size, layout| {
+        drawing.record_layout(
             Bounds::new(0.0, 0.0, size.width, size.height),
             text_style.clone(),
+            layout,
         )
     });
     paint.cache = output.cache;

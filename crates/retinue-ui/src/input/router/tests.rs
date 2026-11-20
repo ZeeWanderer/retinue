@@ -11,6 +11,7 @@ fn target(id: u64, x: f32) -> Target {
         parent: None,
         bounds,
         clip: bounds,
+        regions: None,
         enabled: true,
         input: InputOptions {
             interaction: Some(Interaction::default()),
@@ -46,6 +47,22 @@ fn check_status(router: &Router) {
             status.captured(),
             router.capture.values().any(|id| *id == target.id)
         );
+    }
+}
+
+#[test]
+fn capture_routes_moves_without_changing_the_physical_hit() {
+    let mut router = Router::default();
+    router.update(vec![target(1, 0.0), target(2, 40.0)]);
+    router.dispatch(&pointer(0, PointerPhase::Down(Button::Primary), 10.0));
+    for (phase, x, hit) in [
+        (PointerPhase::Move, 45.0, Some(ViewId(2))),
+        (PointerPhase::Move, 105.0, None),
+        (PointerPhase::Leave, 10.0, None),
+    ] {
+        let result = router.dispatch(&pointer(0, phase, x));
+        assert_eq!(result.target, Some(ViewId(1)));
+        assert_eq!(result.pointer_hit, hit);
     }
 }
 

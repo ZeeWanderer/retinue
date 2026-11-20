@@ -380,6 +380,13 @@ impl Overlay {
 }
 
 impl Application for Overlay {
+    fn set_waker(&mut self, wake: retinue_render::Wake) {
+        self.view
+            .set_layout_execution(retinue_ui::runtime::LayoutExecution::new(
+                &self.view.render_host(),
+                wake,
+            ));
+    }
     fn visible(&self) -> bool {
         self.presentation.visible(&self.model)
     }
@@ -754,11 +761,9 @@ impl Application for Overlay {
             }
             Input::Motion(x, y) => {
                 let (x, y) = physical(x, y);
-                self.view
-                    .pointer(retinue_ui::input::PointerPhase::Move, Some((x, y)));
                 let previous = self.interaction.hover;
                 let popup = self.interaction.tooltip || self.interaction.menu.is_some();
-                self.interaction.hover = self.view.hit(x, y);
+                self.interaction.hover = self.view.move_pointer(x, y);
                 if previous != self.interaction.hover {
                     self.interaction.tooltip = false;
                     self.hover_since = Instant::now();
@@ -959,6 +964,17 @@ impl Application for Overlay {
         Damage::Full
     }
     fn prepare(&mut self, size: (u32, u32), scale: u32) -> Result<Damage, String> {
+        match self.poll_prepare(size, scale)? {
+            std::task::Poll::Ready(damage) => Ok(damage),
+            std::task::Poll::Pending => Err("Evaluate layout pending".into()),
+        }
+    }
+
+    fn poll_prepare(
+        &mut self,
+        size: (u32, u32),
+        scale: u32,
+    ) -> Result<std::task::Poll<Damage>, String> {
         self.dpr = scale;
         let phase = (self
             .last_animation
@@ -966,7 +982,7 @@ impl Application for Overlay {
             .as_secs_f32()
             * 0.6)
             % 2.0;
-        self.view.prepare(
+        self.view.poll_prepare(
             Frame {
                 size,
                 scale: scale as f32 * self.preferences.scale,
@@ -981,8 +997,27 @@ impl Application for Overlay {
     fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
         self.view.paint_scene()
     }
-    fn render_frame(&self) -> Option<retinue_render::RenderPass> {
-        Some(self.view.begin_frame())
+    fn render_host(&self) -> Option<retinue_render::RenderHost> {
+        Some(self.view.render_host())
+    }
+    fn render_threads(&self) -> std::num::NonZeroU32 {
+        self.view.render_threads()
+    }
+    fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) -> Result<(), String> {
+        self.view.prepare_rasters(repair);
+        Ok(())
+    }
+
+    fn prepare_packet(
+        &mut self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<Option<retinue_render::PacketJob>, String> {
+        self.view.prepare_packet(repair, wake).map(Some)
+    }
+
+    fn presented(&mut self) {
+        self.view.prepared();
     }
 
     fn paint(

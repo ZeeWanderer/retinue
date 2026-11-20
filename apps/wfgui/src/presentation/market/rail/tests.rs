@@ -30,6 +30,24 @@ fn render(pages: &Pages) -> Vec<u8> {
     pixels
 }
 
+fn assert_cached_pixels(pages: &Pages, actual: &[u8], expected: &[u8]) {
+    let bounds = Rect {
+        width: pages.rail.size.0,
+        height: pages.rail.size.1,
+        ..Rect::default()
+    };
+    assert_eq!(
+        crate::presentation::pixel_tests::mismatch(
+            actual,
+            expected,
+            bounds.width,
+            bounds,
+            &pages.rail.text_ink((0, 0), bounds)
+        ),
+        None
+    );
+}
+
 #[test]
 fn declared_market_filters_and_posting_preserve_geometry_and_input() {
     for scale in [1.0, 1.25, 2.0] {
@@ -64,7 +82,7 @@ fn declared_market_filters_and_posting_preserve_geometry_and_input() {
         let cached = render(&pages);
         pages
             .rail
-            .with_full_replay(|| assert_eq!(render(&pages), cached));
+            .with_full_replay(|| assert_cached_pixels(&pages, &render(&pages), &cached));
         pages.market.account = json!({"authenticated":false});
         pages.market.description = json!({"name":"Plain item"});
         pages.layout_rail();
@@ -127,7 +145,7 @@ fn market_rows_keep_identity_across_quotes_and_reorder_but_only_bind_visible_row
     let cached = render(&pages);
     pages
         .rail
-        .with_full_replay(|| assert_eq!(render(&pages), cached));
+        .with_full_replay(|| assert_cached_pixels(&pages, &render(&pages), &cached));
     pages.rail_tab = false;
     pages.layout_rail();
     assert!(pages.rail.view_bounds(currency).is_none());
@@ -206,7 +224,7 @@ fn market_suggestions_paint_and_hit_above_item_and_filters() {
     let cached = render(&pages);
     pages
         .rail
-        .with_full_replay(|| assert_eq!(render(&pages), cached));
+        .with_full_replay(|| assert_cached_pixels(&pages, &render(&pages), &cached));
     pages.market.suggestions = false;
     pages.layout_rail();
     assert!(pages.rail.bounds("market:match:3").is_none());

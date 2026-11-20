@@ -1,3 +1,5 @@
+mod content_view;
+mod label_view;
 mod row_layout;
 mod row_view;
 mod section_view;
@@ -6,18 +8,18 @@ mod settings_view;
 use crate::{
     data::storage::Snapshot, data::storage::Usage, domain::storage::Job, domain::storage::Update,
 };
+use content_view::{ContentView, Item};
+use label_view::LabelView;
 use retinue_render::{
     Bounds, CachePolicy, Color, Key as ElementKey, RasterMode, Renderer, damage::Damage,
-    painter::CachedFont, painter::GlyphCache, painter::Painter, painter::TextLine,
-    painter::text_width, painter::wrap_text,
+    painter::CachedFont, painter::Painter, painter::TextLine,
 };
+use retinue_ui::drawing::text::{text_width, wrap_text};
 use retinue_ui::{
     Rect, desktop::accesskit, desktop::accesskit::ActionRequest, desktop::accesskit::Node,
     desktop::accesskit::NodeId, desktop::accesskit::Role, desktop::accesskit::TreeInfo,
     desktop::accesskit::TreeUpdate, drawing::PixelCanvas as Canvas, focus_visible::FocusVisible,
-    prelude::Alignment, prelude::Element as UiElement, prelude::FrameTime, prelude::Insets,
-    prelude::IntoElement, prelude::State, prelude::Text, prelude::VStack, prelude::ViewExt,
-    prelude::empty, scroll::Scroll,
+    scroll::Scroll, state::State, timeline::FrameTime,
 };
 use row_view::RowView;
 use section_view::SectionView;
@@ -113,7 +115,8 @@ pub struct Settings {
     elements: Vec<Element>,
     composition: RefCell<crate::presentation::controls::view_host::Host>,
     view_state: State<crate::presentation::settings::Viewport>,
-    renderer: RefCell<Renderer>,
+    content_state: State<ContentView>,
+    renderer: Rc<RefCell<Renderer>>,
     layout_revision: u64,
     painted_content: Cell<Option<ContentPaintInputs>>,
     scroll: Scroll,
@@ -121,14 +124,13 @@ pub struct Settings {
     dragging_scroll: Option<f64>,
     pub regular: Rc<CachedFont>,
     pub medium: Rc<CachedFont>,
-    glyphs: GlyphCache,
     memory_text: String,
     image_memory: (usize, usize),
 }
 
 impl Settings {
     pub fn set_render_host(&mut self, host: retinue_render::RenderHost) {
-        self.renderer.get_mut().set_host(host);
+        self.renderer.borrow_mut().set_host(host);
     }
 
     #[cfg(test)]
@@ -140,26 +142,30 @@ impl Settings {
         ui_scale: f32,
         faces: &retinue_render::painter::FontFaces,
     ) -> Result<Self, String> {
-        let glyphs = GlyphCache::new(16 * 1024 * 1024);
-        let regular = CachedFont::with_faces(
-            include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../assets/fonts/roboto/Roboto-Regular.ttf"
-            )),
-            Default::default(),
-            &glyphs,
-            faces,
-        )?;
-        let medium = CachedFont::with_faces(
-            include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../assets/fonts/roboto/Roboto-Medium.ttf"
-            )),
-            Default::default(),
-            &glyphs,
-            faces,
-        )?;
+        let regular = faces
+            .load(
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../assets/fonts/roboto/Roboto-Regular.ttf"
+                )),
+                0,
+            )
+            .map_err(|e| e.to_string())?;
+        let medium = faces
+            .load(
+                include_bytes!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../assets/fonts/roboto/Roboto-Medium.ttf"
+                )),
+                0,
+            )
+            .map_err(|e| e.to_string())?;
         let ready = snapshot.is_some();
+        let view_state = State::default();
+        let content_state = State::new(ContentView {
+            items: Vec::new(),
+            scale: 1.0,
+        });
         let mut view = Self {
             snapshot: snapshot.unwrap_or_default(),
             busy: !ready,
@@ -185,9 +191,17 @@ impl Settings {
             content_left: 0,
             content_height: 0,
             elements: Vec::new(),
-            composition: RefCell::new(crate::presentation::controls::view_host::Host::new(empty())),
-            view_state: State::default(),
-            renderer: RefCell::new(Renderer::new(retinue_render::ResidencyPolicy::desktop(0))),
+            composition: RefCell::new(crate::presentation::controls::view_host::Host::compiled(
+                SettingsView {
+                    content: content_state.clone(),
+                    viewport: view_state.clone(),
+                },
+            )),
+            view_state,
+            content_state,
+            renderer: Rc::new(RefCell::new(Renderer::new(
+                retinue_render::ResidencyPolicy::desktop(0),
+            ))),
             layout_revision: 0,
             painted_content: Cell::new(None),
             scroll: Default::default(),
@@ -195,7 +209,6 @@ impl Settings {
             dragging_scroll: None,
             regular: Rc::new(regular),
             medium: Rc::new(medium),
-            glyphs,
             memory_text: String::new(),
             image_memory: (0, 0),
         };
@@ -224,9 +237,12 @@ impl Settings {
         } else if width != self.content_width() {
             self.place_viewport();
             self.update_view_state();
-            self.composition
-                .get_mut()
-                .update(self.size, 1.0, FrameTime::now());
+            assert!(
+                self.composition
+                    .get_mut()
+                    .update(self.size, 1.0, FrameTime::now())
+                    .is_ready()
+            );
             self.read_geometry();
             self.place_content();
             self.layout_revision += 1;
@@ -281,11 +297,10 @@ impl Settings {
     }
 
     fn update_memory(&mut self) {
-        let stats = self.glyphs.stats();
         self.memory_text = format!(
             "{} used; {} retention budget",
-            bytes((stats.live_bytes + self.image_memory.0) as u64),
-            bytes((stats.budget_bytes + self.image_memory.1) as u64)
+            bytes(self.image_memory.0 as u64),
+            bytes(self.image_memory.1 as u64)
         );
     }
 
@@ -314,9 +329,12 @@ impl Settings {
         );
         self.offset = self.scroll.offset(Instant::now()).round();
         self.update_view_state();
-        self.composition
-            .get_mut()
-            .update(self.size, 1.0, FrameTime::now());
+        assert!(
+            self.composition
+                .get_mut()
+                .update(self.size, 1.0, FrameTime::now())
+                .is_ready()
+        );
         self.sync_input();
     }
 
@@ -425,20 +443,11 @@ impl Settings {
         if let Some(error) = &self.error {
             rows.push(builder.text(error, 14.0, RED, false));
         }
-        let content = VStack::new(12.0 * scale, rows)
-            .alignment(Alignment::Stretch)
-            .padding(Insets {
-                bottom: 24.0 * scale,
-                ..Default::default()
-            })
-            .id(CONTENT);
+        let content = ContentView { items: rows, scale };
         self.update_view_state();
         let host = self.composition.get_mut();
-        host.set_view(crate::presentation::settings::SettingsView {
-            content,
-            viewport: self.view_state.clone(),
-        });
-        host.update(self.size, 1.0, FrameTime::now());
+        self.content_state.set(content);
+        assert!(host.update(self.size, 1.0, FrameTime::now()).is_ready());
         self.elements = builder
             .kinds
             .into_iter()
@@ -704,7 +713,6 @@ impl Settings {
                 self.relayout();
             }
             Action::ClearMemory => {
-                self.glyphs.clear();
                 self.memory_generation += 1;
                 self.update_memory();
                 self.relayout();
@@ -774,8 +782,14 @@ impl Settings {
     }
 
     #[cfg(test)]
+    pub(super) fn text_ink(&self, origin: (u32, u32), clip: Rect) -> Vec<Rect> {
+        super::pixel_tests::text_ink(self.composition.borrow().scene().frame(), origin, clip)
+    }
+
+    #[cfg(test)]
     pub fn paint(&self, target: &mut Painter<'_>, focus: FocusVisible) {
         self.prepare_paint(focus);
+        self.prepare_rasters(&target.visible_regions());
         self.draw_prepared(target);
     }
 
@@ -879,23 +893,39 @@ impl Settings {
 
     pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
         scene.record_rendered(
-            self.composition.borrow().tree.frame(),
+            self.composition.borrow().scene().frame(),
             &self.renderer.borrow(),
             RasterMode::Replay,
             |_, _| false,
         );
     }
 
+    pub fn prepare_rasters(&self, repair: &retinue_render::damage::Region) {
+        let host = self.composition.borrow();
+        self.renderer
+            .borrow_mut()
+            .prepare_for(host.scene().frame(), RasterMode::Replay, repair);
+    }
+
+    pub fn prepare_packet(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+    ) -> Result<retinue_render::PacketJob, String> {
+        retinue_render::PacketJob::prepare(
+            self.renderer.clone(),
+            self.composition.borrow().scene().frame(),
+            RasterMode::Replay,
+            repair,
+            wake,
+            |_, _, _| Err("unresolved settings paint".into()),
+        )
+    }
+
     pub fn draw_prepared(&self, target: &mut Painter<'_>) {
         let host = self.composition.borrow();
-        let mut renderer = self.renderer.borrow_mut();
-        renderer.prepare_for(
-            host.tree.frame(),
-            RasterMode::Replay,
-            &target.visible_regions(),
-        );
-        renderer.draw_with(
-            host.tree.frame(),
+        self.renderer.borrow_mut().draw_with(
+            host.scene().frame(),
             target,
             Rect {
                 width: self.size.0,
@@ -1041,46 +1071,46 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    fn group(&mut self, rows: Vec<UiElement>) -> UiElement {
-        use crate::presentation::widgets::slot;
+    fn group(&mut self, rows: Vec<RowView>) -> Item {
         let mut children = Vec::new();
         for (index, row) in rows.into_iter().enumerate() {
-            if index != 0 {
+            let separator = if index != 0 {
                 let id = self.kinds.len();
                 self.kinds.push(Kind::Separator);
-                children.push(
-                    slot(ElementKey::new("settings", id as u64))
-                        .height(self.scale)
-                        .fill_width()
-                        .padding(Insets {
-                            left: 16.0 * self.scale,
-                            right: 16.0 * self.scale,
-                            ..Default::default()
-                        }),
-                );
-            }
-            children.push(row);
+                Some(ElementKey::new("settings", id as u64))
+            } else {
+                None
+            };
+            children.push((separator, row));
         }
         let id = self.kinds.len();
         self.kinds.push(Kind::Group);
-        crate::presentation::settings::SectionView {
+        Item::Section(SectionView {
             id: ElementKey::new("settings", id as u64),
-            children,
-        }
-        .into_element()
+            rows: children,
+            scale: self.scale,
+        })
     }
-    fn text(&mut self, value: &str, size: f32, color: [u8; 4], heading: bool) -> UiElement {
+    fn text(&mut self, value: &str, size: f32, color: [u8; 4], heading: bool) -> Item {
+        Item::Label(self.label(value, size, color, heading))
+    }
+
+    fn label(&mut self, value: &str, size: f32, color: [u8; 4], heading: bool) -> LabelView {
         let size = size * self.scale;
         let id = self.kinds.len();
         self.kinds.push(Kind::Text {
             value: value.into(),
             heading,
         });
-        Text::new(value)
-            .font(if heading { self.medium } else { self.regular }.clone())
-            .font_size(size)
-            .color(Color::from_bgra(color))
-            .id(ElementKey::new("settings", id as u64))
+        LabelView {
+            id: ElementKey::new("settings", id as u64),
+            text: value.into(),
+            style: retinue_ui::drawing::TextStyle::new(
+                if heading { self.medium } else { self.regular }.clone(),
+                size,
+                Color::from_bgra(color),
+            ),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1092,31 +1122,30 @@ impl Builder<'_> {
         path: Option<&str>,
         button: Option<(Action, bool)>,
         color: [u8; 4],
-    ) -> UiElement {
+    ) -> RowView {
         let mut labels = vec![
-            self.text(title, 16.0, TEXT, true),
-            self.text(description, 13.0, MUTED, false),
-            self.text(value, 14.0, color, false),
+            self.label(title, 16.0, TEXT, true),
+            self.label(description, 13.0, MUTED, false),
+            self.label(value, 14.0, color, false),
         ];
         if let Some(path) = path {
-            labels.push(self.text(path, 12.0, MUTED, false));
+            labels.push(self.label(path, 12.0, MUTED, false));
         }
         let button = if let Some((action, enabled)) = button {
             let id = self.kinds.len();
             self.kinds.push(Kind::Button { action, enabled });
-            crate::presentation::widgets::slot(ElementKey::new("settings", id as u64))
-                .frame(80.0 * self.scale, 34.0 * self.scale)
+            Some(ElementKey::new("settings", id as u64))
         } else {
-            empty()
+            None
         };
         let id = self.kinds.len();
         self.kinds.push(Kind::Container);
         crate::presentation::settings::RowView {
+            id: ElementKey::new("settings", id as u64),
             labels,
             button,
             scale: self.scale,
         }
-        .id(ElementKey::new("settings", id as u64))
     }
 }
 
@@ -1186,7 +1215,23 @@ mod tests {
                 };
                 let retained = render(&view);
                 view.painted_content.set(None);
-                assert!(retained == render(&view), "step={step}, scale={scale}");
+                let fresh = render(&view);
+                let bounds = Rect {
+                    width: view.size.0,
+                    height: view.size.1,
+                    ..Rect::default()
+                };
+                assert_eq!(
+                    super::super::pixel_tests::mismatch(
+                        &retained,
+                        &fresh,
+                        view.size.0,
+                        bounds,
+                        &view.text_ink((0, 0), bounds)
+                    ),
+                    None,
+                    "step={step}, scale={scale}"
+                );
             }
         }
     }
@@ -1214,6 +1259,7 @@ mod tests {
                 )
                 .unwrap();
                 painter.clear();
+                view.prepare_rasters(&painter.visible_regions());
                 view.draw_prepared(&mut painter);
                 painter.finish().unwrap();
                 if frame > 20 {
@@ -1235,22 +1281,22 @@ mod tests {
         let identities: Vec<_> = view
             .composition
             .borrow()
-            .tree
-            .inspect()
-            .into_iter()
-            .map(|node| node.id)
+            .scene()
+            .geometry()
+            .iter()
+            .map(|node| node.key)
             .collect();
         view.resize((1500, 1200), 1.0);
         let host = view.composition.borrow();
         assert_eq!(
             identities,
-            host.tree
-                .inspect()
-                .into_iter()
-                .map(|node| node.id)
+            host.scene()
+                .geometry()
+                .iter()
+                .map(|node| node.key)
                 .collect::<Vec<_>>()
         );
-        assert!(host.tree.stats.bodies <= 1, "only viewport inputs changed");
+        assert!(host.stats().bodies <= 1, "only viewport inputs changed");
         drop(host);
         view.set_image_memory((1024 * 1024, 16 * 1024 * 1024));
         let revision = view.layout_revision;

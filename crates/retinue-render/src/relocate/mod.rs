@@ -326,6 +326,7 @@ fn transfer_benefit(
         avoided.commands,
         avoided.edges,
         avoided.glyphs,
+        avoided.native_glyphs,
     ]
     .iter()
     .all(|v| *v <= 0.0)

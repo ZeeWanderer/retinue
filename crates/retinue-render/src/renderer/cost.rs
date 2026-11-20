@@ -1,6 +1,5 @@
 use super::{Renderer, coverage::SpatialIndex};
 use crate::{CachePolicy, PaintFrame, PaintInstance, PaintProgram, RasterMode, Rect, fragments};
-use std::rc::Rc;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Work {
@@ -24,7 +23,7 @@ impl<'a> Estimate<'a> {
             && renderer
                 .prepared_for
                 .as_ref()
-                .is_some_and(|(id, _)| Rc::ptr_eq(id, &frame.identity)))
+                .is_some_and(|(id, _)| *id == frame.identity))
         .then_some(renderer);
         let regions = renderer.map_or_else(Vec::new, |r| r.layers.resident_coverage(frame));
         let layers = regions

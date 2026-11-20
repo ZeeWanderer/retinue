@@ -2,6 +2,7 @@ use super::*;
 use retinue_render::damage::AgeRepaintTracker;
 use serde_json::json;
 mod drag;
+mod execution;
 mod residency;
 mod transfer;
 
@@ -285,7 +286,7 @@ fn rail_animation_benchmark() {
                         tree.profile,
                         tree.scene().profile,
                         tree.scene().stats,
-                        tree.stats,
+                        shell.composition.work.get(),
                     )
                 };
                 let Some(plan) = damage.plan(u8::from(cycle != 0 || frame != 0), (width, height))
@@ -312,7 +313,7 @@ fn rail_animation_benchmark() {
                 painter.finish().unwrap();
                 drop(native_frame);
                 let finished = Instant::now();
-                damage.submitted();
+                damage.submitted(plan.ticket);
                 if cycle > 1 {
                     let mut sample = json!({
                         "layout_ms": (laid_out - start).as_secs_f64() * 1000.0,
@@ -342,7 +343,7 @@ fn rail_animation_benchmark() {
                         sample["shell_stats"] = json!({
                             "nodes": shell_scene_stats.nodes, "layouts": shell_scene_stats.layout_computations,
                             "recordings": shell_scene_stats.recordings,
-                            "bodies": shell_view_stats.bodies,
+                            "bodies": shell_view_stats.owners_evaluated,
                         });
                         sample["shell_view_ms"] = json!(
                             [

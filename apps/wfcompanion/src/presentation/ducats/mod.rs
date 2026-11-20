@@ -1,7 +1,15 @@
+use retinue_render::Color;
 use retinue_render::painter::CachedFont;
-use retinue_render::painter::{Painter, RasterImage, load_icon, text_width};
+use retinue_render::painter::{Painter, RasterImage, load_icon};
 use retinue_render::{Key, RasterMode, Renderer};
-use retinue_ui::{prelude::*, runtime::ViewTree};
+use retinue_ui::drawing::text::text_width;
+use retinue_ui::{
+    authoring::*,
+    drawing::{CanvasContent, DrawingContext, TextStyle},
+    ir::InstanceGraph,
+    layout::Insets,
+    state::State,
+};
 use std::{cell::RefCell, rc::Rc};
 
 mod price_view;
@@ -11,33 +19,37 @@ use crate::ducats::{Parent, Quote, Scene};
 use crate::presentation::geometry::Rect;
 
 pub(in crate::presentation) struct Assets {
-    platinum: Rc<RasterImage>,
-    owned: Rc<RasterImage>,
-    mastered: Rc<RasterImage>,
-    subsumed: Rc<RasterImage>,
+    platinum: std::sync::Arc<RasterImage>,
+    owned: std::sync::Arc<RasterImage>,
+    mastered: std::sync::Arc<RasterImage>,
+    subsumed: std::sync::Arc<RasterImage>,
     composition: RefCell<Composition>,
 }
 
 impl Assets {
     pub(in crate::presentation) fn set_render_host(&mut self, host: retinue_render::RenderHost) {
-        self.composition.get_mut().renderer.set_host(host);
+        self.composition
+            .get_mut()
+            .renderer
+            .borrow_mut()
+            .set_host(host);
     }
 
     pub(super) fn load() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            platinum: Rc::new(load_icon(include_bytes!(concat!(
+            platinum: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/assets/platinum.png"
             )))?),
-            owned: Rc::new(load_icon(include_bytes!(concat!(
+            owned: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../assets/warframe/ui/owned.png"
             )))?),
-            mastered: Rc::new(load_icon(include_bytes!(concat!(
+            mastered: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../assets/warframe/ui/mastered.png"
             )))?),
-            subsumed: Rc::new(load_icon(include_bytes!(concat!(
+            subsumed: std::sync::Arc::new(load_icon(include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../../assets/warframe/ui/helminth.png"
             )))?),
@@ -89,8 +101,11 @@ pub(in crate::presentation) fn prepare(
         let mut composition = assets.composition.borrow_mut();
         composition.state = None;
         composition.view = None;
-        composition.tree.set_root(empty());
-        composition.tree.update(size, 1.0).expect("empty tooltip");
+        composition.tree.set_root(None).expect("clear tooltip");
+        composition
+            .tree
+            .update_inline(size, 1.0)
+            .expect("empty tooltip");
         return;
     };
     let state = TooltipState {
@@ -114,10 +129,21 @@ pub(in crate::presentation) fn record_surface(
     let composition = assets.composition.borrow();
     scene.record_rendered(
         composition.tree.frame(),
-        &composition.renderer,
+        &composition.renderer.borrow(),
         RasterMode::Replay,
         |_, _| false,
     );
+}
+
+pub(in crate::presentation) fn prepare_rasters(
+    assets: &Assets,
+    repair: &retinue_render::damage::Region,
+) {
+    let mut composition = assets.composition.borrow_mut();
+    let Composition { tree, renderer, .. } = &mut *composition;
+    renderer
+        .borrow_mut()
+        .prepare_for(tree.frame(), RasterMode::Replay, repair);
 }
 
 pub(in crate::presentation) fn draw_prepared(painter: &mut Painter<'_>, assets: &Assets) {
@@ -126,9 +152,25 @@ pub(in crate::presentation) fn draw_prepared(painter: &mut Painter<'_>, assets: 
         return;
     };
     let Composition { tree, renderer, .. } = &mut *composition;
-    let _pass = renderer.host().begin_pass(painter.thread_count());
-    renderer.prepare_for(tree.frame(), RasterMode::Replay, &painter.visible_regions());
-    renderer.draw_with(tree.frame(), painter, row, |_, _| unreachable!());
+    renderer
+        .borrow_mut()
+        .draw_with(tree.frame(), painter, row, |_, _| unreachable!());
+}
+
+pub(in crate::presentation) fn prepare_packet(
+    assets: &Assets,
+    repair: &retinue_render::damage::Region,
+    wake: retinue_render::Wake,
+) -> Result<retinue_render::PacketJob, String> {
+    let composition = assets.composition.borrow();
+    retinue_render::PacketJob::prepare(
+        composition.renderer.clone(),
+        composition.tree.frame(),
+        RasterMode::Replay,
+        repair,
+        wake,
+        |_, _, _| Err("unresolved tooltip ink".into()),
+    )
 }
 
 const fn key_for(id: u64) -> Key {
@@ -145,8 +187,8 @@ struct TooltipState {
 }
 
 struct Composition {
-    tree: ViewTree,
-    renderer: Renderer,
+    tree: InstanceGraph,
+    renderer: Rc<RefCell<Renderer>>,
     state: Option<TooltipState>,
     view: Option<Tooltip>,
 }
@@ -154,8 +196,10 @@ struct Composition {
 impl Default for Composition {
     fn default() -> Self {
         Self {
-            tree: ViewTree::new(empty(), || {}),
-            renderer: Renderer::new(retinue_render::ResidencyPolicy::overlay(0)),
+            tree: InstanceGraph::default(),
+            renderer: Rc::new(RefCell::new(Renderer::new(
+                retinue_render::ResidencyPolicy::overlay(0),
+            ))),
             state: None,
             view: None,
         }
@@ -163,9 +207,14 @@ impl Default for Composition {
 }
 
 impl Composition {
-    fn update(&mut self, state: TooltipState, assets: &Assets, font: &Rc<CachedFont>) {
+    fn update(
+        &mut self,
+        state: TooltipState,
+        assets: &Assets,
+        font: &Rc<CachedFont>,
+    ) -> retinue_ui::ir::Work {
         if self.state.as_ref() == Some(&state) {
-            return;
+            return Default::default();
         }
         let metrics = Metrics::new(&state, font);
         let view = self.view.get_or_insert_with(|| {
@@ -173,31 +222,40 @@ impl Composition {
                 metrics: State::new(metrics),
                 price: State::new(None),
             };
-            self.tree.set_root(tooltip_view::TooltipView {
-                metrics: view.metrics.clone(),
-                price: view.price.clone(),
-                style: TextStyle::new(font.clone(), 19.0, Color::rgb(0xbea966)),
-                images: [
-                    assets.platinum.clone().into(),
-                    assets.owned.clone().into(),
-                    assets.mastered.clone().into(),
-                    assets.subsumed.clone().into(),
-                ],
-            });
+            let root = self
+                .tree
+                .mount_view(
+                    tooltip_view::TooltipView {
+                        metrics: view.metrics.clone(),
+                        price: view.price.clone(),
+                        style: TextStyle::new(font.clone(), 19.0, Color::rgb(0xbea966)),
+                        images: [
+                            assets.platinum.clone().into(),
+                            assets.owned.clone().into(),
+                            assets.mastered.clone().into(),
+                            assets.subsumed.clone().into(),
+                        ],
+                    },
+                    Default::default(),
+                )
+                .expect("valid tooltip view");
+            self.tree.set_root(Some(root)).expect("valid tooltip root");
             view
         });
         view.metrics.set(metrics);
         view.price.set(state.price.clone());
         // Native Scaleform coordinates already include the game's physical scale.
-        self.tree
-            .update(state.size, 1.0)
+        let work = self
+            .tree
+            .update_inline(state.size, 1.0)
             .expect("valid tooltip view");
         self.state = Some(state);
+        work
     }
 
     #[cfg(test)]
     fn bounds(&self, key: Key) -> Option<retinue_ui::scene::Geometry> {
-        self.tree.geometry(self.tree.unique(key).unwrap()?)
+        self.tree.named_bounds(key).unwrap()
     }
 }
 
@@ -292,8 +350,8 @@ mod tests {
 
     #[test]
     fn composed_row_keeps_native_anchors_and_removes_unlisted_price() {
-        use retinue_render::painter::{GlyphCache, load_overlay_font};
-        let font = Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap());
+        use retinue_render::painter::load_overlay_font;
+        let font = Rc::new(load_overlay_font().unwrap());
         let assets = Assets::load().unwrap();
         for size in [(1920, 1080), (2560, 1440), (2560, 1600), (3840, 2160)] {
             let sample = fixture(size);
@@ -353,8 +411,8 @@ mod tests {
 
     #[test]
     fn tooltip_motion_reuses_paint_and_price_updates_only_rerecord_text() {
-        use retinue_render::painter::{GlyphCache, load_overlay_font};
-        let font = Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap());
+        use retinue_render::painter::load_overlay_font;
+        let font = Rc::new(load_overlay_font().unwrap());
         let assets = Assets::load().unwrap();
         for size in [(1920, 1080), (2560, 1440), (3840, 2160)] {
             let (row, scale) = tooltip_bounds(&fixture(size), size).unwrap();
@@ -371,12 +429,13 @@ mod tests {
             composition.update(state.clone(), &assets, &font);
             assert_eq!(composition.tree.scene().stats.recordings, 0);
             assert_eq!(composition.tree.scene().stats.layout_computations, 0);
+            let price = composition.tree.unique(key_for(2)).unwrap().unwrap();
             state.price = Some("9".into());
-            composition.update(state, &assets, &font);
+            let work = composition.update(state, &assets, &font);
+            assert_eq!(work.bindings_emitted, 1);
             assert_eq!(composition.tree.scene().stats.recordings, 1);
             assert_eq!(composition.tree.scene().stats.layout_computations, 0);
-            assert_eq!(composition.tree.stats.bodies, 0);
-            assert_eq!(composition.tree.stats.projected, 1);
+            assert_eq!(composition.tree.unique(key_for(2)).unwrap(), Some(price));
         }
     }
 

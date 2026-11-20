@@ -2,8 +2,7 @@ use super::*;
 use crate::data::foundry::Descriptor;
 use crate::presentation::widgets::AssetImage;
 use retinue_render::{painter::RasterImage, resources::ResourceCache, thumbnails::Key};
-use retinue_ui::prelude::*;
-use retinue_ui::runtime::ViewTree;
+use retinue_ui::{authoring::*, environment::Environment, ir::InstanceGraph};
 
 fn asset() -> Asset {
     Asset {
@@ -52,9 +51,20 @@ fn image_demand_is_shared_and_released_with_the_view() {
 #[test]
 fn asynchronous_renditions_update_only_image_content_and_keep_stale_pixels() {
     let store = ImageStore::default();
-    let mut tree = ViewTree::new(AssetImage::new(Some(&asset()), 32).frame(80.0, 80.0), || {});
-    tree.environment().provide(store.clone());
-    tree.update((100, 100), 1.0).unwrap();
+    let mut tree = InstanceGraph::default();
+    let environment = Environment::default();
+    environment.provide(store.clone());
+    let root = tree
+        .mount_body(
+            |_| {
+                compose(AssetImage::new(Some(&asset()), 32))
+                    .frame(Frame::new().width(80.0).height(80.0))
+            },
+            environment,
+        )
+        .unwrap();
+    tree.set_root(Some(root)).unwrap();
+    tree.advance((100, 100), 1.0, None).unwrap();
     let mut media = Media::default();
     assert_eq!(store.assets().len(), 1);
     assert!(store.requests(&media).is_empty());
@@ -65,14 +75,15 @@ fn asynchronous_renditions_update_only_image_content_and_keep_stale_pixels() {
     let image = pixels(&mut cache, &first[0], 130);
     media.accept(&[(first[0].key, image)], &first);
     assert!(store.publish(&media));
-    assert!(tree.needs_update());
+    assert!(tree.has_pending_inputs());
+    let update = tree.advance((100, 100), 1.0, None).unwrap();
     assert_ne!(
-        tree.update((100, 100), 1.0).unwrap(),
-        retinue_render::damage::Damage::None
+        update.completion.unwrap(),
+        std::task::Poll::Ready(retinue_render::damage::Damage::None)
     );
-    assert_eq!(tree.stats.mounted, 0);
+    assert_eq!(update.work.instances_mounted, 0);
     assert!(!store.publish(&media));
-    assert!(!tree.needs_update());
+    assert!(!tree.has_pending_inputs());
 
     let lease = store.active().pop().unwrap();
     let previous = lease.image.pixels().unwrap();
@@ -87,8 +98,13 @@ fn asynchronous_renditions_update_only_image_content_and_keep_stale_pixels() {
     assert!(store.publish(&media));
     assert!(lease.image.pixels().as_ref() != Some(&previous));
     assert!(lease.image.is_fresh());
-    tree.update((100, 100), 1.0).unwrap();
-    assert_eq!(tree.stats.mounted, 0);
+    assert_eq!(
+        tree.advance((100, 100), 1.0, None)
+            .unwrap()
+            .work
+            .instances_mounted,
+        0
+    );
     drop(lease);
     drop(tree);
     assert!(store.requests(&media).is_empty());

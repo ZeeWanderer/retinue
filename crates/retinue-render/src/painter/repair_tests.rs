@@ -5,6 +5,68 @@ use crate::{
 };
 
 #[test]
+fn seeding_replaces_alpha_and_retains_a_dropped_source() {
+    for threads in [1, 2, 4] {
+        let source = RasterImage::from_rgba(image::RgbaImage::from_fn(32, 16, |x, _| {
+            image::Rgba([80, 180, 240, (x * 8) as u8])
+        }))
+        .unwrap();
+        let expected = source.native.pixels().to_vec();
+        let mut pixels = vec![255; expected.len()];
+        let mut painter =
+            Painter::with_threads(&mut pixels, 32, 16, NonZeroU32::new(threads).unwrap()).unwrap();
+        painter.seed_image(&source);
+        drop(source);
+        painter.finish().unwrap();
+        assert_eq!(pixels, expected);
+    }
+}
+
+#[test]
+fn zero_radius_fill_replaces_only_clipped_translated_pixels() {
+    for threads in [1, 2, 4] {
+        let mut pixels = vec![0; 32 * 24 * 4];
+        let mut painter =
+            Painter::with_threads(&mut pixels, 32, 24, NonZeroU32::new(threads).unwrap()).unwrap();
+        painter.repair(&Region::new([
+            Rect {
+                x: 2,
+                y: 3,
+                width: 6,
+                height: 8,
+            },
+            Rect {
+                x: 20,
+                y: 12,
+                width: 5,
+                height: 6,
+            },
+        ]));
+        painter.translated((-2, 0), |p| {
+            p.fill_rounded_rect(5, 5, 21, 10, 0, [60, 100, 180, 255])
+        });
+        painter.finish().unwrap();
+        for y in 0..24 {
+            for x in 0..32 {
+                let filled = (3..24).contains(&x)
+                    && (5..15).contains(&y)
+                    && (((2..8).contains(&x) && (3..11).contains(&y))
+                        || ((20..25).contains(&x) && (12..18).contains(&y)));
+                let i = (y * 32 + x) * 4;
+                assert_eq!(
+                    &pixels[i..i + 4],
+                    if filled {
+                        &[60, 100, 180, 255]
+                    } else {
+                        &[0; 4]
+                    }
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn rounded_edge_clipping_has_only_native_colour_quantization() {
     for threads in [1, 2, 4] {
         let mut outputs = Vec::new();
@@ -157,7 +219,7 @@ fn repair_uses_buffer_coordinates_inside_translated_viewports() {
 
 #[test]
 fn sparse_repair_preserves_holes_alpha_glyphs_images_and_rotating_buffers() {
-    let font = load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap();
+    let font = load_overlay_font().unwrap();
     let image = RasterImage::from_rgba(RgbaImage::from_fn(33, 27, |x, y| {
         image::Rgba([(x * 7) as u8, (y * 8) as u8, 175, 127])
     }))
@@ -204,13 +266,15 @@ fn sparse_repair_preserves_holes_alpha_glyphs_images_and_rotating_buffers() {
                 (px(12.0) as i32, -(px(5.0) as i32)),
                 |p| {
                     p.draw_image(&image, px(6.0), px(40.0), px(260.0), px(135.0));
-                    p.draw_text(
-                        &font,
-                        px(3.0),
-                        px(43.0),
-                        22.0 * scale,
-                        "Repair clipped text",
-                        [220, 240, 230, 210],
+                    let run =
+                        crate::text::fixture::run(&font, "Repair clipped text", 22.0 * scale, None);
+                    let face = crate::text::PreparedFont::new(run.font(), run.size()).unwrap();
+                    p.draw_glyph_run(
+                        &face,
+                        &run,
+                        (px(3.0).into(), px(43.0).into()),
+                        1.0,
+                        crate::Color::rgba(230, 240, 220, 210),
                     );
                     p.draw_ring(px(60.0), px(120.0), px(44.0), px(6.0), [200, 80, 30, 160]);
                 },
@@ -251,7 +315,7 @@ fn sparse_repair_preserves_holes_alpha_glyphs_images_and_rotating_buffers() {
                 p.repair(&plan.repair);
                 draw(&mut p, revision);
                 p.finish().unwrap();
-                tracker.submitted(index);
+                tracker.submitted(index, plan.ticket);
                 let mut expected = vec![0; before.len()];
                 let mut p = Painter::with_threads(
                     &mut expected,

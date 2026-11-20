@@ -19,7 +19,7 @@ fn deferred_items_use_latest_inputs_and_converge_without_retaining_obsolete_prog
         let initial: Vec<_> = (0..3)
             .map(|i| item(i, 0, (i as i32 * 40, 10), scale))
             .collect();
-        let weak = Rc::downgrade(initial[2].program.commands());
+        let weak = Arc::downgrade(initial[2].program.commands());
         frame.replace(SIZE, scale, initial, Vec::new()).unwrap();
         let mut cached = Renderer::new(ResidencyPolicy::desktop(65536));
         cached.set_host(host.clone());
@@ -113,7 +113,7 @@ fn canceled_reservations_unblock_unchanged_items() {
     assert_eq!(renderer.stats.prepared_rasters, 1);
     assert_eq!(renderer.stats.deferred_preparations, 1);
     assert_eq!(renderer.stats.rejected_rasters, 1);
-    let mut chunks = frame.chunks.clone();
+    let mut chunks = frame.chunks.to_vec();
     chunks[1].set_pixels((1000, 0), viewport());
     frame.replace(SIZE, 1.0, chunks, Vec::new()).unwrap();
     paint(&frame, &mut renderer, RasterMode::Explicit);
@@ -162,7 +162,7 @@ fn deferred_layer_repair_is_not_failure_or_a_cooldown() {
     let mut changed = item(1, 1, (10, 10), 1.0);
     changed.cache = CachePolicy::Never;
     frame
-        .replace(SIZE, 1.0, vec![changed], frame.groups.clone())
+        .replace(SIZE, 1.0, vec![changed], frame.groups.to_vec())
         .unwrap();
     {
         let _pass = host.begin_pass(0);

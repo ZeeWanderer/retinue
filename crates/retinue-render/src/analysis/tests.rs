@@ -1,6 +1,6 @@
 use super::*;
 use crate::{Bounds, Color};
-use std::rc::Rc;
+use std::sync::Arc;
 
 fn fill(bounds: Bounds, color: u32) -> Command {
     Command::Fill {
@@ -13,9 +13,9 @@ fn fill(bounds: Bounds, color: u32) -> Command {
 fn group(color: u32, offset: (f32, f32), clip: Bounds) -> Command {
     Command::Translate {
         offset,
-        commands: Rc::new(vec![Command::Clip {
+        commands: Arc::new(vec![Command::Clip {
             bounds: clip,
-            commands: Rc::new(vec![
+            commands: Arc::new(vec![
                 fill(Bounds::new(0.0, 0.0, 200.0, 100.0), 0x202020),
                 fill(Bounds::new(12.0, 18.0, 20.0, 16.0), color),
             ]),
@@ -71,7 +71,7 @@ fn normalized_fragments_preserve_child_damage() {
                     1u64,
                     (220.0, 120.0),
                     scale,
-                    Rc::new(vec![group(color, (8.0, 4.0), clip)]),
+                    Arc::new(vec![group(color, (8.0, 4.0), clip)]),
                 )
                 .unwrap(),
             context: Default::default(),

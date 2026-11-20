@@ -1,5 +1,10 @@
 use std::time::{Duration, Instant};
 
+#[cfg(any(feature = "desktop", feature = "overlay", test))]
+mod preparation;
+#[cfg(any(feature = "desktop", feature = "overlay"))]
+pub(crate) use preparation::FramePreparation;
+
 #[cfg(feature = "overlay")]
 pub use smithay_client_toolkit::reexports::calloop::ping::{Ping, PingSource, make_ping};
 

@@ -1,8 +1,8 @@
 use super::{
-    Activation, Button, Event, EventContext, FocusPolicy, Key, Phase, PointerId, PointerPhase,
-    Requests, Target,
+    Activation, Button, Event, EventContext, FocusPolicy, HitShape, Key, Phase, PointerId,
+    PointerPhase, Requests, Target,
 };
-use crate::{focus_visible::FocusVisible, runtime::ViewId};
+use crate::{Bounds, focus_visible::FocusVisible, runtime::ViewId};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -10,6 +10,8 @@ pub struct Dispatch {
     pub handled: bool,
     pub focus_changed: bool,
     pub capture_changed: bool,
+    /// Physical pointer hit, independent of the control that captured the event.
+    pub pointer_hit: Option<ViewId>,
     pub target: Option<ViewId>,
     pub activated: Option<ViewId>,
 }
@@ -20,8 +22,14 @@ struct Pointer {
     hit: Option<ViewId>,
 }
 
+struct Hit {
+    bounds: Bounds,
+    target: usize,
+}
+
 pub struct Router {
     targets: Vec<Target>,
+    hits: Vec<Hit>,
     index: HashMap<ViewId, usize>,
     focus: Option<ViewId>,
     capture: HashMap<PointerId, ViewId>,
@@ -43,6 +51,7 @@ impl Default for Router {
     fn default() -> Self {
         Self {
             targets: Vec::new(),
+            hits: Vec::new(),
             index: HashMap::default(),
             focus: None,
             capture: HashMap::default(),
@@ -76,21 +85,87 @@ impl Router {
         &self.targets
     }
 
+    pub(crate) fn can_patch_handler(
+        &self,
+        id: ViewId,
+        enabled: bool,
+        input: &super::InputOptions,
+    ) -> bool {
+        self.target(id).is_some_and(|target| {
+            target.enabled == enabled
+                && target.input.focus == input.focus
+                && target.input.interaction == input.interaction
+                && target.input.shape == input.shape
+                && target.input.activation == input.activation
+                && target.input.blocks_when_disabled == input.blocks_when_disabled
+        })
+    }
+
+    pub(crate) fn patch_handler(&mut self, id: ViewId, handler: Option<super::EventHandler>) {
+        self.targets[self.index[&id]].input.handler = handler;
+    }
+
     pub fn hit_test(&self, position: (f32, f32)) -> Option<ViewId> {
         if let Some(pointer) = self.pointers.values().find(|p| p.position == position) {
             return pointer.hit;
         }
         #[cfg(test)]
         self.scans.set(self.scans.get() + 1);
-        Self::scan(&self.targets, position)
+        Self::scan(&self.targets, &self.hits, position)
     }
 
-    fn scan(targets: &[Target], position: (f32, f32)) -> Option<ViewId> {
-        targets
-            .iter()
-            .rev()
-            .find(|target| target.contains(position))
-            .map(|target| target.id)
+    fn scan(targets: &[Target], hits: &[Hit], position: (f32, f32)) -> Option<ViewId> {
+        hits.iter().rev().find_map(|hit| {
+            if !HitShape::Rectangle.contains(hit.bounds, position) {
+                return None;
+            }
+            let target = &targets[hit.target];
+            (target.input.shape == HitShape::Rectangle || target.contains(position))
+                .then_some(target.id)
+        })
+    }
+
+    fn rebuild_hits(&mut self) {
+        self.hits.clear();
+        for (index, target) in self.targets.iter().enumerate() {
+            if !target.enabled && !target.input.blocks_when_disabled {
+                continue;
+            }
+            let mut append = |bounds: Bounds, clip: Bounds| {
+                if ![
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    clip.x,
+                    clip.y,
+                    clip.width,
+                    clip.height,
+                ]
+                .into_iter()
+                .all(f32::is_finite)
+                {
+                    return;
+                }
+                let bounds = bounds.intersection(clip);
+                if bounds.width > 0.0 && bounds.height > 0.0 {
+                    self.hits.push(Hit {
+                        bounds,
+                        target: index,
+                    });
+                }
+            };
+            if let Some(regions) = &target.regions {
+                for region in regions.iter() {
+                    append(region.bounds, region.clip);
+                }
+            } else {
+                append(target.bounds, target.clip);
+            }
+        }
+        if self.targets.is_empty() {
+            self.hits = Vec::new();
+        }
     }
 
     pub fn update(&mut self, targets: Vec<Target>) {
@@ -103,6 +178,7 @@ impl Router {
             });
         if placement_only {
             self.targets = targets;
+            self.rebuild_hits();
             self.refresh_hover();
             self.publish_status();
             return;
@@ -147,12 +223,30 @@ impl Router {
             }
         }
         self.targets = targets;
+        self.rebuild_hits();
         self.index = index;
         self.refresh_hover();
         for target in &self.targets {
             self.publish_target(target);
         }
         self.status_dirty.clear();
+    }
+
+    pub(crate) fn place_targets<I: ExactSizeIterator<Item = super::HitRegion>>(
+        &mut self,
+        placements: impl Iterator<Item = (usize, I)>,
+    ) -> bool {
+        let mut changed = false;
+        for (index, regions) in placements {
+            self.targets[index].place(regions);
+            changed = true;
+        }
+        if changed {
+            self.rebuild_hits();
+            self.refresh_hover();
+            self.publish_status();
+        }
+        changed
     }
 
     pub fn focus(&mut self, id: Option<ViewId>) -> bool {
@@ -168,6 +262,7 @@ impl Router {
         let old_capture = event.pointer().and_then(|pointer| self.captured(pointer));
         let old_capture_count = self.capture.len();
         let mut delivered = None;
+        let mut pointer_hit = None;
         let mut activated = None;
         let handled = match event {
             Event::WindowFocused(active) => {
@@ -195,6 +290,9 @@ impl Router {
                 let hit = (!self.outside.contains(id))
                     .then(|| self.hit_test(*position))
                     .flatten();
+                if !matches!(phase, PointerPhase::Cancel | PointerPhase::Leave) {
+                    pointer_hit = hit;
+                }
                 let changed = if matches!(phase, PointerPhase::Cancel | PointerPhase::Leave) {
                     self.pointers.remove(id).is_some_and(|p| p.hit.is_some())
                 } else if !self.outside.contains(id) {
@@ -312,6 +410,7 @@ impl Router {
             capture_changed: old_capture_count != self.capture.len()
                 || old_capture != event.pointer().and_then(|pointer| self.captured(pointer)),
             target: delivered,
+            pointer_hit,
             activated,
         }
     }
@@ -442,9 +541,7 @@ impl Router {
         let order: Vec<_> = self
             .targets
             .iter()
-            .filter(|t| {
-                t.enabled && t.input.focus.tab_stop() && t.clip.width > 0.0 && t.clip.height > 0.0
-            })
+            .filter(|t| t.enabled && t.input.focus.tab_stop() && t.visible())
             .map(|t| t.id)
             .collect();
         if order.is_empty() {
@@ -503,7 +600,7 @@ impl Router {
         #[cfg(test)]
         self.scans.set(self.scans.get() + self.pointers.len());
         for pointer in self.pointers.values_mut() {
-            pointer.hit = Self::scan(&self.targets, pointer.position);
+            pointer.hit = Self::scan(&self.targets, &self.hits, pointer.position);
         }
         self.update_hover();
     }

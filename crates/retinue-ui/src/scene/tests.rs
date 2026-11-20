@@ -1,9 +1,26 @@
 use super::layout_protocol as lp;
 use super::*;
 use crate::drawing::PixelCanvas as Canvas;
+use crate::drawing::text::{LabelAlignment, label_commands};
 use retinue_render::{damage::AgeRepaintTracker, painter::Painter};
 use std::time::{Duration, Instant};
 use taffy::Dimension;
+
+fn label(
+    font: &retinue_render::painter::CachedFont,
+    bounds: Bounds,
+    size: f32,
+    text: &str,
+    color: Color,
+    alignment: LabelAlignment,
+) -> Command {
+    Command::Translate {
+        offset: (0.0, 0.0),
+        commands: std::sync::Arc::new(
+            label_commands(font, bounds, size, text, color, alignment).unwrap(),
+        ),
+    }
+}
 
 #[test]
 fn changing_only_a_hint_updates_frame_groups_without_rerecording() {
@@ -18,7 +35,7 @@ fn changing_only_a_hint_updates_frame_groups_without_rerecording() {
         root.cache_hint = hint;
         root.paint = Some(Paint::commands(
             1,
-            Rc::new(vec![Command::Fill {
+            std::sync::Arc::new(vec![Command::Fill {
                 bounds: Bounds::new(0.0, 0.0, 20.0, 20.0),
                 radius: 0.0,
                 color: Color::rgb(0x345678),
@@ -40,10 +57,10 @@ fn changing_only_a_hint_updates_frame_groups_without_rerecording() {
 
 #[test]
 fn local_draw_reductions_match_full_replay_at_fractional_scale() {
-    use retinue_render::painter::{GlyphCache, load_overlay_font};
+    use retinue_render::painter::load_overlay_font;
     use std::rc::Rc;
-    let font = Rc::new(load_overlay_font(&GlyphCache::new(8192)).unwrap());
-    let commands = Rc::new(vec![
+    let font = Rc::new(load_overlay_font().unwrap());
+    let commands = std::sync::Arc::new(vec![
         Command::Fill {
             bounds: Bounds::new(0.0, 0.0, 120.0, 80.0),
             radius: 8.0,
@@ -56,28 +73,28 @@ fn local_draw_reductions_match_full_replay_at_fractional_scale() {
         },
         Command::Clip {
             bounds: Bounds::new(95.0, 55.0, 20.0, 20.0),
-            commands: Rc::new(vec![Command::Text {
-                bounds: Bounds::new(95.0, 55.0, 100.0, 20.0),
-                size: 13.0,
-                text: "Clipped".into(),
-                font: font.clone(),
-                color: Color::rgb(0xffffff),
-                align: TextAlignment::Top,
-            }]),
+            commands: std::sync::Arc::new(vec![label(
+                &font,
+                Bounds::new(95.0, 55.0, 100.0, 20.0),
+                13.0,
+                "Clipped",
+                Color::rgb(0xffffff),
+                LabelAlignment::Top,
+            )]),
         },
         Command::Translate {
             offset: (0.35, 0.35),
-            commands: Rc::new(vec![Command::Translate {
+            commands: std::sync::Arc::new(vec![Command::Translate {
                 offset: (0.35, 0.35),
-                commands: Rc::new(vec![
-                    Command::Text {
-                        bounds: Bounds::new(-3.0, 2.0, 90.0, 18.0),
-                        size: 13.0,
-                        text: "Partial redraw".into(),
-                        font,
-                        color: Color::rgba(190, 210, 240, 190),
-                        align: TextAlignment::Center,
-                    },
+                commands: std::sync::Arc::new(vec![
+                    label(
+                        &font,
+                        Bounds::new(-3.0, 2.0, 90.0, 18.0),
+                        13.0,
+                        "Partial redraw",
+                        Color::rgba(190, 210, 240, 190),
+                        LabelAlignment::Center,
+                    ),
                     Command::Outline {
                         bounds: Bounds::new(2.0, 2.0, 32.0, 24.0),
                         radius: 4.0,
@@ -107,7 +124,7 @@ fn local_draw_reductions_match_full_replay_at_fractional_scale() {
         scene
             .update(root, (260, 180), scale, RecordingMode::Retained)
             .unwrap();
-        assert!(Rc::ptr_eq(
+        assert!(std::sync::Arc::ptr_eq(
             scene.frame.instances()[0].program.commands(),
             &commands
         ));
@@ -409,7 +426,7 @@ fn rotating_buffers_match_full_paint_after_scroll_reorder_removal_and_updates() 
                 Damage::Full.bounds(size).unwrap(),
             );
             assert_eq!(buffers[frame % 3], oracle, "scale={scale}, frame={frame}");
-            tracker.submitted();
+            tracker.submitted(repair.ticket);
         }
     }
 }
@@ -528,7 +545,7 @@ fn scrolling_cached_items_repairs_only_changed_regions_and_survives_reorder() {
             assert!(
                 cached.residency_stats().warm_bytes <= cached.residency_stats().warm_limit_bytes
             );
-            tracker.submitted();
+            tracker.submitted(repair.ticket);
         }
     }
 }
@@ -540,7 +557,7 @@ fn nested_live_paint_is_not_raster_cached() {
     item.paint = Some(Paint::new(key.value, move |_| {
         vec![Command::Clip {
             bounds: Bounds::new(0.0, 0.0, 20.0, 20.0),
-            commands: Rc::new(vec![Command::External {
+            commands: std::sync::Arc::new(vec![Command::External {
                 bounds: Bounds::new(0.0, 0.0, 20.0, 20.0),
                 key,
             }]),
@@ -560,7 +577,7 @@ fn nested_live_paint_is_not_raster_cached() {
 fn command_canvas_matches_native_nested_clips_and_resource_images() {
     use retinue_render::{
         image,
-        painter::{GlyphCache, RasterImage, load_overlay_font},
+        painter::{RasterImage, load_overlay_font},
         resources::ResourceCache,
     };
     for scale in [1.0, 1.25, 2.0] {
@@ -572,7 +589,7 @@ fn command_canvas_matches_native_nested_clips_and_resource_images() {
             }))
             .unwrap(),
         );
-        let font = Rc::new(load_overlay_font(&GlyphCache::new(8192)).unwrap());
+        let font = Rc::new(load_overlay_font().unwrap());
         let rect = Rect {
             x: 5,
             y: 7,
@@ -627,6 +644,11 @@ fn command_canvas_matches_native_nested_clips_and_resource_images() {
         renderer.draw_with(scene.frame(), &mut p, frame, |_, _| unreachable!());
         p.finish().unwrap();
         let mut p = Painter::new(&mut expected, 320, 240).unwrap();
+        let shaped = crate::drawing::text::font::TextFace::for_font(&font)
+            .unwrap()
+            .shape("Relic", 13.0)
+            .unwrap();
+        let prepared_text = shaped.prepare().unwrap();
         p.viewport(
             frame,
             ((3.25 * scale).round() as i32, (9.1 * scale).round() as i32),
@@ -643,12 +665,18 @@ fn command_canvas_matches_native_nested_clips_and_resource_images() {
                         },
                         (0, 0),
                         |p| {
-                            p.draw_text_vertically_centered(
-                                font.as_ref(),
-                                retinue_render::painter::TextLine::new(0, 12, 25),
-                                13.0 * scale,
-                                "Relic",
-                                [240, 230, 220, 255],
+                            prepared_text.draw(
+                                p,
+                                (
+                                    f64::from(-3.0 / scale) * f64::from(scale) + 3.0,
+                                    f64::from(
+                                        16.0 / scale
+                                            + (25.0 / scale - shaped.layout().height()) / 2.0,
+                                    ) * f64::from(scale)
+                                        - 4.0,
+                                ),
+                                f64::from(scale),
+                                Color::from_bgra([240, 230, 220, 255]),
                             )
                         },
                     );
@@ -1008,7 +1036,7 @@ fn presentation_patches_match_relayout_with_recycled_buffers() {
                 mismatch.is_none(),
                 "scale={scale}, frame={frame}, pixel={mismatch:?}, repair={repair_region:?}"
             );
-            tracker.submitted();
+            tracker.submitted(repair.ticket);
         }
     }
 }
@@ -1499,11 +1527,11 @@ fn raster_identity_does_not_leak_across_scenes() {
 
 #[test]
 fn image_arrival_and_clipped_glyphs_match_full_replay_during_scroll() {
-    use retinue_render::painter::{GlyphCache, RasterImage, load_overlay_font};
+    use retinue_render::painter::{RasterImage, load_overlay_font};
     use std::rc::Rc;
-    let font = Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap());
+    let font = Rc::new(load_overlay_font().unwrap());
     let images = [
-        Rc::new(
+        std::sync::Arc::new(
             RasterImage::from_rgba(retinue_render::image::RgbaImage::from_pixel(
                 16,
                 16,
@@ -1511,7 +1539,7 @@ fn image_arrival_and_clipped_glyphs_match_full_replay_during_scroll() {
             ))
             .unwrap(),
         ),
-        Rc::new(
+        std::sync::Arc::new(
             RasterImage::from_rgba(retinue_render::image::RgbaImage::from_pixel(
                 16,
                 16,
@@ -1539,14 +1567,14 @@ fn image_arrival_and_clipped_glyphs_match_full_replay_during_scroll() {
                         image: image.clone().into(),
                         fit: ImageFit::Stretch,
                     },
-                    Command::Text {
-                        align: TextAlignment::Top,
-                        bounds: Bounds::new(3.0, 30.0, 75.0, 25.0),
-                        size: 16.0,
-                        text: "Blueprint".into(),
-                        font: font.clone(),
-                        color: Color::rgb(0xffffff),
-                    },
+                    label(
+                        &font,
+                        Bounds::new(3.0, 30.0, 75.0, 25.0),
+                        16.0,
+                        "Blueprint",
+                        Color::rgb(0xffffff),
+                        LabelAlignment::Top,
+                    ),
                 ]
             }));
             child.paint.as_mut().unwrap().cache = CachePolicy::Prefer;

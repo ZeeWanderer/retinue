@@ -2,6 +2,7 @@
 
 pub(crate) mod history;
 mod queued;
+pub use queued::{Frame as QueuedFrame, Work as RenderWork};
 mod snapshot;
 pub use snapshot::Snapshot;
 #[cfg(any(test, feature = "benchmark"))]
@@ -16,7 +17,7 @@ use crate::{
 };
 use history::{History, SlotHistory};
 use std::num::NonZeroU32;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Relocation {
@@ -62,9 +63,10 @@ pub struct Aged {
 /// Commit only after native presentation succeeds. Dropping it leaves the target invalid.
 pub struct Submission {
     pub damage: Region,
+    ticket: crate::damage::Ticket,
     target: Target,
     epoch: u64,
-    snapshot: Option<Rc<Snapshot>>,
+    snapshot: Option<Arc<Snapshot>>,
     #[cfg(any(test, feature = "benchmark"))]
     pub copied_pixels: u64,
     #[cfg(any(test, feature = "benchmark"))]
@@ -96,10 +98,35 @@ impl Buffered {
         threads: NonZeroU32,
         paint: impl FnOnce(&mut Painter<'a>, &Region) -> Result<(), String>,
     ) -> Result<Option<Submission>, String> {
+        let Some(frame) = self.plan_queued(index, size, snapshot, pixels, source, threads)? else {
+            return Ok(None);
+        };
+        frame
+            .execute_with(
+                threads,
+                #[cfg(any(test, feature = "benchmark"))]
+                self.copy_backend,
+                #[cfg(any(test, feature = "benchmark"))]
+                &mut self.copy_workers,
+                paint,
+            )
+            .map(Some)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn plan_queued<'a>(
+        &mut self,
+        index: usize,
+        size: (u32, u32),
+        snapshot: Option<Snapshot>,
+        pixels: &'a mut [u8],
+        source: Option<(usize, &'a [u8])>,
+        threads: NonZeroU32,
+    ) -> Result<Option<QueuedFrame<'a>>, String> {
         let source = source
             .filter(|(from, _)| *from != index)
             .and_then(|(from, pixels)| self.history.at(from).map(|scene| (scene, pixels)));
-        let snapshot = snapshot.map(Rc::new);
+        let snapshot = snapshot.map(Arc::new);
         validate(size, pixels, snapshot.as_deref())?;
         if let Some(snapshot) = &snapshot {
             self.damage
@@ -110,22 +137,17 @@ impl Buffered {
         };
         let previous = self.history.take(index);
         self.damage.failed(index);
-        queued::execute(
+        queued::plan(
             Target::Slot(index),
             self.epoch,
             size,
             snapshot,
             previous.as_deref(),
             source,
-            #[cfg(any(test, feature = "benchmark"))]
-            self.copy_backend,
-            #[cfg(any(test, feature = "benchmark"))]
-            &mut self.copy_workers,
             self.relocation,
             repaint,
             pixels,
             threads,
-            paint,
         )
         .map(Some)
     }
@@ -156,7 +178,7 @@ impl Buffered {
         pixels: &mut [u8],
         paint: impl FnOnce(&mut [u8], &Region) -> Result<(), String>,
     ) -> Result<Option<Submission>, String> {
-        let snapshot = snapshot.map(Rc::new);
+        let snapshot = snapshot.map(Arc::new);
         validate(size, pixels, snapshot.as_deref())?;
         if let Some(snapshot) = &snapshot {
             self.damage
@@ -180,13 +202,24 @@ impl Buffered {
         .map(Some)
     }
 
-    pub fn submitted(&mut self, frame: Submission) {
-        assert_eq!(self.epoch, frame.epoch, "surface changed before submission");
+    pub fn can_submit(&self, frame: &Submission) -> bool {
+        self.epoch == frame.epoch
+            && match frame.target {
+                Target::Slot(index) => self.damage.current(index, frame.ticket),
+                Target::Age => false,
+            }
+    }
+
+    pub fn submitted(&mut self, frame: Submission) -> bool {
+        if !self.can_submit(&frame) {
+            return false;
+        }
         let Target::Slot(index) = frame.target else {
-            panic!("submission belongs to an aged surface");
+            unreachable!()
         };
-        self.damage.submitted(index);
+        self.damage.submitted(index, frame.ticket);
         self.history.submitted(index, frame.snapshot);
+        true
     }
 }
 
@@ -202,12 +235,37 @@ impl Aged {
         threads: NonZeroU32,
         paint: impl FnOnce(&mut Painter<'a>, &Region) -> Result<(), String>,
     ) -> Result<Option<Submission>, String> {
+        let Some(frame) = self.plan_queued(age, size, snapshot, pixels, source, threads)? else {
+            return Ok(None);
+        };
+        frame
+            .execute_with(
+                threads,
+                #[cfg(any(test, feature = "benchmark"))]
+                self.copy_backend,
+                #[cfg(any(test, feature = "benchmark"))]
+                &mut self.copy_workers,
+                paint,
+            )
+            .map(Some)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn plan_queued<'a>(
+        &mut self,
+        age: u8,
+        size: (u32, u32),
+        snapshot: Option<Snapshot>,
+        pixels: &'a mut [u8],
+        source: Option<&'a [u8]>,
+        threads: NonZeroU32,
+    ) -> Result<Option<QueuedFrame<'a>>, String> {
         if self.unsubmitted {
             self.reset();
         }
         let source =
             source.and_then(|pixels| self.history.latest_owned().map(|scene| (scene, pixels)));
-        let snapshot = snapshot.map(Rc::new);
+        let snapshot = snapshot.map(Arc::new);
         validate(size, pixels, snapshot.as_deref())?;
         if let Some(snapshot) = &snapshot {
             self.damage
@@ -217,22 +275,17 @@ impl Aged {
             return Ok(None);
         };
         self.unsubmitted = true;
-        queued::execute(
+        queued::plan(
             Target::Age,
             self.epoch,
             size,
             snapshot,
             self.history.at_age(age),
             source,
-            #[cfg(any(test, feature = "benchmark"))]
-            self.copy_backend,
-            #[cfg(any(test, feature = "benchmark"))]
-            &mut self.copy_workers,
             self.relocation,
             repaint,
             pixels,
             threads,
-            paint,
         )
         .map(Some)
     }
@@ -263,7 +316,7 @@ impl Aged {
         if self.unsubmitted {
             self.reset();
         }
-        let snapshot = snapshot.map(Rc::new);
+        let snapshot = snapshot.map(Arc::new);
         validate(size, pixels, snapshot.as_deref())?;
         if let Some(snapshot) = &snapshot {
             self.damage
@@ -286,19 +339,24 @@ impl Aged {
         .map(Some)
     }
 
-    pub fn submitted(&mut self, frame: Submission) {
-        assert_eq!(self.epoch, frame.epoch, "surface changed before submission");
-        assert!(
-            matches!(frame.target, Target::Age),
-            "submission belongs to a buffered surface"
-        );
-        self.damage.submitted();
+    pub fn can_submit(&self, frame: &Submission) -> bool {
+        self.epoch == frame.epoch
+            && matches!(frame.target, Target::Age)
+            && self.damage.current(frame.ticket)
+    }
+
+    pub fn submitted(&mut self, frame: Submission) -> bool {
+        if !self.can_submit(&frame) {
+            return false;
+        }
+        self.damage.submitted(frame.ticket);
         if let Some(snapshot) = frame.snapshot {
             self.history.submitted(snapshot);
         } else {
             self.history.clear();
         }
         self.unsubmitted = false;
+        true
     }
 }
 
@@ -316,7 +374,7 @@ fn validate(size: (u32, u32), pixels: &[u8], snapshot: Option<&Snapshot>) -> Res
 fn execute(
     target: Target,
     epoch: u64,
-    snapshot: Option<Rc<Snapshot>>,
+    snapshot: Option<Arc<Snapshot>>,
     previous: Option<&Snapshot>,
     relocation: Relocation,
     repaint: crate::damage::Repaint,
@@ -343,6 +401,7 @@ fn execute(
         epoch,
         snapshot,
         damage: repaint.damage,
+        ticket: repaint.ticket,
         #[cfg(any(test, feature = "benchmark"))]
         copied_pixels: plan.as_ref().map_or(0, Plan::copied_pixels),
         #[cfg(any(test, feature = "benchmark"))]

@@ -1,10 +1,10 @@
 use crate::{
     Bounds, CacheHint, CachePolicy, Color, Command, ImageFit, ImageSource, OptimizationContext,
     PaintFrame, PaintGroup, PaintInstance, PaintProgram, ProgramStore, Rect, TextAlignment,
-    painter::{CachedFont, GlyphCache, RasterImage, load_overlay_font},
+    painter::{CachedFont, RasterImage, load_overlay_font},
 };
 use serde::Serialize;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -143,15 +143,15 @@ impl Case {
 }
 
 pub(super) struct Assets {
-    font: Rc<CachedFont>,
+    font: Arc<CachedFont>,
     image: ImageSource,
 }
 
 impl Assets {
     pub fn new() -> Self {
         Self {
-            font: Rc::new(load_overlay_font(&GlyphCache::new(1024 * 1024)).unwrap()),
-            image: Rc::new(
+            font: Arc::new(load_overlay_font().unwrap()),
+            image: Arc::new(
                 RasterImage::render(28, 28, |p| {
                     p.fill_rounded_rect(0, 0, 28, 28, 6, [90, 150, 190, 255]);
                 })
@@ -213,19 +213,14 @@ impl Fixture {
                             color: Color::rgba(65, 190, 60, 200),
                         });
                         for line in 0..3 {
-                            commands.push(Command::Text {
-                                bounds: Bounds::new(
-                                    6.0,
-                                    44.0 + line as f32 * 16.0,
-                                    side - 12.0,
-                                    16.0,
-                                ),
-                                size: 12.0,
-                                text: format!("Item {n}, field {line}"),
-                                font: assets.font.clone(),
-                                color: Color::rgb(0xdde4ed),
-                                align: TextAlignment::Top,
-                            });
+                            commands.push(crate::text::fixture::label(
+                                &assets.font,
+                                &format!("Item {n}, field {line}"),
+                                12.0,
+                                Bounds::new(6.0, 44.0 + line as f32 * 16.0, side - 12.0, 16.0),
+                                TextAlignment::Top,
+                                Color::rgb(0xdde4ed),
+                            ));
                         }
                         if state >= 2 {
                             commands.push(Command::Image {
@@ -240,9 +235,9 @@ impl Fixture {
                             n as u64 + 1,
                             (side, height),
                             case.scale,
-                            Rc::new(vec![Command::Translate {
+                            Arc::new(vec![Command::Translate {
                                 offset: (0.0, 0.0),
-                                commands: Rc::new(commands),
+                                commands: Arc::new(commands),
                             }]),
                         )
                         .unwrap()

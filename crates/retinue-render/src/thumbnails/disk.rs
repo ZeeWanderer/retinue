@@ -18,6 +18,7 @@ pub struct DiskCache {
     epoch: Option<u64>,
     origins: HashMap<[u8; 32], [u8; 32]>,
     stored: HashSet<([u8; 32], Key)>,
+    cpu: crate::work::CpuStage,
 }
 
 impl DiskCache {
@@ -27,7 +28,13 @@ impl DiskCache {
             epoch: None,
             origins: HashMap::new(),
             stored: HashSet::new(),
+            cpu: crate::work::CpuStage::default(),
         }
+    }
+
+    pub(super) fn with_cpu(mut self, cpu: crate::work::CpuStage) -> Self {
+        self.cpu = cpu;
+        self
     }
 
     pub fn begin_batch(&mut self, requests: &[Request]) -> io::Result<()> {
@@ -119,20 +126,11 @@ impl DiskCache {
                 Err(error) => return Err(error),
             }
         };
-        let decoded = (|| {
-            let mut reader =
-                image::ImageReader::with_format(io::Cursor::new(bytes), image::ImageFormat::Png);
-            let mut limits = image::Limits::default();
-            limits.max_alloc = Some(32 * 1024 * 1024);
-            limits.max_image_width = Some(request.key.width);
-            limits.max_image_height = Some(request.key.height);
-            reader.limits(limits);
-            let image = reader.decode().map_err(io::Error::other)?;
-            if image.width() != request.key.width && image.height() != request.key.height {
-                return Err(io::Error::other("invalid thumbnail dimensions"));
-            }
-            RasterImage::from_rgba(image.into_rgba8()).map_err(io::Error::other)
-        })();
+        let key = request.key;
+        let decoded = self
+            .cpu
+            .run(move || Ok(decode(bytes, key)))
+            .map_err(io::Error::other)?;
         match decoded {
             Ok(image) => {
                 self.stored.insert((request.origin.unwrap(), request.key));
@@ -165,20 +163,25 @@ impl DiskCache {
                 return Ok(false);
             }
         }
-        let pixels = image.to_rgba().map_err(io::Error::other)?;
+        let source = image.pixel_lease();
+        let (width, height) = image.dimensions();
+        let encoded = self
+            .cpu
+            .run(move || {
+                let pixels = crate::painter::straight_rgba(source.as_ref(), width, height)?;
+                let mut encoded = Vec::new();
+                PngEncoder::new_with_quality(
+                    &mut encoded,
+                    CompressionType::Fast,
+                    FilterType::Adaptive,
+                )
+                .write_image(&pixels, width, height, image::ExtendedColorType::Rgba8)
+                .map_err(|error| error.to_string())?;
+                Ok(encoded)
+            })
+            .map_err(io::Error::other)?;
         let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
-        PngEncoder::new_with_quality(
-            file.as_file_mut(),
-            CompressionType::Fast,
-            FilterType::Adaptive,
-        )
-        .write_image(
-            &pixels,
-            pixels.width(),
-            pixels.height(),
-            image::ExtendedColorType::Rgba8,
-        )
-        .map_err(io::Error::other)?;
+        file.write_all(&encoded)?;
         let _lock = lock(&self.root)?;
         if !self.current(request)? {
             return Ok(false);
@@ -224,6 +227,21 @@ impl DiskCache {
         }
         Ok(())
     }
+}
+
+fn decode(bytes: Vec<u8>, key: Key) -> Result<RasterImage, String> {
+    let mut reader =
+        image::ImageReader::with_format(io::Cursor::new(bytes), image::ImageFormat::Png);
+    let mut limits = image::Limits::default();
+    limits.max_alloc = Some(32 * 1024 * 1024);
+    limits.max_image_width = Some(key.width);
+    limits.max_image_height = Some(key.height);
+    reader.limits(limits);
+    let image = reader.decode().map_err(|error| error.to_string())?;
+    if image.width() != key.width && image.height() != key.height {
+        return Err("invalid thumbnail dimensions".into());
+    }
+    RasterImage::from_rgba(image.into_rgba8()).map_err(|error| error.to_string())
 }
 
 fn hex(bytes: &[u8]) -> String {

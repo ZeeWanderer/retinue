@@ -19,7 +19,7 @@ enum Slot {
 }
 
 #[derive(Default)]
-pub(crate) struct Owned(HashMap<Slot, Box<dyn Any>>);
+pub(crate) struct Owned(HashMap<(ViewId, Slot), Box<dyn Any>>);
 
 pub struct ViewContext<'a> {
     pub(crate) id: ViewId,
@@ -33,6 +33,45 @@ pub struct ViewContext<'a> {
 }
 
 impl ViewContext<'_> {
+    pub(crate) fn reborrow(&mut self) -> ViewContext<'_> {
+        ViewContext {
+            id: self.id,
+            environment: self.environment,
+            owned: self.owned,
+            mutation: self.mutation,
+            time: self.time,
+            deadlines: self.deadlines,
+            frame_interval: self.frame_interval,
+            motion_enabled: self.motion_enabled,
+        }
+    }
+
+    pub(crate) fn scoped<T>(
+        &mut self,
+        id: ViewId,
+        body: impl FnOnce(&mut ViewContext<'_>) -> T,
+    ) -> T {
+        self.with_scope(id, self.environment, body)
+    }
+
+    pub(crate) fn with_scope<T>(
+        &mut self,
+        id: ViewId,
+        environment: &Environment,
+        body: impl FnOnce(&mut ViewContext<'_>) -> T,
+    ) -> T {
+        body(&mut ViewContext {
+            id,
+            environment,
+            owned: self.owned,
+            mutation: self.mutation,
+            time: self.time,
+            deadlines: self.deadlines,
+            frame_interval: self.frame_interval,
+            motion_enabled: self.motion_enabled,
+        })
+    }
+
     pub fn playback<P: crate::motion::MotionProgram>(
         &mut self,
         playback: &crate::motion::Playback<P>,
@@ -137,7 +176,7 @@ impl ViewContext<'_> {
     fn retain<T: Clone + 'static>(&mut self, slot: Slot, initialize: impl FnOnce() -> T) -> T {
         self.owned
             .0
-            .entry(slot)
+            .entry((self.id, slot))
             .or_insert_with(|| Box::new(untracked(initialize)))
             .downcast_ref::<T>()
             .expect("a retained field changed type without changing view identity")

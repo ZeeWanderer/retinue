@@ -163,7 +163,11 @@ impl Content {
             notes: Default::default(),
         }
     }
-    pub fn view(&self, metrics: State<Metrics>, state: State<PageState>) -> Element {
+    pub fn view(
+        &self,
+        metrics: State<Metrics>,
+        state: State<PageState>,
+    ) -> impl View + Clone + PartialEq + use<> {
         content_view::ContentView {
             metrics,
             state,
@@ -172,14 +176,12 @@ impl Content {
             offset: self.offset.clone(),
             height: self.height.clone(),
         }
-        .into_element()
     }
-    pub fn previews_view(&self, metrics: State<Metrics>) -> Element {
+    pub fn previews_view(&self, metrics: State<Metrics>) -> impl View + Clone + PartialEq + use<> {
         previews_view::PreviewsView {
             metrics,
             frames: self.previews.clone(),
         }
-        .into_element()
     }
     pub fn sync(
         &mut self,

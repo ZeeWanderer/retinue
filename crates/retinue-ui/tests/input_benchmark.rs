@@ -20,6 +20,7 @@ fn targets(count: usize, observed: bool) -> Vec<Target> {
                 parent: None,
                 bounds,
                 clip: bounds,
+                regions: None,
                 enabled: true,
                 input: InputOptions {
                     interaction: observed.then(Interaction::default),

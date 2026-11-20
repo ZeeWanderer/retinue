@@ -16,7 +16,9 @@ mod geometry;
 mod identity;
 pub mod painter;
 pub mod resources;
+pub mod text;
 pub mod thumbnails;
+pub mod work;
 
 pub mod relocate;
 pub mod surface;
@@ -52,7 +54,6 @@ pub use coverage::{
     CollectionContext, CollectionMotion, CollectionRow, Partition, ScopeId, TileHint,
 };
 pub use execution::DrawStep;
-pub use fontdue;
 pub use frame::{
     FrameSnapshot, GroupUpdate, PaintFrame, PaintGroup, PaintInstance, PaintPlacement, PaintUpdate,
     PlacementUpdate,
@@ -71,7 +72,7 @@ pub use properties::{
     Clip, ClipId, PropertyBinding, PropertyChange, PropertyDefinitions, PropertyRevision,
     PropertyStats, TransformId, Translation,
 };
-pub use renderer::Renderer;
+pub use renderer::{DrawPacket, PacketError, PacketJob, Renderer, Wake};
 pub use residency::{ResidencyPolicy, ResidencyStats};
 
 impl Bounds {

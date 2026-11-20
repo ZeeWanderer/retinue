@@ -15,7 +15,7 @@ impl List {
         model: State<Rc<build_planner_model::Model>>,
         state: State<PageState>,
         fonts: Fonts,
-    ) -> Element {
+    ) -> impl View + Clone + PartialEq + use<> {
         discover_view::DiscoverView {
             metrics,
             model,
@@ -24,7 +24,6 @@ impl List {
             rows: self.rows.clone(),
             offset: self.offset.clone(),
         }
-        .into_element()
     }
 
     pub fn new() -> Self {

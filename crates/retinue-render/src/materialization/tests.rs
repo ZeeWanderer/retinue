@@ -6,7 +6,7 @@ fn program(x: f32, color: u32) -> PaintProgram {
         1,
         (40.0, 30.0),
         1.0,
-        Rc::new(vec![
+        Arc::new(vec![
             Command::Fill {
                 bounds: Bounds::new(0.0, 0.0, 40.0, 30.0),
                 radius: 0.0,
@@ -14,9 +14,9 @@ fn program(x: f32, color: u32) -> PaintProgram {
             },
             Command::Translate {
                 offset: (0.4, 0.4),
-                commands: Rc::new(vec![Command::Translate {
+                commands: Arc::new(vec![Command::Translate {
                     offset: (0.4, 0.4),
-                    commands: Rc::new(vec![Command::Fill {
+                    commands: Arc::new(vec![Command::Fill {
                         bounds: Bounds::new(x, 2.0, 3.0, 3.0),
                         radius: 0.0,
                         color: Color::rgb(color),
@@ -88,10 +88,10 @@ fn reordering_and_removal_damage_old_and_new_contributions() {
     let mut second = before.fragments[0].clone();
     second.key = 2.into();
     second.origin = (10, 0);
-    before.fragments = Rc::new(vec![before.fragments[0].clone(), second]);
+    before.fragments = Arc::new(vec![before.fragments[0].clone(), second]);
     let mut after = before.clone();
-    after.fragments = Rc::new(before.fragments.iter().rev().cloned().collect());
+    after.fragments = Arc::new(before.fragments.iter().rev().cloned().collect());
     assert_eq!(after.repair(Some(&before)).regions, vec![before.canvas()]);
-    after.fragments = Rc::new(Vec::new());
+    after.fragments = Arc::new(Vec::new());
     assert_eq!(after.repair(Some(&before)).regions, vec![before.canvas()]);
 }

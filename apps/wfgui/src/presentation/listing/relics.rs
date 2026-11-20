@@ -108,8 +108,9 @@ pub(super) struct RelicCardView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for RelicCardView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let id = self.id;
         let cell = self.cell.read();
         let m = self.metrics.read();
@@ -119,33 +120,30 @@ impl View for RelicCardView {
         ui! {
             LayoutView(Positioned::new(size)) {
                 fill(if cell.hovered { crate::presentation::style::CARD_HOVER } else { controls::CARD }, 12.0)
-                place(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height))), g.image).id(child(id, "relic.image"))
-                place(fitted_label(format!("x{}", cell.item.amount_owned), self.fonts.medium.clone(), 15.0, TEXT, true, m.scale), g.amount)
+                place(compose(AssetImage::new(cell.item.asset.as_ref(), m.px(g.image.width.max(g.image.height)))), g.image).named(child(id, "relic.image"))
+                place(label(format!("x{}", cell.item.amount_owned), self.fonts.medium.clone(), 15.0, TEXT, true), g.amount)
                 if cell.item.vaulted == Some(true) {
-                    place(AssetImage::icon("vaulted", m.px(g.vault.width.max(g.vault.height))), g.vault).id(child(id, "relic.vault"))
+                    place(compose(AssetImage::icon("vaulted", m.px(g.vault.width.max(g.vault.height)))), g.vault).named(child(id, "relic.vault"))
                 }
-                place(fitted_label(cell.item.name.clone(), self.fonts.medium.clone(), 19.0, TEXT, false, m.scale), g.title)
-                    .id(child(id, "relic.title"))
-                place(AssetImage::icon("platinum", m.px(g.platinum.width.max(g.platinum.height))), g.platinum).id(child(id, "relic.platinum"))
-                place(AssetImage::icon("ducats", m.px(g.ducats.width.max(g.ducats.height))), g.ducats).id(child(id, "relic.ducats"))
-                for (i, (index, bounds)) in g.rows.iter().enumerate() {
-                    for (column, bounds) in bounds.iter().enumerate() {
-                        let r = &cell.item.refinements[*index];
-                        let text = match column {
-                            0 => format!("{}x {}", r.amount_owned, r.refinement),
-                            1 => price(r.expected_platinum, context.prices_ready),
-                            _ => format!("{:.0}", r.expected_ducats),
-                        };
-                        place(fitted_label(text, self.fonts.regular.clone(), g.font, TEXT, column != 0, m.scale), *bounds)
-                            .id(refinement(id, i, column as u8))
-                    }
+                place(label(cell.item.name.clone(), self.fonts.medium.clone(), 19.0, TEXT, false), g.title)
+                    .named(child(id, "relic.title"))
+                place(compose(AssetImage::icon("platinum", m.px(g.platinum.width.max(g.platinum.height)))), g.platinum).named(child(id, "relic.platinum"))
+                place(compose(AssetImage::icon("ducats", m.px(g.ducats.width.max(g.ducats.height)))), g.ducats).named(child(id, "relic.ducats"))
+                ForEach(g.rows.iter().enumerate(), |(_, (index, _))| *index as u64) { |(i, (index, bounds))|
+                    let r = &cell.item.refinements[*index];
+                    place(label(format!("{}x {}", r.amount_owned, r.refinement), self.fonts.regular.clone(),
+                        g.font, TEXT, false), bounds[0]).named(refinement(id, i, 0))
+                    place(label(price(r.expected_platinum, context.prices_ready), self.fonts.regular.clone(),
+                        g.font, TEXT, true), bounds[1]).named(refinement(id, i, 1))
+                    place(label(format!("{:.0}", r.expected_ducats), self.fonts.regular.clone(),
+                        g.font, TEXT, true), bounds[2]).named(refinement(id, i, 2))
                 }
-                for (i, bounds) in g.rewards.iter().take(6).enumerate() {
+                ForEach(g.rewards.iter().take(6).enumerate(), |(i, _)| *i as u64) { |(i, bounds)|
                     let item = &cell.item.rewards[i];
-                    place(ComponentImage { asset: item.asset.clone(), owned: item.owned > 0,
-                        edge: m.px(bounds.width), scale: m.scale }, *bounds).id(reward(id, i)).interactive()
+                    place(compose(ComponentImage { asset: item.asset.clone(), owned: item.owned > 0,
+                        edge: m.px(bounds.width), scale: m.scale }), *bounds).named(reward(id, i)).interactive()
                     if !context.query.is_empty() && item.name.to_lowercase().contains(&context.query) {
-                        place(Canvas::new(SearchRing(m.scale)), *bounds).id(ring(id, i))
+                        place(Canvas::new(SearchRing(m.scale)), *bounds).named(ring(id, i))
                     }
                 }
             }.interactive()

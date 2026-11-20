@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     data::foundry::Descriptor, domain::media::Media, presentation::controls::ControlHost,
-    presentation::widgets::place,
+    presentation::widgets::compiled::place,
 };
 use retinue_render::{
     image, painter::Painter, painter::RasterImage, resources::ResourceCache, thumbnails::Request,
@@ -18,6 +18,17 @@ fn render(ui: &ControlHost, media: &Media) -> Vec<u8> {
 
 #[test]
 fn retained_components_match_existing_artwork_at_each_scale() {
+    use retinue_ui::{authoring::*, timeline::FrameTime};
+    struct Fixture {
+        image: ComponentImage,
+        bounds: retinue_ui::Bounds,
+    }
+    #[view]
+    impl View for Fixture {
+        fn body(&self, cx: &mut ViewContext<'_>) -> impl Body {
+            place(self.image.body(cx), self.bounds)
+        }
+    }
     let mut thumbnails = Thumbnails::new(0, 1024 * 1024);
     let mut artwork = ResourceCache::new(1024 * 1024);
     for scale in [1.0_f32, 1.25, 2.0] {
@@ -42,20 +53,20 @@ fn retained_components_match_existing_artwork_at_each_scale() {
                 }
                 legacy.component(rect, Some(&asset), owned);
                 legacy.finish();
-                retained.install_view(place(
-                    ComponentImage {
+                retained.install_compiled(Fixture {
+                    image: ComponentImage {
                         asset: Some(asset.clone()),
                         owned,
                         edge: rect.width,
                         scale,
                     },
-                    retinue_ui::Bounds::new(
+                    bounds: retinue_ui::Bounds::new(
                         rect.x as f32 / scale,
                         rect.y as f32 / scale,
                         rect.width as f32 / scale,
                         rect.height as f32 / scale,
                     ),
-                ));
+                });
                 retained.update_view(FrameTime::now());
                 retained.finish();
                 media.assets(vec![Descriptor {

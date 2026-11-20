@@ -240,7 +240,7 @@ fn algorithm_equality_and_node_local_cache_keep_unaffected_work_intact() {
         offset: 2.0,
         updates: updates.clone(),
     };
-    let layout = LayoutAlgorithm::new(tracked.clone());
+    let layout = LayoutAlgorithm::owner(tracked.clone());
     let mut a = container(1, vec![leaf(3, 10.0, 10.0)], vec![]);
     let mut b = container(2, vec![leaf(4, 12.0, 10.0)], vec![]);
     a.algorithm = Algorithm::Custom(layout.clone());
@@ -263,7 +263,7 @@ fn algorithm_equality_and_node_local_cache_keep_unaffected_work_intact() {
         .patch([Change::Layout(
             key(1),
             a.style.clone(),
-            Algorithm::Custom(LayoutAlgorithm::new(tracked.clone())),
+            Algorithm::Custom(LayoutAlgorithm::owner(tracked.clone())),
         )])
         .unwrap();
     assert_eq!(updates.get(), 2);
@@ -276,7 +276,7 @@ fn algorithm_equality_and_node_local_cache_keep_unaffected_work_intact() {
         .patch([Change::Layout(
             key(1),
             a.style.clone(),
-            Algorithm::Custom(LayoutAlgorithm::new(moved)),
+            Algorithm::Custom(LayoutAlgorithm::owner(moved)),
         )])
         .unwrap();
     assert_eq!(updates.get(), 3);
@@ -309,6 +309,7 @@ enum Broken {
     Index,
     Omitted,
     MeasurePlace,
+    Duplicate,
 }
 
 impl lp::Layout for Broken {
@@ -347,6 +348,10 @@ impl lp::Layout for Broken {
         if *self == Self::Omitted {
             return Ok(());
         }
+        if *self == Self::Duplicate {
+            children.place(0, Bounds::new(0.0, 0.0, 10.0, 10.0))?;
+            return children.place(0, Bounds::new(20.0, 0.0, 10.0, 10.0));
+        }
         children.place(0, Bounds::new(f32::INFINITY, 0.0, 10.0, 10.0))
     }
 }
@@ -360,6 +365,7 @@ fn failed_layout_preserves_published_geometry_and_can_recover() {
         (Broken::Proposal, LayoutError::InvalidGeometry),
         (Broken::Index, LayoutError::InvalidChild(1)),
         (Broken::Omitted, LayoutError::UnplacedChild(key(1))),
+        (Broken::Duplicate, LayoutError::DuplicatePlacement(key(1))),
         (
             Broken::MeasurePlace,
             LayoutError::PlacementDuringMeasurement,
@@ -400,6 +406,41 @@ fn failed_layout_preserves_published_geometry_and_can_recover() {
 }
 
 #[test]
+fn published_content_bounds_do_not_borrow_in_flight_layout_storage() {
+    for scale in [1.0, 1.2] {
+        let mut root = Element::at(key(0), Bounds::new(0.0, 0.0, 120.0, 80.0));
+        root.style.padding = taffy::Rect::length(4.0_f32);
+        root.style.border = taffy::Rect::length(2.0_f32);
+        let mut scene = Scene::default();
+        scene
+            .update(root.clone(), (240, 180), scale, RecordingMode::Retained)
+            .unwrap();
+        let published = scene.content_rect(key(0)).unwrap();
+        let generation = scene.frame.generation();
+        let state = std::mem::take(&mut scene.tree.state);
+        let inputs = std::mem::take(&mut scene.tree.inputs);
+        assert_eq!(scene.content_rect(key(0)), Some(published));
+        assert_eq!(scene.frame.generation(), generation);
+        scene.tree.state = state;
+        scene.tree.inputs = inputs;
+
+        root.style.padding = taffy::Rect::length(9.0_f32);
+        scene
+            .patch([Change::Layout(key(0), root.style, root.algorithm)])
+            .unwrap();
+        let changed = scene.content_rect(key(0)).unwrap();
+        assert!(changed.x > published.x);
+        assert!(changed.y > published.y);
+        assert!(changed.width < published.width);
+        assert!(changed.height < published.height);
+
+        let state = std::mem::take(&mut scene.tree.state);
+        assert_eq!(scene.content_rect(key(0)), Some(changed));
+        scene.tree.state = state;
+    }
+}
+
+#[test]
 fn custom_layout_uses_content_bounds_and_resolves_child_padding() {
     let mut node = container(
         0,
@@ -419,7 +460,12 @@ fn custom_layout_uses_content_bounds_and_resolves_child_padding() {
     );
     let slot = scene.tree.slot(key(1)).unwrap();
     assert_eq!(
-        scene.tree.nodes[slot].as_ref().unwrap().layout.padding.left,
+        scene.tree.state.nodes[slot]
+            .as_ref()
+            .unwrap()
+            .layout
+            .padding
+            .left,
         2.4
     );
 }
@@ -463,7 +509,7 @@ fn layout_caches_drop_with_nodes_or_algorithm_replacement() {
     }
     let observed = Rc::new(RefCell::new(std::rc::Weak::new()));
     let mut child = leaf(1, 10.0, 10.0);
-    child.algorithm = Algorithm::Custom(LayoutAlgorithm::new(Probe(observed.clone())));
+    child.algorithm = Algorithm::Custom(LayoutAlgorithm::owner(Probe(observed.clone())));
     let mut scene = Scene::default();
     scene
         .update(

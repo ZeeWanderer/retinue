@@ -431,6 +431,9 @@ impl Shell {
     }
 
     pub fn event(&mut self, event: &WindowEvent, window: &Window) -> Damage {
+        if let WindowEvent::Ime(event) = event {
+            return self.input_method_event(event);
+        }
         let previous = self.focus_visible;
         match event {
             WindowEvent::Focused(active) => {

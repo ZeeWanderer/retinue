@@ -96,6 +96,27 @@ impl Region {
         )
     }
 
+    pub fn local(&self, origin: (i64, i64)) -> Self {
+        if origin == (0, 0) {
+            return self.clone();
+        }
+        Self::disjoint_intersections(self.0.iter().map(|r| {
+            let coordinate = |value: u32, offset: i64| {
+                i64::from(value)
+                    .saturating_sub(offset)
+                    .clamp(0, i64::from(u32::MAX)) as u32
+            };
+            let x = coordinate(r.x, origin.0);
+            let y = coordinate(r.y, origin.1);
+            Rect {
+                x,
+                y,
+                width: coordinate(r.x.saturating_add(r.width), origin.0) - x,
+                height: coordinate(r.y.saturating_add(r.height), origin.1) - y,
+            }
+        }))
+    }
+
     fn disjoint_intersections(rects: impl Iterator<Item = Rect>) -> Self {
         let rects: Vec<_> = rects.filter(|r| !r.is_empty()).collect();
         // A clipping intersection must not fill holes through conservative tiling.

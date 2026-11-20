@@ -1,7 +1,8 @@
 use crate::presentation::settings::rgb;
 use retinue_render::{Bounds, Color, Command};
 use retinue_ui::{Rect, drawing::PixelCanvas as Canvas};
-use std::rc::Rc;
+
+pub const SCROLL_CONTENT_INSET: f32 = 12.0;
 
 pub const TEXT: [u8; 4] = rgb(0xffffff);
 pub const MUTED: [u8; 4] = rgb(0x9da8bd);
@@ -53,7 +54,7 @@ pub const fn alpha(color: u32, alpha: u8) -> [u8; 4] {
 pub fn component_glow(bounds: Bounds, scale: f32) -> Command {
     Command::Translate {
         offset: (bounds.x, bounds.y),
-        commands: Rc::new(vec![Command::InsetShadow {
+        commands: std::sync::Arc::new(vec![Command::InsetShadow {
             bounds: Bounds::new(0.0, 0.0, bounds.width, bounds.height),
             radius: ((bounds.width * scale).round() as u32 / 2) as f32 / scale,
             blur: 4.0,

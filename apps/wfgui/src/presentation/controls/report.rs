@@ -77,16 +77,9 @@ pub(super) fn commands(
                 *bounds,
                 json!({"kind":"outline","radius":radius,"color":color(*c)}),
             ),
-            Command::Text {
-                bounds,
-                text,
-                size,
-                color: c,
-                font,
-                ..
-            } => (
-                *bounds,
-                json!({"kind":"text","text":text,"font_size":size,"font_id":format!("{:?}",font.id()),"color":color(*c)}),
+            Command::GlyphRun { run, color: c, .. } => (
+                item.bounds(),
+                json!({"kind":"text","text":run.source(),"glyph_count":run.glyphs().len(),"font_size":run.size(),"font_id":format!("{:?}",run.font().identity()),"color":color(*c)}),
             ),
             Command::Image { bounds, .. } => (*bounds, json!({"kind":"image"})),
             Command::InsetShadow {

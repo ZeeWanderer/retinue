@@ -1,5 +1,5 @@
 use super::*;
-use retinue_render::{Command, TextAlignment};
+use retinue_ui::drawing::text::{LabelAlignment, label_commands};
 
 #[derive(PartialEq)]
 pub(super) struct PriceView {
@@ -7,22 +7,13 @@ pub(super) struct PriceView {
     pub style: TextStyle,
 }
 
-impl retinue_ui::view::Primitive for PriceView {
-    fn resolve(&self, _: &mut ViewContext<'_>) -> retinue_ui::view::PrimitiveOutput {
-        retinue_ui::view::PrimitiveOutput::new(
-            PricePaint {
-                text: self.text.get().unwrap_or_default(),
-                style: self.style.clone(),
-            },
-            self.style.clone(),
-        )
-        .fill_available()
-    }
-}
-
-impl IntoElement for PriceView {
-    fn into_element(self) -> Element {
-        Element::primitive(self)
+#[view]
+impl View for PriceView {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        Canvas(PricePaint {
+            text: self.text.get().unwrap_or_default(),
+            style: self.style.clone(),
+        })
     }
 }
 
@@ -34,13 +25,17 @@ struct PricePaint {
 
 impl CanvasContent for PricePaint {
     fn draw(&self, cx: &mut DrawingContext) {
-        cx.emit(Command::Text {
-            bounds: cx.bounds,
-            font: self.style.font.clone(),
-            text: self.text.clone(),
-            size: self.style.size,
-            color: self.style.color,
-            align: TextAlignment::Center,
-        });
+        for command in label_commands(
+            &self.style.font,
+            cx.bounds,
+            self.style.size,
+            &self.text,
+            self.style.color,
+            LabelAlignment::Center,
+        )
+        .expect("valid price label")
+        {
+            cx.emit(command);
+        }
     }
 }

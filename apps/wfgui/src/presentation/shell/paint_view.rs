@@ -1,24 +1,11 @@
-use retinue_ui::{
-    drawing::DrawList, drawing::Typography, prelude::*, view::Primitive, view::PrimitiveOutput,
-};
+use retinue_ui::{authoring::*, drawing::DrawList, state::State};
 
 #[derive(Clone, PartialEq)]
 pub struct PaintView(pub State<DrawList>);
 
-impl PaintView {
-    pub fn new(paint: State<DrawList>) -> Self {
-        Self(paint)
-    }
-}
-
-impl Primitive for PaintView {
-    fn resolve(&self, cx: &mut ViewContext<'_>) -> PrimitiveOutput {
-        PrimitiveOutput::new(self.0.get(), cx.environment().get::<Typography>()).fill_available()
-    }
-}
-
-impl IntoElement for PaintView {
-    fn into_element(self) -> Element {
-        Element::primitive(self)
+#[view]
+impl View for PaintView {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+        Canvas(self.0.get())
     }
 }

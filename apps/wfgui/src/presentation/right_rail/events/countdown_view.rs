@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) struct CountdownView {
     pub countdown: Countdown,
     pub font: TextStyle,
@@ -9,8 +9,9 @@ pub(super) struct CountdownView {
     pub baro: bool,
 }
 
+#[view]
 impl View for CountdownView {
-    fn body(&self, cx: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, cx: &mut ViewContext<'_>) -> impl Body {
         let time = cx.time(self.countdown);
         label(
             self.countdown.label(milliseconds(time), self.baro),

@@ -2,11 +2,21 @@ mod orders_view;
 mod rail_view;
 use super::*;
 use crate::{
-    presentation::widgets::fill, presentation::widgets::key, presentation::widgets::label,
-    presentation::widgets::place, presentation::widgets::slot,
+    presentation::widgets::compiled::{fill, label, place, slot},
+    presentation::widgets::key,
 };
 use retinue_render::{Bounds, CacheHint, Color, Key, painter::CachedFont};
-use retinue_ui::{layout::anchors::AnchorPoint, prelude::*};
+#[cfg(test)]
+use retinue_ui::timeline::FrameTime;
+use retinue_ui::{
+    authoring::{
+        Body, ForEach, HorizontalAlignment, ScrollViewport, VStack, View, ViewContext, ViewExt,
+        ZStack, compose, ui, view,
+    },
+    drawing::TextStyle,
+    layout::{Insets, anchors::AnchorPoint},
+    state::{Items, State},
+};
 use std::rc::Rc;
 
 #[cfg(test)]
@@ -91,7 +101,11 @@ impl MarketRail {
         }
     }
 
-    pub fn view(&self, regular: Rc<CachedFont>, bold: Rc<CachedFont>) -> Element {
+    pub fn view(
+        &self,
+        regular: Rc<CachedFont>,
+        bold: Rc<CachedFont>,
+    ) -> impl View + Clone + PartialEq + use<> {
         rail_view::MarketRailView {
             area: self.area.clone(),
             detail: self.detail.clone(),
@@ -102,7 +116,6 @@ impl MarketRail {
             regular: TextStyle::new(regular, 14.0, Color::from_bgra(TEXT)),
             bold: TextStyle::new(bold, 14.0, Color::from_bgra(TEXT)),
         }
-        .into_element()
     }
 }
 
@@ -236,7 +249,8 @@ impl Pages {
             }))
             .expect("unique market suggestions");
         self.rail_scroll.resize(
-            self.rail.px(view.orders.order().len() as f32 * 44.0) as f32,
+            self.rail.px(view.orders.order().len() as f32 * 44.0
+                + crate::presentation::style::SCROLL_CONTENT_INSET) as f32,
             self.rail.px(frame.height) as f32,
             now,
         );

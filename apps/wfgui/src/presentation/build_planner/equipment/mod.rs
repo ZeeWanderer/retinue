@@ -21,7 +21,7 @@ impl List {
         metrics: State<Metrics>,
         model: State<Rc<build_planner_model::Model>>,
         fonts: Fonts,
-    ) -> Element {
+    ) -> impl View + Clone + PartialEq + use<> {
         equipment_view::EquipmentView {
             metrics,
             model,
@@ -31,7 +31,6 @@ impl List {
             offset: self.offset.clone(),
             height: self.height.clone(),
         }
-        .into_element()
     }
 
     pub fn new() -> Self {
@@ -84,7 +83,9 @@ impl List {
         self.height.set(self.indices.len() as f32 * 47.0);
         let viewport = m.equipment_list();
         b.list_scroll.resize(
-            (self.indices.len() as f32 * 47.0 * m.scale).round(),
+            ((self.indices.len() as f32 * 47.0 + crate::presentation::style::SCROLL_CONTENT_INSET)
+                * m.scale)
+                .round(),
             viewport.height * m.scale,
             now,
         );

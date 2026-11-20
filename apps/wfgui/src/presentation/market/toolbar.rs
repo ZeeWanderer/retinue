@@ -10,8 +10,9 @@ pub(super) struct ToolbarView {
     pub fonts: Fonts,
 }
 
+#[view]
 impl View for ToolbarView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.model.metrics.read();
         let state = self.model.account.read();
         let control = |name, bounds| place(slot(node(name)), bounds).interactive();
@@ -19,12 +20,12 @@ impl View for ToolbarView {
         let pad = 2.0;
         ui! {
             ZStack() {
-                place(fitted_label(&state.name, self.fonts.regular.clone(), 17.0, TEXT, false, m.scale),
+                place(label(&state.name, self.fonts.regular.clone(), 17.0, TEXT, false),
                     m.bounds(14.0, 8.0, m.width - 375.0, 35.0))
                 control("presence", m.bounds(m.width - 350.0, 10.0, 130.0, 31.0))
                 control("refresh", m.bounds(m.width - 210.0, 10.0, 90.0, 31.0))
                 control("logout", m.bounds(m.width - 110.0, 10.0, 95.0, 31.0))
-                place(fitted_label("My orders", self.fonts.bold.clone(), 17.0, TEXT, false, m.scale),
+                place(label("My orders", self.fonts.bold.clone(), 17.0, TEXT, false),
                     m.bounds(14.0, 52.0, 130.0, 28.0))
                 control("search", m.bounds(14.0, 89.0, m.width - 335.0, 32.0))
                 control("side", m.bounds(m.width - 311.0, 89.0, 110.0, 32.0))
@@ -35,8 +36,7 @@ impl View for ToolbarView {
                 control("direction", m.bounds(265.0, 130.0, 30.0, 30.0))
                 control("stock", m.bounds(304.0, 130.0, 135.0, 30.0))
                 control("bulk", m.bounds(m.width - 190.0, m.actions_y(), 176.0, 30.0))
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.actions_y() + 30.0,
-                retinue_ui::layout::anchors::AnchorPoint::TOP_LEADING).role(Role::Toolbar)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.width, m.actions_y() + 30.0)).role(Role::Toolbar)
         }
     }
 }

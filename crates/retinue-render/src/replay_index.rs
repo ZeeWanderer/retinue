@@ -22,16 +22,25 @@ impl ReplayIndex {
             .checked_mul(size_of::<Node>())
     }
 
+    #[cfg(test)]
     pub fn build(bounds: &[Option<Pixels>], cancelled: impl Fn() -> bool) -> Option<Self> {
+        Self::from_bounds(bounds.len(), |index| bounds[index], cancelled)
+    }
+
+    pub fn from_bounds(
+        count: usize,
+        bounds: impl Fn(usize) -> Option<Pixels>,
+        cancelled: impl Fn() -> bool,
+    ) -> Option<Self> {
         let mut index = Self { nodes: Vec::new() };
-        index.append(bounds, 0, &cancelled)?;
+        index.append(0..count, &bounds, &cancelled)?;
         Some(index)
     }
 
     fn append(
         &mut self,
-        bounds: &[Option<Pixels>],
-        start: usize,
+        range: Range<usize>,
+        bounds: &impl Fn(usize) -> Option<Pixels>,
         cancelled: &impl Fn() -> bool,
     ) -> Option<Option<Pixels>> {
         if cancelled() {
@@ -39,20 +48,17 @@ impl ReplayIndex {
         }
         let node = self.nodes.len();
         self.nodes.push(Node {
-            commands: start..start + bounds.len(),
+            commands: range.clone(),
             bounds: None,
             end: 0,
         });
-        let extent = if bounds.len() > LEAF {
-            let split = bounds.len() / 2;
-            let a = self.append(&bounds[..split], start, cancelled)?;
-            let b = self.append(&bounds[split..], start + split, cancelled)?;
+        let extent = if range.len() > LEAF {
+            let split = range.start + range.len() / 2;
+            let a = self.append(range.start..split, bounds, cancelled)?;
+            let b = self.append(split..range.end, bounds, cancelled)?;
             combine(a, b)
         } else {
-            bounds
-                .iter()
-                .copied()
-                .fold(Some(Pixels::default()), combine)
+            range.map(bounds).fold(Some(Pixels::default()), combine)
         };
         self.nodes[node].bounds = extent;
         self.nodes[node].end = self.nodes.len();

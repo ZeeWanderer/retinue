@@ -4,7 +4,7 @@ use super::{
 };
 use crate::presentation::geometry::Rect;
 use retinue_render::Key;
-use retinue_ui::prelude::*;
+use retinue_ui::authoring::*;
 
 #[derive(PartialEq)]
 pub(super) struct RewardView {
@@ -12,8 +12,9 @@ pub(super) struct RewardView {
     pub cards: Vec<CardSpec>,
 }
 
+#[view]
 impl View for RewardView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let width = self.window.width.saturating_sub(34) as f32;
         let height = self.window.height.saturating_sub(34) as f32;
         let footer = height * 0.16;
@@ -29,16 +30,16 @@ impl View for RewardView {
         ui! {
             VStack(0.0) {
                 HStack(gap) {
-                    for (index, spec) in self.cards.iter().enumerate() {
-                        card_view::CardView { index, spec: *spec }
-                            .frame(card_width, cards_height).id(Key::from(Slot::Card(index)))
+                    ForEach(self.cards.iter().copied().enumerate(), |(i, _)| Key::from(Slot::Card(*i))) { |(index, spec)|
+                        compose(card_view::CardView { index, spec })
+                            .frame(Frame::new().width(card_width).height(cards_height)).named(Key::from(Slot::Card(index)))
                     }
-                }.frame(cards_width, cards_height).id(Key::from(Slot::Cards))
-                    .padding(7.0).id(Key::from(Slot::Holder))
-                empty().frame(width, footer).id(Key::from(Slot::Footer))
-            }.padding(2.0).id(Key::from(Slot::Shell))
+                }.frame(Frame::new().width(cards_width).height(cards_height)).named(Key::from(Slot::Cards))
+                    .padding(7.0).named(Key::from(Slot::Holder))
+                empty().frame(Frame::new().width(width).height(footer)).named(Key::from(Slot::Footer))
+            }.padding(2.0).named(Key::from(Slot::Shell))
                 .padding(15.0).offset(self.window.x as f32, self.window.y as f32)
-                .id(Key::from(Slot::Root))
+                .named(Key::from(Slot::Root))
         }
     }
 }

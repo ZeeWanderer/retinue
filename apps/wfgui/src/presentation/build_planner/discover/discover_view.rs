@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) struct DiscoverView {
     pub metrics: State<Metrics>,
     pub model: State<Rc<build_planner_model::Model>>,
@@ -10,8 +10,9 @@ pub(super) struct DiscoverView {
     pub offset: State<f32>,
 }
 
+#[view]
 impl View for DiscoverView {
-    fn body(&self, _: &mut ViewContext<'_>) -> impl IntoElement {
+    fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.metrics.get();
         let model = self.model.get();
         let d = &model.discover;
@@ -33,11 +34,11 @@ impl View for DiscoverView {
                 } else {
                     place(ScrollViewport::new(ui! {
                         ZStack() {
-                            for &id in self.rows.order().keys() {
+                            ForEach(self.rows.order().keys().iter().copied(), |id| *id, |id| {
                                 let (i, _) = self.rows.get(id).unwrap();
                                 control(id, m.bounds(0.0, i as f32 * 74.0, m.width - 24.0, 67.0))
-                            }
-                        }.alignment(Alignment::Start).frame_aligned(m.source_list().width, d.rows.len() as f32 * 74.0 + 20.0, AnchorPoint::TOP_LEADING)
+                            })
+                        }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.source_list().width, d.rows.len() as f32 * 74.0 + 20.0))
                     }).position(0.0, self.offset.get()), m.source_list()).reuse(CacheHint::Conditional)
                     control(BAR, m.source_list())
                     if d.rows.is_empty() {
@@ -49,7 +50,7 @@ impl View for DiscoverView {
                         c("next", m.bounds(m.width - 108.0, m.height - 39.0, 94.0, 30.0))
                     }
                 }
-            }.alignment(Alignment::Start).frame_aligned(m.width, m.height, AnchorPoint::TOP_LEADING)
+            }.alignment(AnchorPoint::TOP_LEADING).frame(frame(m.width, m.height))
         }
     }
 }

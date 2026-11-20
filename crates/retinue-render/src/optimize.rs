@@ -1,5 +1,5 @@
 use super::{Command, paint::Pixels};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Summary {
@@ -11,21 +11,21 @@ pub(super) struct Summary {
 
 pub(super) fn leaf_work(command: &Command) -> usize {
     match command {
-        Command::Text { text, .. } => text.chars().count().min(1024),
+        Command::GlyphRun { run, .. } => run.glyphs().len().min(1024),
         Command::InsetShadow { .. } => 16,
         Command::Polygon { points, .. } => points.len(),
         _ => 1,
     }
 }
 
-pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Command>>, Summary) {
+pub(super) fn compile(commands: &Arc<Vec<Command>>, scale: f32) -> (Arc<Vec<Command>>, Summary) {
     let mut summary = Summary::default();
     let mut changes = Vec::new();
     let mut covers = Vec::<Pixels>::new();
     for (index, command) in commands.iter().enumerate().rev() {
         let removable = matches!(
             command,
-            Command::Fill { .. } | Command::Text { .. } | Command::Image { .. }
+            Command::Fill { .. } | Command::GlyphRun { .. } | Command::Image { .. }
         );
         let bounds = if removable {
             command.bounds().pixels(scale)
@@ -34,7 +34,7 @@ pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Comman
         };
         let transparent = match command {
             Command::Fill { color, .. }
-            | Command::Text { color, .. }
+            | Command::GlyphRun { color, .. }
             | Command::InsetShadow { color, .. } => color.bgra()[3] == 0,
             _ => false,
         };
@@ -123,7 +123,7 @@ pub(super) fn compile(commands: &Rc<Vec<Command>>, scale: f32) -> (Rc<Vec<Comman
                 output.push(command.clone());
             }
         }
-        Rc::new(output)
+        Arc::new(output)
     };
     (compiled, summary)
 }
@@ -153,12 +153,12 @@ mod tests {
     #[test]
     fn coverage_never_assumes_rounded_or_translucent_bounds_are_opaque() {
         for top in [fill(4.0, 255), fill(0.0, 200)] {
-            let commands = Rc::new(vec![fill(0.0, 255), top]);
+            let commands = Arc::new(vec![fill(0.0, 255), top]);
             let (compiled, summary) = compile(&commands, 1.25);
             assert_eq!(summary.removed, 0);
-            assert!(Rc::ptr_eq(&commands, &compiled));
+            assert!(Arc::ptr_eq(&commands, &compiled));
         }
-        let (_, summary) = compile(&Rc::new(vec![fill(4.0, 255), fill(0.0, 255)]), 1.25);
+        let (_, summary) = compile(&Arc::new(vec![fill(4.0, 255), fill(0.0, 255)]), 1.25);
         assert_eq!(summary.removed, 1);
     }
 
@@ -172,35 +172,35 @@ mod tests {
             external.clone(),
             Command::Clip {
                 bounds: Bounds::new(0.0, 0.0, 40.0, 40.0),
-                commands: Rc::new(vec![external]),
+                commands: Arc::new(vec![external]),
             },
         ] {
-            let commands = Rc::new(vec![fill(0.0, 255), external, fill(0.0, 255)]);
+            let commands = Arc::new(vec![fill(0.0, 255), external, fill(0.0, 255)]);
             let (compiled, summary) = compile(&commands, 1.0);
             assert!(summary.external);
             assert_eq!(summary.removed, 0);
-            assert!(Rc::ptr_eq(&commands, &compiled));
+            assert!(Arc::ptr_eq(&commands, &compiled));
         }
     }
 
     #[test]
     fn compiled_coverage_and_identity_scopes_match_raw_pixels() {
-        let commands = Rc::new(vec![
+        let commands = Arc::new(vec![
             fill(4.0, 255),
             fill(0.0, 255),
             Command::Clip {
                 bounds: Bounds::new(0.0, 0.0, 0.0, 40.0),
-                commands: Rc::new(vec![fill(0.0, 255)]),
+                commands: Arc::new(vec![fill(0.0, 255)]),
             },
             Command::Translate {
                 offset: (0.0, 0.0),
-                commands: Rc::new(vec![
+                commands: Arc::new(vec![
                     fill(4.0, 0),
                     Command::Translate {
                         offset: (0.35, 0.35),
-                        commands: Rc::new(vec![Command::Translate {
+                        commands: Arc::new(vec![Command::Translate {
                             offset: (0.35, 0.35),
-                            commands: Rc::new(vec![fill(4.0, 128)]),
+                            commands: Arc::new(vec![fill(4.0, 128)]),
                         }]),
                     },
                 ]),
