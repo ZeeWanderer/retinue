@@ -127,6 +127,11 @@ Raw reports live in ignored `research/`. Selected compact measurements can be
 archived as [JSON records](history/records/). The [performance history](https://zeewanderer.github.io/retinue/research/benchmarks/) plots compatible runs. Each session has an ID, UTC timestamps
 and source provenance. A commit identifies the measured code; it need not have
 its own run or become a baseline.
+In the history chart, session order separates runs made seconds apart; elapsed
+time shows their actual spacing. The source link identifies the base commit,
+the binary hash identifies what ran, and the data link identifies one session.
+Repeated measurements of the same binary are useful controls. A percentage
+change between sessions is descriptive, not evidence of a regression by itself.
 The rail scenario measures window chrome with an unpopulated Foundry, not a
 populated grid reflow. Use the scrolling/drag scenarios for populated grids.
 `gui-rail-updates` exercises the production compiled Events rail with 18 fissures

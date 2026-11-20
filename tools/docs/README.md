@@ -1,13 +1,10 @@
-# Documentation Tooling
+# Documentation tooling
 
-`make docs` builds the site; `make docs-serve` previews it. See
-[authoring and publication](../../docs/developer/documentation.md).
+See [building and authoring documentation](../../docs/developer/documentation.md).
 
-- `prepare.mjs`: topic routing and command/schema reference.
-- `cli.escript`: read-only export of the actual CLI tree.
-- `protocol.mjs`: Protobuf reflection, not generated-code parsing.
-- `native.mjs`: shared navigation/search metadata; native API markup stays intact.
-- `check.mjs`: sidebar coverage, links, anchors and API entrypoints.
-
-No generated output is committed. Dependencies are pinned in `package-lock.json`;
-Erlang's ExDoc plugin is pinned in the docs profile.
+- `prepare.mjs` and `catalog.mjs`: guide routes and topic relationships.
+- `navigation.mjs`: shared guide and symbol outline, branch fragments and filter index.
+- `rust-symbols.mjs`, `erlang.escript`, `reference.mjs`: native symbol metadata and topic groups.
+- `cli.escript` and `protocol.mjs`: command and wire reference.
+- `src/pages/`: reference and performance browser templates.
+- `check.mjs`: validate the generated site under its deployment prefix.

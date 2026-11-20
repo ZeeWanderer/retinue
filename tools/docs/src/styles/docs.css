@@ -1,0 +1,23 @@
+:root {
+  --sl-color-accent-low: #123c30;
+  --sl-color-accent: #2ca379;
+  --sl-color-accent-high: #b6edd6;
+  --sl-content-width: 54rem;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e0f5eb;
+  --sl-color-accent: #08734e;
+  --sl-color-accent-high: #174d38;
+}
+.topic-breadcrumbs { font-size: var(--sl-text-sm); margin-bottom: 0.75rem; color: var(--sl-color-gray-2); }
+.topic-breadcrumbs ol { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; list-style: none; }
+.topic-breadcrumbs li + li::before { content: '/'; margin-right: 0.4rem; color: var(--sl-color-gray-3); }
+.topic-breadcrumbs a { color: inherit; }
+.sl-markdown-content .symbol {overflow-wrap:anywhere}
+.sl-markdown-content .symbol .abstract {font-size:1.14rem;line-height:1.55}
+.sl-markdown-content .symbol pre code {padding:0;background:none}
+.symbol .discussion pre {max-inline-size:100%;overflow-x:auto;padding:.85rem 1rem;background:var(--sl-color-gray-6);border-radius:.35rem}
+.sl-markdown-content .symbol dd {margin-inline-start:0}
+.symbol-kind {color:var(--sl-color-gray-2);font-size:1rem;font-weight:600;margin-block:1.25rem 0}
+.main-pane:has(.symbol) .content-panel + .content-panel {border-top:0;padding-top:0}
+.symbol .entry dt code,.symbol .entry dt a code {background:transparent;padding:0;font-size:1em}

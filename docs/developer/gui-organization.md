@@ -36,7 +36,7 @@ local models are owned by their feature. Do not introduce a singleton just
 because several views use the same service.
 
 `ControlHost` keeps native editing, focus and application control state. Its
-`view_host` mounts a `ViewTree`, including custom `PaintSlot` primitives. There
+`view_host` mounts the compiled instance graph, including custom paint slots. There
 is no alternate manual scene builder. `Canvas`, `PixelCanvas` and direct paint
 programs remain valid lower-level tools within the same SDK and renderer.
 

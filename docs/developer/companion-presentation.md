@@ -20,7 +20,7 @@ Paths below are relative to `apps/wfcompanion/src/`.
 | Relic suggestions | `presentation/relic/suggestion/suggestion_view.rs` |
 | Image preparation and leases | `domain/media.rs` |
 
-Each relic feature keeps its drawing code in `mod.rs`, its named SDK views
+Each relic feature keeps its drawing code in `mod.rs`, its compiled SDK views
 beside it, and geometry projections in `*_geometry.rs`. These projections are
 results of layout, not alternative layout engines. `PaintOptions` and
 `StatusParams` are drawing inputs, not SDK `View` implementations.
@@ -46,13 +46,15 @@ Paths below are relative to `apps/poe2companion/src/`.
 | Rate budget and preferences | `domain/budget.rs`, `domain/preferences.rs` |
 | Evaluation and listing records | `data/evaluation.rs` |
 
-`EvaluatePanel` is a paint/input controller. `EvaluateView` and `ItemView` are
-the declarative entry points. Their model requests currency images by identity,
+`EvaluatePanel` is a paint/input controller. It mounts one compiled
+`EvaluateView`; the item body declares visible rows by key. Painting and hit
+targets use the same published bounds, including while a new layout is pending.
+The model requests currency images by identity,
 size and generation; the image worker does not import presentation state.
 
 ## Boundaries
 
-- `*_view.rs` implements `View`; `*_layout.rs` implements `Layout`.
+- `*_view.rs` defines a compiled view or its structural body; `*_layout.rs` implements `Layout`.
 - Models sit beside their feature's views. No parallel global view-model tree.
 - Custom Canvas painting remains supported inside the retained SDK path.
 - Domain services perform client-side work, not canonical game calculations.
@@ -60,7 +62,7 @@ size and generation; the image worker does not import presentation state.
   not need an empty presentation hierarchy.
 
 Native hosts share SDK buffer submission and renderer repair history. Game-specific
-lifecycle and input policy stay in the companion; see [native hosts](ui-sdk.md#native-hosts).
+lifecycle and input policy stay in the companion; see [native hosts](../ui/hosts.md).
 App-local foundation helpers follow the [Core guidance](structure.md#app-local-foundations),
 not a mandatory additional layer.
 

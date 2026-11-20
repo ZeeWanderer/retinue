@@ -354,21 +354,24 @@ package: prod
 clean:
 	rm -rf _build dev prod
 
-.PHONY: docs docs-setup docs-api-rust docs-api-erlang docs-site docs-check docs-serve test-docs
+.PHONY: docs docs-setup docs-toolchain docs-api-rust docs-api-erlang docs-site docs-check docs-serve test-docs
 docs-setup: tools/docs/node_modules/.package-lock.json
 
 tools/docs/node_modules/.package-lock.json: tools/docs/package.json tools/docs/package-lock.json
 	npm ci --prefix tools/docs --no-audit --no-fund
 
-docs-api-rust: sccache-setup
-	+$(CARGO) doc --locked --workspace --exclude retinue-protocol --no-deps --document-private-items --features retinue-ui/desktop
+DOCS_RUST := nightly-2026-11-18
+docs-toolchain:
+	rustup toolchain install $(DOCS_RUST) --profile minimal --no-self-update
+
+docs-api-rust:
+	+RUSTDOCFLAGS='-Z unstable-options --output-format=json' CARGO_TARGET_DIR="$(CURDIR)/_build/doc-toolchain" $(CARGO) +$(DOCS_RUST) doc --locked --workspace --exclude retinue-protocol --no-deps --document-private-items --features retinue-ui/desktop
 
 docs-api-erlang:
-	@mkdir -p _build/documentation/erlang
-	@for app in retinue_core wfcore poe2core retinue_cli retinue_daemon; do \
-		$(REBAR3) as docs_api ex_doc --app "$$app" --formatter html --output "$(CURDIR)/_build/documentation/erlang/$$app" || exit; \
-	done
-	escript tools/docs/cli.escript "$$($(REBAR3) as docs_api,docs path --base)" "$(CURDIR)/_build/documentation/cli.json"
+	@mkdir -p _build/documentation
+	$(REBAR3) compile
+	escript tools/docs/erlang.escript "$$($(REBAR3) path --base)" _build/documentation/erlang.json retinue_core wfcore poe2core retinue_cli retinue_daemon
+	escript tools/docs/cli.escript "$$($(REBAR3) path --base)" _build/documentation/cli.json
 
 docs-site:
 	npm --prefix tools/docs run build

@@ -8,8 +8,7 @@ Reference snapshot:
 - official PC worldstate generated at `2026-07-15T15:50:45Z`, build
   `2026.07.11.15.28/7fwjVVacxcBzO-xahK2RZg`
 
-Ignored clones under `research/` are disposable references. No WFCD parser is a build-time or
-runtime dependency.
+The WFCD parser is a reference for this comparison, not a build or runtime dependency.
 
 ## Open Parsing Mismatches
 

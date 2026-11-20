@@ -1,0 +1,9 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import {breadcrumbs, routeFromPath} from '../../catalog.mjs';
+const items = breadcrumbs(routeFromPath(Astro.url.pathname));
+---
+{items.length > 0 && <nav aria-label="Breadcrumbs" class="topic-breadcrumbs"><ol>{items.map(item =>
+  <li>{item.link ? <a href={item.link}>{item.label}</a> : item.label}</li>)}</ol></nav>}
+{Astro.locals.referenceRole && <p class="symbol-kind">{Astro.locals.referenceRole}</p>}
+<Default><slot /></Default>

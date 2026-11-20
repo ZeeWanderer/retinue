@@ -1,64 +1,61 @@
-# Documentation
+# Building and authoring documentation
 
-The site combines handwritten guides with native Rustdoc and ExDoc reference.
-Commands are generated from the CLI's help/completion tree; protocol reference
-comes from the owning `.proto` files. One search index covers all four.
+The site combines task guides, language-specific reference, and benchmark data.
+Add a guide when the reader needs to accomplish something. Document a function's
+contract in its source, not in a second copy of its signature.
 
-## Build And Preview
+## Build locally
 
-Use the normal project toolchain plus Node.js 22.23.4 or newer and npm.
+Use the project build dependencies, Python 3, Node.js 22.23.4 or newer, and a
+docs-only Rust toolchain. The application still builds with stable Rust.
 
 ```sh
+make docs-toolchain
 make docs
 make docs-serve
 ```
 
-Open `http://127.0.0.1:4321/retinue/`. `make docs` installs locked documentation
-dependencies, generates APIs and checks navigation and topic links. It does not start the daemon
-or run CLI command handlers. ExDoc is a docs-profile plugin, not a runtime
-dependency. Erlang, Cargo and native build prerequisites are listed in
-[workflows](workflows.md).
+Open <http://127.0.0.1:4321/retinue/>. `make test-docs` runs the generator tests;
+`make docs-check` validates the built artifact. After changing only a guide or
+template, `make docs-site` reuses the extracted metadata.
 
-For prose edits after the first build, use `make docs-site`. For generator changes,
-run `make test-docs` and `make docs-check`. Rust code examples in API comments are
-tested with `make test-composition`; rendered examples are not a substitute for
-doctests. `DOCS_BASE=/` builds for a domain root instead of the project subpath.
+## Guides and topic groups
 
-Source Markdown remains readable on GitHub. The builder adds site metadata and
-rewrites links into the ignored `tools/docs/src/content/docs` collection, where
-Starlight discovers sidebar entries. It never rewrites source documents. Final
-HTML is `_build/docs`, not checked in. Never edit generated Markdown or HTML.
+Write guides under `docs/`. Register the intended navigation in
+[the catalog](../../tools/docs/catalog.mjs). One topic can connect guides and
+symbols from multiple modules. Use [topic groups](../../tools/docs/topic-groups.json)
+to group free functions, macros or types under a task without changing their Rust
+modules. Entries link to existing declarations; unknown entries fail the build.
+For example, “Arranging content” groups stack constructors under the UI framework.
+Featured symbols need a source doc comment. Put runnable usage examples in Rust
+doc comments so the reference shows the same example that Cargo tests.
 
-## What Goes Where
+The sidebar is one outline for guides and reference. A crate or module expands
+in place; its name opens the overview and its disclosure opens the next level.
+The active branch ships in the page HTML. Other branches load as static files.
 
-| Content | Owner |
+Link to public repository files or published documentation. Explain how to obtain
+inputs that are not distributed; do not cite a private capture, a local checkout,
+or a conversation as evidence. Commands may create files in a working directory.
+A reader must not need its previous contents to follow a guide.
+Local previews include nonignored drafts. The publishing workflow uses
+`DOCS_TRACKED_ONLY=1` to reject references to files that have not been added to Git.
+
+## Reference sources
+
+| Reference | Source |
 | --- | --- |
-| Overview, screenshots and quick install | `README.md` |
-| Setup and everyday usage | `docs/installation.md`, game and tool guides |
-| Contracts and how-to topics | `docs/developer/` |
-| API semantics and examples | Rust documentation comments; Erlang `-moduledoc` / `-doc` |
-| Command names, options and help | CLI command tree |
-| Wire fields and presence | Owning core's `proto/` schema |
-| Reproducible research conclusions | `docs/research/` and linked research articles |
-| Site integration and generator tests | `tools/docs/` |
+| Rust | Pinned Rustdoc JSON: identity, documentation, implementations and re-exports. Source spans and a Rust syntax tree provide declarations without function bodies. |
+| Erlang | OTP documentation entries and BEAM abstract forms: functions by arity, types, specs, callbacks and behaviours. |
+| CLI | The command tree and its help text; generation does not execute commands. |
+| Wire protocol | Protobuf reflection over the maintained schemas. |
+| Performance | [Archived measurement JSON](../../tools/benchmarks/history/records/) grouped by compatible series. No handwritten history entries. |
 
-Keep descriptions near the code they explain. Guides cover workflows and
-cross-module reasoning, not copied signatures. Document ownership, invalidation,
-error behavior and important constraints rather than narrating each line of code.
-
-Rustdoc retains traits, generics, macro documentation, reexports, implementation
-links and source navigation. ExDoc retains Erlang module/function/type reference.
-Their inner layouts remain native; the portal adds shared navigation and search.
-This avoids a custom language renderer or a nightly-only Rustdoc JSON dependency.
+Guides and symbols share navigation and search. Directories under the build
+output are generated. Source links use the revision being built.
 
 ## Publication
 
-The Pages workflow builds a static artifact; it does not commit HTML or maintain
-a `gh-pages` branch. Enable GitHub Pages with **GitHub Actions** as its source,
-then manually run the documentation workflow to publish. Pull requests build and
-validate without deploying. No local build publishes anything.
-
-Only documentation sources, reviewed images and generated code reference enter
-the artifact. Ignored research and personal workspace data are never copied.
-Follow the [research evidence rules](../research/index.md#evidence) before adding
-captures. Review both prose and reference changes when a public artifact is built.
+Pull requests build and validate the static site. To publish, run the
+Documentation workflow on the default branch with GitHub Pages configured
+to use GitHub Actions. A local build does not deploy.

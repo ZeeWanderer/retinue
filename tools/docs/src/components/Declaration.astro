@@ -1,0 +1,7 @@
+---
+const {item}=Astro.props;
+---
+<pre class="declaration"><code>{item.tokens ? item.tokens.map(t=>t.href?<a href={t.href}>{t.text}</a>:t.text) : item.signature}</code></pre>
+<style>
+  pre {padding:1rem;overflow-x:auto;background:var(--sl-color-gray-6);border-radius:.4rem}
+</style>

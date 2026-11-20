@@ -19,14 +19,15 @@ the content. Mouse routing and wheel handling prioritize that drawer.
 
 - `retinue-ui`: authoring, Taffy layout, scrolling, transitions and window hosts.
 - `retinue-render`: retained drawing, painter, resources, caches and damage repair.
-- `desktop` feature: Winit windows/events/accessibility and Softbuffer presentation.
+- `desktop` feature: Winit windows/events/accessibility, owned Wayland SHM buffers,
+  and Softbuffer for X11.
 - `overlay` feature: existing layer-shell, game focus, portals and clipboard.
 - App: screens, styles and asynchronous daemon/filesystem work. Daemon retains
   fetching, canonical data and domain computation.
 
 Desktop buffers are opaque. Paint directly into the acquired buffer, repair damage
 using buffer age, finish Blend2D work, then present without a conversion pass.
-The host accepts only Wayland/X11. Their pinned Softbuffer backends submit XRGB;
+The host accepts only Wayland/X11. Both presentation paths submit XRGB;
 the high byte is ignored, so keep Blend2D's opaque `FF` rather than clearing it.
 This relies on verified backend behavior beyond Softbuffer's stricter public
 zero-padding contract; review it when upgrading Softbuffer or adding a backend.
@@ -65,9 +66,25 @@ render time does not extend the interval. A late wake must still paint the final
 position. Idle windows sleep. Keep nonvisual expiry in
 `Application::maintenance_deadline`/`maintain`, separate from frame deadlines.
 Maintenance must consume its deadline, work while occluded and request no redraw.
-Native paint hosts expose their `RenderHost` and keep its frame guard alive through
-`Painter::finish`, using the guard's thread allowance. Ending the guard after
-command submission would let analysis overlap unaccounted native workers.
+`RenderHost` owns a lazy bounded `work::Executor`. Ready DAG nodes run on its private
+Rayon pool; native jobs reserve their caller and native workers together, before
+submission can trigger an automatic flush. The reservation lasts through native
+completion. Background analysis shares this budget and leaves foreground headroom.
+
+Production Wayland hosts prepare independent rasters, publish them on the UI owner,
+freeze an immutable `DrawPacket`, and submit the final native pass as a CPU task.
+The task exclusively leases the existing target/donor mappings; no framebuffer copy
+or live editor callback crosses that boundary. Completion wakes the platform owner
+to validate, present and acknowledge the covered damage. New invalidations remain
+pending. Reset/resize rejects obsolete results; teardown joins outstanding work.
+General layout, view callbacks and input reduction remain owner-affine. X11 and
+offscreen tools retain synchronous painting with a frame guard through native finish.
+
+Image I/O coordinators keep file operations outside the CPU pool. Thumbnail decoding,
+resampling and PNG encoding use that same host budget via `CpuStage`; only the I/O
+coordinator may wait for them. A CPU task must express dependencies instead of waiting
+for another task in its pool. Immutable pixel leases keep encoding inputs alive without
+cloning their backing allocation.
 Layout changes invalidate geometry; scrolling and
 moving a width-capped page translate its existing geometry without rebuilding it.
 Paint, hit testing, captures and accessibility must use the same translation.
@@ -134,10 +151,13 @@ Deactivate hidden page rasters, not their models/search/scroll state. Source
 images are preparation inputs: retain only those requested by the current batch,
 within the source cache allowance. Resampled images own independent pixels.
 Immutable command fragments share storage between their description and scene.
-Text fields share `EditResources`; cursor/selection/text remain per editor.
+Text fields share `EditResources` and loaded font bytes with other text consumers;
+cursor/selection/text remain per editor. Parley supplies editing geometry and
+Blend2D paints the matching native glyphs, selection and caret.
 Do not allocate a font database per field or duplicate full dataset arrays.
-Share immutable parsed font geometry through application-scoped `FontFaces`;
-glyph caches keep their own budgets. Hidden layout and accessibility queries must
+Share validated native faces through application-scoped `FontFaces`. Focused
+public fields expose Parley's cluster bounds and directed selection to AccessKit;
+passwords expose neither. Hidden layout and accessibility queries must
 not prepare paint resources. Test resize and scale changes while a page is hidden,
 not only the page-switch event.
 
@@ -224,7 +244,8 @@ selection owner. [Arboard](https://docs.rs/arboard/latest/arboard/struct.Clipboa
 provides Wayland data-control and X11 backends. No clipboard reads at startup or
 during painting. Cut deletes only after a successful copy; delayed replies are
 discarded if the editor changed. `LineEdit` clamps horizontal overscroll after
-resizing/deleting text and reuses its raster when only its position changes.
+resizing/deleting text. Selection, color, caret blinking and viewport-only changes
+retain shaped glyphs and the native font lease; they do not create text bitmaps.
 
 ## Preferences
 

@@ -1,8 +1,7 @@
 # AlecaFrame Overlay Catalog
 
 Snapshot: AlecaFrame 2.6.90, released June 30, 2026. Evidence comes from
-official documentation and the matching packaged client prepared under ignored
-`research/alecaframe/2.6.90/`.
+official documentation and the matching packaged client.
 
 | Surface | Local status |
 | --- | --- |

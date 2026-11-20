@@ -1,15 +1,42 @@
 # Retinue Documentation
 
-Game companions, desktop tools and the infrastructure behind them.
+Linux/Proton game companions, desktop tools and shared services.
 
-- [Install Retinue](installation.md)
-- [Warframe](companion.md), [Path of Exile 2](poe2.md), [ARC Raiders](arc.md)
-- [CLI](cli.md), [desktop GUI](gui.md), [inspector](wfinspect.md)
-- [Daemon](daemon.md), [data sources](data-sources.md), [MCP](mcp.md)
-- [Queries and watches](query.md), [Forma planner](forma-plan.md), [build stats](build-stats.md)
-- [Development](DEVELOPER.md): architecture, source maps and workflows
-- [UI SDK](developer/ui-sdk.md): views, state, layout, drawing and input
-- [Research](research/index.md): findings, evidence and remaining uncertainties
+## Use Retinue
 
-The generated site also provides searchable Rust, Erlang, command and protocol
-reference. Build it locally with `make docs`; see [documentation tooling](developer/documentation.md).
+[Install and connect](installation.md), then run `retinue doctor` to check your
+setup. Overlays require KDE Plasma on Wayland.
+
+| Game | Tools |
+| --- | --- |
+| Warframe | [In-game companion](companion.md), [desktop app](gui.md), [Forma planning](forma-plan.md) |
+| Path of Exile 2 | [Evaluate items and search trade listings](poe2.md) |
+| ARC Raiders | [Launch scaffolding; no gameplay integration yet](arc.md) |
+
+- [Commands and diagnostics](cli.md): check services, companions and game data.
+- [Queries and watches](query.md): select data and follow changes.
+- [MCP](mcp.md): expose Retinue tools to a compatible client.
+- [Game inspection](wfinspect.md): inspect memory, captures and resources.
+
+## Build Interfaces
+
+The [UI framework](developer/ui-sdk.md) provides declarative views, observable
+state, layout, drawing and input for desktop windows and in-game overlays.
+Start with [a first view](ui/first-view.md), then explore its focused topics and
+linked API reference.
+
+The [render pipeline](developer/render-pipeline.md) lowers those views to Blend2D
+work, with retained resources, repair and relocation. [Profiling](developer/profiling.md)
+and [optimizer quality](developer/optimizer-quality.md) explain how to measure it.
+
+## Develop And Investigate
+
+- [Contributor guide](DEVELOPER.md): build, test and find the owning subsystem.
+- [Architecture](developer/structure.md): shared mechanisms and per-game policy.
+- [Daemon](developer/daemon.md): lifecycle, storage and client contracts.
+- [Research](research/index.md): verified findings, evidence and open questions.
+- [Performance history](https://zeewanderer.github.io/retinue/research/benchmarks/): explore frame time, memory and other metrics by workload.
+
+Generated API, command and protocol reference sits alongside the relevant guides
+in the navigation. Search covers both. See [documentation authoring](developer/documentation.md)
+to build the site locally or add a topic.

@@ -6,7 +6,6 @@ what remains uncertain. They are not guarantees about a future game build.
 - [Warframe and AlecaFrame data flow](../developer/overwolf-alecaframe-overlay-research.md)
 - [AlecaFrame overlay catalog](../developer/alecaframe-overlay-catalog.md)
 - [WFCD parser audit](../developer/wfcd-parser-audit.md)
-- [UI composition experiment](../developer/ui-composition-prototype.md)
 - [Blend2D integration findings](../developer/blend2d-issues.md)
 
 ## Evidence

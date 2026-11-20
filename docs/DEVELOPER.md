@@ -1,49 +1,32 @@
-# Contributor Documentation
+# Contributing
 
-User-facing setup and usage start in [`README.md`](../README.md) and the top-level guides under
-`docs/`. This index is for contributors. Documents under `docs/developer/` describe current
-ownership and implementation unless their title explicitly identifies them as research or an
-audit.
+Start with [build workflows](developer/workflows.md) and [testing](developer/testing.md).
+The [project structure](developer/structure.md) defines ownership: clients handle
+presentation and input; the daemon owns canonical data and domain computation.
 
-## Architecture
+## Choose A Subsystem
 
-- [`structure.md`](developer/structure.md): applications, native companion, and ownership
-  boundaries
-- [`daemon.md`](developer/daemon.md): lifecycle, supervision, queues, compatibility, and updates
-- [`entities.md`](developer/entities.md): normalized entities and the daemon/CLI rendering boundary
-- [`shared_utilities.md`](developer/shared_utilities.md): stable cross-application contracts
-- [`cli.md`](developer/cli.md): command dispatch, parsing, and terminal output
-- [`companion.md`](developer/companion.md): native observer, local protocol, player data, and overlay
-- [`gui-organization.md`](developer/gui-organization.md): Rust GUI source map and ownership
-- [`companion-presentation.md`](developer/companion-presentation.md): overlay views, models and workers
-- [`ui-sdk.md`](developer/ui-sdk.md): retained views, observable state and custom layout
-- [`render-pipeline.md`](developer/render-pipeline.md): paint programs, optimization and repair
-- [`player-data.md`](developer/player-data.md): account payload, collector, and indexing boundary
-- [`assets.md`](developer/assets.md): embedded and dynamic texture ownership
+| Work | Start here |
+| --- | --- |
+| Desktop or overlay UI | [UI framework](developer/ui-sdk.md), [first view](ui/first-view.md) |
+| Painting, repair and caching | [Render pipeline](developer/render-pipeline.md), [profiling](developer/profiling.md) |
+| Services and client contracts | [Daemon](developer/daemon.md), [health reporting](developer/health.md) |
+| Commands and data queries | [CLI implementation](developer/cli.md), [query engine](developer/query-language.md) |
+| Game observers | [Companion lifecycle](developer/companion.md), [player data](developer/player-data.md) |
+| Warframe catalogs and planning | [Knowledge](developer/knowledge.md), [Forma solver](developer/forma_plan.md) |
+| Research | [Evidence and findings](research/index.md), [inspection tools](wfinspect.md) |
 
-## Data And Queries
+Each subsystem's navigation groups its guides and generated reference together.
+Use the API links in a guide for signatures; use the related guides on an API page
+for its intended usage and constraints.
 
-- [`worldstate.md`](developer/worldstate.md): fetching, indexing, translation, and watches
-- [`exports.md`](developer/exports.md): official PublicExport files and loading
-- [`knowledge.md`](developer/knowledge.md): official Codex and WFCD catalogs
-- [`query-language.md`](developer/query-language.md): grammar, AST, schemas, and evaluation
-- [`table_layout.md`](developer/table_layout.md): terminal table layout
-- [`forma_plan.md`](developer/forma_plan.md): planner queue, model, search, and tests
-- [`visualize.md`](developer/visualize.md): Forma visualization
+## Make A Change
 
-## Development
-
-- [`workflows.md`](developer/workflows.md): build, test, fixture, and metadata routines
-- [`adding_features.md`](developer/adding_features.md): checklist for features and data sources
-- [`tools.md`](developer/tools.md): inspection and benchmark helpers
-- [`documentation.md`](developer/documentation.md): generated reference, topic authoring and site builds
-
-## Research And Audits
-
-- [`wfcd-parser-audit.md`](developer/wfcd-parser-audit.md): differences from reviewed WFCD parsers
-- [`alecaframe-overlay-catalog.md`](developer/alecaframe-overlay-catalog.md): upstream overlay
-  catalog and local status
-- [`overwolf-alecaframe-overlay-research.md`](developer/overwolf-alecaframe-overlay-research.md):
-  acquisition mechanisms, Wayland design, safety boundary, and evidence
-
-MCP adapter behavior is documented in [`mcp.md`](mcp.md).
+1. Find the owner using the [GUI](developer/gui-organization.md),
+   [overlay](developer/companion-presentation.md) or [system](developer/structure.md) source map.
+2. Follow the [feature checklist](developer/adding_features.md). Update affected
+   clients, contracts and tests together.
+3. Run the affected correctness tests and Common Test. Use the
+   [benchmark workflow](../tools/benchmarks/README.md) for performance claims.
+4. Update the relevant topic or API comments. Follow
+   [documentation authoring](developer/documentation.md); do not edit generated output.

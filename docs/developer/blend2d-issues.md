@@ -1,4 +1,4 @@
-# Blend2D Mask Issues
+# Blend2D Integration Issues
 
 Reviewed 2026-10-23 against Blend2D **0.21.3**, commit
 `58ca9460b4138af6e793184682e9324e0a8053b2`, on Linux x86-64.
@@ -59,6 +59,26 @@ Rasterize fonts/assets at the final scale instead of scaling the context transfo
 
 **Upstream:** ask about transformed mask support; do not report it as a regression
 without evidence of a previously supported version.
+
+## Color Glyph Runs: Capability Gate
+
+Retinue keeps text on native Blend2D glyph runs. The current [face
+validator](../../crates/retinue-render/src/text/font.rs) accepts static outline
+fonts, not color or bitmap faces. Reference overlays can use host color emoji;
+prefer a compatible monochrome outline for a missing glyph, or the primary
+face's missing-glyph box. Do not discard the rest of the line or add a second
+rasterizer. This is an integration limitation, not a reported upstream bug.
+
+Bypassing the validator on the pinned revision, a positioned U+1F600 glyph
+from Noto COLRv1 opened, submitted and finished successfully but left a
+transparent target unchanged. The same native bridge and target painted the
+monochrome Symbola outline. The check is conservative at face granularity;
+this result does not show that every glyph in a mixed font lacks an outline.
+
+On a Blend2D update that adds native color glyph rendering, test a mixed
+text/emoji run with a real color font: check color pixels, face/index selection,
+editor advances and queued draw lifetime. Relax only the tested format in the
+validator. Successfully opening a color font does not establish color rendering.
 
 [mask-enqueue]: https://github.com/blend2d/blend2d/blob/58ca9460b4138af6e793184682e9324e0a8053b2/blend2d/raster/rastercontext.cpp#L3140-L3174
 [mask-cleanup]: https://github.com/blend2d/blend2d/blob/58ca9460b4138af6e793184682e9324e0a8053b2/blend2d/raster/rastercontext.cpp#L998-L1020

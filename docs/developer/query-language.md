@@ -43,3 +43,6 @@ validate fields and operators before evaluating any row.
 
 Deliberate exclusions: regex, fuzzy/proximity search, boosts, ranges with bracket syntax, and
 symbolic expression `|`. Add syntax only when a concrete wfcli use case needs it.
+
+See the [parser's API](https://zeewanderer.github.io/retinue/reference/erlang/retinue_daemon/wf_query_parse/#parse/1)
+for the entry point and the [query guide](../query.md) for worked examples.

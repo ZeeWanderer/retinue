@@ -2,9 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync, spawnSync} from 'node:child_process';
 import {prepare} from './prepare.mjs';
-import {root, work, output, erlangApps} from './paths.mjs';
-import {integrateDirectory} from './native.mjs';
+import {root, work, output} from './paths.mjs';
+import {prepareReference, preserveReferenceLinks} from './reference.mjs';
 import {check} from './check.mjs';
+import {publishNavigator} from './navigation.mjs';
 
 console.log('Preparing guides, commands and protocols');
 const {assets} = await prepare();
@@ -18,16 +19,13 @@ for (const asset of assets) {
   await fs.mkdir(path.dirname(target), {recursive: true});
   await fs.copyFile(path.join(root, asset), target);
 }
-const rust = path.join(publicDir, 'reference/rust');
-console.log('Integrating native API navigation and search');
-await fs.cp(path.join(process.env.CARGO_TARGET_DIR ?? path.join(root, '_build/cargo'), 'doc'), rust, {recursive: true});
-await integrateDirectory(rust, 'Rust');
-for (const app of erlangApps) {
-  const target = path.join(publicDir, 'reference/erlang', app);
-  await fs.cp(path.join(work, 'erlang', app), target, {recursive: true});
-  await integrateDirectory(target, 'Erlang');
-}
-const result = spawnSync(path.join(root, 'tools/docs/node_modules/.bin/astro'), ['build'], {cwd: path.join(root, 'tools/docs'), stdio: 'inherit'});
+console.log('Preparing API pages in the shared documentation layout');
+const api = await prepareReference();
+await publishNavigator(JSON.parse(await fs.readFile(path.join(work, 'pages.json'), 'utf8')), api, publicDir);
+const result = spawnSync(path.join(root, 'tools/docs/node_modules/.bin/astro'), ['build'], {
+  cwd: path.join(root, 'tools/docs'), stdio: 'inherit', env: {...process.env, DOCS_REPO_ROOT: root},
+});
 if (result.error) throw result.error;
 if (result.status) process.exit(result.status);
+await preserveReferenceLinks(output, api);
 await check(output);

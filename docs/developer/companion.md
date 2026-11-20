@@ -155,15 +155,13 @@ The prior scene can remain resident while its replacement loads. Apply only the
 latest asset revision, then invalidate both the static frame and every surface
 buffer's cache key. File reads and image decoding must not run on Wayland's thread.
 
-Blend2D remains synchronous because icons and fontdue glyph masks are borrowed
-for each draw call. Its asynchronous multithreaded context requires owned
-source lifetimes through `Painter::finish` and is not useful for the current
-cached workload.
+The host submits retained work to Blend2D's queued renderer. Prepared images
+and fonts stay valid through native completion. See [overlay rendering](overlay-rendering.md#blend2d-integration)
+for thread budgets and resource ownership.
 
-Text measurement, wrapping and painting share fractional glyph advances and
-kerning in `retinue-ui::painter`. Round only final raster positions, never
-each character's advance; per-character rounding accumulates spacing errors.
-Use `text_width` and `wrap_text` for layout rather than a separate estimate.
+Use `retinue_ui::drawing::text` for label measurement and wrapping. Labels and
+editors submit the same fractional glyph positions that Parley laid out; do not
+round each character's advance or ask Blend2D to shape an already shaped run.
 
 Passive mode has no pointer region. Interactive mode captures the surface;
 screen hit regions route actions. Hit rectangles use buffer pixels; convert
@@ -175,6 +173,20 @@ Both hosts apply `retinue_ui::layer::OverlayLayerState` before remapping.
 Unmapping resets every layer-shell property, including the layer itself. Restore
 the complete role state, commit without a buffer, then wait for configure before
 drawing. Do not duplicate partial compositor setup in individual games.
+
+## Native Read Lifetimes
+
+Resolve image-relative roots and field operands once for the identified game
+process. Prefer evidence of *what the game does*: a typed field access, a named
+diagnostic, or the branch and stride of a traversal. Multiple instruction sites
+may yield the same field; contradictory operands are a failure, not a vote.
+An alternative pattern must identify the same operation.
+
+Each poll follows current object pointers and checks identity and bounds. A
+cached heap location needs a cheaper way to verify its owner and lifetime;
+otherwise reread the pointer. On a failed check, discard that location before
+bounded rediscovery. Tests should move fields independently of code addresses,
+remove one witness, introduce a convincing wrong match, and replay a real read.
 
 ## Relic Pipeline
 

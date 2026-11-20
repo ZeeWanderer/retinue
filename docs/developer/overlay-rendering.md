@@ -24,16 +24,16 @@ or add compatibility adapters between applications shipped together.
   masks. Small chrome misses prepare synchronously before raster painting.
   Hover, caret and loading updates use shared partial repainting. Layout and
   command submission still traverse the view; raster work is clipped.
-- Both companions use cached native label masks. Uncached fonts remain supported;
-  the text editor
-  retains its separate glyph and raster caches.
+- Both companions paint labels and editable fields with native glyph runs.
+  The editor retains shaped runs across caret and selection changes.
 - Both hosts wait for events or explicit deadlines. The existing 100 ms focus
   probes remain control work; neither host uses a fixed render-loop timer.
   Partial Wayland damage alone does not eliminate layout or command submission.
 - Both companions record ordinary graphics into the shared composition layer.
   Warframe retains its static frame and records transient loading/status commands;
-  PoE2 retains layout and named paint sections. Only its active text editor needs
-  live custom painting. Native thread budgets and surface repair remain host-owned.
+  PoE2 retains layout and named paint sections. Its editor records glyphs and
+  selection geometry without sending mutable editing state to the render worker.
+  Native thread budgets and surface repair remain host-owned.
 
 These are architectural gaps, not measured claims about game frame-time impact.
 
@@ -48,9 +48,9 @@ Blend2D's unscaled fast path.
 transfer without copying and remain alive through queued rendering, independently
 of cache eviction. Native wrappers are created once per prepared resource, not
 per draw. Construction failures propagate; failed preparation is not cached.
-Text shaping and the editor retain their existing behavior.
-Keep `CachedFont`/`LabelFont` through drawing helpers; borrowing its underlying
-`fontdue::Font` is appropriate for measurement, but bypasses caching when drawing.
+For text, pass the exact face/index and positions produced by Parley/HarfRust
+to Blend2D. Do not measure with the legacy mask painter and then draw with the
+native run painter. See [UI drawing](ui-drawing.md).
 
 Rendering always uses Blend2D's queue. `Painter::new` queues on the caller without
 extra workers; `Painter::with_threads` accepts a nonzero total thread count.
@@ -167,12 +167,9 @@ context is per miss, not per instance or frame, and need not acquire extra worke
 Do not extract fragments from an unfinished frame: that needs synchronization and
 can bake unrelated background pixels into a supposedly reusable image.
 
-PoE2 headers currently compose cached resized caps with `imageops`; glyph masks
-come from Fontdue. Those are preparation operations, not alternate scene renderers.
-Blend2D offers image scaling, patterns and font rendering; evaluate native
-replacements with cold/warm measurements and pixel/font parity before changing
-them. Moving preparation into Blend2D does not automatically put it in the frame
-queue.
+PoE2 headers compose cached resized caps with `imageops`. Parley shapes text;
+Blend2D draws the resulting glyph runs using the same face and positions. Image
+preparation is separate from the frame queue.
 
 - Render in local coordinates into tight physical-pixel bounds, including any
   shadow or antialiasing margin. Preserve the content origin separately.

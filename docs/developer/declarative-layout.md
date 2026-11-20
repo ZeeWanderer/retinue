@@ -1,7 +1,7 @@
 # Declarative Layout
 
 The authoring API is documented in [UI SDK](ui-sdk.md). `View::body` builds the
-active tree; `ViewTree` retains state and patches layout and paint independently.
+active tree; `InstanceGraph` retains state and patches layout and paint independently.
 The superseded builder/Binding/Realization frontend has been removed.
 
 ## Structural Tools
@@ -14,7 +14,7 @@ The superseded builder/Binding/Realization frontend has been removed.
 - `LayoutView`: a custom `Layout` arranging declared children.
 - `ScrollViewport`: content insets, axes, extent and clipping; the controller owns
   input and position. Virtualization is independent of raster-cache granularity.
-- `Switch`: current content plus an optional bounded outgoing transition.
+- Conditional branches mount only the selected content.
 
 A View is a comparable description, not a native window or controller. State and
 environment reads establish dependencies during body evaluation or primitive
@@ -66,10 +66,9 @@ an unrelated warm-cache byte budget is full. See [render residency](render-resid
 
 ## Navigation And Windows
 
-`Switch::new(key, content)` takes active content only. `vacant()` leaves no selected
-page. With a `TranslationTransition`, one outgoing subtree remains until its exit
-finishes; its input is disabled. Reversal resumes from current presentation. Rapid
-navigation retires the oldest departure, and reduced motion finishes immediately.
+Select page content with a branch in the compiled body. The reference frontend's
+`Switch` also implements bounded outgoing transitions; it is a parity oracle,
+not a production authoring primitive.
 
 Inactive-tree inspection is not required. Consider optional metadata only for a
 demonstrated optimization that does not complicate Switch or penalize normal use.
@@ -87,11 +86,11 @@ deadline for its owner. Wall-clock corrections affect only wall-clock schedules.
 Unmounting cancels subscriptions and deadlines. A paused or finished schedule
 must not drive a repaint loop.
 
-`.animation(curve, trigger)` scopes state-change animation. `with_animation` and
+`ViewContext::animated_with` samples a named value with an explicit curve. `with_animation` and
 `with_transaction` attach intent to mutations outside views. Target model state
 is immediate; presentation tracks interpolate independently. Translation-only
-motion should not rerecord drawing. Custom sampled values and `AnimatedCanvas`
-use the same clock. See [UI motion](ui-motion.md) for remaining extended playback
+motion should not rerecord drawing. Pass a sampled value to `Canvas` for custom
+drawing on the same clock. See [UI motion](ui-motion.md) for remaining extended playback
 work and explicit cancellation/completion contracts.
 
 ## Verification

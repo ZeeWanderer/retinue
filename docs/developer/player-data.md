@@ -35,8 +35,7 @@ The retained Overwolf `308.0.14` provider identifies the missing collector as
   `game_info.highlighted`.
 
 The provider imports no `WriteProcessMemory` or socket/HTTP APIs. This supports an external
-read-only memory scanner rather than packet interception. Reproducible decompiler output,
-hashes, and the untouched provider package are retained under `research/overwolf/`.
+read-only memory scanner rather than packet interception.
 
 `apps/wfcompanion/src/inventory.rs` reproduces only the inventory path from the Linux host. It
 opens `/proc/<game-pid>/mem` read-only, finds the HTTP manager through the same masked executable

@@ -1,8 +1,7 @@
 # Overwolf And AlecaFrame Overlay Research
 
 Research snapshot: AlecaFrame 2.6.90, Overwolf GEP 308.0.14 and documentation, KDE Plasma 6.7,
-and XDG desktop portal documentation inspected in July 2026. Decompiled AlecaFrame
-sources are retained under ignored `research/alecaframe/2.6.90/`.
+and XDG desktop portal documentation inspected in July 2026.
 
 See `docs/developer/alecaframe-overlay-catalog.md` for a field-by-field catalog of packaged
 in-game windows and local implementation status. This document focuses on mechanism, ownership,
@@ -348,24 +347,10 @@ This deliberately does not reproduce Overwolf's injection mechanism. Wayland lay
 meets game-only, fullscreen, and performance requirements without entering Warframe's
 process or graphics stack.
 
-DBWIN events identify relic-selection and reward-screen lifecycle without OCR. Current visual
-labels still use local capture and OCR until a read-only memory collector meets the validation
-requirements above.
+DBWIN events identify the relic-selection and reward-screen lifecycle. Retinue
+prefers validated Scaleform data for labels and falls back to OCR if the reader
+fails. See the [companion guide](../companion.md).
 
-## Local Evidence Map
-
-- `package/manifest.json`: Warframe targeting plus desktop and `in_game_only` windows.
-- `package/web/assets/js/background.js`: screenshot request, overlay window lifecycle,
-  and GEP inventory forwarding.
-- `csharp/.../Utils/EELogProcessor.cs`: reward/log triggers.
-- `csharp/.../OCRHelper.cs`: DBWIN listener, screenshot crops, OCR, item matching, and price enrichment.
-- `csharp/.../StaticData.cs`: AlecaFrame API host construction, including `/ml`.
-- `csharp/.../Data/PriceHelper.cs`: batched lookup and 15-minute cache.
-- `csharp/.../OverwolfWrapper.cs`: Warframe Market v2 order access and account features.
-- `research/overwolf/extracted/game-events-provider/plugins/64/gep_warframeext.dll`: native
-  Warframe GEP collector.
-- `research/overwolf/decompiled/gep_warframeext.c`: Ghidra pseudocode showing read-only process
-  access, inventory JSON extraction, and highlighted-item extraction.
 
 ## External References
 

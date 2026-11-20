@@ -1,6 +1,6 @@
 # Retinue
 
-Linux/Proton game companions with a shared daemon, CLI, and MCP server.
+In-game overlays and tools for Warframe and Path of Exile 2 on Linux/Proton.
 
 ## Warframe
 
@@ -9,7 +9,7 @@ Mastery Helper, Inventory, Relic Planner, Market and build planning in the deskt
 
 ![Relic rewards with prices and collection progress](docs/images/wfcompanion-relic-rewards.webp)
 
-[Companion features and setup](docs/companion.md) | [Desktop GUI](docs/gui.md)
+[Companion features](https://zeewanderer.github.io/retinue/guides/companion/) | [Desktop app](https://zeewanderer.github.io/retinue/guides/gui/)
 
 ## Path of Exile 2
 
@@ -18,7 +18,7 @@ trade website. Optional estimates help gauge equipment value.
 
 ![PoE2 Evaluate overlay with item filters and an estimated value](docs/images/poe2companion-evaluate.webp)
 
-[PoE2 features and setup](docs/poe2.md)
+[PoE2 features and setup](https://zeewanderer.github.io/retinue/guides/poe2/)
 
 ## Install
 
@@ -29,7 +29,7 @@ brew tap zeewanderer/sundries
 brew install zeewanderer/sundries/retinue
 ```
 
-Follow [installation and Steam setup](docs/installation.md), then run
+Follow [installation and Steam setup](https://zeewanderer.github.io/retinue/guides/installation/), then run
 `retinue doctor` to check the setup.
 
 ## Tools
@@ -39,12 +39,13 @@ Follow [installation and Steam setup](docs/installation.md), then run
 - `retinue-inspect`: memory, capture and game-research tools.
 - `retinue mcp`: MCP server.
 
-ARC Raiders currently has [launch scaffolding only](docs/arc.md).
+ARC Raiders currently has [launch scaffolding only](https://zeewanderer.github.io/retinue/guides/arc/).
 
 ## Documentation
 
-[All guides](docs/index.md) | [CLI](docs/cli.md) | [Build from source](docs/developer/workflows.md#build)
-| [Contributing](docs/DEVELOPER.md)
+[Documentation](https://zeewanderer.github.io/retinue/) | [Commands](https://zeewanderer.github.io/retinue/guides/cli/)
+| [Build from source](https://zeewanderer.github.io/retinue/developer/workflows/#build)
+| [Contributing](https://zeewanderer.github.io/retinue/developer/)
 
 ## License
 

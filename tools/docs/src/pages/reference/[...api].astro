@@ -1,0 +1,45 @@
+---
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import {work,publicRoute} from '../../../paths.mjs';
+import Declaration from '../../components/Declaration.astro';
+export async function getStaticPaths(){
+  const pages=JSON.parse(await fs.readFile(path.join(work,'api-pages.json'),'utf8'));
+  return pages.map(({route})=>({params:{api:publicRoute(route).slice('reference/'.length)},props:{route}}));
+}
+const p=JSON.parse(await fs.readFile(path.join(work,'api',Astro.props.route+'.json'),'utf8'));
+Astro.locals.referenceRole=p.role && p.kind+' '+p.role;
+const groups=(p.groups??[]).map(g=>({...g,slug:g.title==='Methods'?'impl-'+p.title:
+  'topics-'+encodeURIComponent(g.title.toLowerCase().replaceAll(' ','-'))}));
+const headings=groups.map(g=>({depth:2,slug:g.slug,text:g.title}));
+---
+<StarlightPage frontmatter={{title:p.title,editUrl:false,pagefind:!p.redirect,tableOfContents:false}} headings={headings}>
+  {p.redirect ? <p>Re-export of <a href={p.redirect}>the original declaration</a>.</p> : <article class="symbol">
+    {p.abstract && <div class="abstract" set:html={p.abstract} />}
+    {p.signature && <Declaration item={p}/>}
+    {p.source && <a class="source" href={p.source}>View source</a>}
+    {p.deprecation && <p><strong>Deprecated:</strong> {p.deprecation}</p>}
+    {p.related.length>0 && <section><h2>Related guides</h2><ul>{p.related.map(r=><li><a href={r.link}>{r.label}</a></li>)}</ul></section>}
+    {p.html && <section><h2>Overview</h2><div class="discussion" set:html={p.html}/></section>}
+    {groups.length>0 && <section><h2>Topics</h2>
+    {groups.length>5 && <details><summary>Jump to a topic group</summary><ul>{groups.map(g=><li><a href={'#'+g.slug}>{g.title}</a></li>)}</ul></details>}
+    {groups.map(g=><div><h3 id={g.slug}>{g.title}</h3><dl>{g.items.map(r=><div class="entry">
+      <dt id={r.anchor}>{r.href?<a href={r.href}><code>{r.name}</code></a>:<code>{r.name}</code>}
+        {r.source && <a class="source" href={r.source}>Source</a>}</dt>
+      {(r.summary||r.signature||r.html) && <dd>{r.summary && <span>{r.summary}</span>}
+        {r.signature && <Declaration item={r}/>} {r.html && <div set:html={r.html}/>}</dd>}
+    </div>)}</dl></div>)}</section>}
+  </article>}
+  {p.redirect && <script is:inline define:vars={{target:p.redirect}}>location.replace(target+location.hash)</script>}
+</StarlightPage>
+<style>
+  .kind,.source {font-size:.85rem;color:var(--sl-color-gray-2)}
+  .declaration,dd pre {padding:1rem;overflow-x:auto;background:var(--sl-color-gray-6);border-radius:.4rem}
+  .symbol section {border-top:1px solid var(--sl-color-hairline);margin-top:1.7rem}
+  .symbol h2 {margin-block:1.2rem .7rem}
+  .entry {border-bottom:1px solid var(--sl-color-hairline);padding:.55rem 0}
+  .entry dt {display:flex;gap:.8rem;align-items:baseline;scroll-margin-top:6rem}
+  .entry dd {margin:0;color:var(--sl-color-gray-2)}
+  .entry dt code {overflow-wrap:anywhere}
+</style>

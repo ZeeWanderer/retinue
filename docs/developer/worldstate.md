@@ -93,8 +93,8 @@ Upstream references used for the implementation:
 - Rotation starts at `2020-11-16T00:00:00Z`, advances every 604800 seconds, and wraps
   after eight weeks.
 
-To refresh this implementation after upstream changes, update the ignored clones under
-`research/`, compare both files above, then update `wf_teshin.erl` and its deterministic
+To refresh this implementation after upstream changes, compare both upstream files
+above, then update `wf_teshin.erl` and its deterministic
 rotation tests together. There is no runtime WFCD dependency.
 
 ## Adding a new worldstate type

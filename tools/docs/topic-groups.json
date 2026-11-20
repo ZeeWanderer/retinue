@@ -1,0 +1,8 @@
+{
+  "retinue_ui/index": {
+    "Defining a view": ["retinue_ui/authoring/trait.View", "retinue_ui/authoring/trait.Body", "retinue_ui/authoring/attr.view"],
+    "Arranging content": ["retinue_ui/authoring/fn.VStack", "retinue_ui/authoring/fn.HStack", "retinue_ui/authoring/fn.ZStack", "retinue_ui/authoring/fn.ScrollViewport"],
+    "Drawing and displaying content": ["retinue_ui/authoring/fn.Text", "retinue_ui/authoring/fn.Image", "retinue_ui/authoring/fn.Rectangle", "retinue_ui/authoring/fn.Canvas"],
+    "Updating a view": ["retinue_ui/state/struct.State", "retinue_ui_macros/attr.observable", "retinue_ui/ir/struct.InstanceGraph"]
+  }
+}

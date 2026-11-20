@@ -1,0 +1,33 @@
+---
+import MobileMenuFooter from '@astrojs/starlight/components/MobileMenuFooter.astro';
+import {siteNavigator} from '../../navigation.mjs';
+import {url} from '../../paths.mjs';
+const tree = await siteNavigator();
+---
+<nav class="doc-outline" aria-label="Documentation contents" data-fragments={url('portal/navigation/')}
+  set:html={tree.forPage(Astro.url.pathname)} />
+<nav id="outline-matches" class="doc-outline" aria-label="Matching topics" hidden></nav>
+<div class="outline-filter" hidden>
+  <input type="search" placeholder="Filter navigator" aria-label="Filter navigator" aria-controls="outline-matches" />
+  <output aria-live="polite"></output>
+</div>
+<div class="md:sl-hidden"><MobileMenuFooter /></div>
+<script>import '../navigator.js';</script>
+<style is:global>
+  .doc-outline {font-size:var(--sl-text-sm);line-height:1.4}
+  .doc-outline ul {margin:0;padding:0;list-style:none}
+  .doc-outline ul ul {padding-inline-start:.65rem;margin-inline-start:.45rem;border-inline-start:1px solid var(--sl-color-hairline-light)}
+  .doc-outline a,.doc-outline summary {color:var(--sl-color-gray-2);text-decoration:none;font-weight:400;border-radius:.25rem;overflow-wrap:anywhere}
+  .doc-outline li > a,.doc-outline .outline-fallback {display:block;padding:.25rem .45rem .25rem 1.3rem}
+  .doc-outline summary {display:flex;align-items:baseline;gap:.15rem;cursor:pointer;list-style:none}
+  .doc-outline summary::-webkit-details-marker {display:none}
+  .doc-outline summary::before {content:"";border:solid currentColor;border-width:0 1.5px 1.5px 0;width:.36rem;height:.36rem;flex:none;margin:0 .3rem;transform:translateY(-.12rem) rotate(-45deg)}
+  .doc-outline [open] > summary::before {transform:translateY(-.22rem) rotate(45deg)}
+  .doc-outline summary > :is(a,span) {padding:.25rem .2rem;flex:1}
+  .doc-outline :is(summary,a):hover {color:var(--sl-color-white);background:var(--sl-color-bg-nav)}
+  .doc-outline [aria-current=page] {background:var(--sl-color-accent-low);color:var(--sl-color-text-accent);font-weight:600}
+  .doc-outline small {font-size:.76em;color:var(--sl-color-gray-3)}
+  .outline-filter {position:sticky;bottom:0;margin-top:auto;background:var(--sl-color-bg-sidebar);padding:.65rem 0;border-top:1px solid var(--sl-color-hairline)}
+  .outline-filter input {box-sizing:border-box;width:100%;padding:.35rem .55rem;font:inherit;color:inherit;background:var(--sl-color-bg);border:1px solid var(--sl-color-gray-4);border-radius:.3rem}
+  .outline-filter output,#outline-matches small {display:block;font-size:.8rem}
+</style>
