@@ -22,7 +22,10 @@ export function guideLinks(pages, files, source, directory) {
           (['lib','main'].includes(stem) && p.route.split('/').length === 4))
         add(modules, file, href);
     }
-    if (p.kind === 'Erlang' && p.role === 'Application') add(targets, p.title, href);
+    if (p.kind === 'Erlang' && p.role === 'Application') {
+      add(targets, p.title, href);
+      add(targets, 'app:' + p.title, href);
+    }
     if (p.kind === 'Erlang' && p.role === 'Module') {
       add(targets, p.title, href);
       add(targets, 'm:' + p.title, href);
@@ -97,24 +100,30 @@ export function topicLinks(resolveCode, pages, schemas, commands) {
   }
   for (const p of [...pages, ...schemas]) {
     const href = url(p.route ? p.route + '/' : '');
+    add(p.source, href);
+    add(path.basename(p.source), href);
+    for (const [name, anchor, short = name.split('.').at(-1)] of p.symbols ?? []) {
+      add(name, href + '#' + anchor);
+      if (!resolveCode.knows(short)) add(short, href + '#' + anchor);
+    }
+  }
+  const declarations = new Map(names);
+  const declaration = key => declarations.get(key) ?? resolveCode(key);
+  for (const p of pages) {
+    const href = url(p.route ? p.route + '/' : '');
     const local = new Map();
     for (const [alias, symbol] of p.imports ?? []) {
-      const target = resolveCode(symbol);
+      const target = declaration(symbol);
       if (!target || local.has(alias)) throw Error(p.source + ': invalid reference import ' + alias + ': ' + symbol);
       local.set(alias, target);
     }
     imports.set(p.source, local);
-    add(p.source, href);
-    add(path.basename(p.source), href);
     for (const [term, target] of p.terms ?? []) {
-      if (!target.startsWith('#') && !target.startsWith('https://')) throw Error('Invalid term target: ' + target);
+      const destination = target.startsWith('#') ? href + target :
+        target.startsWith('https://') ? target : declaration(target);
+      if (!destination) throw Error(p.source + ': invalid term target: ' + target);
       if (resolveCode.knows(term) || names.has(term)) throw Error(p.source + ': ambiguous shared term ' + term);
-      add(term, target.startsWith('#') ? href + target : target);
-    }
-    for (const [name, anchor] of p.symbols ?? []) {
-      add(name, href + '#' + anchor);
-      const bare = name.split('.').at(-1);
-      if (!resolveCode.knows(bare)) add(bare, href + '#' + anchor);
+      add(term, destination);
     }
   }
   for (const {path: parts} of commands) {
@@ -137,7 +146,8 @@ export function topicLinks(resolveCode, pages, schemas, commands) {
 
 export function unresolvedReferences(missing, ambiguous = () => false) {
   return [...missing].flatMap(([file, names]) => [...names]
-    .filter(name => (/^[A-Z]\w*$/.test(name) && ambiguous(name)) ||
+    .filter(name => (/^(?:[A-Z]\w*|retinue_\w+|wfcore|poe2core)$/.test(name) && ambiguous(name)) ||
+      /^retinue\.(?:\w+\.)+v\d+\./.test(name) ||
       /^(?:(?:retinue[-_]\w+|wfcompanion|wfgui|poe2companion|arccompanion)::|(?:apps|crates|scripts|tools)\/[\w./-]+$|(?:[tc]:)?[a-z][\w@]*:[a-z][\w@]*\/\d+$)/.test(name))
     .map(name => file + ': ' + name));
 }

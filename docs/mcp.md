@@ -1,5 +1,7 @@
 # MCP Server
 
+[api:retinue_client]: m:retinue_client
+
 `retinue warframe mcp` gives MCP hosts structured access to Warframe services in the persistent
 `retinue-daemon`. `wfcli mcp` selects the same adapter. The host starts one short-lived stdio process;
 that process connects to or starts the shared daemon.

@@ -27,20 +27,28 @@ export async function protocolPages(root, link) {
     : undefined;
   return schemas.map(source => {
     const items = [...owners].filter(([, owner]) => owner === source).map(([item]) => item);
+    const symbols = [];
     const blocks = items.map(item => {
-      const title = `## ${item.fullName.slice(1)}\n\n${item.comment ?? ''}\n`;
+      const name = item.fullName.slice(1), id = anchor(item.fullName);
+      symbols.push([name, id, item.name]);
+      const member = key => {
+        const target = id + '-' + key;
+        symbols.push([name + '.' + key, target, item.name + '.' + key]);
+        return `<span id="${target}"><code>${key}</code></span>`;
+      };
+      const title = `## ${name}\n\n${item.comment ?? ''}\n`;
       if (item instanceof protobuf.Enum) {
         return title + '\n| Value | Number | Description |\n| --- | --- | --- |\n' +
-          Object.entries(item.values).map(([name, number]) => `| \`${name}\` | ${number} | ${cell(item.comments?.[name])} |`).join('\n');
+          Object.entries(item.values).map(([name, number]) => `| ${member(name)} | ${number} | ${cell(item.comments?.[name])} |`).join('\n');
       }
       const fields = item.fieldsArray.map(field => {
         const presence = field.map ? `map<${field.keyType}>` : field.repeated ? 'repeated' : field.options?.proto3_optional ? 'optional' : field.partOf ? `oneof ${field.partOf.name}` : 'singular';
-        return `| \`${field.name}\` | ${field.id} | ${reference(field.resolvedType) ?? `\`${field.type}\``} | ${cell(presence)} | ${cell(field.comment)} |`;
+        return `| ${member(field.name)} | ${field.id} | ${reference(field.resolvedType) ?? `\`${field.type}\``} | ${cell(presence)} | ${cell(field.comment)} |`;
       });
       return title + '\n| Field | Tag | Type | Presence | Description |\n| --- | --- | --- | --- | --- |\n' + fields.join('\n');
     });
     return {route: route(source), title: path.basename(source), source,
-      symbols: items.map(item => [item.fullName.slice(1), anchor(item.fullName)]),
+      symbols,
       body: `Generated from the owning schema. [Source](SOURCE_URL). Generated language bindings are not a second schema authority.\n\n${blocks.join('\n\n')}`};
   });
 }

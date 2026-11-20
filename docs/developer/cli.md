@@ -1,5 +1,7 @@
 # CLI Architecture
 
+[api:retinue_cli]: m:retinue_cli
+
 ## Commands
 
 The [CLI application](https://zeewanderer.github.io/retinue/reference/erlang/retinue_cli/api-reference/)

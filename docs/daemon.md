@@ -1,5 +1,7 @@
 # Daemon Control
 
+[api:retinue_daemon]: app:retinue_daemon
+
 `retinue-daemon` hosts shared lifecycle and transport with separate game services. Warframe owns
 fetching, queries, watches, Market access, player state, and Forma planning; PoE2 owns normalized
 log-session evidence. Normal client commands start the daemon automatically.
@@ -88,6 +90,10 @@ that recover through a fallback.
 
 Crash dumps are written to `$XDG_STATE_HOME/retinue/erl_crash.dump`, normally
 `~/.local/state/retinue/erl_crash.dump`. Use `retinue daemon paths` for all daemon directories.
+
+## Native Socket
+
+[term:RETINUE_DAEMON_SOCKET]: retinue_local_api:socket_path/0
 
 Native clients share `$XDG_RUNTIME_DIR/retinue/daemon.sock`; without a valid runtime base,
 the owner-only fallback is `/tmp/retinue-UID/daemon.sock`. `RETINUE_DAEMON_SOCKET` overrides

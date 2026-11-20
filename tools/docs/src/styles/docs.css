@@ -21,3 +21,5 @@
 .symbol-kind {color:var(--sl-color-gray-2);font-size:1rem;font-weight:600;margin-block:1.25rem 0}
 .main-pane:has(.symbol) .content-panel + .content-panel {border-top:0;padding-top:0}
 .symbol .entry dt code,.symbol .entry dt a code {background:transparent;padding:0;font-size:1em}
+.sl-markdown-content tr:has(td > span:target) {background:var(--sl-color-accent-low)}
+.sl-markdown-content a code {background:transparent;color:inherit;text-decoration:underline;text-underline-offset:.15em}

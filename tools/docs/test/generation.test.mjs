@@ -150,7 +150,8 @@ test('Protobuf reflection keeps field numbers, oneofs and cross-schema type link
   const pages = await protocolPages(root, (route) => '/retinue/' + route);
   assert.equal(pages.length, 4);
   const envelope = pages.find((page) => page.title === 'retinue_wire.proto');
-  assert.match(envelope.body, /\| `request` \| 1 \|/);
+  assert.match(envelope.body, /id="retinuewirev1packet-request"><code>request<\/code><\/span> \| 1 \|/);
+  assert.ok(envelope.symbols.some(([name, , short]) => name === 'retinue.wire.v1.Packet.request' && short === 'Packet.request'));
   assert.match(envelope.body, /oneof body/);
   assert.match(envelope.body, /\[retinue.wire.v1.Request\]/);
   const game = pages.find((page) => page.title === 'wf_native.proto');

@@ -73,7 +73,7 @@ contract(Game) ->
       <<"interfaces">> => interfaces(Game),
       <<"features">> => features(Game)}.
 
--doc "Negotiate one client's required interfaces and optional features.".
+-doc "Validate the JSON hello's `game` string (warframe or poe2) and negotiate that game's interfaces and features before Protobuf framing starts.".
 -spec negotiate(map()) -> map().
 negotiate(Client) when is_map(Client) ->
     Game = maps:get(<<"game">>, Client, undefined),

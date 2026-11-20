@@ -95,16 +95,19 @@ hot_update_beam_dir() -> retinue_daemon_client:hot_update_beam_dir().
 -doc "Call daemon request API, starting it when absent.".
 -spec call(term()) -> {ok, term()} | {error, term()}.
 call(Request) -> retinue_client_transport:call(Request).
+-doc "Send a synchronous game request as the Erlang tuple `{game, Game, Request}`.".
 call(Game, Request) -> call({game, Game, Request}).
 
 -doc "Submit one request and wait for its asynchronous response.".
 -spec one_shot(map()) -> {ok, term()} | {error, term()}.
 one_shot(Request) -> retinue_client_transport:one_shot(Request).
+-doc "Set the request map's `game` atom key and wait for one reply over Erlang distribution.".
 one_shot(Game, Request) -> one_shot(Request#{game => Game}).
 
 -doc "Register a persistent daemon request stream.".
 -spec subscribe(map()) -> {ok, map()} | {error, term()}.
 subscribe(Request) -> retinue_client_transport:subscribe(Request).
+-doc "Set the request map's `game` atom key and open a persistent subscription.".
 subscribe(Game, Request) -> subscribe(Request#{game => Game}).
 
 -doc "Wait for the next response from a request stream.".

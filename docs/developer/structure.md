@@ -1,5 +1,7 @@
 # Project Structure
 
+[api:retinue_daemon]: app:retinue_daemon
+
 Retinue separates platform lifecycle and transport from game-owned services. `wf_*` modules
 implement Warframe behavior; platform modules use `retinue_*` names. The `_cli` suffix marks
 command handlers; `wfcli` is an executable alias, not an internal module namespace.

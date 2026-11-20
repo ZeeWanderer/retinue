@@ -63,6 +63,30 @@ test('member references survive re-exports, but homonyms must be qualified', () 
   assert.deepEqual(unresolvedReferences(new Map([['guide.md',new Set(['Window','data'])]]),lookup.ambiguous),['guide.md: Window']);
 });
 
+test('wire fields are addressable without claiming bare field names in unrelated guides', () => {
+  const schema = {source:'poe.proto', route:'protocol/poe', symbols:[
+    ['poe.Search.offset','poesearch-offset','Search.offset'],
+    ['poe.Page.offset','poepage-offset','Page.offset'],
+  ]};
+  const guide = {source:'trade.md',route:'trade',imports:[['offset','poe.Page.offset']],
+    terms:[['search_offset','poe.Search.offset']]};
+  const {resolve} = topicLinks(lookup,[guide],[schema],[]);
+  assert.equal(resolve('offset','trade.md'),url('protocol/poe/#poepage-offset'));
+  assert.equal(resolve('offset','other.md'),undefined);
+  assert.equal(resolve('search_offset','other.md'),url('protocol/poe/#poesearch-offset'));
+  assert.equal(resolve('Page.offset','other.md'),url('protocol/poe/#poepage-offset'));
+  assert.throws(()=>topicLinks(lookup,[{...guide,imports:[['offset','poe.Removed.offset']]}],[schema],[]),/invalid reference import/);
+});
+
+test('an Erlang application and module can share a name without silently choosing either', () => {
+  const app = {kind:'Erlang', role:'Application', title:service.title,
+    route:'reference/erlang/service/api-reference.html'};
+  const resolve = guideLinks([service, app],[],()=>undefined);
+  assert.equal(resolve('service'), undefined);
+  assert.equal(resolve('app:service'), url(app.route));
+  assert.equal(resolve('m:service'), url(service.route));
+});
+
 test('only prose code is linked; deliberate links, headings and examples survive', () => {
   const md = '# Title\n\n## `service`\n\n`service` [`service`](elsewhere) `retinue doctor`\n\n```erlang\nservice:start/2\n```';
   const {body} = topic(md, 'doc.md', v => v, lookup);

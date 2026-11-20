@@ -26,6 +26,13 @@ fields remain available as `data.<path>`.
 `view=auto|raw|typed|both`. Controls must not compile under `OR` or `NOT`. Dataset adapters
 validate fields and operators before evaluating any row.
 
+## Paged Results
+
+`wf_entity_query:execute/7` filters and sorts before applying the offset and limit.
+`slice` contains the returned rows, `total` counts all matching rows before paging,
+and `shown` counts only the returned rows. An offset beyond the last match produces
+an empty slice and zero shown without changing the total.
+
 ## Design Sources
 
 - [GitHub Code Search syntax](https://docs.github.com/en/search-github/github-code-search/understanding-github-code-search-syntax)

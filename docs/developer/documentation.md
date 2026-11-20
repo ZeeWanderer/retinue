@@ -48,12 +48,20 @@ The site links unambiguous names to their API page; a source file without an API
 links to its repository revision. Command paths, protocol types and qualified
 members link to their generated reference. Keep examples and literal values as code.
 
-When a guide uses a short name with several possible definitions, import its
-meaning for that guide. To document a domain term once, register its section
-in the owning guide. A term can also point to an upstream specification:
+For a reference whose meaning depends on the sentence, write a normal Markdown
+link at that mention. The [Erlang request's `game` key](https://zeewanderer.github.io/retinue/reference/erlang/retinue_cli/retinue_client/#one_shot/2)
+and the [JSON handshake's `game` key](https://zeewanderer.github.io/retinue/reference/erlang/retinue_daemon/retinue_local_protocol/#negotiate/1)
+have different owners. Do not give them one page-wide or global target.
+Use a guide-local import only when every mention denotes the same declaration.
+To document a domain term once, register its section
+in the owning guide. A term can also point to a declaration or upstream
+specification. For wire data, name the message and field: unrelated messages
+often use the same field name.
 
 ```markdown
 [api:Canvas]: retinue_ui::drawing::PixelCanvas
+[api:next_offset]: retinue.poe2.v1.TradeResults.next_offset
+[api:retinue_daemon]: app:retinue_daemon
 [term:InventoryChanges]: #inventory-snapshots-and-deltas
 ```
 

@@ -33,6 +33,17 @@ test('guides and declarations share a navigable collection on a direct visit', a
     await rail.getByRole('link',{name:'wf_market_service',exact:true}).click();
     assert.ok(await rail.getByRole('link',{name:'Daemon lifecycle'}).isVisible());
     assert.deepEqual(await roots(), initial);
+    await page.goto(new URL('developer/daemon/', base).href);
+    const destinations = text => page.locator('main a:has(code)').evaluateAll((anchors, label) =>
+      anchors.filter(a => a.querySelector('code').textContent === label).map(a => a.getAttribute('href')), text);
+    assert.deepEqual(await destinations('game'), [
+      new URL('reference/erlang/retinue_cli/retinue_client/', base).pathname + '#one_shot/2',
+      new URL('reference/erlang/retinue_daemon/retinue_local_protocol/', base).pathname + '#negotiate/1',
+    ]);
+    assert.deepEqual(await destinations('retinue_cli'), [new URL('reference/erlang/retinue_cli/retinue_cli/', base).pathname]);
+    await page.locator('main').getByRole('link',{name:'quick_selected',exact:true}).click();
+    assert.equal(await page.locator(':target').textContent(), 'quick_selected');
+    assert.match(page.url(), /poe2_native\/#retinuepoe2v1modifier-quick_selected$/);
   } finally {
     await browser.close();
   }
