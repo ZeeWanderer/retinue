@@ -42,6 +42,20 @@
       "previous": null,
       "reason": "Initial reviewed clean-source rendering reference. Fixed-affinity 12-run ABBA collection with separate repeatability audit. Retain measured variability; no hard timing gate or live acceptance claim.",
       "selected_at": "2026-11-02T23:20:46.901217+00:00"
+    },
+    "06664ae7c75cdeb420deb15e5b27dae09dffc810e3896a6c9da794512781abfd": {
+      "suite": "gui-foundry",
+      "record": "3f5e17583fb04cf9b4fa14334c55b2f1",
+      "previous": null,
+      "reason": "Clean 3742dd6 Foundry scroll reference; eight fresh processes, CPUs 4-7, four renderer threads.",
+      "selected_at": "2026-11-20T19:19:58.309431+00:00"
+    },
+    "fdebde422024eb1586a4baa9fb5daf1e5892004d5a9d4db3e65d75ace692707e": {
+      "suite": "gui-relics",
+      "record": "85873610083044c1bba3ed18e68145da",
+      "previous": null,
+      "reason": "Clean 3742dd6 Relic Planner scroll reference; eight fresh processes, CPUs 4-7, four renderer threads.",
+      "selected_at": "2026-11-20T19:20:08.934724+00:00"
     }
   }
 }
