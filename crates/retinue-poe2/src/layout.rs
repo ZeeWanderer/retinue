@@ -12,6 +12,9 @@ const INGAME_DATA: &str = "48 8b 8e u4 ba 27 05 00 00 48 81 c1 ? 01 00 00
     e8 ???? 85 c0 0f 85 ?? 00 00";
 const SERVER_DATA: &str = "48 c1 e9 20 49 d3 e0 49 03 d0 48 f7 da f0 48 01 15 ????
     4d 2b c8 49 8b c9 e8 ???? 84 db 0f 84 ?? 00 00 49 8b 87 u4";
+const SERVER_COLLECTION: &str = "84 db ( 0f 84 ???? | 74 ? ) 49 8b 87 u4
+    4c 8d 4d ? 4c 89 4d ? 48 8d 4d ? 48 89 4d ? 48 8d 55 ? 48 89 55 ?
+    48 8b 70 50 48 8b 58 48";
 const GOLD: &str = "81 79 08 fb d6 a0 dd 75 ? 48 8b 82 u4 8b 88 u4 eb ? c7 ? ? 00 00 00 00";
 const UI_ROOT: &str = "83 3d ???? ff 75 ? 48 8d 05 ???? 48 89 05 ???? 48 8d 0d ????
     33 c0 48 89 05 ???? 48 89 05 ???? e8 ???? 48 8d 0d ???? e8 ????
@@ -19,6 +22,13 @@ const UI_ROOT: &str = "83 3d ???? ff 75 ? 48 8d 05 ???? 48 89 05 ???? 48 8d 0d ?
 const VISIBILITY: &str = "66 0f 6e c0 8b 82 u4 0f 5b c0 c1 e8 07 f3 0f 59 c1 a8 01 74 09";
 const SOCIAL_RECORDS: &str = "48 8b 81 u4 48 8b a9 u4 48 89 84 24 88 00 00 00
     48 3b e8 0f 84 ? 00 00 00 48 83 7d 58 07";
+const SOCIAL_ITERATION: &str = "48 8b b1 u4 48 8b 99 u4 48 3b de 74 ?
+    48 83 7b 50 00 74 ? 80 bb u4 00 74 %{ 48 81 c3 u4 48 3b de 75 % 48 83 7b 50 00 }
+    48 8d 53 40";
+const ZONE_TOWN: &str = "48 8b 88 u4 48 8b 81 u4 48 85 c0 ( 74 ? | 0f 84 ???? )
+    80 78 14 00 75 ? 80 b8 ???? 00";
+const TILE_HASH: &str = "48 8d 15 ${'} ( 48 8d 8c 24 ???? | 48 8d 4c 24 ? )
+    e8 ???? 8b 93 u4 48 8b c8 e8 ????";
 const PARTY: &str = "49 8b 88 u4 49 8b 90 u4 48 3b d1 74 ? 48 8b c2
     0f 1f 80 00 00 00 00 83 38 00 74 ? 48 83 c0 50 48 3b c1 75 ?";
 const ENTITIES: &str = "48 8b 86 u4 48 8b 18 48 3b d8 0f 84 ???? 66 90
@@ -37,6 +47,33 @@ pub struct SocialLayout {
     pub server_offset: u32,
     pub records_offset: u32,
     pub party_offset: u32,
+    #[serde(default = "archived_stride")]
+    pub record_stride: u32,
+    #[serde(default = "archived_online")]
+    pub online_offset: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AreaLayout {
+    pub zone: u32,
+    pub change_key: u32,
+}
+
+// Defaults only deserialize sparse captures recorded before these fields were discovered.
+fn archived_area() -> Result<AreaLayout, String> {
+    Ok(AreaLayout {
+        zone: 0x98,
+        change_key: 0x114,
+    })
+}
+fn archived_local() -> Result<u32, String> {
+    Ok(0x5b8)
+}
+fn archived_stride() -> u32 {
+    0x210
+}
+fn archived_online() -> u32 {
+    0x202
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -56,6 +93,10 @@ pub struct PanelLayout {
 pub struct Layout {
     pub root_rva: u64,
     pub ingame_data_offset: u32,
+    #[serde(default = "archived_area")]
+    pub area: Result<AreaLayout, String>,
+    #[serde(default = "archived_local")]
+    pub local_entities_offset: Result<u32, String>,
     pub gold: Result<GoldLayout, String>,
     pub panels: Result<PanelLayout, String>,
     #[serde(default = "missing_social")]
@@ -81,8 +122,38 @@ impl Layout {
         let root = signature::<2>(image, "game root", ROOT)?[1];
         let ingame = signature::<2>(image, "in-game data", INGAME_DATA)?[1];
         section(image, root, 8, true)?;
+        let server = (|| {
+            let a = optional_signature::<2>(image, "server data", SERVER_DATA)?;
+            let b = optional_signature::<2>(image, "server collection", SERVER_COLLECTION)?;
+            if a.zip(b).is_some_and(|(a, b)| a[1] != b[1]) {
+                return Err("conflicting PoE2 server data operands".into());
+            }
+            let offset = a.or(b).ok_or("PoE2 server data not found")?[1];
+            field(offset, 8)?;
+            Ok(offset)
+        })();
+        // Both provider generations take the local-player vector immediately after the server pointer.
+        let local_entities_offset = server.clone().and_then(|offset| {
+            field(offset + 8, 8)?;
+            Ok(offset + 8)
+        });
+        let area = (|| {
+            let zone = agreed_operand(image, "zone town check", ZONE_TOWN, |s| {
+                (s[1] == ingame).then_some(s[2])
+            })?;
+            let change_key = agreed_operand(image, "area tile hash", TILE_HASH, |s| {
+                image
+                    .derva_slice::<u16>(s[1], 12)
+                    .ok()
+                    .filter(|text| text.iter().copied().eq("Tile hash: \0".encode_utf16()))
+                    .map(|_| s[2])
+            })?;
+            let area = AreaLayout { zone, change_key };
+            area.validate()?;
+            Ok(area)
+        })();
         let gold = (|| {
-            let server_offset = signature::<2>(image, "server data", SERVER_DATA)?[1];
+            let server_offset = server.clone()?;
             let fields = signature::<3>(image, "gold", GOLD)?;
             let gold = GoldLayout {
                 server_offset,
@@ -103,17 +174,24 @@ impl Layout {
             })
         })();
         let social = (|| {
-            let server_offset = signature::<2>(image, "server data", SERVER_DATA)?[1];
-            let records = signature::<3>(image, "social records", SOCIAL_RECORDS)?;
+            let server_offset = server?;
+            let records = optional_signature::<3>(image, "social records", SOCIAL_RECORDS)?;
             let party = signature::<3>(image, "party", PARTY)?;
-            if records[1] != records[2].saturating_add(8) || party[1] != party[2].saturating_add(8)
+            let iteration = signature::<5>(image, "social iteration", SOCIAL_ITERATION)?;
+            if records.is_some_and(|r| r[1..3] != iteration[1..3]) {
+                return Err("social iteration is over a different vector".into());
+            }
+            if iteration[1] != iteration[2].saturating_add(8)
+                || party[1] != party[2].saturating_add(8)
             {
                 return Err("inconsistent PoE2 social vector operands".into());
             }
             let layout = SocialLayout {
                 server_offset,
-                records_offset: records[2],
+                records_offset: iteration[2],
                 party_offset: party[2],
+                record_stride: iteration[4],
+                online_offset: iteration[3],
             };
             layout.validate()?;
             Ok(layout)
@@ -121,6 +199,8 @@ impl Layout {
         let layout = Self {
             root_rva: root.into(),
             ingame_data_offset: ingame,
+            area,
+            local_entities_offset,
             gold,
             panels,
             social,
@@ -168,6 +248,12 @@ impl Layout {
             return Err("invalid PoE2 native layout".into());
         }
         field(self.ingame_data_offset, 8)?;
+        if let Ok(area) = &self.area {
+            area.validate()?;
+        }
+        if let Ok(local) = self.local_entities_offset {
+            field(local, 8)?;
+        }
         if let Ok(gold) = &self.gold {
             gold.validate()?;
         }
@@ -207,11 +293,49 @@ impl SocialLayout {
         field(self.server_offset, 8)?;
         field(self.records_offset, 8)?;
         field(self.party_offset, 8)?;
+        if !(0x88..=0x1000).contains(&self.record_stride)
+            || !self.record_stride.is_multiple_of(8)
+            || !(0x82..self.record_stride).contains(&self.online_offset)
+        {
+            return Err("invalid PoE2 social record shape".into());
+        }
         if self.records_offset.abs_diff(self.party_offset) < 24 {
             return Err("overlapping PoE2 social vectors".into());
         }
         Ok(())
     }
+}
+
+impl AreaLayout {
+    fn validate(&self) -> Result<(), String> {
+        field(self.zone, 8)?;
+        field(self.change_key, 4)?;
+        if self.change_key.abs_diff(self.zone) < 8 {
+            return Err("overlapping PoE2 area fields".into());
+        }
+        Ok(())
+    }
+}
+
+fn agreed_operand(
+    image: PeFile<'_>,
+    label: &str,
+    source: &str,
+    select: impl Fn([u32; 3]) -> Option<u32>,
+) -> Result<u32, String> {
+    let pattern = pelite::pattern::parse(source).map_err(|e| format!("{label} pattern: {e}"))?;
+    let scanner = image.scanner();
+    let mut matches = scanner.matches(&pattern, image.headers().code_range());
+    let mut found = [0; 3];
+    let mut value = None;
+    while matches.next(&mut found) {
+        if let Some(next) = select(found) {
+            if value.replace(next).is_some_and(|v| v != next) {
+                return Err(format!("conflicting PoE2 {label} operands"));
+            }
+        }
+    }
+    value.ok_or_else(|| format!("PoE2 {label} not found"))
 }
 
 impl GoldLayout {
@@ -267,17 +391,26 @@ fn signature<const N: usize>(
     label: &str,
     source: &str,
 ) -> Result<[u32; N], String> {
+    optional_signature(image, label, source)?
+        .ok_or_else(|| format!("PoE2 {label} signature not found"))
+}
+
+fn optional_signature<const N: usize>(
+    image: PeFile<'_>,
+    label: &str,
+    source: &str,
+) -> Result<Option<[u32; N]>, String> {
     let pattern = pelite::pattern::parse(source).map_err(|e| format!("{label} pattern: {e}"))?;
     let scanner = image.scanner();
     let mut matches = scanner.matches(&pattern, image.headers().code_range());
     let mut found = [0; N];
     if !matches.next(&mut found) {
-        return Err(format!("PoE2 {label} signature not found"));
+        return Ok(None);
     }
     if matches.next(&mut [0; N]) {
         return Err(format!("ambiguous PoE2 {label} signature"));
     }
-    Ok(found)
+    Ok(Some(found))
 }
 
 fn section(image: PeFile<'_>, rva: u32, size: u32, writable: bool) -> Result<(), String> {

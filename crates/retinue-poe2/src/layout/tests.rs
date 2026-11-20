@@ -118,6 +118,38 @@ fn fixture(code_shift: usize, data_shift: usize, fields: u32) -> Vec<u8> {
     );
     put32(&mut bytes, confirm + 3, 0x6f0 + fields);
     put32(&mut bytes, confirm + 32, 0x8c + fields);
+    let zone = root + 0x900;
+    emit(
+        &mut bytes,
+        zone,
+        "48 8b 88 00 00 00 00 48 8b 81 00 00 00 00 48 85 c0 74 01 80 78 14 00 75 01 80 b8 2a 01 00 00 00",
+    );
+    put32(&mut bytes, zone + 3, 0x290 + fields);
+    put32(&mut bytes, zone + 10, 0x98 + fields);
+    let hash = root + 0x940;
+    emit(
+        &mut bytes,
+        hash,
+        "48 8d 15 00 00 00 00 48 8d 4c 24 18 e8 00 00 00 00 8b 93 00 00 00 00 48 8b c8 e8 00 00 00 00",
+    );
+    relative(&mut bytes, hash + 3, 0x2400 + data_shift);
+    for (i, u) in "Tile hash: \0".encode_utf16().enumerate() {
+        let at = 0x2400 + data_shift + 2 * i;
+        bytes[at..at + 2].copy_from_slice(&u.to_le_bytes());
+    }
+    put32(&mut bytes, hash + 19, 0x114 + fields);
+    let iter = root + 0xa00;
+    emit(
+        &mut bytes,
+        iter,
+        "48 8b b1 00 00 00 00 48 8b 99 00 00 00 00 48 3b de 74 20
+        48 83 7b 50 00 74 0d 80 bb 00 00 00 00 00 74 04 48 8d 53 40
+        48 81 c3 00 00 00 00 48 3b de 75 e0",
+    );
+    put32(&mut bytes, iter + 3, 0x27e0 + fields);
+    put32(&mut bytes, iter + 10, 0x27d8 + fields);
+    put32(&mut bytes, iter + 28, 0x202 + fields);
+    put32(&mut bytes, iter + 42, 0x210 + fields);
     bytes
 }
 
@@ -130,6 +162,12 @@ fn discovers_relocated_code_data_and_fields() {
         assert_eq!(panels.root_rva, 0x3300 + data as u64);
         assert_eq!(panels.flags_offset, 0x168 + fields);
         assert_eq!(layout.ingame_data_offset, 0x290 + fields);
+        let area = layout.area.unwrap();
+        assert_eq!(
+            (area.zone, area.change_key),
+            (0x98 + fields, 0x114 + fields)
+        );
+        assert_eq!(layout.local_entities_offset.unwrap(), 0x5b8 + fields);
         let gold = layout.gold.unwrap();
         assert_eq!(gold.server_offset, 0x5b0 + fields);
         assert_eq!(gold.data_offset, 0x1b0 + fields);
@@ -138,10 +176,81 @@ fn discovers_relocated_code_data_and_fields() {
         assert_eq!(social.server_offset, 0x5b0 + fields);
         assert_eq!(social.records_offset, 0x27d8 + fields);
         assert_eq!(social.party_offset, 0x2300 + fields);
+        assert_eq!(
+            (social.record_stride, social.online_offset),
+            (0x210 + fields, 0x202 + fields)
+        );
         let entities = layout.entities.unwrap();
         assert_eq!(entities.tree_offset, 0x6f0 + fields);
         assert_eq!(entities.id_offset, 0x88 + fields);
     }
+}
+
+#[test]
+fn server_witnesses_allow_either_site_but_not_disagreement() {
+    let mut bytes = fixture(0, 0, 0);
+    let suffix = 0x1300 + 47;
+    emit(
+        &mut bytes,
+        suffix,
+        "4c 8d 4d f0 4c 89 4d d8 48 8d 4d f0 48 89 4d e0 48 8d 55 00 48 89 55 e8 48 8b 70 50 48 8b 58 48",
+    );
+    bytes[0x1300] = 0;
+    assert_eq!(
+        Layout::discover(&bytes)
+            .unwrap()
+            .local_entities_offset
+            .unwrap(),
+        0x5b8
+    );
+    bytes.copy_within(0x1300 + 32..suffix + 32, 0x1c00);
+    bytes[suffix] = 0;
+    bytes[0x1300] = 0x48;
+    put32(&mut bytes, 0x1c00 + 11, 0x620);
+    assert!(
+        Layout::discover(&bytes)
+            .unwrap()
+            .local_entities_offset
+            .unwrap_err()
+            .contains("conflicting")
+    );
+}
+
+#[test]
+fn zone_witnesses_agree_on_the_field_not_the_code_address() {
+    let mut bytes = fixture(0, 0, 0);
+    bytes.copy_within(0x1a00..0x1a20, 0x1c00);
+    assert!(Layout::discover(&bytes).unwrap().area.is_ok());
+    put32(&mut bytes, 0x1c0a, 0xa8);
+    assert!(
+        Layout::discover(&bytes)
+            .unwrap()
+            .area
+            .unwrap_err()
+            .contains("conflicting")
+    );
+    put32(&mut bytes, 0x1c03, 0x320);
+    assert!(Layout::discover(&bytes).unwrap().area.is_ok());
+    bytes[0x2400] = b'X';
+    let layout = Layout::discover(&bytes).unwrap();
+    assert!(layout.area.unwrap_err().contains("tile hash"));
+    assert!(layout.local_entities_offset.is_ok());
+}
+
+#[test]
+fn social_iterator_needs_its_own_back_edge_and_valid_fields() {
+    for fault in 0..3 {
+        let mut bytes = fixture(0, 0, 0);
+        match fault {
+            0 => bytes[0x1b00 + 50] = 0,
+            1 => put32(&mut bytes, 0x1b00 + 28, 0x210),
+            _ => put32(&mut bytes, 0x1b00 + 42, 0x211),
+        }
+        assert!(Layout::discover(&bytes).unwrap().social.is_err());
+    }
+    let mut bytes = fixture(0, 0, 0);
+    bytes[0x1800] = 0;
+    assert!(Layout::discover(&bytes).unwrap().social.is_ok());
 }
 
 #[test]
@@ -211,7 +320,7 @@ fn social_operands_must_be_unique_and_describe_adjacent_vector_bounds() {
     for fault in 0..3 {
         let mut bytes = fixture(0, 0, 0);
         match fault {
-            0 => bytes[0x1800] = 0,
+            0 => bytes[0x1b00] = 0,
             1 => bytes.copy_within(0x1800..0x1824, 0x1c00),
             _ => put32(&mut bytes, 0x1883, 0x2310),
         }

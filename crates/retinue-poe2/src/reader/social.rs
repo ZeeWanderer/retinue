@@ -31,7 +31,9 @@ impl Reader<'_> {
         let party_at = server + u64::from(layout.party_offset);
         let records_at = server + u64::from(layout.records_offset);
         let party = self.record_vector(party_at, 0x50, 64)?;
-        let records = self.record_vector(records_at, 0x210, 0x512)?;
+        let stride = u64::from(layout.record_stride);
+        let online_offset = u64::from(layout.online_offset);
+        let records = self.record_vector(records_at, stride, 0x512)?;
         let mut members = Vec::new();
         let mut wanted = BTreeSet::new();
         for address in (party.0..party.1).step_by(0x50) {
@@ -55,8 +57,8 @@ impl Reader<'_> {
             wanted.insert(local.name.clone());
         }
         let mut details = BTreeMap::new();
-        for address in (records.0..records.1).step_by(0x210) {
-            let online = self.byte(address + 0x202)?;
+        for address in (records.0..records.1).step_by(stride as usize) {
+            let online = self.byte(address + online_offset)?;
             if online > 1 {
                 return Err("invalid social online flag; layout may have changed".into());
             }
@@ -69,8 +71,8 @@ impl Reader<'_> {
             }
             let account = self.social_string(address)?;
             let league = self.social_string(address + 0x60)?;
-            let class_id = self.byte(address + 0x200)?;
-            let level = self.byte(address + 0x201)?;
+            let class_id = self.byte(address + online_offset - 2)?;
+            let level = self.byte(address + online_offset - 1)?;
             if account.is_empty() || !(1..=100).contains(&level) {
                 return Err("invalid social character identity".into());
             }
@@ -103,7 +105,7 @@ impl Reader<'_> {
             })
         });
         if self.record_vector(party_at, 0x50, 64)? != party
-            || self.record_vector(records_at, 0x210, 0x512)? != records
+            || self.record_vector(records_at, stride, 0x512)? != records
             || self.pointer(frame + u64::from(layout.server_offset))? != server
         {
             return Err("social vectors changed during observation".into());

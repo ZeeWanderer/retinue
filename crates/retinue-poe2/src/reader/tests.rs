@@ -95,6 +95,11 @@ fn fixture(patch: impl FnOnce(&mut [u8])) -> (ProcessMemory, Layout) {
     let layout = Layout {
         root_rva: 0x1000,
         ingame_data_offset: 0x290,
+        area: Ok(crate::layout::AreaLayout {
+            zone: 0x98,
+            change_key: 0x114,
+        }),
+        local_entities_offset: Ok(0x5b8),
         gold: Ok(GoldLayout {
             server_offset: 0x5b0,
             data_offset: 0x1b0,
@@ -108,6 +113,8 @@ fn fixture(patch: impl FnOnce(&mut [u8])) -> (ProcessMemory, Layout) {
             server_offset: 0x5b0,
             records_offset: 0x27d8,
             party_offset: 0x2300,
+            record_stride: 0x210,
+            online_offset: 0x202,
         }),
         entities: Ok(EntityLayout {
             tree_offset: 0x6f0,
@@ -367,6 +374,37 @@ fn social_fixture(bytes: &mut [u8]) {
     bytes[0x28200] = 3;
     bytes[0x28201] = 10;
     bytes[0x28202] = 1;
+}
+
+#[test]
+fn shifted_frame_fields_and_social_records_are_used_by_every_reader() {
+    let (memory, mut layout) = fixture(|bytes| {
+        social_fixture(bytes);
+        bytes.copy_within(0x115b0..0x115c8, 0x115b8);
+        bytes[0x115b0..0x115b8].fill(0);
+        bytes.copy_within(0x11098..0x110a0, 0x110a0);
+        bytes[0x11098..0x110a0].fill(0);
+        u32_at(bytes, 0x1111c, 123);
+        bytes.copy_within(0x28200..0x28203, 0x28220);
+        bytes[0x28200..0x28203].fill(0);
+        u64_at(bytes, 0x1a7e0, BASE + 0x28230);
+        u64_at(bytes, 0x1a7e8, BASE + 0x28230);
+    });
+    let area = layout.area.as_mut().unwrap();
+    area.zone += 8;
+    area.change_key += 8;
+    *layout.local_entities_offset.as_mut().unwrap() += 8;
+    layout.gold.as_mut().unwrap().server_offset += 8;
+    let social = layout.social.as_mut().unwrap();
+    social.server_offset += 8;
+    social.record_stride += 0x20;
+    social.online_offset += 0x20;
+    let snapshot = read(&memory, BASE, &layout).unwrap();
+    assert!(snapshot.issues.is_empty(), "{:?}", snapshot.issues);
+    assert_eq!(snapshot.area.unwrap().change_key, 123);
+    assert_eq!(snapshot.entities.unwrap().area_key, 123);
+    assert_eq!(snapshot.player.unwrap().name, "Exile");
+    assert_eq!(snapshot.social.unwrap().local.unwrap().league, "League");
 }
 
 #[test]

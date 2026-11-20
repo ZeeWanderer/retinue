@@ -53,7 +53,7 @@ impl Reader<'_> {
         if count > MAX_ENTITIES as u64 {
             return Err("entity tree exceeds observation limit".into());
         }
-        let area_key = self.u32(frame + 0x114)?;
+        let area_key = self.area_key(frame)?;
         let header = self.bytes(tree, 32)?;
         if header[0x19] != 1 || header[0x18] > 1 {
             return Err("invalid entity tree sentinel".into());
@@ -101,7 +101,7 @@ impl Reader<'_> {
         {
             return Err("inconsistent entity tree bounds".into());
         }
-        let local = self.vector(frame + 0x5b8, 32)?;
+        let local = self.local_entities(frame)?;
         let player = *local
             .first()
             .ok_or("local player is unavailable for entity validation")?;
@@ -127,8 +127,8 @@ impl Reader<'_> {
         }
         if self.bytes(field, 16)? != bounds
             || self.bytes(tree, 32)? != header
-            || self.u32(frame + 0x114)? != area_key
-            || self.vector(frame + 0x5b8, 32)? != local
+            || self.area_key(frame)? != area_key
+            || self.local_entities(frame)? != local
         {
             return Err("entity context changed during observation".into());
         }

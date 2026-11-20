@@ -63,6 +63,14 @@ pub struct Issue {
 
 pub fn read(memory: &ProcessMemory, base: u64, layout: &Layout) -> Result<Snapshot, String> {
     layout.validate()?;
+    read_validated(memory, base, layout)
+}
+
+pub(super) fn read_validated(
+    memory: &ProcessMemory,
+    base: u64,
+    layout: &Layout,
+) -> Result<Snapshot, String> {
     let reader = Reader {
         memory,
         base,
@@ -319,7 +327,8 @@ impl Reader<'_> {
     }
 
     fn area(&self, frame: u64) -> Result<Area, String> {
-        let zone = self.pointer(frame + 0x98)?;
+        let area = self.layout.area.as_ref().map_err(Clone::clone)?;
+        let zone = self.pointer(frame + u64::from(area.zone))?;
         let name = self.wide_z(self.u64(zone + 8)?)?;
         if name.len() > 512 {
             return Err("area name exceeds limit".into());
@@ -328,7 +337,7 @@ impl Reader<'_> {
         Ok(Area {
             in_town: town == 1 || (town == 0 && name.contains("Hideout")),
             name,
-            change_key: self.u32(frame + 0x114)?,
+            change_key: self.area_key(frame)?,
         })
     }
 
@@ -385,8 +394,22 @@ impl Reader<'_> {
         Ok(result)
     }
 
+    fn area_key(&self, frame: u64) -> Result<u32, String> {
+        let layout = self.layout.area.as_ref().map_err(Clone::clone)?;
+        self.u32(frame + u64::from(layout.change_key))
+    }
+
+    fn local_entities(&self, frame: u64) -> Result<Vec<u64>, String> {
+        let offset = self
+            .layout
+            .local_entities_offset
+            .as_ref()
+            .map_err(Clone::clone)?;
+        self.vector(frame + u64::from(*offset), 32)
+    }
+
     fn player(&self, frame: u64) -> Result<Player, String> {
-        let entities = self.vector(frame + 0x5b8, 32)?;
+        let entities = self.local_entities(frame)?;
         let entity = *entities
             .first()
             .ok_or("local player entity is not available")?;

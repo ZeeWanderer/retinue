@@ -144,7 +144,7 @@ impl Observer {
         let (process, layout) = self.current.as_ref().unwrap();
         let layout = layout.as_ref().map_err(Clone::clone)?;
         let memory = process.open()?.with_budget(budget());
-        let snapshot = reader::read(&memory, process.image_base, layout)?;
+        let snapshot = reader::read_validated(&memory, process.image_base, layout)?;
         process.validate()?;
         Ok(Some((process.clone(), snapshot)))
     }
