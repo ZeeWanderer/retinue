@@ -36,6 +36,23 @@ class TimelineTests(unittest.TestCase):
             chart = read_json(root / "site" / (key + ".json"))
             self.assertEqual(chart["values"]["scroll"]["new_count"], {"1": 7})
 
+    def test_distinct_sessions_and_binaries_can_share_a_source_revision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for i, binary in enumerate(["a", "b", "b"]):
+                report = measurement()
+                report["id"] = str(i) * 32
+                report["provenance"].update(binary_sha256=binary * 64, dirty=i != 0)
+                path = root / (str(i) + ".json")
+                write_json(path, report)
+                archive(root, path)
+            export(root, root / "site")
+            [series] = read_json(root / "site/index.json")
+            points = read_json(root / "site" / (series["series"] + ".json"))["points"]
+            self.assertEqual(len({p["id"] for p in points}), 3)
+            self.assertEqual(len({p["binary"] for p in points}), 2)
+            self.assertEqual(len({p["revision"] for p in points}), 1)
+
     def test_lnt_uses_seconds_and_keeps_independent_runs(self):
         r = measurement()
         output = lnt(r)

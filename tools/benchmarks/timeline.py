@@ -35,6 +35,7 @@ def export(root, dest):
         points, values = [], defaultdict(dict)
         for i, r in enumerate(reports):
             points.append({"id": r["id"], "date": r["created_at"], "revision": r["provenance"]["revision"],
+                           "binary": r["provenance"].get("binary_sha256"),
                            "dirty": r["provenance"]["dirty"], "runs": len(r["runs"])})
             sample_values = defaultdict(dict)
             for case, metric, samples in measurements(r):

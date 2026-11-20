@@ -1,11 +1,11 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
-import {url} from '../../../paths.mjs';
+import {repository,url} from '../../../paths.mjs';
 ---
-<StarlightPage frontmatter={{title: 'Performance history'}}>
-  <p>Explore selected benchmark sessions. Each line follows one workload, machine and configuration.
-  Points are medians across independent runs. A missing metric is a gap, not zero.</p>
-  <section id="history" data-index={url('metrics/index.json')} aria-label="Benchmark explorer">
+<StarlightPage frontmatter={{title: 'Performance history', tableOfContents:false}}>
+  <p>Compare measurements of the same workload on the same machine. Each point is a benchmark session,
+    not a commit. A session reports the median of its independent process runs.</p>
+  <section id="history" data-index={url('metrics/index.json')} data-repository={repository} aria-label="Benchmark explorer">
     <div class="controls">
       <label>Suite <select name="suite"></select></label>
       <label>Series <select name="series"></select></label>
@@ -13,9 +13,13 @@ import {url} from '../../../paths.mjs';
       <label>Metric <select name="metric"></select></label>
     </div>
     <p role="status">Loading measurements…</p>
-    <svg viewBox="0 0 760 180" role="img" aria-label="Selected metric over time"></svg>
+    <div class="chart-header"><h2 id="metric-heading">Measurements</h2>
+      <label>Horizontal axis <select name="axis"><option value="session">Session order</option><option value="time">Elapsed time (UTC)</option></select></label>
+    </div>
+    <div class="plot" aria-labelledby="metric-heading"></div>
+    <p class="reading" aria-live="polite" aria-atomic="true"></p>
     <div class="measurements" role="region" aria-label="Measurement details" tabindex="0">
-      <table><thead><tr><th>Date (UTC)</th><th>Value</th><th>Change</th><th>Runs</th><th>Measurement</th></tr></thead><tbody></tbody></table>
+      <table><thead><tr><th>Session (UTC)</th><th>Value</th><th>Change</th><th>Runs</th><th>Source</th><th>Binary</th><th>Data</th></tr></thead><tbody></tbody></table>
     </div>
   </section>
   <p><a href={url('metrics/index.json')}>Series index (JSON)</a> · <a href={url('developer/benchmarks/')}>Run and compare benchmarks</a></p>
@@ -23,9 +27,15 @@ import {url} from '../../../paths.mjs';
 </StarlightPage>
 <style>
   .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; }
+  #history .controls > label, #history label select {margin:0}
   label { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:.25rem; }
   select { font:inherit; color:inherit; background:var(--sl-color-bg); border:1px solid var(--sl-color-gray-4); padding:.4rem; min-width:0; width:100%; }
-  svg { display:block; width:100%; color:var(--sl-color-text-accent); margin:1rem 0; border-block:1px solid var(--sl-color-hairline); }
+  .chart-header {display:flex;align-items:end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .chart-header h2 {font-size:1.25rem;margin:0}
+  .chart-header label {font-size:.85rem}
+  .plot {color:var(--sl-color-text);margin-block:.6rem;min-height:215px}
+  .reading {font-variant-numeric:tabular-nums;min-height:2.6em}
+  .plot :global(circle:focus-visible) {stroke:var(--sl-color-text);stroke-width:3px;outline:none}
   table { width:100%; font-variant-numeric:tabular-nums; }
   .measurements { overflow-x:auto; }
 </style>
