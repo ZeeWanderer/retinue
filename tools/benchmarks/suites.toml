@@ -1,4 +1,40 @@
 # Bump workload when scripted input, timing boundaries or case semantics change.
+[suite.promotion-cost]
+owner = "retinue-render"
+package = "retinue-render"
+target = ["--lib", "--features", "benchmark"]
+test = "cost::tests::promotion_benchmark::promotion_cost_benchmark"
+source = "crates/retinue-render/src/cost/tests/promotion_benchmark.rs"
+adapter = "overlay"
+raw = "promotion.json"
+cases = ["solid-build", "solid-replay", "solid-blit", "rounded-build", "rounded-replay", "rounded-blit", "rounded-outline-build", "rounded-outline-replay", "rounded-outline-blit", "ring-build", "ring-replay", "ring-blit", "glow-build", "glow-replay", "glow-blit", "text-build", "text-replay", "text-blit", "mixed-build", "mixed-replay", "mixed-blit"]
+workload = 3
+fixtures = ["assets/fonts/roboto/*"]
+
+[suite.text-pipeline]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--test", "text_pipeline"]
+test = "text_pipeline_benchmark"
+source = "crates/retinue-ui/tests/text_pipeline.rs"
+adapter = "overlay"
+raw = "text.json"
+cases = ["shape-and-resolve", "native-repaint", "retained-replay", "retained-reuse", "retained-changing-replay", "retained-changing-reuse", "desktop-reuse", "overlay-reuse", "desktop-changing-reuse", "overlay-changing-reuse"]
+workload = 3
+fixtures = ["assets/fonts/roboto/*"]
+
+[suite.text-layout]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--test", "text_layout"]
+test = "text_layout_benchmark"
+source = "crates/retinue-ui/tests/text_layout.rs"
+adapter = "overlay"
+raw = "native-text-layout.json"
+cases = ["paragraph-reshape", "paragraph-reflow"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_layout.rs"]
+
 [suite.render-quality]
 owner = "retinue-render"
 package = "retinue-render"
@@ -10,6 +46,101 @@ raw = "quality.json"
 cases = ["decorated-scroll", "stable-rows", "solid-scroll", "few-columns", "larger-pixels", "translucent-overlap", "sparse-updates", "short-lived", "cache-pressure"]
 workload = 1
 fixtures = ["crates/retinue-render/src/quality/scenarios.rs", "assets/fonts/roboto/*"]
+
+[suite.text-view]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--test", "text_view"]
+test = "text_view_benchmark"
+source = "crates/retinue-ui/tests/text_view.rs"
+adapter = "overlay"
+raw = "native-text-view.json"
+cases = ["text-fresh", "text-width", "text-color", "text-elision"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_view.rs"]
+
+[suite.view-ir]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "ir::benchmark::view_ir_benchmark"
+source = "crates/retinue-ui/src/ir/benchmark.rs"
+adapter = "overlay"
+raw = "view-ir.json"
+cases = [
+    "noop-views-update", "noop-views-frame", "noop-template-update", "noop-template-frame", "noop-graph-update", "noop-graph-frame",
+    "timer-views-update", "timer-views-frame", "timer-template-update", "timer-template-frame", "timer-graph-update", "timer-graph-frame",
+    "color-views-update", "color-views-frame", "color-template-update", "color-template-frame", "color-graph-update", "color-graph-frame",
+    "width-views-update", "width-views-frame", "width-template-update", "width-template-frame", "width-graph-update", "width-graph-frame",
+    "offset-views-update", "offset-views-frame", "offset-template-update", "offset-template-frame", "offset-graph-update", "offset-graph-frame",
+    "list-noop-views-update", "list-noop-views-frame", "list-noop-graph-update", "list-noop-graph-frame",
+    "list-timer-views-update", "list-timer-views-frame", "list-timer-graph-update", "list-timer-graph-frame",
+    "list-reorder-views-update", "list-reorder-views-frame", "list-reorder-graph-update", "list-reorder-graph-frame",
+    "list-replace-views-update", "list-replace-views-frame", "list-replace-graph-update", "list-replace-graph-frame",
+    "list-filter-cycle-views-update", "list-filter-cycle-views-frame", "list-filter-cycle-graph-update", "list-filter-cycle-graph-frame",
+]
+workload = 3
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/ir/fixtures.rs"]
+
+[suite.view-ir-observed]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "ir::observation_benchmark::observed_input_benchmark"
+source = "crates/retinue-ui/src/ir/observation_benchmark.rs"
+adapter = "overlay"
+raw = "view-ir-observed.json"
+cases = ["noop-views-update", "noop-views-frame", "noop-graph-update", "noop-graph-frame", "noop-context-update", "noop-context-frame", "noop-compiled-update", "noop-compiled-frame", "timer-views-update", "timer-views-frame", "timer-graph-update", "timer-graph-frame", "timer-context-update", "timer-context-frame", "timer-compiled-update", "timer-compiled-frame"]
+workload = 3
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/ir/fixtures.rs", "crates/retinue-ui/src/ir/observation_benchmark.rs"]
+
+[suite.view-ir-input]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "ir::input_benchmark::input_publication_benchmark"
+source = "crates/retinue-ui/src/ir/input_benchmark.rs"
+adapter = "overlay"
+raw = "view-ir-input.json"
+cases = ["noop-views-32", "noop-graph-32", "handler-views-32", "handler-graph-32", "noop-views-512", "noop-graph-512", "handler-views-512", "handler-graph-512"]
+workload = 1
+fixtures = ["crates/retinue-ui/src/ir/input_benchmark.rs", "crates/retinue-ui/src/ir/fixtures.rs"]
+
+[suite.text-editor]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--test", "text_editor"]
+test = "text_editor_benchmark"
+source = "crates/retinue-ui/tests/text_editor.rs"
+adapter = "overlay"
+raw = "native-text-editor.json"
+cases = ["editor-repaint", "editor-selection", "editor-viewport", "editor-insert"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/text_editor.rs"]
+
+[suite.execution]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--test", "execution"]
+test = "execution_benchmark"
+source = "crates/retinue-ui/tests/execution.rs"
+adapter = "overlay"
+raw = "execution.json"
+cases = ["small-serial", "small-jobs", "small-batches", "cards-serial", "cards-jobs", "cards-batches", "skewed-serial", "skewed-jobs", "skewed-batches"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/tests/execution.rs"]
+
+[suite.layout-batches]
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "scene::layout::batch_tests::layout_batch_benchmark"
+source = "crates/retinue-ui/src/scene/layout/batch_tests.rs"
+adapter = "overlay"
+raw = "layout-batches.json"
+cases = ["small-serial", "small-queued", "small-batched", "cards-serial", "cards-queued", "cards-batched", "skewed-serial", "skewed-queued", "skewed-batched", "reflow-serial", "reflow-queued", "reflow-batched"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/scene/layout/batch_tests.rs"]
 
 [suite.wf-overlay]
 owner = "wfcompanion"
@@ -31,9 +162,21 @@ test = "presentation::evaluate::panel::tests::overlay_benchmark"
 source = "apps/poe2companion/src/presentation/evaluate/panel.rs"
 adapter = "overlay"
 raw = "poe2.json"
-cases = ["warm-repaint", "hover", "hover-partial", "listing-scroll", "scale-change"]
-workload = 1
+cases = ["warm-repaint-inline", "warm-repaint-queued", "hover-inline", "hover-queued", "hover-partial-inline", "hover-partial-queued", "listing-scroll-inline", "listing-scroll-queued", "scale-change-inline", "scale-change-queued"]
+workload = 2
 fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+
+[suite.gui-execution]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::shell::benchmark::execution::shell_execution_benchmark"
+source = "apps/wfgui/src/presentation/shell/benchmark/execution.rs"
+adapter = "overlay"
+raw = "gui-execution.json"
+cases = ["foundry-repaint-owner", "foundry-repaint-packet", "foundry-repaint-dag", "foundry-repaint-layout", "foundry-repaint-desktop", "foundry-reflow-owner", "foundry-reflow-packet", "foundry-reflow-dag", "foundry-reflow-layout", "foundry-reflow-desktop", "foundry-scroll-owner", "foundry-scroll-packet", "foundry-scroll-dag", "foundry-scroll-layout", "foundry-scroll-desktop", "relic-scroll-owner", "relic-scroll-packet", "relic-scroll-dag", "relic-scroll-layout", "relic-scroll-desktop"]
+workload = 3
+fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-rails]
 owner = "wfgui"
@@ -45,6 +188,18 @@ adapter = "gui"
 raw = "gui.json"
 workload = 1
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.gui-rail-updates]
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::right_rail::benchmark::rail_update_benchmark"
+source = "apps/wfgui/src/presentation/right_rail/benchmark.rs"
+adapter = "overlay"
+raw = "gui-rail-updates.json"
+cases = ["idle-inline", "idle-queued", "one-timer-inline", "one-timer-queued", "visible-timers-inline", "visible-timers-queued", "repaint-inline", "repaint-queued"]
+workload = 1
+fixtures = ["apps/wfgui/src/presentation/right_rail/benchmark.rs", "assets/fonts/roboto/*"]
 
 [suite.poe2-drag]
 owner = "poe2companion"
@@ -88,7 +243,7 @@ test = "presentation::shell::benchmark::drag::foundry_drag_benchmark"
 source = "apps/wfgui/src/presentation/shell/benchmark/drag.rs"
 adapter = "gui"
 raw = "gui.json"
-workload = 2
+workload = 3
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
 
 [suite.gui-transfer]
@@ -99,8 +254,72 @@ test = "presentation::shell::benchmark::transfer::independent_source_benchmark"
 source = "apps/wfgui/src/presentation/shell/benchmark/transfer.rs"
 adapter = "gui"
 raw = "gui.json"
-workload = 6
+workload = 7
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[[manual]]
+id = "text-capture"
+source = "crates/retinue-ui/tests/text_capture.rs"
+test = "text_pipeline_capture"
+purpose = "correctness"
+environment = "headless"
+command = "RETINUE_TEXT_CAPTURE_DIR=<absolute-directory> make test-ui-sdk UI_TEST='--test text_capture -- --ignored' (optional RETINUE_TEXT_CAPTURE_FONTS path list)"
+
+[[manual]]
+id = "text-view-capture"
+source = "crates/retinue-ui/tests/text_capture.rs"
+test = "text_view_capture"
+purpose = "correctness"
+environment = "headless"
+command = "RETINUE_TEXT_CAPTURE_DIR=<absolute-directory> make test-ui-sdk UI_TEST='--test text_capture text_view_capture -- --ignored'"
+
+[[manual]]
+id = "text-host-discovery"
+source = "crates/retinue-ui/tests/text_editor.rs"
+test = "host_font_discovery_benchmark"
+purpose = "experiment"
+environment = "linux-host-fonts"
+command = "RETINUE_BENCH_OUTPUT=<absolute-directory> make test-ui-sdk UI_TEST='--release --test text_editor host_font_discovery_benchmark -- --ignored'"
+
+[[manual]]
+id = "text-host-font-stages"
+source = "crates/retinue-ui/src/drawing/text/font/fallback/linux.rs"
+test = "host_font_stage_costs"
+purpose = "experiment"
+environment = "linux-host-fonts"
+command = "make test-ui-sdk UI_TEST='--release --lib host_font_stage_costs -- --ignored --nocapture'"
+
+[[manual]]
+id = "text-host-outlines"
+source = "crates/retinue-ui/src/drawing/text/font.rs"
+test = "installed_outline_fallback_paints_mixed_text"
+purpose = "correctness"
+environment = "linux-with-han-and-monochrome-emoji-outline-fonts"
+command = "make test-ui-sdk UI_TEST='--lib installed_outline_fallback_paints_mixed_text -- --ignored'"
+
+[[manual]]
+id = "text-host-script-editing"
+source = "crates/retinue-ui/src/line_edit/tests.rs"
+test = "installed_outline_fallback_shapes_scripts_and_preserves_visual_editing"
+purpose = "correctness"
+environment = "linux-with-arabic-and-devanagari-outline-fonts"
+command = "make test-ui-sdk UI_TEST='--lib installed_outline_fallback_shapes_scripts_and_preserves_visual_editing -- --ignored'"
+
+[[manual]]
+id = "text-editor-capture"
+source = "crates/retinue-ui/tests/text_editor.rs"
+test = "text_editor_capture"
+purpose = "correctness"
+environment = "headless"
+command = "RETINUE_TEXT_CAPTURE_DIR=<absolute-directory> make test-ui-sdk UI_TEST='--test text_editor text_editor_capture -- --ignored'"
+
+[[manual]]
+id = "gui-resource-dispatch"
+source = "apps/wfgui/src/app/benchmark.rs"
+test = "resource_dispatch_benchmark"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=resource_dispatch_benchmark GUI_BENCH_OUTPUT=<report.json>"
 
 [[manual]]
 id = "native-capture-wire"
@@ -109,6 +328,14 @@ test = "supplied_real_views_match_erlang_projection"
 purpose = "correctness"
 environment = "prepared-private-capture"
 command = "RETINUE_VIEW_FIXTURES=<working-capture-directory> make test-native NATIVE_TEST='--test views supplied_real_views_match_erlang_projection -- --ignored --test-threads=1'"
+
+[[manual]]
+id = "poe2-overlay-pointer"
+source = "apps/poe2companion/src/presentation/evaluate/panel/scheduling_benchmark.rs"
+test = "overlay_pointer_benchmark"
+purpose = "experiment"
+environment = "wayland-with-pointer-input"
+command = "make bench-overlay-pointer BENCH_OUTPUT=<directory> BENCH_SECONDS=20"
 
 [[manual]]
 id = "input-dispatch"
@@ -183,6 +410,22 @@ environment = "headless"
 command = "make bench-gui GUI_BENCH_CASE=paint_replay_benchmark GUI_BENCH_OUTPUT=<report.json>"
 
 [[manual]]
+id = "view-ir-allocations"
+source = "crates/retinue-ui/src/ir/collection_benchmark.rs"
+test = "allocation_profile"
+purpose = "experiment"
+environment = "headless"
+command = "make test-ui-sdk UI_TEST='--lib ir::collection_benchmark::allocation_profile -- --ignored --exact' (see allocation profiling in tools/benchmarks/README.md)"
+
+[[manual]]
+id = "view-ir-observed-allocations"
+source = "crates/retinue-ui/src/ir/observation_benchmark.rs"
+test = "allocation_profile"
+purpose = "experiment"
+environment = "headless"
+command = "make test-ui-sdk UI_TEST='--lib ir::observation_benchmark::allocation_profile -- --ignored --exact' (see allocation profiling in tools/benchmarks/README.md)"
+
+[[manual]]
 id = "gui-subtree-motion"
 source = "apps/wfgui/src/presentation/benchmark/mod.rs"
 test = "subtree_motion_benchmark"
@@ -253,6 +496,14 @@ test = "benchmark_live_inventory_refresh"
 purpose = "experiment"
 environment = "live-game-WF_GAME_PID"
 command = "make test-native NATIVE_TEST='--release benchmark_live_inventory_refresh -- --ignored --nocapture'"
+
+[[manual]]
+id = "view-ir-input-allocations"
+source = "crates/retinue-ui/src/ir/input_benchmark.rs"
+test = "ir::input_benchmark::allocation_profile"
+purpose = "experiment"
+environment = "headless-external-allocation-profiler"
+command = "make test-ui-sdk UI_TEST='--lib ir::input_benchmark::allocation_profile -- --exact --ignored' (RETINUE_ALLOC_BACKEND=graph|views, RETINUE_ALLOC_CASE=noop|handler, RETINUE_ALLOC_SAMPLES=50|400; profile the compiled test with DHAT)"
 
 [[manual]]
 id = "wf-gep"

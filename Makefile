@@ -39,6 +39,7 @@ BENCH_SUITE ?= poe2-overlay
 BENCH_THREADS ?= 1
 BENCH_HZ ?= 0
 BENCH_CASES ?=
+BENCH_FEATURES ?=
 BENCH_SCALES ?= 1,1.25,1.5
 BENCH_OUTPUT ?= $(CURDIR)/research/retinue/benchmarks/$(shell date -u +%Y%m%dT%H%M%SZ)
 PROFILE_APP ?= wfgui
@@ -296,6 +297,13 @@ bench-overlay-scheduling: export RETINUE_BENCH_SCALES := $(BENCH_SCALES)
 bench-overlay-scheduling: native-bridges
 	+$(CARGO) test --release --locked -p poe2companion --lib overlay_scheduling_benchmark -- --ignored --nocapture --test-threads=1
 
+.PHONY: bench-overlay-pointer
+bench-overlay-pointer: export RETINUE_BENCH_OUTPUT := $(abspath $(BENCH_OUTPUT))
+bench-overlay-pointer: export RETINUE_POINTER_SECONDS := $(or $(BENCH_SECONDS),20)
+bench-overlay-pointer: export RETINUE_POINTER_SCALE := $(or $(BENCH_SCALE),1)
+bench-overlay-pointer: native-bridges
+	+$(CARGO) test --release --locked -p poe2companion --lib overlay_pointer_benchmark -- --ignored --nocapture --test-threads=1
+
 test-poe2: dev-erlang dev-companion
 	+$(CARGO) build --locked -p retinue-protocol --example fixture-codec
 	python3 ./test/integration/poe2.py --stage dev --codec "$(CARGO_TARGET_DIR)/debug/examples/fixture-codec"
@@ -310,10 +318,10 @@ bench-list:
 	python3 tools/benchmarks/run.py list
 
 bench: sccache-setup
-	+python3 tools/benchmarks/run.py record $(BENCH_SUITE) --output "$(BENCH_OUTPUT)" --repeats $(BENCH_RUNS) --samples $(BENCH_SAMPLES) --threads $(BENCH_THREADS) --hz $(BENCH_HZ) --cases "$(BENCH_CASES)"
+	+python3 tools/benchmarks/run.py record $(BENCH_SUITE) --output "$(BENCH_OUTPUT)" --repeats $(BENCH_RUNS) --samples $(BENCH_SAMPLES) --threads $(BENCH_THREADS) --hz $(BENCH_HZ) --cases "$(BENCH_CASES)" $(if $(BENCH_FEATURES),--features "$(BENCH_FEATURES)")
 
 bench-prepare: sccache-setup
-	+python3 tools/benchmarks/run.py prepare $(BENCH_SUITE) --output "$(BENCH_OUTPUT)"
+	+python3 tools/benchmarks/run.py prepare $(BENCH_SUITE) --output "$(BENCH_OUTPUT)" $(if $(BENCH_FEATURES),--features "$(BENCH_FEATURES)")
 
 bench-compare:
 	@test -n "$(BENCH_BEFORE)" -a -n "$(BENCH_AFTER)" -a -n "$(BENCH_POLICY)" || { printf '%s\n' 'Set BENCH_BEFORE, BENCH_AFTER and BENCH_POLICY'; exit 2; }

@@ -9,10 +9,16 @@ import unittest
 from unittest.mock import patch
 
 from reports import ROOT, digest, fixture_digest, write_json
-from run import balanced_order, catalog, check_selector, clean_environment, executable, measured_config, open_report
+from run import balanced_order, build_command, catalog, check_selector, clean_environment, executable, measured_config, open_report
 
 
 class RunnerTests(unittest.TestCase):
+    def test_optional_features_are_explicit_build_inputs(self):
+        spec = {"package": "wfgui", "target": ["--bin", "wfgui"]}
+        default = build_command(spec)
+        self.assertNotIn("--features", default)
+        self.assertEqual(build_command(spec, "profiling"), default + ["--features", "profiling"])
+
     def test_make_snapshot_preserves_compiler_and_cache_environment(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -21,6 +27,8 @@ class RunnerTests(unittest.TestCase):
             runner.write_text('import json, os, sys\nprint(json.dumps({"args": sys.argv[1:], "env": dict(os.environ)}))\n')
             (root / "VERSION").write_text("0.0.0\n")
             cache = str(root / "sccache")
+            Path(cache).write_text('#!/bin/sh\n[ "$1" = "--dist-status" ]\n')
+            Path(cache).chmod(0o755)
             env = {k: v for k, v in os.environ.items() if k not in (
                 "RUSTC_WRAPPER", "CMAKE_C_COMPILER_LAUNCHER", "CMAKE_CXX_COMPILER_LAUNCHER", "MAKEFLAGS", "MFLAGS")}
             result = subprocess.check_output([

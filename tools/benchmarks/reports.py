@@ -57,6 +57,34 @@ def identity(row):
                     for k in fields if k in row)
 
 
+def phase_partition(columns, totals, count, prefix):
+    if totals is None or len(totals) != count or any(int(n) != n for n in numbers(totals)):
+        raise ValueError(f"invalid {prefix} phase totals")
+    for name, values in columns.items():
+        if (not name.isidentifier() or len(values) != count
+                or any(int(n) != n for n in numbers(values))):
+            raise ValueError(f"invalid {prefix} phase: {name}")
+    if any(sum(values[i] for values in columns.values()) != t for i, t in enumerate(totals)):
+        raise ValueError(f"{prefix} phases must partition their parent")
+    return {f"{prefix}_{name}_mean_ms": statistics.mean(values) / 1e6
+            for name, values in columns.items()}
+
+
+def ir_cohorts(detail, exclusive, counts):
+    metrics = {}
+    for changed, cohort in ((False, "stable"), (True, "structural")):
+        indices = [i for i, visits in enumerate(counts["ir_topology"]) if bool(visits) == changed]
+        prefix = f"ir_{cohort}_"
+        metrics[prefix + "frames"] = len(indices)
+        if indices:
+            for name, values in {**detail, "total": exclusive["ir"]}.items():
+                metrics[prefix + name + "_mean_ms"] = statistics.mean(values[i] for i in indices) / 1e6
+            for name in ("composite", "renew"):
+                if (values := counts.get("ir_" + name)) is not None:
+                    metrics[prefix + name + "_calls_mean"] = statistics.mean(values[i] for i in indices)
+    return metrics
+
+
 def normalize(raw, adapter):
     rows = raw["cases"] if adapter in ("overlay", "quality") else raw
     if not isinstance(rows, list) or not rows:
@@ -70,6 +98,43 @@ def normalize(raw, adapter):
             metrics["first_paint_ms"] = row["first_paint_ns"] / 1e6
             metrics["process_cpu_ms_per_frame"] = row["warm"]["process_cpu_ns"] / 1e6 / len(samples)
             metrics["rss_bytes"] = row["process_memory_after"]["rss_bytes"]
+            for name, values in row.get("known_resources", {}).get("phases_ns", {}).items():
+                if not name.isidentifier() or len(values) != len(samples):
+                    raise ValueError("invalid phase name or sample count")
+                values = [n / 1e6 for n in numbers(values)]
+                for suffix, fraction in (("p50", .5), ("p95", .95)):
+                    metrics[f"phase_{name}_{suffix}_ms"] = percentile(values, fraction)
+            exclusive = row.get("known_resources", {}).get("owner_exclusive_ns", {})
+            if exclusive:
+                metrics.update(phase_partition({k: v for k, v in exclusive.items() if k != "total"},
+                                               exclusive.get("total"), len(samples), "exclusive"))
+                metrics["exclusive_total_mean_ms"] = statistics.mean(exclusive["total"]) / 1e6
+            ir_detail = row.get("known_resources", {}).get("owner_ir_ns", {})
+            if ir_detail:
+                metrics.update(phase_partition(ir_detail, exclusive.get("ir"), len(samples), "ir"))
+            layout = row.get("known_resources", {}).get("layout_job_ns", {})
+            if layout:
+                wait = {name.removeprefix("layout_wait_"): v for name, v in layout.items()
+                        if name.startswith("layout_wait_")}
+                metrics.update(phase_partition(wait, exclusive.get("layout_wait"), len(samples), "layout_wait"))
+                for key, raw_values in layout.items():
+                    if key.startswith("layout_wait_"):
+                        continue
+                    values = numbers(raw_values)
+                    if not key.startswith("layout_") or not key.isidentifier() or len(values) != len(samples):
+                        raise ValueError("invalid layout job sample count")
+                    metrics[f"{key}_mean_ms"] = statistics.mean(values) / 1e6
+            counts = row.get("known_resources", {}).get("work_counts", {})
+            for name, values in counts.items():
+                if not name.isidentifier() or len(values) != len(samples):
+                    raise ValueError("invalid work counter name or sample count")
+                values = numbers(values)
+                if any(n < 0 or int(n) != n for n in values):
+                    raise ValueError("work counters must be nonnegative integers")
+                metrics[f"work_{name}_p50"] = percentile(values, .5)
+                metrics[f"work_{name}_mean"] = statistics.mean(values)
+            if ir_detail and "ir_topology" in counts:
+                metrics.update(ir_cohorts(ir_detail, exclusive, counts))
         elif adapter == "foundry":
             samples = row["samples_ms"]
         elif adapter == "gui":

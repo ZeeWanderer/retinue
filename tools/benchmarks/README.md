@@ -18,6 +18,100 @@ Also available: `wf-overlay`, `poe2-drag`, `gui-foundry`, `gui-relics`, `gui-dra
 `gui-transfer`, and [optimizer quality](../../docs/developer/optimizer-quality.md) (`render-quality`).
 `poe2-drag` compares full repaint, damage repair and automatic relocation through
 the shared acquired-buffer renderer; it does not measure compositor or game FPS.
+`text-layout` compares native paragraph reflow with fresh shaping and run resolution;
+it excludes painting and platform presentation.
+`text-view` measures production `Text` updates: fresh trees, width changes, color-only
+changes and line-limit elision. It includes layout and command recording, not painting.
+`view-ir` is a representation experiment: the same Cycle display through retained
+ViewTree or handwritten template bindings, with pixel parity checked separately.
+It measures no-op, timer, color, width and offset updates, with and without native
+painting, at 100/120/150%. Templates fuse static wrappers manually; this is not a
+compiler or full-app speedup. Instance byte counts exclude owned/backend storage.
+
+`view-ir-observed` keeps 32 rows mounted and changes one observable row. Unlike
+collection restaging, this measures dependency-driven updates with the same
+observation registrar on both backends. It covers no-op and timer changes at
+100/120/150%, with separate update-only and painted cases. Its `context` case
+adds retained ViewContext and clock handling, but requests no ticks. The `compiled`
+case uses the new typed authoring compiler instead of handwritten IR bindings.
+Native pixels and materialized bounds are checked outside timing; no application
+migration or compositor work is included.
+
+`view-ir-input` changes one observed callback payload among 32 or 512 mounted
+controls. It measures owner evaluation and published input updates, not pointer
+dispatch or painting. The unchanged case checks that input support adds no recurring
+work. Fixture tests compare target bounds/options and preserve recorded programs.
+
+For allocation attribution, build with `make test-ui-sdk UI_TEST='--lib --no-run'`,
+then run the emitted test executable under DHAT/heaptrack with the selector
+`ir::collection_benchmark::allocation_profile --exact --ignored --test-threads=1`.
+This reuses the 32-item workload at 120% without timing queries or native painting.
+Select `RETINUE_ALLOC_BACKEND=graph|views`, `RETINUE_ALLOC_CASE=noop|timer|reorder|replace|filter-cycle`
+and `RETINUE_ALLOC_SAMPLES=400`. Compare two sample counts to separate recurring
+allocations from setup; totals include startup and shutdown. Debug allocation
+profiles are attribution evidence, not release timing or total application memory.
+The selector `ir::observation_benchmark::allocation_profile` instead exercises
+observable invalidation, with backends `graph|context|compiled|views` and cases `noop|timer`.
+Use `ir::input_benchmark::allocation_profile` for published callbacks, with backends
+`graph|views` and cases `noop|handler`; it uses 32 controls and no timing queries.
+
+`text-editor` measures a single field's input and native painting at 100/120/175%:
+retained repaint, selection, viewport resizing and text insertion. No presentation.
+`execution` compares serial work, individual DAG jobs and four-item batches for
+native shaping, card rasters and row composition. `BENCH_THREADS` bounds the CPU
+pool; each offscreen native pass uses its caller only. Pixel equality is a separate
+correctness test. This workload does not represent a complete application frame.
+`layout-batches` compares caller-serial, queued-serial and cooperative sibling
+layout for real grid/stack/Text trees. It includes cold state allocation,
+partitioning and completion, with warm font registrations. The reflow case keeps
+shaping caches while alternating widths; the skewed case clusters long text to
+test load balancing. It excludes body evaluation, paint recording and presentation;
+it is not a full-frame speedup.
+`gui-execution` compares direct owner painting, immutable packet painting on the
+owner, queued native execution with inline layout, and queued layout plus native
+execution. It includes fixture layout, recording, cache preparation and native
+completion at 100/120%, separating owner work from layout waits and native work.
+It excludes platform presentation and remote artwork. The queued-layout case is
+also checked against inline layout for exact frame pixels.
+
+For exclusive owner-thread attribution, use the same `gui-execution` suite with
+`BENCH_FEATURES=profiling`. `known_resources.owner_exclusive_ns` partitions each
+frame across all UI roots; its per-phase means are retained in numerical reports.
+Use `BENCH_FEATURES=ir-profiling` for the finer (more expensive) IR trace.
+`known_resources.owner_ir_ns` subdivides only `ir` into observation, typed
+output resolution, retained composite handling, staging, keyed children,
+topology, publication (including the name index), retirement and the remaining
+dispatch time. Corresponding `work_counts.ir_*` count entries, not nodes.
+Detailed reports also retain means separately for frames with a topology walk
+(`ir_structural_*`) and without one (`ir_stable_*`). Do not
+add these to the parent again. A shared helper called from another phase
+stays charged to that phase.
+`body` covers application view builders; `record` covers paint callbacks (including
+native text preparation); `programs` covers recorded-program compilation. `ir`,
+`bindings`, `reconcile`, `projection` and `input` cover framework work. `layout`
+is owner-side solving/admission/publication, not concurrent worker CPU time.
+`BENCH_FEATURES=layout-profiling` adds queued-job timing. In
+`known_resources.layout_job_ns`, dispatch, worker wall time and pickup are
+sums over completed jobs. Only the four `layout_wait_*` columns partition
+owner wait: when jobs overlap, solving takes precedence over dispatch, then
+pickup. Serial CPU excludes the parallel work scope; batch CPU sums the
+executing child groups, including the caller's share. Split and merge CPU
+are subsets of serial CPU, not extra work. Slot-map and gather CPU are parts
+of split; gather lends disjoint mutable geometry to the groups. Batch wall
+measures the whole parallel scope, not the sum of worker CPU. The layout
+computation count excludes solver cache hits. Use work counts to distinguish
+the per-frame means from costs per job. All worker probes compile out by default.
+`host` is residual application/host work, not proven pure framework overhead.
+Preparation, submission and completion waits have separate fields. Native elapsed
+time overlaps native wait: do not add it again to this exclusive partition.
+Use uninstrumented runs for performance verdicts. Features are part of snapshot
+identity, so instrumented and ordinary builds cannot form a paired comparison.
+
+`poe2-overlay` compares inline and worker-eligible layout at 100/120/150%; both use the
+existing caller-side final paint path. The `-queued` cases offer the executor
+without forcing admission: small trees may run inline. Raw results report actual
+`layout_waits`. It does not measure platform presentation
+or the production host's final native-pass queue.
 The runner builds one release test binary, verifies an exact ignored-test selector,
 saves it with source/binary/toolchain/fixture provenance, then runs independent
 processes. It does not stage or reload applications. Each run gets fresh XDG
@@ -35,6 +129,15 @@ and source provenance. A commit identifies the measured code; it need not have
 its own run or become a baseline.
 The rail scenario measures window chrome with an unpopulated Foundry, not a
 populated grid reflow. Use the scrolling/drag scenarios for populated grids.
+`gui-rail-updates` exercises the production compiled Events rail with 18 fissures
+at 100/120/150%: idle, one countdown, all visible countdowns and warm repaint.
+Inline and queued layout share the same fixture. Reports separate owner work,
+layout waits, preparation and native painting, plus layout/recording counts.
+Native `known_resources.work_counts` arrays become named count metrics in the
+normalized history; each array must cover exactly the measured frames.
+Use at most 3,000 samples so countdowns remain in their seconds-resolution range.
+Fresh-layout pixel checks run outside measurement; network and remote artwork
+are excluded.
 
 For stronger A/B evidence, prepare each revision separately, then interleave the
 saved executables without compiling during measurement:
@@ -116,8 +219,11 @@ python3 tools/benchmarks/history.py compare research/bench/candidate/report.json
 
 Archive meaningful changes, release checkpoints and reproduced regressions, not
 every commit. Records are immutable; baseline selection is separate and explicit.
-Export the time series with `python3 tools/benchmarks/timeline.py site OUTPUT_DIR` or a timing report with
-`python3 tools/benchmarks/timeline.py lnt MEASUREMENT_ID > run.json`.
+For an LLVM LNT instance, export a record with
+`python3 tools/benchmarks/timeline.py lnt MEASUREMENT_ID > run.json` and use
+`lnt submit SERVER_URL run.json`. The LNT `nts` export includes timing metrics
+in seconds, one sample per process. Memory and counter metrics remain available
+in the static browser. See [LNT's import format](https://llvm.org/docs/lnt/importing_data.html).
 Git retains the selection reason and previous measurement. Series match workload,
 fixtures, build settings and machine, not source commit. A dirty run can be kept
 as evidence but cannot be an accepted baseline. Raw frames, traces, binaries and
@@ -152,7 +258,8 @@ is reused on synthetic cards and components, not presented as a live player data
 All art must be warmed before timing; the test asserts this throughout the trace.
 `previous-3`, `previous-cpu` and `previous-cpu-parallel` compare queued native,
 serial and persistent row-parallel copies using the same source and plan. Workload
-3 uses a loaded static rail and rejects unequal per-frame copy/repair coverage.
+7 uses the scrollbar's actual travel, verifies that every trace frame moves content,
+and retains the loaded static rail and equal per-frame copy/repair coverage checks.
 `GUI_BENCH_CASES` filters these experiment cases. The copy workers and overrides
 are test/benchmark-only.
 `GUI_BENCH_MATERIALIZATIONS=explicit|fragments|none` compares Foundry's authored
@@ -201,8 +308,8 @@ neither game nor daemon. It does not stage binaries or reload a running companio
 The helper is compiled only into tests; normal companions have no instrumentation.
 
 PoE2 also reports description, scene update, preparation, submission and native
-completion totals, plus section layout-update counts. Compare the same binary with
-`RETINUE_BENCH_FULL_LAYOUT=1` and/or `RETINUE_BENCH_FULL_REPLAY=1` to disable local
+completion totals, plus changes to the retained pixel layers. Compare the same binary with
+`RETINUE_BENCH_REBUILD_LAYERS=1` and/or `RETINUE_BENCH_FULL_REPLAY=1` to disable local
 reductions. These counters include cold/warmup frames; warm latency samples do not.
 `RETINUE_BENCH_NO_LAYERS=1` disables optional subtree promotion while retaining
 command reductions. Reports include promotions, demotions and peak layer bytes.
@@ -254,7 +361,7 @@ buffer; rotating-buffer correctness is covered by unit tests, not these timings.
 
 RSS covers the whole test process, not just caches. High-water RSS is cumulative
 across cases; known resources are partial accounting, not total retained memory.
-PoE2 reports chrome/glyph cache hits, misses, evictions, cached/live bytes and
+PoE2 reports chrome cache hits, misses, evictions, cached/live bytes and
 bytes retained by callers. These exclude source decoding and font geometry.
 Native image counters include pixels retained by queued operations, overlap cache
 totals, and exclude native metadata. Process CPU includes native workers; caller
@@ -295,11 +402,22 @@ and ready-to-present p50/p95/p99, presentation intervals, discarded/unresolved
 frames, coalesced updates, dispatch counts, CPU utilization and memory. Presentation
 uses the compositor's advertised clock; timestamps from different clock domains
 are never directly subtracted. Unsupported presentation timing fails explicitly.
+An update belongs to the frame whose rendering was prepared with that revision,
+not whichever frame happened to commit after the update arrived.
 CPU totals exclude warmup and include producer and final feedback drain; 100%
 means one logical CPU. Recording is bounded
 in RAM and written between cases, not per frame. Normal builds exclude it.
 
 Keep display refresh, game/background load and scale unchanged during a run.
+
+For physical pointer input use `make bench-overlay-pointer BENCH_SECONDS=20 BENCH_SCALE=1.2`.
+Move the pointer between controls on the temporary Evaluate panel. This fixture
+accepts pointer input only inside the panel; it never requests keyboard focus.
+The report measures handler entry to compositor presentation for changed hover
+states, not hardware-to-screen latency. It counts adjacent motions within each
+Wayland pointer batch (discrete events break a run) and motions received during
+raster work. It records neither positions nor key events. No timed hover
+changes is a missing sample, not zero latency.
 No noisy performance threshold is enforced. This measures overlay scheduling and
 presentation only, not game impact. Game frame-time recording remains separate.
 
@@ -382,12 +500,57 @@ make bench-cost COST_REPORT=research/retinue/benchmarks/native-cost.csv
 ```
 
 Alternates warm native replay and independent-source copies for fills, rounded
-fills, text, images and mixed programs at six sizes and 1/2/4/8 threads. CSV rows
+fills/outlines, stroked circles, text, images and mixed programs at six sizes and
+1/2/4/8 requested threads. CSV rows
 include work descriptors, submission and completion times. Repeat in fresh
 processes; validate models on held-out sizes and mixtures. Compare selected-plan
 regret against the faster measured alternative, not predicted-time accuracy.
 This isolates native work. Whole-frame tests must still account for planning,
 remaining repairs, cache state and UI overhead.
+
+### Native Updates And Coefficients
+
+`cost::WARM_NATIVE` in [cost.rs](../../crates/retinue-render/src/cost.rs) holds the
+relative warm replay/transfer coefficients. It is not an exact timing table or
+the fragment-admission rule. `cost::cache::NATIVE` separately prices cold caller-only
+construction against warm replay/blit savings, including the target allocation and
+initialization. Native outline glyphs and cached masks are distinct work terms.
+Recheck their decisions after Blend2D, AsmJit,
+bridge or native build-option changes; do not scale every coefficient by an overall
+speedup. Rounded geometry, native glyphs, images and transfers can change differently.
+
+`promotion-cost` measures construction, replay and blit separately for solid and
+rounded fills, rounded outlines, stroked circles, glows, native glyph runs and mixed
+content. It covers three sizes/counts at 100/120%; reports include actual participant
+counts and the model's required reuse count. Compare that count against construction
+divided by measured replay-minus-blit, and inspect wrong promotion/rejection choices.
+Treat a nonpositive or noisy savings difference as inconclusive, not infinite speedup.
+The curved cases exercise the native geometry paths used by the app, not arbitrary
+conic paths or conic-gradient paints that the command API does not expose.
+
+Save the baseline **before** updating dependencies, then prepare the candidate:
+
+```bash
+make bench-prepare BENCH_SUITE=promotion-cost BENCH_OUTPUT=research/bench/native-before
+# Update native dependencies, then:
+make bench-prepare BENCH_SUITE=promotion-cost BENCH_OUTPUT=research/bench/native-after
+python3 tools/benchmarks/run.py pair research/bench/native-before research/bench/native-after \
+  --output research/bench/native-pair --threads 4 --repeats 7 --samples 180
+```
+
+Snapshots record the binary, source/build identity and native submodule revisions.
+Use clean native checkouts or retain their local patches separately. Repeat at one
+participant and the relevant host budget, with the same CPU affinity and no competing
+builds. Run an identical-binary A/A control. New workload versions intentionally
+require a new baseline; do not compare different fixtures as a library speedup.
+
+Fit relative choices on primitive cases; validate on held-out sizes/mixtures and the
+`render-quality`, GUI and overlay workloads. Minimize selected-plan regret against
+measured alternatives, not predicted-time error. Include construction payback,
+partial repair, CPU and memory. If one work category no longer distinguishes native
+paths with different costs, refine that descriptor instead of disguising the gap
+with another global constant. Update coefficients only with reviewed evidence;
+neither shipping auto-tuning nor a performance failure is inferred from a new pin.
 
 For opt-in recording-phase detail, `make bench-gui GUI_BENCH_FEATURES=profiling
 GUI_BENCH_CASE=independent_source_benchmark GUI_BENCH_OUTPUT=...` includes the

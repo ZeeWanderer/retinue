@@ -97,6 +97,89 @@ class ComparisonTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 normalize(raw, adapter)
 
+    def test_optional_phase_samples_are_preserved_and_validated(self):
+        row = {"case": "dag", "first_paint_ns": 10, "warm": {
+            "frame_ns": [10, 20, 30], "process_cpu_ns": 60},
+            "process_memory_after": {"rss_bytes": 100},
+            "known_resources": {"phases_ns": {"owner": [1, 2, 3]}}}
+        metrics = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(metrics["phase_owner_p50_ms"], 2 / 1e6)
+        self.assertEqual(metrics["phase_owner_p95_ms"], 3 / 1e6)
+        for phases in ({"owner": [1]}, {"bad name": [1, 2, 3]}, {"owner": [1, True, 3]}):
+            row["known_resources"]["phases_ns"] = phases
+            with self.assertRaises(ValueError):
+                normalize({"cases": [row]}, "overlay")
+
+    def test_layout_wait_but_not_summed_worker_cpu_partitions_the_owner(self):
+        samples = {"layout_" + name: [value] for name, value in (
+            ("dispatch", 3), ("worker_wall", 10), ("pickup", 4), ("serial_cpu", 8),
+            ("batch_cpu", 16), ("wait_solving", 5), ("wait_dispatch", 1),
+            ("wait_pickup", 1), ("wait_other", 0))}
+        row = {"case": "layout", "first_paint_ns": 1, "warm": {
+            "frame_ns": [20], "process_cpu_ns": 35}, "process_memory_after": {"rss_bytes": 100},
+            "known_resources": {"owner_exclusive_ns": {"layout_wait": [7], "total": [7]},
+                                "layout_job_ns": samples}}
+        metrics = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(metrics["layout_batch_cpu_mean_ms"], 16 / 1e6)
+        self.assertEqual(metrics["layout_wait_solving_mean_ms"], 5 / 1e6)
+        samples["layout_wait_pickup"] = [2]
+        with self.assertRaises(ValueError):
+            normalize({"cases": [row]}, "overlay")
+
+    def test_optional_work_counts_are_preserved_and_validated(self):
+        row = {"case": "layout", "first_paint_ns": 10, "warm": {
+            "frame_ns": [10, 20, 30], "process_cpu_ns": 60},
+            "process_memory_after": {"rss_bytes": 100},
+            "known_resources": {"work_counts": {"layouts": [0, 3, 9]}}}
+        metrics = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(metrics["work_layouts_p50"], 3)
+        self.assertEqual(metrics["work_layouts_mean"], 4)
+        for counts in ({"layouts": [1]}, {"bad name": [1, 2, 3]},
+                       {"layouts": [1, True, 3]}, {"layouts": [1, -1, 3]},
+                       {"layouts": [1, 1.5, 3]}):
+            row["known_resources"]["work_counts"] = counts
+            with self.assertRaises(ValueError):
+                normalize({"cases": [row]}, "overlay")
+
+    def test_exclusive_phases_partition_frames_and_retain_means(self):
+        row = {"case": "layout", "first_paint_ns": 10, "warm": {
+            "frame_ns": [10, 20], "process_cpu_ns": 30},
+            "process_memory_after": {"rss_bytes": 100},
+            "known_resources": {"owner_exclusive_ns": {
+                "host": [3, 8], "ir": [7, 12], "total": [10, 20]}}}
+        metrics = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(metrics["exclusive_host_mean_ms"], 5.5 / 1e6)
+        self.assertEqual(metrics["exclusive_ir_mean_ms"], 9.5 / 1e6)
+        self.assertEqual(metrics["exclusive_total_mean_ms"], 15 / 1e6)
+        row["known_resources"]["owner_ir_ns"] = {"observe": [2, 3], "resolve": [5, 9]}
+        detailed = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(detailed["ir_resolve_mean_ms"], 7 / 1e6)
+        self.assertEqual(detailed["exclusive_ir_mean_ms"], metrics["exclusive_ir_mean_ms"])
+        row["known_resources"]["work_counts"] = {"ir_topology": [0, 2]}
+        cohorts = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(cohorts["ir_structural_frames"], 1)
+        self.assertEqual(cohorts["ir_structural_resolve_mean_ms"], 9 / 1e6)
+        self.assertEqual(cohorts["ir_stable_total_mean_ms"], 7 / 1e6)
+        row["known_resources"]["work_counts"]["ir_topology"] = [0, 0]
+        stable = next(iter(normalize({"cases": [row]}, "overlay").values()))["metrics"]
+        self.assertEqual(stable["ir_structural_frames"], 0)
+        self.assertNotIn("ir_structural_total_mean_ms", stable)
+        row["known_resources"]["owner_ir_ns"]["resolve"] = [4, 10]
+        with self.assertRaises(ValueError):
+            normalize({"cases": [row]}, "overlay")
+        del row["known_resources"]["owner_ir_ns"]
+        for phases in (
+            {"host": [3, 8]},
+            {"host": [3, 8], "total": [3]},
+            {"host": [3, 8], "total": [4, 8]},
+            {"host": [True, 8], "total": [1, 8]},
+            {"host": [-3, 8], "total": [-3, 8]},
+            {"host": [0.5, 8], "total": [0.5, 8]},
+        ):
+            row["known_resources"]["owner_exclusive_ns"] = phases
+            with self.assertRaises(ValueError):
+                normalize({"cases": [row]}, "overlay")
+
     def test_cli_exit_codes_and_baseline_not_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

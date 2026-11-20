@@ -57,12 +57,19 @@ def check_selector(binary, selector, env):
         raise ValueError(f"exact ignored test not found: {selector}; check suites.toml")
 
 
-def prepare(suite_id, destination):
+def build_command(spec, features=""):
+    command = [*shlex.split(os.environ.get("CARGO", "cargo")), "test", "--locked", "--release",
+               "--no-run", "--message-format=json", "-p", spec["package"], *spec["target"]]
+    if features:
+        command += ["--features", features]
+    return command
+
+
+def prepare(suite_id, destination, features=""):
     spec = catalog()["suite"][suite_id]
     destination = destination.resolve()
     destination.mkdir(parents=True, exist_ok=False)
-    command = [*shlex.split(os.environ.get("CARGO", "cargo")), "test", "--locked", "--release",
-               "--no-run", "--message-format=json", "-p", spec["package"], *spec["target"]]
+    command = build_command(spec, features)
     env = clean_environment()
     with (destination / "build.jsonl").open("w") as stdout, (destination / "build.log").open("w") as stderr:
         result = subprocess.run(command, cwd=ROOT, env=env, stdout=stdout, stderr=stderr)
@@ -145,6 +152,7 @@ def run_once(job):
     run_dir.mkdir()
     env = clean_environment()
     env.update(RETINUE_BENCH_OUTPUT=str(run_dir), RETINUE_BENCH_SAMPLES=str(config["samples"]),
+               RETINUE_BENCH_RUN_INDEX=str(len(report["runs"])),
                RETINUE_BENCH_THREADS=str(config["threads"]), RETINUE_BENCH_HZ=str(config["hz"]),
                RETINUE_BENCH_CASES=config["cases"], GUI_BENCH_OUTPUT=str(run_dir / spec["raw"]),
                GUI_BENCH_THREADS=str(config["threads"]), GUI_BENCH_LIVE="0")
@@ -211,10 +219,12 @@ def main():
     prep = commands.add_parser("prepare", help="Save a release test binary with provenance")
     prep.add_argument("suite", choices=sorted(catalog()["suite"]))
     prep.add_argument("--output", type=Path, required=True)
+    prep.add_argument("--features", default="", help="Optional Cargo features; included in comparison identity")
     for name in ("record", "pair"):
         sub = commands.add_parser(name, help={"record": "Measure one build", "pair": "Interleave two prepared builds (ABBA)"}[name])
         if name != "pair":
             sub.add_argument("suite", choices=sorted(catalog()["suite"]))
+            sub.add_argument("--features", default="", help="Optional Cargo features; included in comparison identity")
         else:
             sub.add_argument("before", type=Path)
             sub.add_argument("after", type=Path)
@@ -233,12 +243,12 @@ def main():
             for spec in catalog()["manual"]:
                 print(f"{spec['id']:24} {spec['purpose']:11} {spec['environment']:20} {spec['command']}")
         elif args.command == "prepare":
-            print(prepare(args.suite, args.output))
+            print(prepare(args.suite, args.output, args.features))
         else:
             if args.command == "record":
                 config = measured_config(args, catalog()["suite"][args.suite])
                 args.output.mkdir(parents=True, exist_ok=False)
-                snapshot = prepare(args.suite, args.output / "snapshot")
+                snapshot = prepare(args.suite, args.output / "snapshot", args.features)
                 jobs = [open_report(snapshot, args.output / "measurements", config, args.repeats)]
                 order = [0] * args.repeats
             else:
