@@ -39,9 +39,10 @@ Apps own their scheduling budgets. Desktop focus and in-game overlays have
 different resource constraints; views should not encode those policies.
 
 For worker layout, create `LayoutExecution` from the existing `RenderHost` and
-the adapter's completion waker. Call `InstanceGraph::advance_at`; on `Pending`, retain
+the adapter's completion waker. Call `InstanceGraph::advance_at`; on [`Poll::Pending`](https://doc.rust-lang.org/std/task/enum.Poll.html#variant.Pending), retain
 the previous controls and wait for the wake before polling again. Both native
-adapters support `Application::poll_prepare` for this handoff. Do not synchronously
+adapters support this handoff through `desktop::Application::poll_prepare` and
+`surface::Application::poll_prepare`. Do not synchronously
 update a tree whose layout is pending, or bind new controls to unfinished geometry.
 The synchronous API remains useful for small layouts and offscreen consumers.
 Resume a pending frame with its original animation sample. Advancing the sample

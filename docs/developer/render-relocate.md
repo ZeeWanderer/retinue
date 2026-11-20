@@ -51,7 +51,7 @@ record current ordered surface contributions
 `retinue-render` owns validation, copy scheduling, repair selection and cache demand.
 `retinue-ui` owns target acquisition, buffer age/release and native submission.
 `surface::Buffered` and `surface::Aged` share rendering and completion bookkeeping;
-hosts supply a prepared `surface::Snapshot` and acknowledge its `Submission` only
+hosts supply a prepared `surface::Snapshot` and acknowledge its `surface::Submission` only
 after successful native presentation. Abandoned or failed work invalidates evidence.
 `RenderHost` coordinates preparation budgets; it does not own native handles.
 Games supply view state and prepared content, not buffer-copy algorithms.
@@ -76,7 +76,7 @@ never be presented as the whole surface. Direct optimizer access is a lower-leve
 tool, not the normal app integration.
 
 Hosts can set `surface::Relocation::Disabled` to retain ordinary repair without
-discarding damage or target history. The desktop and overlay `Application` traits
+discarding damage or target history. The `desktop::Application` and `surface::Application` traits
 expose the same policy; no view needs to know which transfer backend is available.
 
 Reuse existing immutable paint programs, instance/property identities, frame
@@ -143,7 +143,7 @@ same target context. Reconcile the acquired target's age even when the source is
 the latest completed frame. Only indices/leases swap; no full-frame duplication
 is required.
 
-`surface::experiment` compares the production queued path with in-place moves,
+The `surface/experiment.rs` benchmark compares the production queued path with in-place moves,
 full or source-region snapshots, and ordinary repair. It is compiled only for
 tests/benchmarks and does not model compositor release timing.
 A separate offscreen pair also needs presentation copies; measure those rather
@@ -268,7 +268,7 @@ metadata and any retained caches remain costs.
 
 1. Separate surface recording from execution; collect all ordered contributors
    before acquiring/planning the target. Preserve current output and callback paths.
-2. Extract the tested planner from the benchmark-owned `Target` into borrowed-target
+2. Extract the tested planner from the benchmark-owned target into borrowed-target
    execution and compact generation history. Integrate safe scrolling and isolated
    overlay movement; preserve ordinary repair as a per-region fallback.
 3. Feed remaining repair demand into raster preparation/admission, then evaluate

@@ -1,5 +1,7 @@
 # Drawing Design Notes
 
+[api:Text]: fn@retinue_ui::authoring::Text
+
 Design direction, not an implemented API list. Use [Text, Images And Drawing](ui-drawing.md)
 for the current authoring surface. The Canvas/command implementation exposes only
 part of the broader capabilities described below.

@@ -1,79 +1,66 @@
-import {url, basePath} from './paths.mjs';
+import {url} from './paths.mjs';
 
 const page = (label, route) => ({label, link: url(route + (route && !route.endsWith('.html') ? '/' : ''))});
-const group = (label, items) => ({label, items, collapsed: true});
+const section = (label, ...items) => [{marker: label}, ...items];
+const collection = (landing, ...items) => ({...landing, items});
 const rust = (name, label = name) => page(label, `reference/rust/${name}/index.html`);
-const erlang = name => page(name, `reference/erlang/${name}/api-reference.html`);
+const erlang = (name, label = name) => page(label, `reference/erlang/${name}/api-reference.html`);
 
 export const sidebar = [
   page('Documentation', ''),
-  group('Using Retinue', [
-    page('Install and connect', 'guides/installation'), page('Commands and diagnostics', 'guides/cli'),
-    page('Queries and watches', 'guides/query'), page('Daemon service', 'guides/daemon'),
-    page('MCP integration', 'guides/mcp'), page('Inspect games', 'guides/wfinspect'),
-    group('Command reference', [page('retinue', 'reference/cli'), {autogenerate: {directory: 'reference/cli'}}]),
-  ]),
-  group('Games', [
-    group('Warframe', [page('In-game companion', 'guides/companion'), page('Desktop app', 'guides/gui'),
-      page('Forma planning', 'guides/forma-plan'), page('Build calculator', 'guides/build-stats')]),
-    page('Path of Exile 2', 'guides/poe2'), page('ARC Raiders status', 'guides/arc'),
-    page('Data sources', 'guides/data-sources'),
-  ]),
-  group('UI Framework', [
-    page('Overview', 'developer/ui-sdk'), page('Build a view', 'ui/first-view'),
-    page('Views and identity', 'ui/views'), page('State and bindings', 'ui/state'),
-    page('Inherited environment', 'ui/environment'), page('Layout', 'developer/declarative-layout'),
-    page('Text, images and drawing', 'developer/ui-drawing'), page('Animation and clocks', 'ui/animation'),
-    page('Input and focus', 'ui/input'), page('Window and overlay hosts', 'ui/hosts'),
-    page('Run the view demo', 'research/ui-composition-prototype'),
-    group('Implementation contracts', [page('Composition', 'developer/ui-composition'), page('State and ownership', 'developer/ui-contracts'),
-      page('Motion scheduling', 'developer/ui-motion'), page('Custom drawing', 'developer/ui-drawing-design')]),
-    group('API', [rust('retinue_ui'), rust('retinue_ui_macros')]),
-  ]),
-  group('Rendering', [
-    page('Pipeline and representation', 'developer/render-pipeline'),
-    page('Resources and residency', 'developer/render-residency'),
-    page('Relocation and repair', 'developer/render-relocate'),
-    page('Invalidation', 'developer/ui-invalidation'), page('Assets', 'developer/assets'),
-    page('Profile and measure', 'developer/profiling'), page('Optimizer quality', 'developer/optimizer-quality'),
-    page('Benchmark workflows', 'developer/benchmarks'), page('Performance history', 'research/benchmarks'),
-    page('Blend2D reference tools', 'developer/rendering-reference'),
-    rust('retinue_render', 'Rendering API'),
-  ]),
-  group('Services And Data', [
-    page('System architecture', 'developer/structure'), page('Daemon lifecycle', 'developer/daemon'),
-    page('Health reporting', 'developer/health'), page('CLI implementation', 'developer/cli'),
-    page('Query implementation', 'developer/query-language'), page('Canonical entities', 'developer/entities'),
-    page('Shared contracts', 'developer/shared_utilities'), page('Terminal tables', 'developer/table_layout'),
-    group('Service API', [erlang('retinue_core'), erlang('retinue_daemon'), erlang('retinue_cli'), rust('retinue_client')]),
-    group('Wire protocol', [{autogenerate: {directory: 'reference/protocol'}}]),
-  ]),
-  group('Game Integrations', [
-    page('Companion lifecycle', 'developer/companion'), page('Player inventory', 'developer/player-data'),
-    page('World state', 'developer/worldstate'), page('Public exports', 'developer/exports'),
-    page('Knowledge catalog', 'developer/knowledge'), page('Forma solver', 'developer/forma_plan'),
-    page('Plan visualization', 'developer/visualize'),
-    group('Domain and application API', [rust('retinue_native'), rust('retinue_warframe'), erlang('wfcore'),
-      rust('wfcompanion'), rust('wfgui'), rust('retinue_poe2'), erlang('poe2core'),
-      rust('poe2companion'), rust('arccompanion'), rust('retinue_inspect')]),
-  ]),
-  group('Contributing', [
-    page('Start here', 'developer'), page('Build workflows', 'developer/workflows'),
-    page('Testing', 'developer/testing'), page('Adding features', 'developer/adding_features'),
-    page('GUI source organization', 'developer/gui-organization'),
-    page('Overlay source organization', 'developer/companion-presentation'),
-    page('Desktop implementation', 'developer/native-ui'), page('Overlay implementation', 'developer/overlay-rendering'),
-    page('Development tools', 'developer/tools'), page('Documentation authoring', 'developer/documentation'),
-    page('UI previews', 'developer/ui-previews'),
+  ...section('Using Retinue',
+    page('Install and connect', 'guides/installation'),
+    collection(page('Commands and diagnostics', 'guides/cli'),
+      page('Queries and watches', 'guides/query'), page('Daemon service', 'guides/daemon'),
+      page('MCP integration', 'guides/mcp'), page('Inspect games', 'guides/wfinspect'),
+      collection(page('Command reference', 'reference/cli'), {autogenerate: {directory: 'reference/cli'}}))),
+  ...section('Games',
+    collection(page('Warframe', 'guides/companion'), page('Desktop app', 'guides/gui'),
+      page('Forma planning', 'guides/forma-plan'), page('Build calculator', 'guides/build-stats')),
+    page('Path of Exile 2', 'guides/poe2'), page('ARC Raiders', 'guides/arc')),
+  ...section('Frameworks and services',
+    collection(rust('retinue_ui'),
+      ...section('Essentials', page('Framework overview', 'developer/ui-sdk'), page('Build a view', 'ui/first-view'),
+        page('Views and identity', 'ui/views'), page('State and bindings', 'ui/state'),
+        page('Inherited environment', 'ui/environment'), page('Layout', 'developer/declarative-layout'),
+        page('Text, images and drawing', 'developer/ui-drawing'), page('Animation and clocks', 'ui/animation'),
+        page('Input and focus', 'ui/input'), page('Window and overlay hosts', 'ui/hosts'),
+        page('Run the view demo', 'research/ui-composition-prototype')),
+      ...section('Implementation', page('Composition', 'developer/ui-composition'), page('State and ownership', 'developer/ui-contracts'),
+        page('Motion scheduling', 'developer/ui-motion'), page('Custom drawing', 'developer/ui-drawing-design')),
+      ...section('Macros', rust('retinue_ui_macros'))),
+    collection(rust('retinue_render'), page('Pipeline and representation', 'developer/render-pipeline'),
+      page('Resources and residency', 'developer/render-residency'), page('Relocation and repair', 'developer/render-relocate'),
+      page('Invalidation', 'developer/ui-invalidation'), page('Assets', 'developer/assets'),
+      page('Profile and measure', 'developer/profiling'), page('Optimizer quality', 'developer/optimizer-quality'),
+      page('Benchmark workflows', 'developer/benchmarks'), page('Performance history', 'research/benchmarks'),
+      page('Blend2D reference tools', 'developer/rendering-reference')),
+    collection(erlang('retinue_daemon'), page('Daemon lifecycle', 'developer/daemon'),
+      page('Health reporting', 'developer/health'), page('Query implementation', 'developer/query-language'),
+      ...section('Warframe data', page('Canonical entities', 'developer/entities'), page('Data sources', 'guides/data-sources'),
+        page('World state', 'developer/worldstate'), page('Public exports', 'developer/exports'),
+        page('Knowledge catalog', 'developer/knowledge'), page('Forma solver', 'developer/forma_plan'))),
+    collection(erlang('retinue_cli'), page('CLI implementation', 'developer/cli'), page('Terminal tables', 'developer/table_layout')),
+    collection(erlang('retinue_core'), page('Shared contracts', 'developer/shared_utilities'),
+      ...section('Wire protocol', {autogenerate: {directory: 'reference/protocol'}})),
+    rust('retinue_client'), rust('retinue_native'), rust('retinue_inspect')),
+  ...section('Game integrations',
+    collection(rust('wfcompanion'), page('Companion lifecycle', 'developer/companion'), page('Overlay implementation', 'developer/overlay-rendering')),
+    collection(rust('wfgui'), page('Desktop implementation', 'developer/native-ui'), page('GUI source organization', 'developer/gui-organization')),
+    collection(rust('retinue_warframe'), page('Player inventory', 'developer/player-data')),
+    erlang('wfcore'), rust('poe2companion'), rust('retinue_poe2'), erlang('poe2core'), rust('arccompanion')),
+  ...section('Project',
+    collection(page('Contributing', 'developer'), page('System architecture', 'developer/structure'), page('Build workflows', 'developer/workflows'),
+      page('Testing', 'developer/testing'), page('Adding features', 'developer/adding_features'),
+      page('Overlay source organization', 'developer/companion-presentation'),
+      page('Development tools', 'developer/tools'), page('Plan visualization', 'developer/visualize'),
+      page('Documentation authoring', 'developer/documentation'), page('UI previews', 'developer/ui-previews')),
     page('API catalog', 'reference'),
-  ]),
-  group('Research', [
-    page('Evidence and findings', 'research'),
-    page('Native analysis tools', 'research/native-analysis'),
-    page('Warframe provider data flow', 'research/overwolf-alecaframe-overlay-research'),
-    page('AlecaFrame overlay catalog', 'research/alecaframe-overlay-catalog'),
-    page('WFCD parser audit', 'research/wfcd-parser-audit'), page('Blend2D findings', 'research/blend2d-issues'),
-  ]),
+    collection(page('Research', 'research'),
+      page('Native analysis tools', 'research/native-analysis'),
+      page('Warframe provider data flow', 'research/overwolf-alecaframe-overlay-research'),
+      page('AlecaFrame overlay catalog', 'research/alecaframe-overlay-catalog'),
+      page('WFCD parser audit', 'research/wfcd-parser-audit'), page('Blend2D findings', 'research/blend2d-issues'))),
 ];
 
 export const relations = [
@@ -96,6 +83,9 @@ export const relations = [
   ['developer/daemon', 'Daemon lifecycle', ['retinue_client/']],
 ];
 
+const erlangGuides = {retinue_core: 'developer/shared_utilities', retinue_daemon: 'developer/daemon',
+  retinue_cli: 'developer/cli', wfcore: 'developer/knowledge', poe2core: 'guides/poe2'};
+
 export function relatedTopics(route) {
   if (route.startsWith('reference/rust/')) {
     const symbol = route.slice('reference/rust/'.length);
@@ -105,8 +95,7 @@ export function relatedTopics(route) {
   const app = route.split('/')[2];
   if(route==='reference/erlang/retinue_daemon/wf_query_parse.html')
     return [page('Query syntax and examples','guides/query'),page('Query implementation','developer/query-language')];
-  const guide = ({retinue_core: 'developer/shared_utilities', retinue_daemon: 'developer/daemon',
-    retinue_cli: 'developer/cli', wfcore: 'developer/knowledge', poe2core: 'guides/poe2'})[app];
+  const guide = erlangGuides[app];
   return guide ? [page('Concepts and usage', guide)] : [];
 }
 
@@ -115,36 +104,6 @@ export function relatedAPI(route) {
     const module = symbol.endsWith('/');
     return page(module ? symbol.replace(/\/$/, '').replaceAll('/', '::') : symbol.split('/').at(-1).split('.').slice(1).join('.'),
       `reference/rust/${symbol}${module ? 'index' : ''}.html`);
-  }));
+  })).concat(Object.entries(erlangGuides).filter(([, guide]) => guide === route)
+    .map(([app]) => erlang(app)));
 }
-
-export function breadcrumbs(route) {
-  function find(items, parents, href) {
-    for (const item of items) {
-      if (item.link === href) return [...parents, item];
-      if (item.items) {
-        const result = find(item.items, [...parents, {label: item.label, link: item.items[0]?.link}], href);
-        if (result) return result;
-      }
-    }
-  }
-  const meaningful = items => items.filter(item => !item.label.endsWith('API'));
-  const found = find(sidebar, [], url(route + (route && !route.endsWith('.html') ? '/' : '')));
-  if (found) return meaningful(found.slice(0, -1));
-  if (route.startsWith('reference/rust/')) {
-    const parts = route.slice('reference/rust/'.length).split('/');
-    const crate = parts[0] === 'src' ? parts[1] : parts[0];
-    const owner = meaningful(find(sidebar, [], rust(crate).link) ?? [page('API catalog', 'reference'), rust(crate)]);
-    if (parts[0] === 'src') return [...owner, {label: 'Source'}];
-    return [...owner, ...parts.slice(1, -1).filter(p => p !== crate).map((label, i) =>
-      page(label, 'reference/rust/' + parts.slice(0, i + 2).join('/') + '/index.html'))];
-  }
-  if (route.startsWith('reference/erlang/')) {
-    const root = erlang(route.split('/')[2]);
-    return meaningful(find(sidebar, [], root.link) ?? [page('API catalog', 'reference'), root]);
-  }
-  if (route.startsWith('reference/cli')) return [page('Commands', 'guides/cli'), page('Command reference', 'reference/cli')];
-  return [page('Documentation', '')];
-}
-
-export const routeFromPath = pathname => pathname.slice(basePath.length).replace(/\/$/, '');

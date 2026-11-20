@@ -7,8 +7,10 @@ import {prepareReference, preserveReferenceLinks} from './reference.mjs';
 import {check} from './check.mjs';
 import {publishNavigator} from './navigation.mjs';
 
+console.log('Preparing API pages and reference links');
+const {api, resolveCode} = await prepareReference();
 console.log('Preparing guides, commands and protocols');
-const {assets} = await prepare();
+const {assets} = await prepare(resolveCode);
 const publicDir = path.join(work, 'public');
 await fs.rm(publicDir, {recursive: true, force: true});
 await fs.mkdir(publicDir, {recursive: true});
@@ -19,8 +21,6 @@ for (const asset of assets) {
   await fs.mkdir(path.dirname(target), {recursive: true});
   await fs.copyFile(path.join(root, asset), target);
 }
-console.log('Preparing API pages in the shared documentation layout');
-const api = await prepareReference();
 await publishNavigator(JSON.parse(await fs.readFile(path.join(work, 'pages.json'), 'utf8')), api, publicDir);
 const result = spawnSync(path.join(root, 'tools/docs/node_modules/.bin/astro'), ['build'], {
   cwd: path.join(root, 'tools/docs'), stdio: 'inherit', env: {...process.env, DOCS_REPO_ROOT: root},

@@ -50,7 +50,7 @@ general-purpose tree-diff algorithm. [SwiftUI performance](https://developer.app
 
 Custom measurement must expose every changing input or a revision covering those
 inputs. Function identity alone cannot represent captured or external state.
-Custom paint has the same obligation through `PaintKey`. Unknown dependencies use
+Custom paint has the same obligation through `retinue_render::PaintKey`. Unknown dependencies use
 conservative invalidation; an optimization hint never makes unknown state safe.
 
 Layout is not simply "mark every descendant dirty." A changed child's size can
@@ -133,7 +133,7 @@ the current displayed change; `Repaint::repair` also includes changes missed by
 the acquired buffer. Never report the latter as compositor damage just because
 an older buffer required more repair.
 
-`Damage::union` preserves gaps. `Region` normalizes overlapping rectangles into
+`Damage::union` preserves gaps. `damage::Region` normalizes overlapping rectangles into
 disjoint coverage, so translucent draws cannot be applied twice. Excessively
 fragmented invalidations use bounded conservative tiles; this is a storage/work
 bound, not a tuned repaint-cost heuristic. Intersections used for clipping never
@@ -171,7 +171,7 @@ percentage alone.
 
 Enabled local reductions retain the same ordered Blend2D commands:
 
-- `Surface` reconciles section layout only when size, keys, order or bounds change.
+- `ViewSurface` reconciles section layout only when size, keys, order or bounds change.
   Paint revisions still update independently. No subtree is assumed static.
 - `Paint::commands` shares immutable fragments with the scene, without cloning
   their strings and command arrays into another retained representation.
@@ -212,7 +212,7 @@ parent preparation uses the same rule. `PaintStats::preparation_blits` counts
 successful region substitutions during preparation. Row/tile extent remains a
 policy input to measure, not a mandated scroll-container bitmap.
 
-`Element::cache_hint` or `Recording::cached_section` marks a candidate subtree.
+`Element::cache_hint` or `PixelLayers::cached_section` marks a candidate subtree.
 `Stable` and `Conditional` are reuse hints; `Dynamic` requests no layer. They never
 replace invalidation. The renderer counts actual drawn frames, not idle prepares,
 and admits complex, repeatedly reused candidates. Tiny partial repairs do not count
@@ -220,7 +220,7 @@ as full-subtree reuse. Already-rasterized children count
 as blits, not their former glyph/shadow work. Large sparse groups of cached cards
 failed end-to-end benchmarks and remain separate.
 
-`Renderer::with_layers` and `Surface::with_layers` take `ResidencyPolicy` and
+`Renderer::with_layers` and `ViewSurface::with_layers` take `ResidencyPolicy` and
 `LayerPolicy`. Unconfigured renderers keep only explicit leaf caching. Initial
 guardrails for the shared item/layer store:
 

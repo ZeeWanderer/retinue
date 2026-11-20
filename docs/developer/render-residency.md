@@ -6,8 +6,8 @@ pressure policy below remains the design target.
 
 ## Current Implementation
 
-`render/residency.rs` replaces the item asset-LRU and separate layer byte budget.
-`Renderer` owns one store for these representations. Each plan consumer holds a
+`retinue_render::residency` manages item assets and layers together.
+`retinue_render::Renderer` owns one store for these representations. Each plan consumer holds a
 raster identity; multiple consumers and recipes share physical allocation counts.
 Parent preparation reserves its output before creating redundant child rasters,
 uses existing child images, then releases only the covered consumers on publication.

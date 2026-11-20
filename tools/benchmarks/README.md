@@ -20,7 +20,7 @@ Also available: `wf-overlay`, `poe2-drag`, `gui-foundry`, `gui-relics`, `gui-dra
 the shared acquired-buffer renderer; it does not measure compositor or game FPS.
 `text-layout` compares native paragraph reflow with fresh shaping and run resolution;
 it excludes painting and platform presentation.
-`text-view` measures production `Text` updates: fresh trees, width changes, color-only
+`text-view` measures production `view::Text` updates: fresh trees, width changes, color-only
 changes and line-limit elision. It includes layout and command recording, not painting.
 `view-ir` is a representation experiment: the same Cycle display through retained
 ViewTree or handwritten template bindings, with pixel parity checked separately.

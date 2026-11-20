@@ -2,13 +2,8 @@
 
 ## Entry points
 
-- CLI: `apps/retinue_cli/src/forma/wf_visualize.erl`
-- Rendering: `apps/retinue_cli/src/forma/wf_forma_visualizer.erl`
-
-## Where to edit what
-
-- CLI flags/usage/errors: `apps/retinue_cli/src/forma/wf_visualize.erl`
-- HTML/SVG rendering: `apps/retinue_cli/src/forma/wf_forma_visualizer.erl`
+- CLI flags, usage and errors: `wf_visualize.erl`.
+- HTML and SVG rendering: `wf_forma_visualizer.erl`.
 
 ## Runtime notes
 

@@ -1,5 +1,13 @@
 # Declarative Layout
 
+[api:Canvas]: fn@retinue_ui::authoring::Canvas
+[api:HStack]: fn@retinue_ui::authoring::HStack
+[api:VStack]: fn@retinue_ui::authoring::VStack
+[api:ZStack]: fn@retinue_ui::authoring::ZStack
+[api:LayoutView]: fn@retinue_ui::authoring::LayoutView
+[api:ScrollViewport]: fn@retinue_ui::authoring::ScrollViewport
+[api:Layout]: retinue_ui::layout::Layout
+
 The authoring API is documented in [UI SDK](ui-sdk.md). `View::body` builds the
 active tree; `InstanceGraph` retains state and patches layout and paint independently.
 The superseded builder/Binding/Realization frontend has been removed.
@@ -24,11 +32,10 @@ comparable layout inputs from the body and immutable drawing snapshots instead.
 
 ## Custom Arrangement
 
-Implement `Layout::measure` and `place`, then use `LayoutView::new(layout, children)`.
-The local `Cache` stores measurement work. `update_cache` runs when parameters or
+Implement `Layout::measure` and `Layout::place`, then use `LayoutView::new(layout, children)`.
+The associated `Layout::Cache` stores measurement work. `Layout::update_cache` runs when parameters or
 children change, not for every proposal. Changing algorithm type releases its
-cache while preserving keyed child views. `LayoutView::with_algorithm` accepts an
-erased `LayoutAlgorithm` for runtime selection between implementation types.
+cache while preserving keyed child views.
 
 `Proposal` distinguishes ideal, minimum-content and available-space requests.
 `Available::Limit` is an offered size, not a hard clipping constraint. A child

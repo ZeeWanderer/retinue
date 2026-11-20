@@ -1,5 +1,9 @@
 # Views And Identity
 
+[api:Layout]: retinue_ui::layout::Layout
+[api:ForEach]: fn@retinue_ui::authoring::ForEach
+[api:ViewProperties]: derive@retinue_ui_macros::ViewProperties
+
 Use `View` for a composite description with a `body`. Use structural layouts to
 arrange children and primitives for drawing. These are distinct contracts:
 

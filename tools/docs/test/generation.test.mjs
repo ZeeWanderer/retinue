@@ -12,7 +12,8 @@ import {prose, erlangPages} from '../reference.mjs';
 import {publicFiles} from '../public-files.mjs';
 import {route} from '../prepare.mjs';
 import {navigationErrors, hasAnchor} from '../check.mjs';
-import {relatedAPI, relatedTopics, breadcrumbs} from '../catalog.mjs';
+import {relatedAPI, relatedTopics} from '../catalog.mjs';
+import {outline, navigator} from '../navigation.mjs';
 
 test('research documentation is publishable while raw evidence remains ignored', () => {
   const ignored = (file) =>
@@ -166,12 +167,9 @@ test('guide and API relationships keep navigation in its subsystem', () => {
       (link) => link.link === basePath + 'ui/state/',
     ),
   );
-  assert.equal(breadcrumbs('ui/state')[0].label, 'UI Framework');
-  assert.equal(breadcrumbs('reference/rust/retinue_ui/state/struct.State')[0].label, 'UI Framework');
-  assert.equal(
-    breadcrumbs('reference/rust/retinue_ui/state/struct.State')[0].link,
-    basePath + 'developer/ui-sdk/',
-  );
+  const nav = navigator(outline([], []));
+  assert.equal(nav.breadcrumbs(basePath + 'ui/state/')[0].link, basePath + 'reference/rust/retinue_ui/');
+  assert.equal(nav.breadcrumbs(basePath + 'developer/daemon/')[0].label, 'retinue_daemon');
 });
 
 test('anchor checks handle Rust source ranges and escaped implementation IDs', () => {

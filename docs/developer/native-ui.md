@@ -42,7 +42,7 @@ headless desktop captures use the same policy. Small companion surfaces keep the
 own lower budgets. Cached glow preparation is separate from steady frame rendering.
 See [Blend2D mask issues](blend2d-issues.md) for reproductions and local workarounds.
 
-App colors live in `style.rs`; reuse semantic names for ownership, search,
+App colors live in `wfgui::presentation::style`; reuse semantic names for ownership, search,
 menus and surfaces. Define them with `rgb`/`alpha`, not RGB byte arrays passed to
 the BGRA painter. Component readiness is Aleca's `#6e9b6878` background behind
 the artwork and `#46d234` inset glow above it. Never tint the artwork itself.
@@ -115,7 +115,7 @@ Capture a listing context menu with `--view context-menu --capture-target page.m
 
 ### Shared Controls
 
-Use `Ui::search_field` for page and rail searches: collapsed search capsule,
+Use `ControlHost::search_field` for page and rail searches: collapsed search capsule,
 animated focus expansion, immediate growth under text pressure and an inline clear
 button that retains focus. Its editor, caret, hit test and capture bounds share
 the same inset. Forms, passwords and numeric values remain ordinary fields.
@@ -265,9 +265,9 @@ canonical player/build data in this store; that remains daemon-owned.
 
 ## Pages And Contracts
 
-`pages/` owns presentation for Inventory, Mastery, Relics, Market, Build Planner
-and the right rail. `widgets.rs` shares field editing, dropdowns, scrollbars,
-modal focus, tooltips and accessibility. Paint and input consume the same clipped
+`wfgui::presentation` owns the page views and right rail.
+`wfgui::presentation::widgets` shares search fields, menus, and asset views.
+Paint and input consume the same clipped
 geometry; an open modal excludes underlying controls, including the other rail.
 
 Use the shared [composition layer](ui-composition.md) for layout, retained paint,
@@ -282,7 +282,7 @@ scrolling cost before replacing a rendering path.
 Use `scroll::Viewport` with `Padding` for content insets. Its extent includes top
 and bottom padding; translation, visible-range culling and hit testing use the
 same geometry. Padding scrolls with the content, not with the viewport clip.
-`Ui::begin_scroll_viewport` accepts it directly. Foundry adds 12 logical pixels
+`ControlHost::begin_scroll_viewport` accepts it directly. Foundry adds 12 logical pixels
 below the final row and no top inset. Nested viewport scopes intersect parent
 clips, compose translations and restore the parent on exit.
 
@@ -324,7 +324,7 @@ Wheel steps use 60 logical pixels, matching
 20 pixels times three scroll lines. Physical touchpad deltas remain unscaled and
 unsmoothed.
 
-`retinue-ui::thumbnails` validates source hashes, decodes bounded images and uses
+`retinue_render::thumbnails` validates source hashes, decodes bounded images and uses
 Blend2D Lanczos resampling at the final physical size. One preparation worker owns
 24 MiB of decoded-source retention and 32 MiB of derivative retention. These are
 idle-cache budgets, not limits on the visible working set. Immutable image handles

@@ -2,6 +2,8 @@
 
 ## Commands
 
+The [CLI application](https://zeewanderer.github.io/retinue/reference/erlang/retinue_cli/api-reference/)
+defines the modules behind the [command reference](https://zeewanderer.github.io/retinue/reference/cli/).
 `retinue_cli` composes platform commands with game subtrees. `wf_cli` supplies the Warframe
 tree and shared dispatch context. `wfcli` and `poe2cli` select their scope before parsing;
 they do not maintain separate command definitions. Each command module declares

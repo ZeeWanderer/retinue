@@ -21,8 +21,8 @@ template, `make docs-site` reuses the extracted metadata.
 The performance history build verifies commit links. A shallow clone may need
 `git fetch --unshallow` to include the measured revisions.
 
-With the preview running, `npm --prefix tools/docs run test:layout` checks the
-performance explorer at desktop and phone widths. It uses Playwright Chromium
+With the preview running, `npm --prefix tools/docs run test:layout` checks
+navigator links and the performance explorer at desktop and phone widths. It uses Playwright Chromium
 (`cd tools/docs && npx playwright-core install chromium`).
 
 ## Guides and topic groups
@@ -36,9 +36,35 @@ For example, “Arranging content” groups stack constructors under the UI fram
 Featured symbols need a source doc comment. Put runnable usage examples in Rust
 doc comments so the reference shows the same example that Cargo tests.
 
-The sidebar is one outline for guides and reference. A crate or module expands
-in place; its name opens the overview and its disclosure opens the next level.
-The active branch ships in the page HTML. Other branches load as static files.
+In the navigator, headings label topics; they aren't folders. Each expandable
+collection links to its overview. Put guides beside the declarations they
+explain, under the owning framework or application. The rail and breadcrumbs
+share that hierarchy. Curated symbols have one home there; recommendations
+across frameworks remain links in the article.
+
+In guide prose, put real file names and code identifiers in backticks, for example
+`runtime/inbox.rs`, `wfcompanion::runtime::Core`, or `retinue_daemon_app:start/2`.
+The site links unambiguous names to their API page; a source file without an API page
+links to its repository revision. Command paths, protocol types and qualified
+members link to their generated reference. Keep examples and literal values as code.
+
+When a guide uses a short name with several possible definitions, import its
+meaning for that guide. To document a domain term once, register its section
+in the owning guide. A term can also point to an upstream specification:
+
+```markdown
+[api:Canvas]: retinue_ui::drawing::PixelCanvas
+[term:InventoryChanges]: #inventory-snapshots-and-deltas
+```
+
+Use a kind such as `fn@` before a fully qualified Rust name to distinguish a
+constructor from its type. An ambiguous symbol, a wrong import or an unresolved qualified project
+reference fails the build. The local
+`_build/documentation/unlinked-code.json` lists remaining inline literals by
+guide for review; it isn't a list of required links.
+
+For Erlang, use `-moduledoc` for a module's purpose, `-doc` for an exported member's
+contract and `-spec` for its types. CLI help describes the command, not its handler.
 
 Link to public repository files or published documentation. Explain how to obtain
 inputs that are not distributed; do not cite a private capture, a local checkout,
@@ -62,6 +88,6 @@ output are generated. Source links use the revision being built.
 
 ## Publication
 
-Pull requests build and validate the static site. To publish, run the
-Documentation workflow on the default branch with GitHub Pages configured
-to use GitHub Actions. A local build does not deploy.
+Pull requests build and validate the static site without publishing. Pushes to
+`master` publish after validation; the Documentation workflow can also be run
+manually on the default branch. A local build does not deploy.

@@ -1,5 +1,7 @@
 # Animation And Clocks
 
+[api:Canvas]: fn@retinue_ui::authoring::Canvas
+
 Model state changes immediately; presentation values interpolate toward it.
 Choose the smallest tool that describes the motion:
 
@@ -9,7 +11,7 @@ Choose the smallest tool that describes the motion:
 | `with_animation` / `with_transaction` | Animation intent on mutations outside views |
 | `ViewContext::animated` | A custom interpolated presentation value |
 | `Canvas` with a sampled value | Custom drawing that follows an interpolated input |
-| `Playback` / `MotionProgram` / `Keyframes` | Explicit multi-stage or controlled motion |
+| `motion::Playback` / `MotionProgram` / `Keyframes` | Explicit multi-stage or controlled motion |
 | `ViewContext::time(schedule)` | A ticking timer or deadline-driven update |
 
 ## Keep Geometry And State Distinct

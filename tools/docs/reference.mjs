@@ -19,10 +19,12 @@ import {
 import {publicFiles} from './public-files.mjs';
 import {rustPages} from './rust-symbols.mjs';
 import {relatedTopics} from './catalog.mjs';
+import {guideLinks} from './guide-links.mjs';
+import {linkInlineCode} from './markdown.mjs';
 
 const parser = unified().use(markdown).use(gfm);
 const html = unified().use(rehype).use(stringify);
-export function prose(text, links = {}) {
+export function prose(text, links = {}, resolveCode) {
   if (!text) return '';
   // Definitions must exist while parsing shortcut references, not only during rendering.
   const body = Object.keys(links).length
@@ -43,6 +45,7 @@ export function prose(text, links = {}) {
       delete node.url;
     }
   });
+  linkInlineCode(body, resolveCode);
   return html.stringify(html.runSync(body));
 }
 
@@ -53,21 +56,21 @@ export function erlangPages(modules, source) {
   for (const app of erlangApps) {
     const own = modules.filter((m) => m.app === app);
     if (!own.length) throw Error('No Erlang metadata for ' + app);
+    const sections = Map.groupBy(own, m => {
+      const tail = m.source?.split('/src/').at(-1) ?? '';
+      return tail.split('/').slice(0,-1).filter(s => s !== 'games').map(s =>
+        s === 'poe2' ? 'Path of Exile 2' : s[0].toUpperCase() + s.slice(1)).join(' / ') || 'Application modules';
+    });
+    const groups = [...sections].sort(([a],[b]) => a.localeCompare(b)).map(([title, entries]) => ({
+      title, items: entries.map(m => ({name:m.name, href:url(route(m)), summary:m.description.split('\n')[0]})),
+    }));
     pages.push({
       kind: 'Erlang',
       role: 'Application',
       route: 'reference/erlang/' + app + '/api-reference.html',
       title: app,
-      groups: [
-        {
-          title: 'Modules',
-          items: own.map((m) => ({
-            name: m.name,
-            href: url(route(m)),
-            summary: m.description.split('\n')[0],
-          })),
-        },
-      ],
+      groups,
+      topicGroups: groups.map(({title, items}) => ({title, links:items.map(item => item.href)})),
     });
     for (const m of own) {
       const groups = [];
@@ -105,6 +108,8 @@ export function erlangPages(modules, source) {
         signature: '-module(' + m.name + ').',
         description: m.description,
         source: source(m.source),
+        moduleFile: m.source && (path.isAbsolute(m.source) ? path.relative(root, m.source) : m.source),
+        privateFunctions: (m.private_functions ?? []).map(([name,line]) => [name,source(m.source,line)]),
         groups,
       });
     }
@@ -162,28 +167,38 @@ export async function prepareReference() {
       return page.redirect ? byUrl.get(page.redirect) : page;
     };
     const parent = lookup(owner);
+    parent.topicGroups = [];
     parent.groups.unshift(
-      ...Object.entries(groups).map(([title, items]) => ({
-        title,
-        items: items.map((id) => {
+      ...Object.entries(groups).map(([title, items]) => {
+        const entries = items.map((id) => {
           const p = lookup(id);
           if (!p.description?.trim()) throw Error('Featured symbol needs a source doc comment: ' + id);
           return {name: p.title, href: url(p.route), summary: p.description?.split(/\n\s*\n/)[0]};
-        }),
-      })),
+        });
+        parent.topicGroups.push({title, links: entries.map(item => item.href)});
+        return {title, items: entries};
+      }),
     );
   }
   const dir = path.join(work, 'api');
+  const resolveCode = guideLinks(pages, files, source, dir => repository + '/tree/' + ref + '/' + dir);
   await fs.rm(dir, {recursive: true, force: true});
   for (const p of pages) {
+    delete p.moduleFile;
+    delete p.privateFunctions;
     p.related = relatedTopics(p.route);
+    const own = url(p.route);
+    const resolve = code => {
+      const href = resolveCode(code, p);
+      return href === own ? undefined : href;
+    };
     for (const item of [p, ...(p.groups ?? []).flatMap((g) => g.items)]) {
       if (item.description && item === p && !/^[#`|*-]/.test(item.description)) {
         const [first, ...rest] = item.description.split(/\n\s*\n/);
-        p.abstract = prose(first, item.links);
+        p.abstract = prose(first, item.links, resolve);
         item.description = rest.join('\n\n');
       }
-      if (item.description) item.html = prose(item.description, item.links);
+      if (item.description) item.html = prose(item.description, item.links, resolve);
       delete item.description;
       delete item.links;
     }
@@ -191,9 +206,9 @@ export async function prepareReference() {
     await fs.mkdir(path.dirname(file), {recursive: true});
     await fs.writeFile(file, JSON.stringify(p));
   }
-  const list = pages.map(({route, kind, role, title, redirect}) => ({route, kind, role, title, redirect}));
+  const list = pages.map(({route, kind, role, title, redirect, topicGroups}) => ({route, kind, role, title, redirect, topicGroups}));
   await fs.writeFile(path.join(work, 'api-pages.json'), JSON.stringify(list));
-  return list;
+  return {api: list, resolveCode};
 }
 
 export async function preserveReferenceLinks(directory, pages) {

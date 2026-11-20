@@ -1,14 +1,17 @@
 # Daemon Architecture
 
-`retinue_daemon` hosts shared runtime services and separate game supervisors. The public binary
+The [daemon application](https://zeewanderer.github.io/retinue/reference/erlang/retinue_daemon/api-reference/)
+hosts shared runtime services and separate game supervisors. `retinue_daemon_app:start/2`
+starts `retinue_sup`; `retinue_games_sup` owns the per-game supervisors. The public binary
 is `retinue-daemon`. Warframe services own fetching, worldstate, catalogs, queries, player state,
 Market, Forma planning, and watches. PoE2 services own native session snapshots and events.
-`retinue_cli` composes command scopes; the `wfcli` adapter owns Warframe arguments, MCP framing,
+`retinue_cli` composes command scopes; the Warframe CLI modules own arguments, MCP framing,
 and formatting. Native observation stays in each game's companion.
 
 ## Lifecycle And Transport
 
-- Clients connect to node `retinue_daemon@localhost` through `retinue_client`.
+- Erlang clients connect to node `retinue_daemon@localhost` through
+  [`retinue_client`](https://zeewanderer.github.io/retinue/reference/erlang/retinue_cli/retinue_client/).
 - Distribution binds to IPv4 loopback and uses the invoking user's Erlang cookie.
 - OTP 29 dynamic hidden client nodes do not listen for incoming distribution connections.
 - Client/daemon requests use typed `gen_server:call({retinue_daemon, Node}, Request, Timeout)`.

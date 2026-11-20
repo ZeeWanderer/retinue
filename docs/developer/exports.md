@@ -4,8 +4,7 @@ Official PublicExport files provide item names, metadata, recipes, and identifie
 
 ## Storage And Updates
 
-Managed files live in the per-user XDG cache. Bundled fallback data under
-`apps/retinue_daemon/priv/` supports offline resolution and tests. `wf_source_manager` validates
+Managed files live in the per-user Warframe cache. `wf_source_manager` validates
 required files and `wf_metadata_update` downloads replacements atomically.
 
 Explicit `--exports-dir` paths are caller-owned. Missing or invalid files there fail with
@@ -28,9 +27,9 @@ The complete managed list is `?EXPORT_FILES` in
 
 PublicExport has three deliberate scopes:
 
-- `export_files/0`: every managed official file
-- `resolver_export_files/0`: files scanned for identifier resolution
-- `codex_export_files/0`: files contributing searchable Codex records
+- `wf_worldstate:export_files/0`: every managed official file
+- `wf_worldstate:resolver_export_files/0`: files scanned for identifier resolution
+- `wf_worldstate:codex_export_files/0`: files contributing searchable Codex records
 
 Keep these scopes separate. Large Codex files do not belong on the hot identifier-resolution path.
 
@@ -50,7 +49,6 @@ file outside the default item set. Query syntax is documented in
 Use `rg` directly or the repository helpers:
 
 ```bash
-rg -n "Calendar1999" apps/retinue_daemon/priv
 scripts/priv_search.sh "Calendar1999"
 scripts/export_keys.py ExportUpgrades_en.json uniqueName name locName
 ```

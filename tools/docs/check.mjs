@@ -37,7 +37,7 @@ export async function check(directory) {
   const targets = new Map();
   const validated = new Set();
   const outlineRoots = $ => $('.doc-outline > ul > li').toArray().map(li =>
-    $(li).children('details').children('summary').text().trim() || $(li).children('a').text().trim());
+    $(li).children('details').children('summary').text().trim() || $(li).text().trim());
   const roots=outlineRoots(load(await fs.readFile(path.join(directory,'index.html'),'utf8')));
   const targetInfo = async file => {
     if (!targets.has(file)) targets.set(file, (async () => {

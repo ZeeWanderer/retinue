@@ -1,5 +1,7 @@
 # Companion Presentation
 
+[api:Layout]: retinue_ui::layout::Layout
+
 Overlays follow the same feature-oriented organization as the
 [desktop GUI](gui-organization.md). Named views and their models live together;
 window hosts, workers and data contracts have separate owners.
@@ -10,7 +12,7 @@ Paths below are relative to `apps/wfcompanion/src/`.
 
 | Task | Entry point |
 | --- | --- |
-| Surface, focus and input lifecycle | `presentation/overlay_host.rs` |
+| Surface, focus and input lifecycle | [`presentation/overlay_host.rs`](https://zeewanderer.github.io/retinue/reference/rust/wfcompanion/presentation/overlay_host/) |
 | Scene and interaction state | `presentation/overlay_model.rs` |
 | Frame preparation, repaint and hit regions | `presentation/renderer.rs` |
 | Screen dispatch | `presentation/screens.rs` |
@@ -26,7 +28,7 @@ results of layout, not alternative layout engines. `PaintOptions` and
 `StatusParams` are drawing inputs, not SDK `View` implementations.
 
 Game observation, capture, daemon communication and reload remain outside
-presentation. The existing `relic` and `ducats` modules own their respective
+presentation. The `wfcompanion::relic` and `wfcompanion::ducats` modules own their respective
 observation/request flows; similarly named presentation folders only draw them.
 
 ## Path Of Exile 2
@@ -35,7 +37,7 @@ Paths below are relative to `apps/poe2companion/src/`.
 
 | Task | Entry point |
 | --- | --- |
-| Surface, focus, shortcuts and task delivery | `presentation/overlay_host.rs` |
+| Surface, focus, shortcuts and task delivery | [`presentation/overlay_host.rs`](https://zeewanderer.github.io/retinue/reference/rust/poe2companion/presentation/overlay_host/) |
 | Evaluate layout | `presentation/evaluate/evaluate_view.rs` |
 | Item layout | `presentation/evaluate/item_view.rs` |
 | Filters, selection and request state | `presentation/evaluate/evaluate_model.rs` |

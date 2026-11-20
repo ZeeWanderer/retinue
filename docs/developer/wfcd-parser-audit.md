@@ -14,7 +14,7 @@ The WFCD parser is a reference for this comparison, not a build or runtime depen
 
 ### Events and news
 
-Official `Events` contains news and community posts; timed world events are in `Goals`. The
+Official [`Events`](https://zeewanderer.github.io/retinue/reference/cli/warframe/events/) contains news and community posts; timed world events are in `Goals`. The
 current commands expose these sections as `events` and `goals`, so their names do not match game
 semantics. WFCD maps them to `news` and `events`.
 
@@ -56,7 +56,7 @@ presentation is also a local choice rather than a parser-correctness requirement
 
 ## Priority
 
-1. Correct `Events` and `Goals` naming with fixtures for both shapes.
+1. Correct [`Events` and `Goals` naming](#events-and-news) with fixtures for both shapes.
 2. Add a structured Nightwave view.
 3. Add clan weekly initiative and labelled construction progress.
 4. Add calculated cycles with transition-boundary tests.

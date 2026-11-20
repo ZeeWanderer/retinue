@@ -118,7 +118,7 @@ therefore use one implementation. Snapshot commands emit JSON, watches emit NDJS
 commands keep standard output free of metadata.
 
 Warframe Luau source reconstruction is a separate pinned toolchain stage under
-`tools/wf-luau-decompiler/`. The inspector owns cache extraction and build-specific normalization;
+[`tools/wf-luau-decompiler/`](https://github.com/ZeeWanderer/wf-luau-decompiler). The inspector owns cache extraction and build-specific normalization;
 the helper owns only normalized-bytecode reconstruction and exposes file/standard-input plus JSON
 diagnostics. Staged builds place both executables together so helper discovery needs no config.
 
@@ -149,7 +149,7 @@ and `retinue-client` transport; no overlay host or game-memory dependency.
 All seven page routes use the retained SDK. There is one layout/paint path;
 custom drawings are SDK primitives rather than a fallback scene.
 
-- `main.rs`, `app.rs`: entrypoint, window lifecycle, task delivery and captures.
+- `apps/wfgui/src/main.rs`, `wfgui::app`: entrypoint, window lifecycle, task delivery and captures.
 - `data/`: plain data models and serialized preferences. Canonical game models
   come from `retinue-protocol`; clients do not define competing schemas.
 - `domain/`: shared client services, sessions, image leases, preference storage

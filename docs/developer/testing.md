@@ -21,7 +21,7 @@ Use Cargo, EUnit and Common Test as the test runners. Make provides common entry
 points, not another test framework. Keep private benchmark implementations with
 their code; do not expose internals merely to move them into `benches/`.
 
-Shared Erlang fixtures use `retinue_test:fixture/1`, independent of Common Test's
+Shared Erlang fixtures use [`retinue_test:fixture/1`](../../test/support/retinue_test.erl), independent of Common Test's
 working directory. Fixtures are read-only. Copy inputs into `priv_dir` or a unique
 temporary directory before testing mutations. Keep retained reports in ignored
 `research/`, separate from temporary runtime state.

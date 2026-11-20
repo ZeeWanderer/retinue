@@ -1,5 +1,7 @@
 # State And Bindings
 
+[api:ViewProperties]: derive@retinue_ui_macros::ViewProperties
+
 Use [`State<T>`](https://zeewanderer.github.io/retinue/reference/rust/retinue_ui/state/struct.State/)
 for a single observable value and
 [observable](https://zeewanderer.github.io/retinue/reference/rust/retinue_ui_macros/attr.observable/) for related

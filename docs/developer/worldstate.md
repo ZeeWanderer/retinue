@@ -62,8 +62,7 @@ Translation logic is centralized in daemon module `wf_resolve`:
 
 - Worldstate cache defaults to `$XDG_CACHE_HOME/retinue/games/warframe/worldstate.json`, or
   `~/.cache/retinue/games/warframe/worldstate.json` when XDG cache is unset.
-- Node/language maps and exports update under the per-user XDG cache. Bundled fallback copies
-  live under `apps/retinue_daemon/priv/`.
+- Node/language maps and [exports](exports.md#storage-and-updates) update under the per-user XDG cache.
 - Refresh metadata with `wfcli update`; see [data sources](../data-sources.md).
 
 ## Calendar data

@@ -18,6 +18,7 @@ export function outline(topics, symbols, catalog = sidebar) {
       ]),
   );
   const roots = new Map();
+  const parents = new Map();
   for (const [route, node] of api) {
     const folder = path.posix.dirname(route);
     const owner = route.endsWith('/index.html')
@@ -27,15 +28,41 @@ export function outline(topics, symbols, catalog = sidebar) {
         : folder + '/index.html';
     const parent = api.get(owner);
     if (!parent || parent === node) roots.set(node.link, node);
-    else (parent.items ??= []).push(node);
+    else {
+      (parent.items ??= []).push(node);
+      parents.set(node.link, parent);
+    }
   }
-  for (const node of api.values())
-    node.items?.sort(
-      (a, b) =>
-        Number(b.kind === 'module') - Number(a.kind === 'module') ||
-        a.label.localeCompare(b.label) ||
-        a.link.localeCompare(b.link),
-    );
+  const curated = new Map();
+  for (const {route, topicGroups} of symbols) {
+    if (!topicGroups) continue;
+    const owner = api.get(route);
+    const rows = [];
+    for (const {title, links} of topicGroups) {
+      const placed = [];
+      for (const href of links) {
+        // Cross-framework recommendations stay in the article; each symbol has one navigator home.
+        const parent = parents.get(href);
+        let ancestor = parent;
+        while (ancestor && ancestor !== owner) ancestor = parents.get(ancestor.link);
+        if (!ancestor) continue;
+        const index = parent?.items.findIndex(n => n.link === href) ?? -1;
+        if (index >= 0) placed.push(...parent.items.splice(index, 1));
+      }
+      if (placed.length) rows.push({marker:title}, ...placed);
+    }
+    curated.set(owner, rows);
+  }
+  const sections = {module: 'Modules', Module: 'Modules', trait: 'Traits', struct: 'Structures',
+    enum: 'Enumerations', 'type alias': 'Type aliases', function: 'Functions', constant: 'Constants',
+    static: 'Statics', macro: 'Macros', 'proc attribute': 'Attributes', 'proc derive': 'Derives'};
+  for (const node of api.values()) {
+    if (!node.items) continue;
+    const rows = node.items.sort((a,b) => a.label.localeCompare(b.label) || a.link.localeCompare(b.link));
+    const groups = Map.groupBy(rows, row => sections[row.kind] ?? 'Declarations');
+    node.items = [...(curated.get(node) ?? []), ...[...new Set([...Object.values(sections), 'Declarations'])].flatMap(label =>
+      groups.has(label) ? [{marker: label}, ...groups.get(label)] : [])];
+  }
   function automatic(dir) {
     const rows = new Map(
       topics
@@ -57,10 +84,13 @@ export function outline(topics, symbols, catalog = sidebar) {
     return items;
   }
   function visit(item) {
+    if (item.marker) return [item];
     if (item.autogenerate) return automatic(item.autogenerate.directory);
-    if (item.items) return [{label: item.label, items: item.items.flatMap(visit)}];
     const root = roots.get(item.link);
-    return [root ? {...root, label: item.label} : {label: item.label, link: item.link}];
+    if (!item.items) return [root ?? item];
+    return [{...root, ...item, curated: true, items: [
+      ...(root && !item.items[0]?.marker ? [{marker:'Topics'}] : []), ...item.items.flatMap(visit), ...(root?.items ?? []),
+    ]}];
   }
   return catalog.flatMap(visit);
 }
@@ -94,6 +124,7 @@ export function navigator(tree) {
       '<ul>' +
       rows
         .map((n) => {
+          if (n.marker) return '<li class="outline-marker">' + escape(n.marker) + '</li>';
           const name = escape(n.label);
           const type =
             n.kind && !['module', 'Application', 'Module'].includes(n.kind)
@@ -112,7 +143,7 @@ export function navigator(tree) {
           if (!n.id) return '<li>' + label + '</li>';
           const show = open.has(n.id);
           const body =
-            show || mode === 'all' || (mode === 'guides' && !n.kind)
+            show || mode === 'all' || (mode === 'guides' && (!n.kind || n.curated))
               ? render(n.items, current, open, mode)
               : '<a class="outline-fallback" href="' +
                 contents +
@@ -142,6 +173,7 @@ export function navigator(tree) {
   return {
     branches,
     trails,
+    breadcrumbs: href => (trails.get(href) ?? []).map(id => branches.get(id)).filter(n => n.link !== href),
     render,
     forPage: (href) =>
       render(tree, href, new Set(trails.get(href)), href === basePath ? 'guides' : 'compact'),

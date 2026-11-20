@@ -53,6 +53,10 @@ worldstate, CLI, or overlay operation.
 
 ## Payload Semantics
 
+[term:MiscItems]: #payload-semantics
+[term:Recipes]: #payload-semantics
+[term:PendingRecipes]: #payload-semantics
+
 The account payload contains more than stack counts. AlecaFrame derives its views by joining these
 records to its static item catalog by internal `ItemType` or unique name.
 
@@ -75,6 +79,17 @@ items, then join current ownership, historical mastery, pending builds, and comp
 Unknown payload fields must survive ingestion. Warframe adds account fields independently of this
 application, so a strict decoder that drops unknown data would make the `player` query surface less
 useful and force updates for unrelated additions.
+
+### Inventory snapshots and deltas
+
+[term:InventoryChanges]: #inventory-snapshots-and-deltas
+[term:LastInventorySync]: #inventory-snapshots-and-deltas
+
+The HTTP collector accepts a full inventory with a `LastInventorySync` baseline.
+An `InventoryChanges` response describes changes, not absolute quantities.
+Retinue does not add those changes to the snapshot: observing the same response
+twice would double-count it. Native refreshes supply absolute counts for the
+scopes they cover. See [snapshot reconciliation](daemon.md#market-and-player-data).
 
 ## Ownership
 

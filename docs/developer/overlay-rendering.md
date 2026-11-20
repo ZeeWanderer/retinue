@@ -224,7 +224,7 @@ documented in [Native Desktop UI](native-ui.md#foundry-and-images).
 
 ## Partial Repainting
 
-`retinue_ui::damage` implements shared invalidation and per-buffer repair.
+`retinue_render::damage` implements shared invalidation and per-buffer repair.
 Both surface hosts use it, including Warframe's cached-frame/loading path.
 
 `Damage` is empty, a physical-pixel rectangle, or full invalidation. Unions use a

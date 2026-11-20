@@ -13,7 +13,10 @@ module(App, Beam) ->
         beam_lib:chunks(Beam,[abstract_code,compile_info]),
     {ok,{docs_v1,_,_,Fmt,Doc,_,Entries}} = code:get_doc(M),
     Attrs = maps:from_list([P || F <- Forms, P <- declaration(F)]),
+    Documented = sets:from_list([{N,A} || {{function,N,A},_,_,D,_} <- Entries, D =/= hidden]),
     #{app=>bin(App), name=>M, source=>bin(proplists:get_value(source,Info)),
+      private_functions=>[[bin(io_lib:format("~s/~B",[N,A])),erl_anno:line(Anno)]
+                          || {function,Anno,N,A,_} <- Forms, not sets:is_element({N,A},Documented)],
       description=>body(Doc,Fmt), behaviours=>[V || {attribute,_,K,V} <- Forms,
                                                K =:= behaviour orelse K =:= behavior],
       members=>[#{kind=>K,name=>N,arity=>A,line=>erl_anno:line(Anno),

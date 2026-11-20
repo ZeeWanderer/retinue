@@ -1,5 +1,8 @@
 # GUI Source Map
 
+[api:Layout]: retinue_ui::layout::Layout
+[api:Canvas]: fn@retinue_ui::authoring::Canvas
+
 `apps/wfgui` is the Rust desktop client. The SDK is `crates/retinue-ui`;
 Blend2D execution and paint optimization belong to `crates/retinue-render`.
 The companions use the same boundaries; see their

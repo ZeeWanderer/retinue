@@ -2,49 +2,47 @@
 
 Ownership:
 
-- `game_observer` owns Warframe process/build identity, read-only memory access,
+- `retinue_warframe::game_observer` owns Warframe process/build identity, read-only memory access,
   DBWIN classification, and typed evidence.
-- `observation` owns shared sampling and evidence recording; `wfinspect` owns
+- `retinue_warframe::observation` owns shared sampling and evidence recording; [wfinspect](../wfinspect.md) owns
   research commands, output and recording limits.
 - `wfcompanion` owns capture timing, OCR fallback, incidents, and daemon publication.
 - `wfcompanion` overlay owns scenes, interaction, focus gating, layout,
   rendering, and display caches.
-- `retinue-daemon` owns canonical player snapshots, persistence, queries, Market
+- The [daemon](daemon.md) owns canonical player snapshots, persistence, queries, Market
   access, asset resolution, and relic calculations.
 
 Overlay state stays native. Canonical player state stays in the daemon.
 
 ## Native Modules
 
-- `runtime/`: service ownership, launched-game monitor, game sessions, and bounded jobs.
+- `wfcompanion::runtime`: service ownership, launched-game monitor, game sessions, and bounded jobs.
 - `runtime/inbox.rs`, `runtime/presentation.rs`: bounded local mailboxes and HUD/scene messages.
-- `game_observer/`: process identity, scoped memory reads, explicit movie diagnostics,
+- `retinue_warframe::game_observer`: process identity, scoped memory reads, explicit movie diagnostics,
   and caller-driven UI transition tracking.
-- `observation/`: bounded GEP sampler, capture/replay, and private recording files,
+- `retinue_warframe::observation`: bounded GEP sampler, capture/replay, and private recording files,
   shared by companion and inspector. Readers do not depend on this layer.
-- `observer.rs`: bridge lifecycle and observation policy.
-- `observation/debug_output/`: shared DBWIN helper ownership and subscriber fan-out.
-- `inventory.rs`: ordered HTTP decode and publication.
+- `wfcompanion::observer`: bridge lifecycle and observation policy.
+- `observation/debug_output.rs`: shared DBWIN helper ownership and subscriber fan-out.
+- `wfcompanion::inventory`: ordered HTTP decode and publication.
 - `game_observer/inventory.rs`, `inventory/refresh.rs`: scoped native inventory reads.
 - `inventory/observation.rs`: session identity, acquisition times and publication ordering.
-- `daemon.rs`, `daemon/`: local Protobuf client, bounded outbound queue,
+- `wfcompanion::daemon`: local Protobuf client, bounded outbound queue,
   reconnect, replay, and request routing.
-- `capture.rs`, `relic.rs`: KWin window capture, crop detection, OCR, and relic
+- `wfcompanion::capture`, `wfcompanion::relic`: KWin window capture, crop detection, OCR, and relic
   scene construction.
 - `relic/lifecycle.rs`: context cancellation and bounded scene workers.
 - `relic/evidence.rs`: armed evidence, capture phases and terminal reports.
-- `work.rs`: caller-owned cooperative deadlines, cancellation and I/O budgets.
+- `retinue_native::work`: caller-owned cooperative deadlines, cancellation and I/O budgets.
 - `crates/retinue-ui/src/focus.rs`: exact game window and process gate.
-- `overlay/runtime.rs`: layer shell, SHM buffers, frame callbacks, input, focus,
+- `wfcompanion::presentation::overlay_host`: layer shell, SHM buffers, frame callbacks, input, focus,
   and damage.
-- `overlay/renderer.rs`: fonts, static frame cache, dispatch, and previews.
-- `overlay/assets.rs`: background image preparation and decoded-image budget.
-- `overlay/scene.rs`: top-level scene and presentation state.
-- `overlay/screens/`: complete screen painting and hit regions.
-- `ui/geometry.rs`: game hit regions and render output.
-- `crates/retinue-ui`: shared Taffy layout, geometry, painter and Blend2D
-  ownership; also portal shortcuts and the PoE2 layer-shell host. Screen models,
-  composition and actions belong to each companion.
+- `wfcompanion::presentation::renderer`: fonts, static frame cache, dispatch, and previews.
+- `wfcompanion::domain::media`: background image preparation and decoded-image budget.
+- `wfcompanion::presentation::overlay_model`: top-level scene and presentation state.
+- `wfcompanion::presentation::screens`, `wfcompanion::presentation::geometry`: screen dispatch, hit regions and render output.
+- `retinue_ui` owns shared layout and host primitives; `retinue_render` executes drawing
+  through Blend2D. Screen models and actions belong to each companion.
 
 Observer work runs off the UI thread. New collectors publish a separate source
 namespace instead of extending one untyped payload.
@@ -112,10 +110,16 @@ sampling without frametime measurements. DBWIN events remain the immediate path.
 
 ## Layout
 
+[api:Element]: retinue_ui::scene::Element
+
 The shared [composition layer](ui-composition.md) owns keyed layout and paint.
 Screens describe `Element` trees or use custom pixel layouts, then record normal
-primitives through `Canvas`. Taffy resolves layout; Blend2D executes the retained
-commands. `Recording` groups custom painting into locally anchored sections.
+primitives through `PixelCanvas` (imported as `Canvas` in the screen dispatcher).
+Taffy resolves layout; Blend2D executes the retained commands.
+`PixelLayers` (imported as `Recording`) groups custom painting into locally anchored sections.
+
+[api:Canvas]: retinue_ui::drawing::PixelCanvas
+[api:Recording]: retinue_ui::drawing::PixelLayers
 There is no separate one-shot layout engine or direct screen-rendering API.
 
 Each screen owns:
@@ -126,7 +130,7 @@ Each screen owns:
 - hit targets;
 - preview fixture and pixel tests.
 
-Screens do not import sibling screens. `scene.rs` dispatches them. Runtime uses
+Screens do not import sibling screens. `wfcompanion::presentation::screens` dispatches them. Runtime uses
 `ScreenOutput` from the cached render and has no screen-specific geometry.
 
 Use function-specific borrowed input structs when a call carries one semantic
@@ -135,6 +139,10 @@ only at FFI boundaries. Thin Blend2D wrappers use reusable image, rectangle,
 circle, and mask value types while preserving the underlying C ABI.
 
 ## Rendering
+
+[term:wl_shm::Format::Argb8888]: https://docs.rs/wayland-client/latest/wayland_client/protocol/wl_shm/enum.Format.html#variant.Argb8888
+[term:wl_buffer.release]: https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_buffer-event-release
+[term:wl_surface.damage_buffer]: https://wayland.freedesktop.org/docs/html/apa.html#protocol-spec-wl_surface-request-damage_buffer
 
 The Wayland surface uses `wl_shm::Format::Argb8888`. On little-endian Linux its
 bytes are premultiplied BGRA, matching Blend2D `PRGB32`.
@@ -345,7 +353,7 @@ socket cancels its watches. Diagnostics never enter player storage or reconnect 
 Launch mode keeps companion tied to the Steam child and gives the inventory
 collector ptrace ancestry. Standalone mode is managed by the CLI.
 
-`runtime::Core` owns observation, relic work, the daemon connection and shortcut
+`wfcompanion::runtime::Core` owns observation, relic work, the daemon connection and shortcut
 service. Shutdown cancels scene work, closes the shortcut session, releases DBWIN,
 and joins observation, scene and evidence workers. The daemon stays available
 until producers stop, then attempts a bounded publication flush and joins.

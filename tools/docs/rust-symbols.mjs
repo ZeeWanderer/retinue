@@ -122,6 +122,7 @@ export function rustPages(doc, files, source, crates) {
       description: i.docs || '',
       signature: sourceDecl(i, files),
       source: source(i.span?.filename, i.span?.begin[0]),
+      moduleFile: info.kind === 'module' ? i.span?.filename : undefined,
       groups: [],
       id,
     });

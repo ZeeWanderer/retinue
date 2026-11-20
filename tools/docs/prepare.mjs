@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {root, work, content, repository, basePath, url, sourceRevision} from './paths.mjs';
-import {topic, linkResolver} from './markdown.mjs';
+import {topic, linkResolver, guideDefinitions} from './markdown.mjs';
+import {topicLinks, unresolvedReferences} from './guide-links.mjs';
 import {protocolPages} from './protocol.mjs';
 import {relatedAPI} from './catalog.mjs';
 import {publicFiles} from './public-files.mjs';
@@ -31,7 +32,7 @@ export function route(source) {
   return 'guides/' + name.slice(5);
 }
 
-export async function prepare() {
+export async function prepare(resolveCode) {
   await fs.rm(content, {recursive: true, force: true});
   await fs.mkdir(content, {recursive: true});
   const ref = sourceRevision();
@@ -53,14 +54,23 @@ export async function prepare() {
     await fs.writeFile(target, `---\n${header}\n---\n\n${page.body}`);
     pages.push({route: page.route, title: page.title, source: page.source});
   }
-  for (const source of sources) {
+  const inputs = await Promise.all(sources.map(async source => {
     const markdown = await fs.readFile(path.join(root, source), 'utf8');
-    const page = {...topic(markdown, source, resolve), source, route: routes.get(source)};
+    return {source, markdown, route: routes.get(source), ...guideDefinitions(markdown)};
+  }));
+  const cli = JSON.parse(await fs.readFile(path.join(work, 'cli.json'), 'utf8'));
+  const schemas = await protocolPages(root, url);
+  const links = topicLinks(resolveCode, inputs, schemas, cli);
+  for (const {source, markdown} of inputs) {
+    const page = {...topic(markdown, source, resolve, code => links.resolve(code, source)), source, route: routes.get(source)};
     const related = relatedAPI(page.route);
     if (related.length) page.body += '\n## Related API\n\n' + related.map(item => `- [${item.label}](${item.link})`).join('\n') + '\n';
     await write(page);
   }
-  const cli = JSON.parse(await fs.readFile(path.join(work, 'cli.json'), 'utf8'));
+  await fs.writeFile(path.join(work, 'unlinked-code.json'),
+    JSON.stringify(Object.fromEntries([...links.missing].map(([file, names]) => [file, [...names].sort()])), null, 2));
+  const errors = unresolvedReferences(links.missing, resolveCode.ambiguous);
+  if (errors.length) throw Error('Unresolved project references:\n' + errors.join('\n'));
   for (const command of cli) {
     const name = ['retinue', ...command.path].join(' ');
     const commandRoute = 'reference/cli' + (command.path.length ? '/' + command.path.join('/') : '');
@@ -69,7 +79,7 @@ export async function prepare() {
     await write({route: commandRoute, title: name,
       body: `${command.summary}\n\n[Command guide](${url('guides/cli/')})${command.path.includes('query') ? ` | [Queries and watches](${url('guides/query/')})` : ''}\n\n~~~text\n${command.help}\n~~~\n\n${children.length ? '## Subcommands\n\n' : ''}${links}\n`});
   }
-  for (const page of await protocolPages(root, url)) {
+  for (const page of schemas) {
     page.body = page.body.replace('SOURCE_URL', `${repository}/blob/${ref}/${page.source}`);
     await write(page);
   }
@@ -79,7 +89,7 @@ export async function prepare() {
 ## UI And Rendering\n\n[UI framework guide](${url('developer/ui-sdk/')}) | [Render pipeline](${url('developer/render-pipeline/')})\n\n${['retinue_ui', 'retinue_ui_macros', 'retinue_render'].map(rustLink).join('\n')}
 ## Shared Services\n\n[Architecture](${url('developer/structure/')}) | [Daemon lifecycle](${url('developer/daemon/')})\n\n${['retinue_core', 'retinue_daemon', 'retinue_cli'].map(erlangLink).join('\n')}\n${['retinue_client', 'retinue_native'].map(rustLink).join('\n')}
 ## Game Integrations\n\n${['retinue_warframe', 'wfcompanion', 'wfgui', 'retinue_poe2', 'poe2companion', 'arccompanion', 'retinue_inspect'].map(rustLink).join('\n')}\n${['wfcore', 'poe2core'].map(erlangLink).join('\n')}
-## Commands And Protocol\n\n- [Retinue commands](${url('reference/cli/')})\n${(await protocolPages(root, url)).map(page => `- [${page.title}](${url(page.route + '/')})`).join('\n')}
+## Commands And Protocol\n\n- [Retinue commands](${url('reference/cli/')})\n${schemas.map(page => `- [${page.title}](${url(page.route + '/')})`).join('\n')}
 `});
   pages.push({route:'research/benchmarks',title:'Performance history'});
   await fs.writeFile(path.join(work, 'pages.json'), JSON.stringify(pages, null, 2));

@@ -40,6 +40,7 @@ export async function protocolPages(root, link) {
       return title + '\n| Field | Tag | Type | Presence | Description |\n| --- | --- | --- | --- | --- |\n' + fields.join('\n');
     });
     return {route: route(source), title: path.basename(source), source,
+      symbols: items.map(item => [item.fullName.slice(1), anchor(item.fullName)]),
       body: `Generated from the owning schema. [Source](SOURCE_URL). Generated language bindings are not a second schema authority.\n\n${blocks.join('\n\n')}`};
   });
 }

@@ -1,5 +1,8 @@
 # Text, Images And Drawing
 
+[api:Text]: fn@retinue_ui::authoring::Text
+[api:Image]: fn@retinue_ui::authoring::Image
+
 Choose a view boundary for independent layout, observation, input or reuse. A card
 can be one Canvas, several views or a mixture; a view does not imply a separate
 raster buffer. All these descriptions feed the same retained renderer.

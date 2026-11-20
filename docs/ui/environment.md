@@ -1,5 +1,7 @@
 # Inherited Environment
 
+[api:ViewProperties]: derive@retinue_ui_macros::ViewProperties
+
 Environment supplies dependencies through a subtree. A child uses the nearest
 definition; an override affects its descendants, not its siblings. Use named keys
 for distinct roles with the same value type, or type-keyed model injection for a

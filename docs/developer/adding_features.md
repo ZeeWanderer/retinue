@@ -23,7 +23,7 @@ Use this checklist after choosing the owning application in [`structure.md`](str
 ## New data sources
 
 - Favor `languages.json` for display strings when the key exists.
-- Export data is loaded from the managed XDG cache with `apps/retinue_daemon/priv` as bundled fallback.
+- Export data is loaded from the [managed Warframe cache](exports.md#storage-and-updates).
 - Add managed exports to `?EXPORT_FILES` in
   `apps/retinue_daemon/src/games/warframe/catalog/wf_metadata_update.erl` and place them in only the resolver or
   Codex scope that needs them.

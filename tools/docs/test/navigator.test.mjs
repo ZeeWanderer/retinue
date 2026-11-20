@@ -48,3 +48,20 @@ test('guides, crates and symbols share roots and the selected branch is expanded
   const payload = nav.render(nav.branches.get(sdk.attr('data-branch')).items);
   assert.equal(load(payload)('summary a').attr('href'), url(module));
 });
+
+test('curated symbols and guides have one home under visible topic headings', () => {
+  const root = 'reference/rust/sdk/index.html', mod = 'reference/rust/sdk/authoring/index.html';
+  const run = 'reference/rust/sdk/authoring/fn.run.html';
+  const symbols = [{route:root, title:'sdk', role:'module', topicGroups:[{title:'Getting started', links:[url(run)]}]},
+    {route:mod, title:'authoring', role:'module'}, {route:run, title:'run', role:'function'}];
+  const tree = outline([], symbols, [{marker:'Frameworks'}, {label:'sdk', link:url(root),
+    items:[{label:'First steps', link:url('guide/')}] }]);
+  const nav = navigator(tree);
+  const $ = load(nav.forPage(url(run)));
+  assert.deepEqual($('.outline-marker').map((_,n)=>$(n).text()).get(), ['Frameworks','Topics','Getting started','Modules']);
+  const selected = $('[aria-current=page]');
+  assert.equal(selected.parents('details').length, 1);
+  assert.equal(selected.parents('details').find('a[href="'+url('guide/')+'"]').text(), 'First steps');
+  assert.deepEqual(nav.breadcrumbs(url(run)).map(n=>n.label), ['sdk']);
+  assert.equal(load(nav.render(tree,'',new Set(),'all'))('a[href="'+url(run)+'"]').length, 1);
+});

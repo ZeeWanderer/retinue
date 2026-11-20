@@ -3,18 +3,41 @@ import {unified} from 'unified';
 import parse from 'remark-parse';
 import gfm from 'remark-gfm';
 import stringify from 'remark-stringify';
-import {visit} from 'unist-util-visit';
+import {visit, SKIP} from 'unist-util-visit';
 import {toString} from 'mdast-util-to-string';
 import {load} from 'cheerio';
 import {publishedSite} from './paths.mjs';
 
 const processor = unified().use(parse).use(gfm).use(stringify, {bullet: '-', fences: true});
 
-export function topic(markdown, source, resolve) {
+export function guideDefinitions(markdown) {
+  const terms = [], imports = [];
+  visit(processor.parse(markdown), 'definition', node => {
+    if (node.label.startsWith('term:')) terms.push([node.label.slice(5), node.url]);
+    if (node.label.startsWith('api:')) imports.push([node.label.slice(4), node.url]);
+  });
+  return {terms, imports};
+}
+
+export function linkInlineCode(tree, resolve) {
+  if (!resolve) return;
+  visit(tree, (node, index, parent) => {
+    if (['link', 'linkReference', 'heading'].includes(node.type)) return SKIP;
+    if (node.type !== 'inlineCode') return;
+    const href = resolve(node.value);
+    if (href) {
+      parent.children[index] = {type: 'link', url: href, children: [node]};
+      return SKIP;
+    }
+  });
+}
+
+export function topic(markdown, source, resolve, resolveCode) {
   if (/(?:\/var\/(?:mnt|home)\/|\/home\/[\w.-]+\/|(?:^|[\s(`])\.context\/)/m.test(markdown)) {
     throw new Error(`Private workspace reference in ${source}`);
   }
   const tree = processor.parse(markdown);
+  tree.children = tree.children.filter(node => !(node.type === 'definition' && /^(term|api):/.test(node.label)));
   const heading = tree.children.find(node => node.type === 'heading' && node.depth === 1);
   if (!heading) throw new Error(`Missing title: ${source}`);
   tree.children.splice(tree.children.indexOf(heading), 1);
@@ -31,6 +54,7 @@ export function topic(markdown, source, resolve) {
       node.value = $.html();
     }
   });
+  linkInlineCode(tree, resolveCode);
   return {title: toString(heading), body: processor.stringify(tree)};
 }
 

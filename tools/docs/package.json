@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "test:layout": "node --test test/history-layout.browser.mjs",
+    "test:layout": "node --test test/*.browser.mjs",
     "build": "node build.mjs",
     "preview": "astro preview --host 127.0.0.1"
   },
