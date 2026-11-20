@@ -1,0 +1,31 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import {url} from '../../../paths.mjs';
+---
+<StarlightPage frontmatter={{title: 'Performance history'}}>
+  <p>Explore selected benchmark sessions. Each line follows one workload, machine and configuration.
+  Points are medians across independent runs. A missing metric is a gap, not zero.</p>
+  <section id="history" data-index={url('metrics/index.json')} aria-label="Benchmark explorer">
+    <div class="controls">
+      <label>Suite <select name="suite"></select></label>
+      <label>Series <select name="series"></select></label>
+      <label>Workload <select name="workload"></select></label>
+      <label>Metric <select name="metric"></select></label>
+    </div>
+    <p role="status">Loading measurements…</p>
+    <svg viewBox="0 0 760 180" role="img" aria-label="Selected metric over time"></svg>
+    <div class="measurements" role="region" aria-label="Measurement details" tabindex="0">
+      <table><thead><tr><th>Date (UTC)</th><th>Value</th><th>Change</th><th>Runs</th><th>Measurement</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <p><a href={url('metrics/index.json')}>Series index (JSON)</a> · <a href={url('developer/benchmarks/')}>Run and compare benchmarks</a></p>
+  <script>import '../../history-browser.js';</script>
+</StarlightPage>
+<style>
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; }
+  label { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:.25rem; }
+  select { font:inherit; color:inherit; background:var(--sl-color-bg); border:1px solid var(--sl-color-gray-4); padding:.4rem; min-width:0; width:100%; }
+  svg { display:block; width:100%; color:var(--sl-color-text-accent); margin:1rem 0; border-block:1px solid var(--sl-color-hairline); }
+  table { width:100%; font-variant-numeric:tabular-nums; }
+  .measurements { overflow-x:auto; }
+</style>

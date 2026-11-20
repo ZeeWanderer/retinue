@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import {prepare} from './prepare.mjs';
 import {root, work, output, erlangApps} from './paths.mjs';
 import {integrateDirectory} from './native.mjs';
@@ -12,6 +12,7 @@ const publicDir = path.join(work, 'public');
 await fs.rm(publicDir, {recursive: true, force: true});
 await fs.mkdir(publicDir, {recursive: true});
 await fs.cp(path.join(root, 'tools/docs/public'), publicDir, {recursive: true});
+execFileSync('python3', ['tools/benchmarks/timeline.py', 'site', path.join(publicDir, 'metrics')], {cwd: root});
 for (const asset of assets) {
   const target = path.join(publicDir, asset);
   await fs.mkdir(path.dirname(target), {recursive: true});

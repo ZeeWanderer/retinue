@@ -30,7 +30,7 @@ smoke checks, not enough for a performance verdict. GUI traces have fixed length
 `BENCH_SAMPLES` controls overlay warm frames or complete optimizer-quality traces.
 
 Raw reports live in ignored `research/`. Selected compact measurements can be
-archived as [JSON records](history/records/). Each session has an ID, UTC timestamps
+archived as [JSON records](history/records/). The [performance history](https://zeewanderer.github.io/retinue/research/benchmarks/) plots compatible runs. Each session has an ID, UTC timestamps
 and source provenance. A commit identifies the measured code; it need not have
 its own run or become a baseline.
 The rail scenario measures window chrome with an unpopulated Foundry, not a
