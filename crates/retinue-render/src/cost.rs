@@ -110,8 +110,7 @@ struct Coefficients {
     copy_region: f64,
 }
 
-// Relative warm-path scores, normalized to one solid pixel. Calibration and
-// limitations: tools/benchmarks/history/2026-11-04-cost-calibration.md.
+// Relative warm-path scores, normalized to one solid pixel; not durations.
 const WARM_NATIVE: Coefficients = Coefficients {
     solid_pixel: 1.0,
     blended_pixel: 2.0,

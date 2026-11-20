@@ -1,0 +1,321 @@
+{
+  "schema": 1,
+  "suite": "wf-overlay",
+  "purpose": "regression",
+  "id": "31f1990b84154c2ab380316938b660ec",
+  "created_at": "2026-11-20T17:20:50.299044+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 4,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "e15e979171202ab988ed63a0200f261c6f64a17d41522355b249237f12548738",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "c365fe1eff926b7c47fe864a2d15ce579acadfe0fe6d00dcc535b0fd6b018ec9",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "e3f49742fb71af2f83cc64aaefce65b39f101f46a6cfb65062d3f50c1276d0c2"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.4-ogc8.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 2,
+    "adapter": "overlay",
+    "fixture_sha256": "fe6c7ee17b50f8bb5e6711cd7b3f3d07146b682bda6389712d5046114ad24260",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0\nLLVM version: 23.1.5",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfcompanion"
+      ],
+      "CC_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin",
+      "CXX_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 80,
+      "hz": 0,
+      "cases": "scene-change",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "a43905bc8775990b63c506af58b5a95f94f5cb68f4cb25cc8e442f06a068851a",
+      "elapsed_seconds": 0.84306240099977,
+      "load_average": [
+        15.46630859375,
+        19.51220703125,
+        14.291015625
+      ],
+      "cases": {
+        "case=\"scene-change\"/size=[1920,1080]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 5.301035,
+            "process_cpu_ms_per_frame": 2.4510826999999997,
+            "rss_bytes": 42283008,
+            "frame_p50_ms": 1.450725,
+            "frame_p95_ms": 2.340162,
+            "frame_max_ms": 3.019134,
+            "frame_mean_ms": 1.601312725
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 4.600407,
+            "process_cpu_ms_per_frame": 3.9563930874999995,
+            "rss_bytes": 69980160,
+            "frame_p50_ms": 2.305219,
+            "frame_p95_ms": 4.135032,
+            "frame_max_ms": 5.868807,
+            "frame_mean_ms": 2.49073335
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[3840,2160]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 7.944076,
+            "process_cpu_ms_per_frame": 8.2180229625,
+            "rss_bytes": 106864640,
+            "frame_p50_ms": 4.870956,
+            "frame_p95_ms": 7.661276,
+            "frame_max_ms": 8.145156,
+            "frame_mean_ms": 5.0044453625
+          },
+          "actual_threads": 2,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "34eaf8a61d1cad1c4db3defed3a1ab51302cb2955f61a587417d2b20f4ed9866",
+      "elapsed_seconds": 0.8398679199999606,
+      "load_average": [
+        15.46630859375,
+        19.51220703125,
+        14.291015625
+      ],
+      "cases": {
+        "case=\"scene-change\"/size=[1920,1080]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 4.77506,
+            "process_cpu_ms_per_frame": 2.474075925,
+            "rss_bytes": 42168320,
+            "frame_p50_ms": 1.654911,
+            "frame_p95_ms": 2.167784,
+            "frame_max_ms": 2.529521,
+            "frame_mean_ms": 1.6357887625
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 4.051298,
+            "process_cpu_ms_per_frame": 3.8750486125,
+            "rss_bytes": 70000640,
+            "frame_p50_ms": 2.25427,
+            "frame_p95_ms": 4.120515,
+            "frame_max_ms": 5.248135,
+            "frame_mean_ms": 2.4751956875
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[3840,2160]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 7.198415,
+            "process_cpu_ms_per_frame": 8.152418325,
+            "rss_bytes": 92680192,
+            "frame_p50_ms": 5.046871,
+            "frame_p95_ms": 7.63181,
+            "frame_max_ms": 9.429994,
+            "frame_mean_ms": 5.0282583875
+          },
+          "actual_threads": 2,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "5e1fd150e358b9ec08fa04109c5c87d3de16eb310af44f86b63cac130f357b31",
+      "elapsed_seconds": 0.8416725860006409,
+      "load_average": [
+        15.46630859375,
+        19.51220703125,
+        14.291015625
+      ],
+      "cases": {
+        "case=\"scene-change\"/size=[1920,1080]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 4.321099,
+            "process_cpu_ms_per_frame": 2.3770329,
+            "rss_bytes": 42352640,
+            "frame_p50_ms": 1.519047,
+            "frame_p95_ms": 2.51046,
+            "frame_max_ms": 2.800122,
+            "frame_mean_ms": 1.5798093625
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 3.989312,
+            "process_cpu_ms_per_frame": 3.8810532125000003,
+            "rss_bytes": 60063744,
+            "frame_p50_ms": 2.39883,
+            "frame_p95_ms": 3.452996,
+            "frame_max_ms": 4.090393,
+            "frame_mean_ms": 2.4551762125
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[3840,2160]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 8.187703,
+            "process_cpu_ms_per_frame": 8.2073617875,
+            "rss_bytes": 96980992,
+            "frame_p50_ms": 5.137022,
+            "frame_p95_ms": 7.40549,
+            "frame_max_ms": 8.170581,
+            "frame_mean_ms": 5.0739529625
+          },
+          "actual_threads": 2,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "bf7aaa7edf9dd485dc1d87a812fe5e10a3a44a7403409f18d5f04f75b016e33c",
+      "elapsed_seconds": 1.1586353860002419,
+      "load_average": [
+        14.4677734375,
+        19.23779296875,
+        14.22998046875
+      ],
+      "cases": {
+        "case=\"scene-change\"/size=[1920,1080]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 4.547477,
+            "process_cpu_ms_per_frame": 3.171569125,
+            "rss_bytes": 42614784,
+            "frame_p50_ms": 2.159904,
+            "frame_p95_ms": 3.559455,
+            "frame_max_ms": 5.406036,
+            "frame_mean_ms": 2.24344635
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 6.143162,
+            "process_cpu_ms_per_frame": 5.5614460875,
+            "rss_bytes": 70418432,
+            "frame_p50_ms": 3.259323,
+            "frame_p95_ms": 6.242252,
+            "frame_max_ms": 6.777392,
+            "frame_mean_ms": 3.6328238375
+          },
+          "actual_threads": 2,
+          "work": {}
+        },
+        "case=\"scene-change\"/size=[3840,2160]/scale=1.0": {
+          "frame_samples": 80,
+          "metrics": {
+            "first_paint_ms": 8.735985,
+            "process_cpu_ms_per_frame": 10.8211757375,
+            "rss_bytes": 107290624,
+            "frame_p50_ms": 6.919292,
+            "frame_p95_ms": 8.942339,
+            "frame_max_ms": 10.824778,
+            "frame_mean_ms": 6.8425815875
+          },
+          "actual_threads": 2,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-20T17:20:57.442231+00:00",
+  "history": {
+    "series": "e500ea77ba42c851ff9e42ec192d4d09f768fc34b03bc35b8c25693eb73d660f",
+    "note": "Font mask retirement: wf-overlay-paired before; same native label path",
+    "archived_at": "2026-11-20T17:28:55.594167+00:00",
+    "report_sha256": "ed1b3030f8f39271de56396a67645916f61e87450a08c3453f2880fbbba1342b"
+  }
+}

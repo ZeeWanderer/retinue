@@ -1,0 +1,300 @@
+{
+  "schema": 1,
+  "suite": "gui-drag",
+  "purpose": "regression",
+  "id": "d9acb73ddcab4bd3a596a3c4677c2ad3",
+  "created_at": "2026-11-20T14:20:27.436969+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 1,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "e33e9b095134f195cf922474c7019a36183de7ec8e3c50b5bde566d18494a720",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "00a36f643eb6c2e12f30765ca2977c85ef778fc0f7edbfbd90c672b218b8a46b",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "490fb10c904571f42dd8a024977b2fdbfdfb45f5bdc0a2f6e8b3175ecf2eb3b2"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.4-ogc8.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 3,
+    "adapter": "gui",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0\nLLVM version: 23.1.5",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin",
+      "CXX_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin"
+    },
+    "config": {
+      "threads": 1,
+      "samples": 60,
+      "hz": 0,
+      "cases": "",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "74d98b6d8f684ebae425cefa88bf763c1dd32e3b8f81268be4a3134dc8b02e68",
+      "elapsed_seconds": 7.4210491240010015,
+      "load_average": [
+        33.8583984375,
+        17.96240234375,
+        12.7412109375
+      ],
+      "cases": {
+        "scale=1.0/mode=\"repair\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.102043,
+            "submit_ms_p95": 2.717058,
+            "finish_ms_p95": 5.509051,
+            "process_cpu_ms_p95": 7.158240999999975,
+            "frame_p50_ms": 4.9380120000000005,
+            "frame_p95_ms": 7.38801,
+            "frame_max_ms": 9.538349,
+            "frame_mean_ms": 5.170416635714286
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.0/mode=\"relocate\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.109834,
+            "submit_ms_p95": 5.1195770000000005,
+            "finish_ms_p95": 0.474196,
+            "process_cpu_ms_p95": 5.491978000000017,
+            "frame_p50_ms": 3.170207,
+            "frame_p95_ms": 5.532103,
+            "frame_max_ms": 6.515593,
+            "frame_mean_ms": 3.374391928571429
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.0/mode=\"repair\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.111571,
+            "submit_ms_p95": 2.987184,
+            "finish_ms_p95": 5.216081,
+            "process_cpu_ms_p95": 7.336700999999721,
+            "frame_p50_ms": 4.60288,
+            "frame_p95_ms": 7.391526,
+            "frame_max_ms": 8.809567000000001,
+            "frame_mean_ms": 4.772519142857143
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.0/mode=\"relocate\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.114106,
+            "submit_ms_p95": 3.620879,
+            "finish_ms_p95": 0.46745499999999995,
+            "process_cpu_ms_p95": 3.9952750000002197,
+            "frame_p50_ms": 2.8677479999999997,
+            "frame_p95_ms": 4.0283999999999995,
+            "frame_max_ms": 5.183862,
+            "frame_mean_ms": 2.94365015
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.25/mode=\"repair\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.101286,
+            "submit_ms_p95": 1.9961559999999998,
+            "finish_ms_p95": 4.728458,
+            "process_cpu_ms_p95": 6.344074999999975,
+            "frame_p50_ms": 4.010371,
+            "frame_p95_ms": 6.39374,
+            "frame_max_ms": 8.148914999999999,
+            "frame_mean_ms": 4.161330128571429
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.25/mode=\"relocate\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.10764,
+            "submit_ms_p95": 4.460214,
+            "finish_ms_p95": 0.655063,
+            "process_cpu_ms_p95": 5.04124499999989,
+            "frame_p50_ms": 2.775495,
+            "frame_p95_ms": 5.140094,
+            "frame_max_ms": 6.0786549999999995,
+            "frame_mean_ms": 2.9108577357142855
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.25/mode=\"repair\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.095914,
+            "submit_ms_p95": 2.400531,
+            "finish_ms_p95": 4.497903999999999,
+            "process_cpu_ms_p95": 6.536076000000321,
+            "frame_p50_ms": 4.305058,
+            "frame_p95_ms": 6.57592,
+            "frame_max_ms": 8.544219,
+            "frame_mean_ms": 4.453648035714286
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=1.25/mode=\"relocate\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.086892,
+            "submit_ms_p95": 3.350373,
+            "finish_ms_p95": 0.594502,
+            "process_cpu_ms_p95": 3.8010910000002696,
+            "frame_p50_ms": 2.5492909999999998,
+            "frame_p95_ms": 3.830401,
+            "frame_max_ms": 5.157553,
+            "frame_mean_ms": 2.5966083785714287
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=2.0/mode=\"repair\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.087772,
+            "submit_ms_p95": 1.2282339999999998,
+            "finish_ms_p95": 3.410212,
+            "process_cpu_ms_p95": 4.580624000000171,
+            "frame_p50_ms": 2.813574,
+            "frame_p95_ms": 4.616362,
+            "frame_max_ms": 5.253294,
+            "frame_mean_ms": 3.0416931357142856
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=2.0/mode=\"relocate\"/over_grid=false/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.09573699999999999,
+            "submit_ms_p95": 2.48337,
+            "finish_ms_p95": 1.00774,
+            "process_cpu_ms_p95": 3.406057000000146,
+            "frame_p50_ms": 2.214378,
+            "frame_p95_ms": 3.451493,
+            "frame_max_ms": 4.801543000000001,
+            "frame_mean_ms": 2.3717452357142856
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=2.0/mode=\"repair\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.095708,
+            "submit_ms_p95": 1.815264,
+            "finish_ms_p95": 3.603401,
+            "process_cpu_ms_p95": 5.109569000000192,
+            "frame_p50_ms": 3.2728639999999998,
+            "frame_p95_ms": 5.329966000000001,
+            "frame_max_ms": 8.524293,
+            "frame_mean_ms": 3.607168807142857
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "scale=2.0/mode=\"relocate\"/over_grid=true/events_per_frame=8": {
+          "frame_samples": 140,
+          "metrics": {
+            "input_ms_p95": 0.09141400000000001,
+            "submit_ms_p95": 2.7327179999999998,
+            "finish_ms_p95": 1.648706,
+            "process_cpu_ms_p95": 4.35345899999993,
+            "frame_p50_ms": 2.729667,
+            "frame_p95_ms": 4.461125,
+            "frame_max_ms": 5.062684,
+            "frame_mean_ms": 2.9448760714285713
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-20T14:20:34.873350+00:00",
+  "history": {
+    "series": "b10de4cb364709ab2a4d6f394f18fe354e9247c36714fec0345290c1dcab03be",
+    "note": "Foundry drag input attribution; one process, one render participant; not a regression baseline.",
+    "archived_at": "2026-11-20T14:21:20.897176+00:00",
+    "report_sha256": "f71e863ce2f0ebc1b51324e451abaf50e19d0787333cd554e52ce2c9c7078ce1"
+  }
+}

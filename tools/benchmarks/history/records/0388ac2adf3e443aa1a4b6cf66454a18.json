@@ -1,0 +1,4892 @@
+{
+  "schema": 1,
+  "suite": "view-ir-observed",
+  "purpose": "regression",
+  "id": "0388ac2adf3e443aa1a4b6cf66454a18",
+  "created_at": "2026-11-13T17:13:33.566674+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 7,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "2b62903bad80dfb34e6a543136dedb2b6ffa697a3a59691f1042c547303e3dcc",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "6ba177aa85d5953fd886aa9c54c324c14f54496a146d3f4d67dbb4ae9a619494",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "83bfa0a8f225fe259ce2bef7185c9cc797eab349415fc3d4f30975cec2f56129"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.3-ogc1.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 3,
+    "adapter": "overlay",
+    "fixture_sha256": "5cf1b28190de42d1f40ffbce4a1cf00ed407b4116f654a9c93672a1aca892a35",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [
+        "default",
+        "overlay"
+      ],
+      "profile_environment": {},
+      "cargo_target": [
+        "--lib"
+      ],
+      "CC_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin",
+      "CXX_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 640,
+      "hz": 0,
+      "cases": "",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "73fdc7e2e2020009633cdde8713c3c17e6d6dbb8a87ae8937bbb26734239c9d5",
+      "elapsed_seconds": 1.5692775589996018,
+      "load_average": [
+        4.1279296875,
+        5.5302734375,
+        4.0126953125
+      ],
+      "cases": {
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001231,
+            "process_cpu_ms_per_frame": 0.0001339640625,
+            "rss_bytes": 22032384,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.00045,
+            "frame_mean_ms": 0.0001132765625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001543,
+            "process_cpu_ms_per_frame": 0.0001337265625,
+            "rss_bytes": 24440832,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000388,
+            "frame_mean_ms": 0.00011345625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000678,
+            "process_cpu_ms_per_frame": 8.8475e-05,
+            "rss_bytes": 23269376,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.00035,
+            "frame_mean_ms": 6.74e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000776,
+            "process_cpu_ms_per_frame": 8.82453125e-05,
+            "rss_bytes": 24276992,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000332,
+            "frame_mean_ms": 6.809375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00049,
+            "process_cpu_ms_per_frame": 0.000130153125,
+            "rss_bytes": 24276992,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000344,
+            "frame_mean_ms": 0.000109428125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001131,
+            "process_cpu_ms_per_frame": 0.000130284375,
+            "rss_bytes": 24285184,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.006817,
+            "frame_mean_ms": 0.0001190328125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00076,
+            "process_cpu_ms_per_frame": 0.00012768125,
+            "rss_bytes": 24322048,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000379,
+            "frame_mean_ms": 0.0001068328125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001788,
+            "process_cpu_ms_per_frame": 0.0001279390625,
+            "rss_bytes": 24330240,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000486,
+            "frame_mean_ms": 0.0001076125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000745,
+            "process_cpu_ms_per_frame": 0.0887537328125,
+            "rss_bytes": 24330240,
+            "frame_p50_ms": 0.087633,
+            "frame_p95_ms": 0.096695,
+            "frame_max_ms": 0.144207,
+            "frame_mean_ms": 0.0890843578125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001577,
+            "process_cpu_ms_per_frame": 0.14493840468750002,
+            "rss_bytes": 24674304,
+            "frame_p50_ms": 0.128738,
+            "frame_p95_ms": 0.198838,
+            "frame_max_ms": 0.300476,
+            "frame_mean_ms": 0.1367363953125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001468,
+            "process_cpu_ms_per_frame": 0.0378721078125,
+            "rss_bytes": 24739840,
+            "frame_p50_ms": 0.035078,
+            "frame_p95_ms": 0.0573,
+            "frame_max_ms": 0.109324,
+            "frame_mean_ms": 0.038230021875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001662,
+            "process_cpu_ms_per_frame": 0.084186809375,
+            "rss_bytes": 24748032,
+            "frame_p50_ms": 0.074429,
+            "frame_p95_ms": 0.091528,
+            "frame_max_ms": 0.173448,
+            "frame_mean_ms": 0.0739823859375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000715,
+            "process_cpu_ms_per_frame": 0.039112259375,
+            "rss_bytes": 24748032,
+            "frame_p50_ms": 0.035905,
+            "frame_p95_ms": 0.0529,
+            "frame_max_ms": 0.065037,
+            "frame_mean_ms": 0.0392830265625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001141,
+            "process_cpu_ms_per_frame": 0.0843921953125,
+            "rss_bytes": 24752128,
+            "frame_p50_ms": 0.074764,
+            "frame_p95_ms": 0.086188,
+            "frame_max_ms": 0.11206,
+            "frame_mean_ms": 0.0732300453125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001317,
+            "process_cpu_ms_per_frame": 0.066584809375,
+            "rss_bytes": 24752128,
+            "frame_p50_ms": 0.06244,
+            "frame_p95_ms": 0.107232,
+            "frame_max_ms": 0.118345,
+            "frame_mean_ms": 0.0668446421875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001273,
+            "process_cpu_ms_per_frame": 0.11274546249999999,
+            "rss_bytes": 24756224,
+            "frame_p50_ms": 0.10284,
+            "frame_p95_ms": 0.117109,
+            "frame_max_ms": 0.153071,
+            "frame_mean_ms": 0.1019724203125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001158,
+            "process_cpu_ms_per_frame": 0.00013486562500000001,
+            "rss_bytes": 24756224,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000355,
+            "frame_mean_ms": 0.000113365625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001506,
+            "process_cpu_ms_per_frame": 0.0001356765625,
+            "rss_bytes": 26689536,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000334,
+            "frame_mean_ms": 0.00011410000000000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000786,
+            "process_cpu_ms_per_frame": 8.798281249999999e-05,
+            "rss_bytes": 24903680,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000285,
+            "frame_mean_ms": 6.731875e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001223,
+            "process_cpu_ms_per_frame": 8.90953125e-05,
+            "rss_bytes": 26624000,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 7.1e-05,
+            "frame_max_ms": 0.000507,
+            "frame_mean_ms": 6.83625e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001387,
+            "process_cpu_ms_per_frame": 0.00013041875,
+            "rss_bytes": 26624000,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000446,
+            "frame_mean_ms": 0.000109
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001894,
+            "process_cpu_ms_per_frame": 0.0001296875,
+            "rss_bytes": 26624000,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000422,
+            "frame_mean_ms": 0.00010924375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000855,
+            "process_cpu_ms_per_frame": 0.00012819375,
+            "rss_bytes": 26624000,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000371,
+            "frame_mean_ms": 0.000107353125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001441,
+            "process_cpu_ms_per_frame": 0.0001277578125,
+            "rss_bytes": 26624000,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000399,
+            "frame_mean_ms": 0.0001076125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001464,
+            "process_cpu_ms_per_frame": 0.0924043453125,
+            "rss_bytes": 26664960,
+            "frame_p50_ms": 0.088275,
+            "frame_p95_ms": 0.11708,
+            "frame_max_ms": 0.160098,
+            "frame_mean_ms": 0.09281382656250001
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001873,
+            "process_cpu_ms_per_frame": 0.1732578921875,
+            "rss_bytes": 26664960,
+            "frame_p50_ms": 0.14054,
+            "frame_p95_ms": 0.223449,
+            "frame_max_ms": 0.242319,
+            "frame_mean_ms": 0.1605123109375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001135,
+            "process_cpu_ms_per_frame": 0.037384,
+            "rss_bytes": 26664960,
+            "frame_p50_ms": 0.035611,
+            "frame_p95_ms": 0.058121,
+            "frame_max_ms": 0.07154,
+            "frame_mean_ms": 0.037508684375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001534,
+            "process_cpu_ms_per_frame": 0.08954475625,
+            "rss_bytes": 26664960,
+            "frame_p50_ms": 0.076776,
+            "frame_p95_ms": 0.106712,
+            "frame_max_ms": 0.311573,
+            "frame_mean_ms": 0.0785472046875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001558,
+            "process_cpu_ms_per_frame": 0.03794775,
+            "rss_bytes": 26664960,
+            "frame_p50_ms": 0.035599,
+            "frame_p95_ms": 0.056404,
+            "frame_max_ms": 0.064201,
+            "frame_mean_ms": 0.03807745
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001683,
+            "process_cpu_ms_per_frame": 0.0903672984375,
+            "rss_bytes": 26669056,
+            "frame_p50_ms": 0.07751,
+            "frame_p95_ms": 0.1158,
+            "frame_max_ms": 0.631208,
+            "frame_mean_ms": 0.081322596875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001294,
+            "process_cpu_ms_per_frame": 0.0641598796875,
+            "rss_bytes": 26669056,
+            "frame_p50_ms": 0.063365,
+            "frame_p95_ms": 0.06898,
+            "frame_max_ms": 0.10944,
+            "frame_mean_ms": 0.06436410625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001744,
+            "process_cpu_ms_per_frame": 0.1283502765625,
+            "rss_bytes": 26669056,
+            "frame_p50_ms": 0.10858,
+            "frame_p95_ms": 0.172136,
+            "frame_max_ms": 0.472052,
+            "frame_mean_ms": 0.1186879703125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001219,
+            "process_cpu_ms_per_frame": 0.00013612500000000002,
+            "rss_bytes": 26669056,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000124,
+            "frame_max_ms": 0.000528,
+            "frame_mean_ms": 0.0001130578125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002354,
+            "process_cpu_ms_per_frame": 0.0001344390625,
+            "rss_bytes": 29589504,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000485,
+            "frame_mean_ms": 0.0001138703125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00099,
+            "process_cpu_ms_per_frame": 8.9934375e-05,
+            "rss_bytes": 26800128,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 7e-05,
+            "frame_max_ms": 0.000469,
+            "frame_mean_ms": 6.771875e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00106,
+            "process_cpu_ms_per_frame": 8.874062499999999e-05,
+            "rss_bytes": 27803648,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000687,
+            "frame_mean_ms": 6.84515625e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000689,
+            "process_cpu_ms_per_frame": 0.0001275265625,
+            "rss_bytes": 27803648,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000345,
+            "frame_mean_ms": 0.0001067703125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001524,
+            "process_cpu_ms_per_frame": 0.000127634375,
+            "rss_bytes": 27803648,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000447,
+            "frame_mean_ms": 0.0001071875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00117,
+            "process_cpu_ms_per_frame": 0.0001288375,
+            "rss_bytes": 27803648,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000425,
+            "frame_mean_ms": 0.0001068953125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001607,
+            "process_cpu_ms_per_frame": 0.000129615625,
+            "rss_bytes": 27807744,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000381,
+            "frame_mean_ms": 0.0001094171875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001007,
+            "process_cpu_ms_per_frame": 0.1113804015625,
+            "rss_bytes": 27807744,
+            "frame_p50_ms": 0.089116,
+            "frame_p95_ms": 0.161895,
+            "frame_max_ms": 0.177322,
+            "frame_mean_ms": 0.1119179203125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001196,
+            "process_cpu_ms_per_frame": 0.1473088953125,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.131652,
+            "frame_p95_ms": 0.202222,
+            "frame_max_ms": 0.234738,
+            "frame_mean_ms": 0.13717115625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000349,
+            "process_cpu_ms_per_frame": 0.0398345140625,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.035591,
+            "frame_p95_ms": 0.059847,
+            "frame_max_ms": 0.071015,
+            "frame_mean_ms": 0.03996058125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001732,
+            "process_cpu_ms_per_frame": 0.08491132968750001,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.07718,
+            "frame_p95_ms": 0.098201,
+            "frame_max_ms": 0.128407,
+            "frame_mean_ms": 0.0754110640625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001395,
+            "process_cpu_ms_per_frame": 0.04077733125,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.035589,
+            "frame_p95_ms": 0.061201,
+            "frame_max_ms": 0.067976,
+            "frame_mean_ms": 0.04090208125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001611,
+            "process_cpu_ms_per_frame": 0.0928141265625,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.081055,
+            "frame_p95_ms": 0.116819,
+            "frame_max_ms": 0.204617,
+            "frame_mean_ms": 0.0817089796875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00067,
+            "process_cpu_ms_per_frame": 0.0662411953125,
+            "rss_bytes": 27840512,
+            "frame_p50_ms": 0.062556,
+            "frame_p95_ms": 0.102683,
+            "frame_max_ms": 0.115589,
+            "frame_mean_ms": 0.0664673359375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001305,
+            "process_cpu_ms_per_frame": 0.114800996875,
+            "rss_bytes": 27860992,
+            "frame_p50_ms": 0.104709,
+            "frame_p95_ms": 0.132172,
+            "frame_max_ms": 0.183939,
+            "frame_mean_ms": 0.1044801953125
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "3f9962af0430c3b7827e505a6c1ac7dffd00132558e92c2571bed3af29f2a603",
+      "elapsed_seconds": 1.7689145160002226,
+      "load_average": [
+        4.03759765625,
+        5.48779296875,
+        4.0068359375
+      ],
+      "cases": {
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001574,
+            "process_cpu_ms_per_frame": 0.000127465625,
+            "rss_bytes": 20336640,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.00039,
+            "frame_mean_ms": 0.0001074515625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001804,
+            "process_cpu_ms_per_frame": 0.0001288625,
+            "rss_bytes": 22650880,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000416,
+            "frame_mean_ms": 0.000108759375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001407,
+            "process_cpu_ms_per_frame": 0.0001304359375,
+            "rss_bytes": 21024768,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000464,
+            "frame_mean_ms": 0.000109196875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002166,
+            "process_cpu_ms_per_frame": 0.0001654734375,
+            "rss_bytes": 22323200,
+            "frame_p50_ms": 0.000139,
+            "frame_p95_ms": 0.000161,
+            "frame_max_ms": 0.00054,
+            "frame_mean_ms": 0.0001404515625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001594,
+            "process_cpu_ms_per_frame": 9.50625e-05,
+            "rss_bytes": 22323200,
+            "frame_p50_ms": 6.8e-05,
+            "frame_p95_ms": 8.5e-05,
+            "frame_max_ms": 0.000458,
+            "frame_mean_ms": 7.1071875e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001881,
+            "process_cpu_ms_per_frame": 9.31e-05,
+            "rss_bytes": 22437888,
+            "frame_p50_ms": 6.8e-05,
+            "frame_p95_ms": 8.4e-05,
+            "frame_max_ms": 0.000739,
+            "frame_mean_ms": 7.06046875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001395,
+            "process_cpu_ms_per_frame": 0.00013437812499999998,
+            "rss_bytes": 23146496,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000403,
+            "frame_mean_ms": 0.0001134609375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002195,
+            "process_cpu_ms_per_frame": 0.0001542890625,
+            "rss_bytes": 24571904,
+            "frame_p50_ms": 0.000128,
+            "frame_p95_ms": 0.000168,
+            "frame_max_ms": 0.000488,
+            "frame_mean_ms": 0.0001320890625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000892,
+            "process_cpu_ms_per_frame": 0.063421678125,
+            "rss_bytes": 24571904,
+            "frame_p50_ms": 0.06118,
+            "frame_p95_ms": 0.082678,
+            "frame_max_ms": 0.134878,
+            "frame_mean_ms": 0.0639072484375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001425,
+            "process_cpu_ms_per_frame": 0.11000318281250002,
+            "rss_bytes": 24576000,
+            "frame_p50_ms": 0.09944,
+            "frame_p95_ms": 0.133765,
+            "frame_max_ms": 0.200364,
+            "frame_mean_ms": 0.1012777734375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001484,
+            "process_cpu_ms_per_frame": 0.036902846875,
+            "rss_bytes": 24641536,
+            "frame_p50_ms": 0.034724,
+            "frame_p95_ms": 0.054738,
+            "frame_max_ms": 0.087563,
+            "frame_mean_ms": 0.0372614625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001744,
+            "process_cpu_ms_per_frame": 0.085559575,
+            "rss_bytes": 24715264,
+            "frame_p50_ms": 0.074124,
+            "frame_p95_ms": 0.097739,
+            "frame_max_ms": 0.203104,
+            "frame_mean_ms": 0.0751019796875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000433,
+            "process_cpu_ms_per_frame": 0.0364152484375,
+            "rss_bytes": 24715264,
+            "frame_p50_ms": 0.03507,
+            "frame_p95_ms": 0.047884,
+            "frame_max_ms": 0.059183,
+            "frame_mean_ms": 0.0365296953125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001382,
+            "process_cpu_ms_per_frame": 0.0810213265625,
+            "rss_bytes": 24715264,
+            "frame_p50_ms": 0.072753,
+            "frame_p95_ms": 0.085323,
+            "frame_max_ms": 0.16078,
+            "frame_mean_ms": 0.0712408296875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000959,
+            "process_cpu_ms_per_frame": 0.0895245984375,
+            "rss_bytes": 24715264,
+            "frame_p50_ms": 0.087928,
+            "frame_p95_ms": 0.095426,
+            "frame_max_ms": 0.150875,
+            "frame_mean_ms": 0.089849790625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001805,
+            "process_cpu_ms_per_frame": 0.1363582015625,
+            "rss_bytes": 25051136,
+            "frame_p50_ms": 0.127064,
+            "frame_p95_ms": 0.150055,
+            "frame_max_ms": 0.231093,
+            "frame_mean_ms": 0.127468096875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000689,
+            "process_cpu_ms_per_frame": 0.000128553125,
+            "rss_bytes": 25051136,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000204,
+            "frame_mean_ms": 0.0001076046875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001611,
+            "process_cpu_ms_per_frame": 0.00012975625,
+            "rss_bytes": 26927104,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000455,
+            "frame_mean_ms": 0.00010943125000000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001151,
+            "process_cpu_ms_per_frame": 0.000131353125,
+            "rss_bytes": 25141248,
+            "frame_p50_ms": 0.000107,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000405,
+            "frame_mean_ms": 0.0001103015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001812,
+            "process_cpu_ms_per_frame": 0.0001300390625,
+            "rss_bytes": 25145344,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000438,
+            "frame_mean_ms": 0.0001098765625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000901,
+            "process_cpu_ms_per_frame": 8.8296875e-05,
+            "rss_bytes": 25145344,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000279,
+            "frame_mean_ms": 6.730468750000001e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001035,
+            "process_cpu_ms_per_frame": 8.78328125e-05,
+            "rss_bytes": 25149440,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000359,
+            "frame_mean_ms": 6.79546875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001282,
+            "process_cpu_ms_per_frame": 0.0001354703125,
+            "rss_bytes": 25149440,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000337,
+            "frame_mean_ms": 0.000114284375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002,
+            "process_cpu_ms_per_frame": 0.0001331546875,
+            "rss_bytes": 25964544,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000406,
+            "frame_mean_ms": 0.0001129859375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000916,
+            "process_cpu_ms_per_frame": 0.063901359375,
+            "rss_bytes": 25964544,
+            "frame_p50_ms": 0.062262,
+            "frame_p95_ms": 0.070187,
+            "frame_max_ms": 0.115503,
+            "frame_mean_ms": 0.0641152296875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001443,
+            "process_cpu_ms_per_frame": 0.109658671875,
+            "rss_bytes": 25976832,
+            "frame_p50_ms": 0.101342,
+            "frame_p95_ms": 0.119315,
+            "frame_max_ms": 0.179777,
+            "frame_mean_ms": 0.1005362984375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00093,
+            "process_cpu_ms_per_frame": 0.036163721875,
+            "rss_bytes": 25976832,
+            "frame_p50_ms": 0.035418,
+            "frame_p95_ms": 0.041161,
+            "frame_max_ms": 0.061889,
+            "frame_mean_ms": 0.0362656296875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000788,
+            "process_cpu_ms_per_frame": 0.0807402046875,
+            "rss_bytes": 25980928,
+            "frame_p50_ms": 0.073937,
+            "frame_p95_ms": 0.095092,
+            "frame_max_ms": 0.180406,
+            "frame_mean_ms": 0.0723668578125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000804,
+            "process_cpu_ms_per_frame": 0.035944575,
+            "rss_bytes": 25980928,
+            "frame_p50_ms": 0.034992,
+            "frame_p95_ms": 0.042486,
+            "frame_max_ms": 0.059834,
+            "frame_mean_ms": 0.0360495125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000842,
+            "process_cpu_ms_per_frame": 0.0804039234375,
+            "rss_bytes": 25980928,
+            "frame_p50_ms": 0.073911,
+            "frame_p95_ms": 0.087862,
+            "frame_max_ms": 0.126616,
+            "frame_mean_ms": 0.071888275
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000643,
+            "process_cpu_ms_per_frame": 0.089216259375,
+            "rss_bytes": 25980928,
+            "frame_p50_ms": 0.087831,
+            "frame_p95_ms": 0.097427,
+            "frame_max_ms": 0.15531,
+            "frame_mean_ms": 0.08955421875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001402,
+            "process_cpu_ms_per_frame": 0.1345262609375,
+            "rss_bytes": 26226688,
+            "frame_p50_ms": 0.126894,
+            "frame_p95_ms": 0.143417,
+            "frame_max_ms": 0.221745,
+            "frame_mean_ms": 0.1257853
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001023,
+            "process_cpu_ms_per_frame": 0.000129153125,
+            "rss_bytes": 26226688,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.0004,
+            "frame_mean_ms": 0.000107525
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001071,
+            "process_cpu_ms_per_frame": 0.0001277375,
+            "rss_bytes": 29147136,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000356,
+            "frame_mean_ms": 0.0001074625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000557,
+            "process_cpu_ms_per_frame": 0.00012717656249999998,
+            "rss_bytes": 26357760,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000238,
+            "frame_mean_ms": 0.0001067640625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000664,
+            "process_cpu_ms_per_frame": 0.00012718125,
+            "rss_bytes": 26828800,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000231,
+            "frame_mean_ms": 0.0001070265625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000272,
+            "process_cpu_ms_per_frame": 8.69265625e-05,
+            "rss_bytes": 26828800,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000166,
+            "frame_mean_ms": 6.721875e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00118,
+            "process_cpu_ms_per_frame": 8.76890625e-05,
+            "rss_bytes": 26845184,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000354,
+            "frame_mean_ms": 6.7996875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001156,
+            "process_cpu_ms_per_frame": 0.0001354890625,
+            "rss_bytes": 26845184,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000128,
+            "frame_max_ms": 0.000387,
+            "frame_mean_ms": 0.000113809375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001331,
+            "process_cpu_ms_per_frame": 0.0001338265625,
+            "rss_bytes": 27508736,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000332,
+            "frame_mean_ms": 0.0001133671875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000568,
+            "process_cpu_ms_per_frame": 0.06351213125,
+            "rss_bytes": 27508736,
+            "frame_p50_ms": 0.062175,
+            "frame_p95_ms": 0.073304,
+            "frame_max_ms": 0.107558,
+            "frame_mean_ms": 0.0637638078125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002687,
+            "process_cpu_ms_per_frame": 0.11241885781250001,
+            "rss_bytes": 27607040,
+            "frame_p50_ms": 0.103282,
+            "frame_p95_ms": 0.131388,
+            "frame_max_ms": 0.20006,
+            "frame_mean_ms": 0.1027351625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001251,
+            "process_cpu_ms_per_frame": 0.035148490625,
+            "rss_bytes": 27607040,
+            "frame_p50_ms": 0.035026,
+            "frame_p95_ms": 0.036143,
+            "frame_max_ms": 0.051795,
+            "frame_mean_ms": 0.035225359375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002321,
+            "process_cpu_ms_per_frame": 0.08311918125,
+            "rss_bytes": 27615232,
+            "frame_p50_ms": 0.076451,
+            "frame_p95_ms": 0.086757,
+            "frame_max_ms": 0.115881,
+            "frame_mean_ms": 0.07294478125000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000455,
+            "process_cpu_ms_per_frame": 0.0357225578125,
+            "rss_bytes": 27615232,
+            "frame_p50_ms": 0.035062,
+            "frame_p95_ms": 0.040169,
+            "frame_max_ms": 0.060736,
+            "frame_mean_ms": 0.0358167453125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001014,
+            "process_cpu_ms_per_frame": 0.087280278125,
+            "rss_bytes": 27615232,
+            "frame_p50_ms": 0.079704,
+            "frame_p95_ms": 0.087883,
+            "frame_max_ms": 0.199709,
+            "frame_mean_ms": 0.0758226375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001241,
+            "process_cpu_ms_per_frame": 0.088516846875,
+            "rss_bytes": 27615232,
+            "frame_p50_ms": 0.087829,
+            "frame_p95_ms": 0.095563,
+            "frame_max_ms": 0.112838,
+            "frame_mean_ms": 0.088861640625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001417,
+            "process_cpu_ms_per_frame": 0.14632905000000002,
+            "rss_bytes": 27803648,
+            "frame_p50_ms": 0.135655,
+            "frame_p95_ms": 0.150996,
+            "frame_max_ms": 0.783584,
+            "frame_mean_ms": 0.1342998328125
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "e51f760f14654b9bfef13cc5080adba23366be996e308dc605479efb52ee1d0a",
+      "elapsed_seconds": 2.834347138999874,
+      "load_average": [
+        4.0341796875,
+        5.462890625,
+        4.00634765625
+      ],
+      "cases": {
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001334,
+            "process_cpu_ms_per_frame": 0.0001388546875,
+            "rss_bytes": 20373504,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000145,
+            "frame_max_ms": 0.000416,
+            "frame_mean_ms": 0.0001169046875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002093,
+            "process_cpu_ms_per_frame": 0.0001328734375,
+            "rss_bytes": 22925312,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000132,
+            "frame_max_ms": 0.00038,
+            "frame_mean_ms": 0.00011305
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000655,
+            "process_cpu_ms_per_frame": 8.85921875e-05,
+            "rss_bytes": 22233088,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000378,
+            "frame_mean_ms": 6.7415625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001579,
+            "process_cpu_ms_per_frame": 8.8690625e-05,
+            "rss_bytes": 23314432,
+            "frame_p50_ms": 6.8e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000693,
+            "frame_mean_ms": 6.8846875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000794,
+            "process_cpu_ms_per_frame": 0.0001297671875,
+            "rss_bytes": 23314432,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000377,
+            "frame_mean_ms": 0.0001087625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001286,
+            "process_cpu_ms_per_frame": 0.000129153125,
+            "rss_bytes": 23318528,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000375,
+            "frame_mean_ms": 0.000108684375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000952,
+            "process_cpu_ms_per_frame": 0.00012941875,
+            "rss_bytes": 23449600,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000401,
+            "frame_mean_ms": 0.0001073125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001527,
+            "process_cpu_ms_per_frame": 0.000130003125,
+            "rss_bytes": 23486464,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000609,
+            "frame_mean_ms": 0.0001098421875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000925,
+            "process_cpu_ms_per_frame": 0.090537715625,
+            "rss_bytes": 23744512,
+            "frame_p50_ms": 0.086968,
+            "frame_p95_ms": 0.136839,
+            "frame_max_ms": 0.249654,
+            "frame_mean_ms": 0.0945882375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001948,
+            "process_cpu_ms_per_frame": 0.1412023453125,
+            "rss_bytes": 24117248,
+            "frame_p50_ms": 0.128332,
+            "frame_p95_ms": 0.191781,
+            "frame_max_ms": 0.293019,
+            "frame_mean_ms": 0.13558395
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000491,
+            "process_cpu_ms_per_frame": 0.036300523437499996,
+            "rss_bytes": 24121344,
+            "frame_p50_ms": 0.034972,
+            "frame_p95_ms": 0.055996,
+            "frame_max_ms": 0.129147,
+            "frame_mean_ms": 0.0381008953125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001102,
+            "process_cpu_ms_per_frame": 0.0832061515625,
+            "rss_bytes": 24129536,
+            "frame_p50_ms": 0.073708,
+            "frame_p95_ms": 0.109435,
+            "frame_max_ms": 0.215683,
+            "frame_mean_ms": 0.076393690625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001108,
+            "process_cpu_ms_per_frame": 0.036272021875,
+            "rss_bytes": 24129536,
+            "frame_p50_ms": 0.035225,
+            "frame_p95_ms": 0.054868,
+            "frame_max_ms": 0.137478,
+            "frame_mean_ms": 0.0378537078125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001448,
+            "process_cpu_ms_per_frame": 0.08684575,
+            "rss_bytes": 24129536,
+            "frame_p50_ms": 0.075028,
+            "frame_p95_ms": 0.106457,
+            "frame_max_ms": 0.272003,
+            "frame_mean_ms": 0.077446240625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001059,
+            "process_cpu_ms_per_frame": 0.06273194374999999,
+            "rss_bytes": 24129536,
+            "frame_p50_ms": 0.061814,
+            "frame_p95_ms": 0.09289,
+            "frame_max_ms": 0.150352,
+            "frame_mean_ms": 0.0654275859375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001599,
+            "process_cpu_ms_per_frame": 0.116753,
+            "rss_bytes": 24141824,
+            "frame_p50_ms": 0.105564,
+            "frame_p95_ms": 0.15226,
+            "frame_max_ms": 0.232368,
+            "frame_mean_ms": 0.1089600078125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001243,
+            "process_cpu_ms_per_frame": 0.00013868125,
+            "rss_bytes": 24141824,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000129,
+            "frame_max_ms": 0.004418,
+            "frame_mean_ms": 0.0001217703125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001868,
+            "process_cpu_ms_per_frame": 0.0001350140625,
+            "rss_bytes": 26021888,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000418,
+            "frame_mean_ms": 0.00011375781250000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000813,
+            "process_cpu_ms_per_frame": 8.9109375e-05,
+            "rss_bytes": 24236032,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.00045,
+            "frame_mean_ms": 6.7615625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000967,
+            "process_cpu_ms_per_frame": 8.829375e-05,
+            "rss_bytes": 24440832,
+            "frame_p50_ms": 6.8e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000453,
+            "frame_mean_ms": 6.8259375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000447,
+            "process_cpu_ms_per_frame": 0.0001284765625,
+            "rss_bytes": 24440832,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000251,
+            "frame_mean_ms": 0.0001077578125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001772,
+            "process_cpu_ms_per_frame": 0.00012810156250000001,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000415,
+            "frame_mean_ms": 0.0001075171875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000762,
+            "process_cpu_ms_per_frame": 0.00013065625,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000328,
+            "frame_mean_ms": 0.0001091859375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001649,
+            "process_cpu_ms_per_frame": 0.0001325328125,
+            "rss_bytes": 25006080,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.006177,
+            "frame_mean_ms": 0.00011907968750000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001086,
+            "process_cpu_ms_per_frame": 0.0874697609375,
+            "rss_bytes": 25006080,
+            "frame_p50_ms": 0.087015,
+            "frame_p95_ms": 0.095997,
+            "frame_max_ms": 0.166604,
+            "frame_mean_ms": 0.088584125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001562,
+            "process_cpu_ms_per_frame": 0.1398466171875,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.128567,
+            "frame_p95_ms": 0.157672,
+            "frame_max_ms": 0.223257,
+            "frame_mean_ms": 0.130396309375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000345,
+            "process_cpu_ms_per_frame": 0.036406914062500004,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.035229,
+            "frame_p95_ms": 0.052155,
+            "frame_max_ms": 0.15361,
+            "frame_mean_ms": 0.0371327796875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001368,
+            "process_cpu_ms_per_frame": 0.0877897234375,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.074711,
+            "frame_p95_ms": 0.108264,
+            "frame_max_ms": 0.729322,
+            "frame_mean_ms": 0.07870676875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001075,
+            "process_cpu_ms_per_frame": 0.03483765,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.034659,
+            "frame_p95_ms": 0.037127,
+            "frame_max_ms": 0.077114,
+            "frame_mean_ms": 0.0351163328125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001707,
+            "process_cpu_ms_per_frame": 0.0900982296875,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.075802,
+            "frame_p95_ms": 0.108334,
+            "frame_max_ms": 0.157709,
+            "frame_mean_ms": 0.0798512125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.0007,
+            "process_cpu_ms_per_frame": 0.0624737109375,
+            "rss_bytes": 25243648,
+            "frame_p50_ms": 0.061863,
+            "frame_p95_ms": 0.068837,
+            "frame_max_ms": 0.084576,
+            "frame_mean_ms": 0.0627170046875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001469,
+            "process_cpu_ms_per_frame": 0.137245878125,
+            "rss_bytes": 25268224,
+            "frame_p50_ms": 0.113233,
+            "frame_p95_ms": 0.171677,
+            "frame_max_ms": 0.293439,
+            "frame_mean_ms": 0.1253260921875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000987,
+            "process_cpu_ms_per_frame": 0.0001371625,
+            "rss_bytes": 25268224,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.004446,
+            "frame_mean_ms": 0.0001208015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002502,
+            "process_cpu_ms_per_frame": 0.00019204375000000002,
+            "rss_bytes": 28188672,
+            "frame_p50_ms": 0.000175,
+            "frame_p95_ms": 0.000203,
+            "frame_max_ms": 0.000606,
+            "frame_mean_ms": 0.0001649515625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001182,
+            "process_cpu_ms_per_frame": 0.00010805624999999999,
+            "rss_bytes": 25399296,
+            "frame_p50_ms": 7.9e-05,
+            "frame_p95_ms": 9.6e-05,
+            "frame_max_ms": 0.000589,
+            "frame_mean_ms": 8.0934375e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001555,
+            "process_cpu_ms_per_frame": 8.888125e-05,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000391,
+            "frame_mean_ms": 6.8065625e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000911,
+            "process_cpu_ms_per_frame": 0.0001288640625,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000329,
+            "frame_mean_ms": 0.0001071984375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001601,
+            "process_cpu_ms_per_frame": 0.0001276796875,
+            "rss_bytes": 26259456,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.00045,
+            "frame_mean_ms": 0.00010739374999999999
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001187,
+            "process_cpu_ms_per_frame": 0.0001295875,
+            "rss_bytes": 26259456,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000349,
+            "frame_mean_ms": 0.00010833593749999999
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002005,
+            "process_cpu_ms_per_frame": 0.000133284375,
+            "rss_bytes": 26607616,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00014,
+            "frame_max_ms": 0.000512,
+            "frame_mean_ms": 0.000111896875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000987,
+            "process_cpu_ms_per_frame": 0.096810978125,
+            "rss_bytes": 26607616,
+            "frame_p50_ms": 0.088312,
+            "frame_p95_ms": 0.146623,
+            "frame_max_ms": 0.176339,
+            "frame_mean_ms": 0.0972235828125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00272,
+            "process_cpu_ms_per_frame": 0.147410975,
+            "rss_bytes": 26865664,
+            "frame_p50_ms": 0.131674,
+            "frame_p95_ms": 0.194361,
+            "frame_max_ms": 0.371394,
+            "frame_mean_ms": 0.136978921875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000838,
+            "process_cpu_ms_per_frame": 0.035539629687500005,
+            "rss_bytes": 26865664,
+            "frame_p50_ms": 0.035166,
+            "frame_p95_ms": 0.039328,
+            "frame_max_ms": 0.054227,
+            "frame_mean_ms": 0.035652628125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001241,
+            "process_cpu_ms_per_frame": 0.1063877859375,
+            "rss_bytes": 26865664,
+            "frame_p50_ms": 0.092478,
+            "frame_p95_ms": 0.125091,
+            "frame_max_ms": 0.212948,
+            "frame_mean_ms": 0.09439346093749999
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001168,
+            "process_cpu_ms_per_frame": 0.037887504687500004,
+            "rss_bytes": 26865664,
+            "frame_p50_ms": 0.035661,
+            "frame_p95_ms": 0.055243,
+            "frame_max_ms": 0.078499,
+            "frame_mean_ms": 0.038038040625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001527,
+            "process_cpu_ms_per_frame": 0.085188459375,
+            "rss_bytes": 26869760,
+            "frame_p50_ms": 0.076635,
+            "frame_p95_ms": 0.096407,
+            "frame_max_ms": 0.183329,
+            "frame_mean_ms": 0.0759809765625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001338,
+            "process_cpu_ms_per_frame": 0.06324774375,
+            "rss_bytes": 26869760,
+            "frame_p50_ms": 0.061999,
+            "frame_p95_ms": 0.073386,
+            "frame_max_ms": 0.186235,
+            "frame_mean_ms": 0.064386628125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001697,
+            "process_cpu_ms_per_frame": 0.132642665625,
+            "rss_bytes": 26869760,
+            "frame_p50_ms": 0.115629,
+            "frame_p95_ms": 0.176138,
+            "frame_max_ms": 0.645039,
+            "frame_mean_ms": 0.1221125578125
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "9c900b717130aaf4fd9866a837000449ab473e8a4e5f9658fe971518c5ff1b4d",
+      "elapsed_seconds": 1.6306967080017785,
+      "load_average": [
+        4.0341796875,
+        5.462890625,
+        4.00634765625
+      ],
+      "cases": {
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001526,
+            "process_cpu_ms_per_frame": 0.00017441718750000002,
+            "rss_bytes": 19927040,
+            "frame_p50_ms": 0.00015,
+            "frame_p95_ms": 0.000176,
+            "frame_max_ms": 0.000909,
+            "frame_mean_ms": 0.0001480703125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00189,
+            "process_cpu_ms_per_frame": 0.00014546875,
+            "rss_bytes": 22441984,
+            "frame_p50_ms": 0.000108,
+            "frame_p95_ms": 0.000167,
+            "frame_max_ms": 0.000525,
+            "frame_mean_ms": 0.00012253125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00128,
+            "process_cpu_ms_per_frame": 0.0001310328125,
+            "rss_bytes": 20856832,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000426,
+            "frame_mean_ms": 0.0001092796875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001648,
+            "process_cpu_ms_per_frame": 0.00013574062500000002,
+            "rss_bytes": 22188032,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000149,
+            "frame_max_ms": 0.006403,
+            "frame_mean_ms": 0.000123046875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000442,
+            "process_cpu_ms_per_frame": 9.3921875e-05,
+            "rss_bytes": 22188032,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 8.6e-05,
+            "frame_max_ms": 0.000273,
+            "frame_mean_ms": 7.1290625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000545,
+            "process_cpu_ms_per_frame": 0.00010680625,
+            "rss_bytes": 22388736,
+            "frame_p50_ms": 7.9e-05,
+            "frame_p95_ms": 9.7e-05,
+            "frame_max_ms": 0.000279,
+            "frame_mean_ms": 8.08609375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001133,
+            "process_cpu_ms_per_frame": 0.000136109375,
+            "rss_bytes": 22913024,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000128,
+            "frame_max_ms": 0.000331,
+            "frame_mean_ms": 0.0001146984375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002164,
+            "process_cpu_ms_per_frame": 0.000136225,
+            "rss_bytes": 24395776,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000826,
+            "frame_mean_ms": 0.0001151546875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001378,
+            "process_cpu_ms_per_frame": 0.07282525,
+            "rss_bytes": 24395776,
+            "frame_p50_ms": 0.063348,
+            "frame_p95_ms": 0.107507,
+            "frame_max_ms": 0.132164,
+            "frame_mean_ms": 0.0733528546875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.003386,
+            "process_cpu_ms_per_frame": 0.1259287078125,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.107634,
+            "frame_p95_ms": 0.164111,
+            "frame_max_ms": 0.780418,
+            "frame_mean_ms": 0.1167103421875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001249,
+            "process_cpu_ms_per_frame": 0.0365364265625,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.035009,
+            "frame_p95_ms": 0.048496,
+            "frame_max_ms": 0.06346,
+            "frame_mean_ms": 0.036667990625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.0017,
+            "process_cpu_ms_per_frame": 0.0989541796875,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.083901,
+            "frame_p95_ms": 0.121954,
+            "frame_max_ms": 0.231964,
+            "frame_mean_ms": 0.0879743125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00139,
+            "process_cpu_ms_per_frame": 0.0362383234375,
+            "rss_bytes": 24444928,
+            "frame_p50_ms": 0.035136,
+            "frame_p95_ms": 0.054143,
+            "frame_max_ms": 0.143115,
+            "frame_mean_ms": 0.03803073125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00162,
+            "process_cpu_ms_per_frame": 0.09116709687499999,
+            "rss_bytes": 24453120,
+            "frame_p50_ms": 0.07757,
+            "frame_p95_ms": 0.140801,
+            "frame_max_ms": 0.206035,
+            "frame_mean_ms": 0.08400731875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001199,
+            "process_cpu_ms_per_frame": 0.1119633234375,
+            "rss_bytes": 24453120,
+            "frame_p50_ms": 0.093419,
+            "frame_p95_ms": 0.178492,
+            "frame_max_ms": 0.307811,
+            "frame_mean_ms": 0.119138059375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001694,
+            "process_cpu_ms_per_frame": 0.1383110546875,
+            "rss_bytes": 25616384,
+            "frame_p50_ms": 0.128431,
+            "frame_p95_ms": 0.157644,
+            "frame_max_ms": 0.584372,
+            "frame_mean_ms": 0.1304685015625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001043,
+            "process_cpu_ms_per_frame": 0.0001302046875,
+            "rss_bytes": 25616384,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000411,
+            "frame_mean_ms": 0.00010904375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001248,
+            "process_cpu_ms_per_frame": 0.0001300203125,
+            "rss_bytes": 27496448,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000323,
+            "frame_mean_ms": 0.0001097
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001089,
+            "process_cpu_ms_per_frame": 0.0001317015625,
+            "rss_bytes": 25710592,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000393,
+            "frame_mean_ms": 0.0001093375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000902,
+            "process_cpu_ms_per_frame": 0.00013029375,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.000107,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000244,
+            "frame_mean_ms": 0.0001099609375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000322,
+            "process_cpu_ms_per_frame": 8.76234375e-05,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.00019,
+            "frame_mean_ms": 6.725000000000001e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000595,
+            "process_cpu_ms_per_frame": 8.8365625e-05,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000212,
+            "frame_mean_ms": 6.783437500000001e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001199,
+            "process_cpu_ms_per_frame": 0.0001705046875,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.000141,
+            "frame_p95_ms": 0.000175,
+            "frame_max_ms": 0.000558,
+            "frame_mean_ms": 0.0001449125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001114,
+            "process_cpu_ms_per_frame": 0.0001331515625,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000297,
+            "frame_mean_ms": 0.0001126828125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000598,
+            "process_cpu_ms_per_frame": 0.0629326609375,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.06194,
+            "frame_p95_ms": 0.069416,
+            "frame_max_ms": 0.138687,
+            "frame_mean_ms": 0.06349021875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001562,
+            "process_cpu_ms_per_frame": 0.113925653125,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.102773,
+            "frame_p95_ms": 0.139729,
+            "frame_max_ms": 0.208625,
+            "frame_mean_ms": 0.1048611484375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001092,
+            "process_cpu_ms_per_frame": 0.036752296875,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.03534,
+            "frame_p95_ms": 0.053755,
+            "frame_max_ms": 0.113273,
+            "frame_mean_ms": 0.0373081234375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001481,
+            "process_cpu_ms_per_frame": 0.0850443640625,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.075609,
+            "frame_p95_ms": 0.098676,
+            "frame_max_ms": 0.177484,
+            "frame_mean_ms": 0.0757985484375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000701,
+            "process_cpu_ms_per_frame": 0.036241234375,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.034875,
+            "frame_p95_ms": 0.054192,
+            "frame_max_ms": 0.138496,
+            "frame_mean_ms": 0.037048421875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001087,
+            "process_cpu_ms_per_frame": 0.0934014765625,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.082025,
+            "frame_p95_ms": 0.113802,
+            "frame_max_ms": 0.189047,
+            "frame_mean_ms": 0.0834688984375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000965,
+            "process_cpu_ms_per_frame": 0.0932349421875,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.087669,
+            "frame_p95_ms": 0.139902,
+            "frame_max_ms": 0.207301,
+            "frame_mean_ms": 0.0949180875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00152,
+            "process_cpu_ms_per_frame": 0.139627546875,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.128549,
+            "frame_p95_ms": 0.176423,
+            "frame_max_ms": 0.250113,
+            "frame_mean_ms": 0.1308674078125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001515,
+            "process_cpu_ms_per_frame": 0.000127715625,
+            "rss_bytes": 26255360,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000384,
+            "frame_mean_ms": 0.00010654375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001202,
+            "process_cpu_ms_per_frame": 0.000128675,
+            "rss_bytes": 29175808,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000316,
+            "frame_mean_ms": 0.0001085234375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001092,
+            "process_cpu_ms_per_frame": 0.000130071875,
+            "rss_bytes": 26386432,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000317,
+            "frame_mean_ms": 0.0001089875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002053,
+            "process_cpu_ms_per_frame": 0.000129834375,
+            "rss_bytes": 27389952,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000702,
+            "frame_mean_ms": 0.00010974375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000517,
+            "process_cpu_ms_per_frame": 8.855625e-05,
+            "rss_bytes": 27389952,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000235,
+            "frame_mean_ms": 6.730625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001001,
+            "process_cpu_ms_per_frame": 8.86375e-05,
+            "rss_bytes": 27389952,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000433,
+            "frame_mean_ms": 6.8175e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001223,
+            "process_cpu_ms_per_frame": 0.0001342640625,
+            "rss_bytes": 27389952,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.00035,
+            "frame_mean_ms": 0.000112978125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001114,
+            "process_cpu_ms_per_frame": 0.0001334359375,
+            "rss_bytes": 27422720,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000301,
+            "frame_mean_ms": 0.0001129609375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000747,
+            "process_cpu_ms_per_frame": 0.0657746078125,
+            "rss_bytes": 27422720,
+            "frame_p50_ms": 0.062829,
+            "frame_p95_ms": 0.09291,
+            "frame_max_ms": 0.152277,
+            "frame_mean_ms": 0.06684395
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001821,
+            "process_cpu_ms_per_frame": 0.1165583125,
+            "rss_bytes": 27422720,
+            "frame_p50_ms": 0.10653,
+            "frame_p95_ms": 0.144384,
+            "frame_max_ms": 0.210461,
+            "frame_mean_ms": 0.107826475
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000974,
+            "process_cpu_ms_per_frame": 0.037079893749999995,
+            "rss_bytes": 27422720,
+            "frame_p50_ms": 0.035499,
+            "frame_p95_ms": 0.054102,
+            "frame_max_ms": 0.139998,
+            "frame_mean_ms": 0.03776284375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001206,
+            "process_cpu_ms_per_frame": 0.086578859375,
+            "rss_bytes": 27426816,
+            "frame_p50_ms": 0.077505,
+            "frame_p95_ms": 0.105129,
+            "frame_max_ms": 0.720188,
+            "frame_mean_ms": 0.0783564796875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000668,
+            "process_cpu_ms_per_frame": 0.035815546875,
+            "rss_bytes": 27426816,
+            "frame_p50_ms": 0.035142,
+            "frame_p95_ms": 0.043953,
+            "frame_max_ms": 0.11849,
+            "frame_mean_ms": 0.036468153125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000563,
+            "process_cpu_ms_per_frame": 0.08828311875,
+            "rss_bytes": 27426816,
+            "frame_p50_ms": 0.079167,
+            "frame_p95_ms": 0.102128,
+            "frame_max_ms": 0.188353,
+            "frame_mean_ms": 0.078741809375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001518,
+            "process_cpu_ms_per_frame": 0.0946486203125,
+            "rss_bytes": 27426816,
+            "frame_p50_ms": 0.088684,
+            "frame_p95_ms": 0.140402,
+            "frame_max_ms": 0.219997,
+            "frame_mean_ms": 0.097586565625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001276,
+            "process_cpu_ms_per_frame": 0.1753468953125,
+            "rss_bytes": 27455488,
+            "frame_p50_ms": 0.168749,
+            "frame_p95_ms": 0.224263,
+            "frame_max_ms": 0.332063,
+            "frame_mean_ms": 0.1679702625
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "bd675b255b7af5316064653a2fd2b172edc5a6b7f59cfac57617e9c7c56df617",
+      "elapsed_seconds": 1.6756811199993535,
+      "load_average": [
+        3.951171875,
+        5.421875,
+        4.00048828125
+      ],
+      "cases": {
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001255,
+            "process_cpu_ms_per_frame": 0.00014800937500000002,
+            "rss_bytes": 21463040,
+            "frame_p50_ms": 0.000117,
+            "frame_p95_ms": 0.000165,
+            "frame_max_ms": 0.000399,
+            "frame_mean_ms": 0.00012575
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001843,
+            "process_cpu_ms_per_frame": 0.0001445953125,
+            "rss_bytes": 24080384,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000173,
+            "frame_max_ms": 0.009181,
+            "frame_mean_ms": 0.0001357421875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000764,
+            "process_cpu_ms_per_frame": 8.8290625e-05,
+            "rss_bytes": 23105536,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000321,
+            "frame_mean_ms": 6.75703125e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001214,
+            "process_cpu_ms_per_frame": 8.81390625e-05,
+            "rss_bytes": 24145920,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000433,
+            "frame_mean_ms": 6.82234375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000701,
+            "process_cpu_ms_per_frame": 0.000127571875,
+            "rss_bytes": 24211456,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000325,
+            "frame_mean_ms": 0.0001070015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00097,
+            "process_cpu_ms_per_frame": 0.0001300328125,
+            "rss_bytes": 24219648,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000375,
+            "frame_mean_ms": 0.00010990625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000705,
+            "process_cpu_ms_per_frame": 0.000131078125,
+            "rss_bytes": 24322048,
+            "frame_p50_ms": 0.000108,
+            "frame_p95_ms": 0.000122,
+            "frame_max_ms": 0.000311,
+            "frame_mean_ms": 0.0001105109375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00151,
+            "process_cpu_ms_per_frame": 0.00012932968749999999,
+            "rss_bytes": 24326144,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000379,
+            "frame_mean_ms": 0.000109603125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000869,
+            "process_cpu_ms_per_frame": 0.0932704109375,
+            "rss_bytes": 24489984,
+            "frame_p50_ms": 0.08797,
+            "frame_p95_ms": 0.132827,
+            "frame_max_ms": 0.174976,
+            "frame_mean_ms": 0.0944795296875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001466,
+            "process_cpu_ms_per_frame": 0.14684292031249999,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.131914,
+            "frame_p95_ms": 0.180139,
+            "frame_max_ms": 0.230843,
+            "frame_mean_ms": 0.136231525
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001012,
+            "process_cpu_ms_per_frame": 0.037722332812499995,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.036116,
+            "frame_p95_ms": 0.049622,
+            "frame_max_ms": 0.05997,
+            "frame_mean_ms": 0.0378539796875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001768,
+            "process_cpu_ms_per_frame": 0.0918505375,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.079695,
+            "frame_p95_ms": 0.109275,
+            "frame_max_ms": 0.535996,
+            "frame_mean_ms": 0.0817104921875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001112,
+            "process_cpu_ms_per_frame": 0.0371161,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.03611,
+            "frame_p95_ms": 0.045074,
+            "frame_max_ms": 0.058667,
+            "frame_mean_ms": 0.0372514171875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002227,
+            "process_cpu_ms_per_frame": 0.0854673453125,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.074925,
+            "frame_p95_ms": 0.101374,
+            "frame_max_ms": 0.152854,
+            "frame_mean_ms": 0.0760068390625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001599,
+            "process_cpu_ms_per_frame": 0.0664450203125,
+            "rss_bytes": 24887296,
+            "frame_p50_ms": 0.063017,
+            "frame_p95_ms": 0.094315,
+            "frame_max_ms": 0.113843,
+            "frame_mean_ms": 0.0666762953125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002665,
+            "process_cpu_ms_per_frame": 0.1150980046875,
+            "rss_bytes": 24891392,
+            "frame_p50_ms": 0.103289,
+            "frame_p95_ms": 0.142773,
+            "frame_max_ms": 0.330778,
+            "frame_mean_ms": 0.1061523453125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001532,
+            "process_cpu_ms_per_frame": 0.0001340875,
+            "rss_bytes": 24891392,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000335,
+            "frame_mean_ms": 0.0001132046875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001417,
+            "process_cpu_ms_per_frame": 0.0001338734375,
+            "rss_bytes": 26767360,
+            "frame_p50_ms": 0.000109,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000429,
+            "frame_mean_ms": 0.00011312812500000001
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001173,
+            "process_cpu_ms_per_frame": 9.3409375e-05,
+            "rss_bytes": 24981504,
+            "frame_p50_ms": 6.8e-05,
+            "frame_p95_ms": 8e-05,
+            "frame_max_ms": 0.004095,
+            "frame_mean_ms": 7.60375e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00122,
+            "process_cpu_ms_per_frame": 8.915156249999999e-05,
+            "rss_bytes": 25325568,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000415,
+            "frame_mean_ms": 6.81171875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001546,
+            "process_cpu_ms_per_frame": 0.0001287421875,
+            "rss_bytes": 25325568,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000422,
+            "frame_mean_ms": 0.00010746874999999999
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001609,
+            "process_cpu_ms_per_frame": 0.000127703125,
+            "rss_bytes": 25325568,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000406,
+            "frame_mean_ms": 0.0001073609375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001464,
+            "process_cpu_ms_per_frame": 0.0001278671875,
+            "rss_bytes": 25325568,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000286,
+            "frame_mean_ms": 0.0001069703125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00168,
+            "process_cpu_ms_per_frame": 0.00012886718750000002,
+            "rss_bytes": 25759744,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000367,
+            "frame_mean_ms": 0.000108825
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000905,
+            "process_cpu_ms_per_frame": 0.093353328125,
+            "rss_bytes": 25759744,
+            "frame_p50_ms": 0.089555,
+            "frame_p95_ms": 0.113824,
+            "frame_max_ms": 0.152391,
+            "frame_mean_ms": 0.0937566890625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001428,
+            "process_cpu_ms_per_frame": 0.14740426874999998,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.1322,
+            "frame_p95_ms": 0.18307,
+            "frame_max_ms": 0.235979,
+            "frame_mean_ms": 0.1361429171875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001022,
+            "process_cpu_ms_per_frame": 0.03789925,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.035344,
+            "frame_p95_ms": 0.055257,
+            "frame_max_ms": 0.064247,
+            "frame_mean_ms": 0.0380174453125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001762,
+            "process_cpu_ms_per_frame": 0.10158974375,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.09078,
+            "frame_p95_ms": 0.120162,
+            "frame_max_ms": 0.146078,
+            "frame_mean_ms": 0.090095521875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002218,
+            "process_cpu_ms_per_frame": 0.048736190624999995,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.049532,
+            "frame_p95_ms": 0.06338,
+            "frame_max_ms": 0.078165,
+            "frame_mean_ms": 0.0493953890625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002328,
+            "process_cpu_ms_per_frame": 0.098439765625,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.082661,
+            "frame_p95_ms": 0.120997,
+            "frame_max_ms": 0.506534,
+            "frame_mean_ms": 0.0879381078125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001345,
+            "process_cpu_ms_per_frame": 0.0672611375,
+            "rss_bytes": 26062848,
+            "frame_p50_ms": 0.063276,
+            "frame_p95_ms": 0.095502,
+            "frame_max_ms": 0.120605,
+            "frame_mean_ms": 0.0675535765625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002023,
+            "process_cpu_ms_per_frame": 0.1360031296875,
+            "rss_bytes": 26099712,
+            "frame_p50_ms": 0.115367,
+            "frame_p95_ms": 0.175116,
+            "frame_max_ms": 0.252553,
+            "frame_mean_ms": 0.1242853203125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00131,
+            "process_cpu_ms_per_frame": 0.00014173125,
+            "rss_bytes": 26099712,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000136,
+            "frame_max_ms": 0.000635,
+            "frame_mean_ms": 0.0001187671875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001967,
+            "process_cpu_ms_per_frame": 0.00013645,
+            "rss_bytes": 29020160,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000584,
+            "frame_mean_ms": 0.000116975
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001229,
+            "process_cpu_ms_per_frame": 8.9915625e-05,
+            "rss_bytes": 26230784,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000389,
+            "frame_mean_ms": 6.809218750000001e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001242,
+            "process_cpu_ms_per_frame": 8.9859375e-05,
+            "rss_bytes": 27127808,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000396,
+            "frame_mean_ms": 6.899375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001055,
+            "process_cpu_ms_per_frame": 0.0001361421875,
+            "rss_bytes": 27127808,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000467,
+            "frame_mean_ms": 0.0001141734375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002927,
+            "process_cpu_ms_per_frame": 0.0001291328125,
+            "rss_bytes": 27131904,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000593,
+            "frame_mean_ms": 0.00010849375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001069,
+            "process_cpu_ms_per_frame": 0.0001309140625,
+            "rss_bytes": 27131904,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000501,
+            "frame_mean_ms": 0.00011050625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001893,
+            "process_cpu_ms_per_frame": 0.00013361406250000002,
+            "rss_bytes": 27418624,
+            "frame_p50_ms": 0.000107,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000654,
+            "frame_mean_ms": 0.00011321875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001681,
+            "process_cpu_ms_per_frame": 0.10016330468750001,
+            "rss_bytes": 27418624,
+            "frame_p50_ms": 0.09115,
+            "frame_p95_ms": 0.151445,
+            "frame_max_ms": 0.20934,
+            "frame_mean_ms": 0.1018959328125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.003004,
+            "process_cpu_ms_per_frame": 0.1575396421875,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.144565,
+            "frame_p95_ms": 0.18864,
+            "frame_max_ms": 0.348713,
+            "frame_mean_ms": 0.148310475
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001304,
+            "process_cpu_ms_per_frame": 0.0449203,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.041337,
+            "frame_p95_ms": 0.062559,
+            "frame_max_ms": 0.209759,
+            "frame_mean_ms": 0.0460650234375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001837,
+            "process_cpu_ms_per_frame": 0.1061222921875,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.090649,
+            "frame_p95_ms": 0.140326,
+            "frame_max_ms": 0.279298,
+            "frame_mean_ms": 0.094397803125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001656,
+            "process_cpu_ms_per_frame": 0.038703389062499996,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.03603,
+            "frame_p95_ms": 0.055791,
+            "frame_max_ms": 0.072866,
+            "frame_mean_ms": 0.038948215625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002283,
+            "process_cpu_ms_per_frame": 0.11477058437500001,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.100308,
+            "frame_p95_ms": 0.135913,
+            "frame_max_ms": 0.927865,
+            "frame_mean_ms": 0.10383875625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00139,
+            "process_cpu_ms_per_frame": 0.072985703125,
+            "rss_bytes": 27734016,
+            "frame_p50_ms": 0.065719,
+            "frame_p95_ms": 0.106613,
+            "frame_max_ms": 0.123164,
+            "frame_mean_ms": 0.0734056890625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001644,
+            "process_cpu_ms_per_frame": 0.1304691921875,
+            "rss_bytes": 27766784,
+            "frame_p50_ms": 0.109517,
+            "frame_p95_ms": 0.171862,
+            "frame_max_ms": 0.317108,
+            "frame_mean_ms": 0.11961832343750001
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "f106e4ac1374c606df20758b7c5df4138da3bd2178c80a1f0fe0712afb3a0f40",
+      "elapsed_seconds": 1.7150721289981448,
+      "load_average": [
+        4.51611328125,
+        5.5146484375,
+        4.0380859375
+      ],
+      "cases": {
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000957,
+            "process_cpu_ms_per_frame": 0.0001282828125,
+            "rss_bytes": 19783680,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000376,
+            "frame_mean_ms": 0.00010733125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002382,
+            "process_cpu_ms_per_frame": 0.0001310015625,
+            "rss_bytes": 22290432,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.008394,
+            "frame_mean_ms": 0.000122321875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001161,
+            "process_cpu_ms_per_frame": 0.00012835,
+            "rss_bytes": 20664320,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000441,
+            "frame_mean_ms": 0.00010686406249999999
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002644,
+            "process_cpu_ms_per_frame": 0.0001467109375,
+            "rss_bytes": 21962752,
+            "frame_p50_ms": 0.000119,
+            "frame_p95_ms": 0.000156,
+            "frame_max_ms": 0.000616,
+            "frame_mean_ms": 0.00012336875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000932,
+            "process_cpu_ms_per_frame": 8.90921875e-05,
+            "rss_bytes": 21962752,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.000333,
+            "frame_mean_ms": 6.744375e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000993,
+            "process_cpu_ms_per_frame": 8.819687500000001e-05,
+            "rss_bytes": 22085632,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000389,
+            "frame_mean_ms": 6.80796875e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001844,
+            "process_cpu_ms_per_frame": 0.00018585156249999998,
+            "rss_bytes": 22650880,
+            "frame_p50_ms": 0.000144,
+            "frame_p95_ms": 0.000179,
+            "frame_max_ms": 0.029919,
+            "frame_mean_ms": 0.000224034375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001711,
+            "process_cpu_ms_per_frame": 0.000134309375,
+            "rss_bytes": 24121344,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000436,
+            "frame_mean_ms": 0.00011370625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000907,
+            "process_cpu_ms_per_frame": 0.06597416874999999,
+            "rss_bytes": 24121344,
+            "frame_p50_ms": 0.062886,
+            "frame_p95_ms": 0.095793,
+            "frame_max_ms": 0.154688,
+            "frame_mean_ms": 0.0669488875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001398,
+            "process_cpu_ms_per_frame": 0.13610286875,
+            "rss_bytes": 24154112,
+            "frame_p50_ms": 0.115413,
+            "frame_p95_ms": 0.170505,
+            "frame_max_ms": 0.865364,
+            "frame_mean_ms": 0.125328796875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002202,
+            "process_cpu_ms_per_frame": 0.055198009375,
+            "rss_bytes": 24154112,
+            "frame_p50_ms": 0.059246,
+            "frame_p95_ms": 0.065953,
+            "frame_max_ms": 0.075282,
+            "frame_mean_ms": 0.055521171875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00265,
+            "process_cpu_ms_per_frame": 0.10056505,
+            "rss_bytes": 24154112,
+            "frame_p50_ms": 0.08943,
+            "frame_p95_ms": 0.1175,
+            "frame_max_ms": 0.150801,
+            "frame_mean_ms": 0.0896230515625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000872,
+            "process_cpu_ms_per_frame": 0.0370171515625,
+            "rss_bytes": 24154112,
+            "frame_p50_ms": 0.036446,
+            "frame_p95_ms": 0.042226,
+            "frame_max_ms": 0.061082,
+            "frame_mean_ms": 0.0371182015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001333,
+            "process_cpu_ms_per_frame": 0.100963146875,
+            "rss_bytes": 24158208,
+            "frame_p50_ms": 0.089096,
+            "frame_p95_ms": 0.118667,
+            "frame_max_ms": 0.148933,
+            "frame_mean_ms": 0.0894327265625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001552,
+            "process_cpu_ms_per_frame": 0.0920306453125,
+            "rss_bytes": 24223744,
+            "frame_p50_ms": 0.088534,
+            "frame_p95_ms": 0.126354,
+            "frame_max_ms": 0.165349,
+            "frame_mean_ms": 0.093299440625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001757,
+            "process_cpu_ms_per_frame": 0.139968528125,
+            "rss_bytes": 24477696,
+            "frame_p50_ms": 0.128573,
+            "frame_p95_ms": 0.162486,
+            "frame_max_ms": 0.212065,
+            "frame_mean_ms": 0.1306595890625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000663,
+            "process_cpu_ms_per_frame": 0.0001272203125,
+            "rss_bytes": 24477696,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.00028,
+            "frame_mean_ms": 0.0001067171875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002326,
+            "process_cpu_ms_per_frame": 0.000133278125,
+            "rss_bytes": 26353664,
+            "frame_p50_ms": 0.000107,
+            "frame_p95_ms": 0.000134,
+            "frame_max_ms": 0.000421,
+            "frame_mean_ms": 0.0001119421875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000513,
+            "process_cpu_ms_per_frame": 0.000133225,
+            "rss_bytes": 24567808,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.000129,
+            "frame_max_ms": 0.00412,
+            "frame_mean_ms": 0.0001166078125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000878,
+            "process_cpu_ms_per_frame": 0.0001280625,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000308,
+            "frame_mean_ms": 0.0001080140625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000665,
+            "process_cpu_ms_per_frame": 9.0253125e-05,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.8e-05,
+            "frame_max_ms": 0.004834,
+            "frame_mean_ms": 7.53015625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00149,
+            "process_cpu_ms_per_frame": 8.81515625e-05,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000314,
+            "frame_mean_ms": 6.79375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000892,
+            "process_cpu_ms_per_frame": 0.000135259375,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.000385,
+            "frame_mean_ms": 0.000114128125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001643,
+            "process_cpu_ms_per_frame": 0.00013685,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.007141,
+            "frame_mean_ms": 0.0001254734375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000978,
+            "process_cpu_ms_per_frame": 0.0810827328125,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.072995,
+            "frame_p95_ms": 0.112511,
+            "frame_max_ms": 0.123624,
+            "frame_mean_ms": 0.0815491015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002095,
+            "process_cpu_ms_per_frame": 0.154019540625,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.146804,
+            "frame_p95_ms": 0.184023,
+            "frame_max_ms": 0.274912,
+            "frame_mean_ms": 0.1407922640625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001597,
+            "process_cpu_ms_per_frame": 0.0387519296875,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.036713,
+            "frame_p95_ms": 0.054511,
+            "frame_max_ms": 0.071781,
+            "frame_mean_ms": 0.0389644984375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00306,
+            "process_cpu_ms_per_frame": 0.0917668484375,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.078603,
+            "frame_p95_ms": 0.110094,
+            "frame_max_ms": 0.307217,
+            "frame_mean_ms": 0.0810367140625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001362,
+            "process_cpu_ms_per_frame": 0.038763014062500004,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.0352,
+            "frame_p95_ms": 0.054726,
+            "frame_max_ms": 0.063942,
+            "frame_mean_ms": 0.03894716875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001261,
+            "process_cpu_ms_per_frame": 0.092046196875,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.078086,
+            "frame_p95_ms": 0.11229,
+            "frame_max_ms": 1.090646,
+            "frame_mean_ms": 0.085414446875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001691,
+            "process_cpu_ms_per_frame": 0.1119377828125,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.091287,
+            "frame_p95_ms": 0.162089,
+            "frame_max_ms": 1.25741,
+            "frame_mean_ms": 0.1142187015625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002562,
+            "process_cpu_ms_per_frame": 0.17074962656249998,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.146975,
+            "frame_p95_ms": 0.221163,
+            "frame_max_ms": 0.596772,
+            "frame_mean_ms": 0.1612530328125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001378,
+            "process_cpu_ms_per_frame": 0.0001304484375,
+            "rss_bytes": 26292224,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000761,
+            "frame_mean_ms": 0.0001091734375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001796,
+            "process_cpu_ms_per_frame": 0.0001310515625,
+            "rss_bytes": 29212672,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000431,
+            "frame_mean_ms": 0.0001085125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001647,
+            "process_cpu_ms_per_frame": 0.0001493046875,
+            "rss_bytes": 26423296,
+            "frame_p50_ms": 0.000117,
+            "frame_p95_ms": 0.000158,
+            "frame_max_ms": 0.000601,
+            "frame_mean_ms": 0.000123646875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00255,
+            "process_cpu_ms_per_frame": 0.000166409375,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 0.000136,
+            "frame_p95_ms": 0.000165,
+            "frame_max_ms": 0.000754,
+            "frame_mean_ms": 0.000139584375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00123,
+            "process_cpu_ms_per_frame": 0.00012001875000000001,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 8.9e-05,
+            "frame_p95_ms": 9.4e-05,
+            "frame_max_ms": 0.000475,
+            "frame_mean_ms": 8.95265625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001339,
+            "process_cpu_ms_per_frame": 8.807812500000001e-05,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000369,
+            "frame_mean_ms": 6.80109375e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001436,
+            "process_cpu_ms_per_frame": 0.00018780468749999998,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 0.000155,
+            "frame_p95_ms": 0.000197,
+            "frame_max_ms": 0.000481,
+            "frame_mean_ms": 0.000159996875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001536,
+            "process_cpu_ms_per_frame": 0.00013595625000000001,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 0.000111,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000378,
+            "frame_mean_ms": 0.0001142390625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001164,
+            "process_cpu_ms_per_frame": 0.0665914,
+            "rss_bytes": 27430912,
+            "frame_p50_ms": 0.06241,
+            "frame_p95_ms": 0.097135,
+            "frame_max_ms": 0.112372,
+            "frame_mean_ms": 0.067243034375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001831,
+            "process_cpu_ms_per_frame": 0.12015616874999999,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.107064,
+            "frame_p95_ms": 0.150896,
+            "frame_max_ms": 0.224693,
+            "frame_mean_ms": 0.1105240484375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001367,
+            "process_cpu_ms_per_frame": 0.0373495140625,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.036255,
+            "frame_p95_ms": 0.04875,
+            "frame_max_ms": 0.060905,
+            "frame_mean_ms": 0.0374768140625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001799,
+            "process_cpu_ms_per_frame": 0.0933592421875,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.080852,
+            "frame_p95_ms": 0.113378,
+            "frame_max_ms": 0.261438,
+            "frame_mean_ms": 0.0825334546875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000593,
+            "process_cpu_ms_per_frame": 0.039448565625,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.036339,
+            "frame_p95_ms": 0.057254,
+            "frame_max_ms": 0.075801,
+            "frame_mean_ms": 0.039587551562500004
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001748,
+            "process_cpu_ms_per_frame": 0.0968415171875,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.080517,
+            "frame_p95_ms": 0.128394,
+            "frame_max_ms": 0.584729,
+            "frame_mean_ms": 0.086865325
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001126,
+            "process_cpu_ms_per_frame": 0.098997546875,
+            "rss_bytes": 27463680,
+            "frame_p50_ms": 0.088945,
+            "frame_p95_ms": 0.153587,
+            "frame_max_ms": 0.174735,
+            "frame_mean_ms": 0.099540578125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001504,
+            "process_cpu_ms_per_frame": 0.1764206921875,
+            "rss_bytes": 27471872,
+            "frame_p50_ms": 0.14275,
+            "frame_p95_ms": 0.252738,
+            "frame_max_ms": 3.272896,
+            "frame_mean_ms": 0.172790846875
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "24d3ccdd90b2a30f46c30fc2a130af467881e687a7b1b55443aaa091d755b410",
+      "elapsed_seconds": 1.6104495850013336,
+      "load_average": [
+        4.314453125,
+        5.4560546875,
+        4.02685546875
+      ],
+      "cases": {
+        "case=\"noop-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00127,
+            "process_cpu_ms_per_frame": 0.00013459375,
+            "rss_bytes": 20721664,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000128,
+            "frame_max_ms": 0.000478,
+            "frame_mean_ms": 0.00011399531250000001
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002802,
+            "process_cpu_ms_per_frame": 0.0001347171875,
+            "rss_bytes": 23080960,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000796,
+            "frame_mean_ms": 0.000114028125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001068,
+            "process_cpu_ms_per_frame": 8.9690625e-05,
+            "rss_bytes": 22429696,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 7e-05,
+            "frame_max_ms": 0.000404,
+            "frame_mean_ms": 6.7659375e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001327,
+            "process_cpu_ms_per_frame": 8.88578125e-05,
+            "rss_bytes": 23437312,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000397,
+            "frame_mean_ms": 6.8078125e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001873,
+            "process_cpu_ms_per_frame": 0.0002033859375,
+            "rss_bytes": 23437312,
+            "frame_p50_ms": 0.000163,
+            "frame_p95_ms": 0.00021,
+            "frame_max_ms": 0.000586,
+            "frame_mean_ms": 0.000169528125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002025,
+            "process_cpu_ms_per_frame": 0.0002027359375,
+            "rss_bytes": 23453696,
+            "frame_p50_ms": 0.000163,
+            "frame_p95_ms": 0.000211,
+            "frame_max_ms": 0.008776,
+            "frame_mean_ms": 0.00018205625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00145,
+            "process_cpu_ms_per_frame": 0.0001303984375,
+            "rss_bytes": 23519232,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000469,
+            "frame_mean_ms": 0.0001091890625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001316,
+            "process_cpu_ms_per_frame": 0.00012816875,
+            "rss_bytes": 23552000,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000305,
+            "frame_mean_ms": 0.0001076203125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001209,
+            "process_cpu_ms_per_frame": 0.09047936875,
+            "rss_bytes": 23670784,
+            "frame_p50_ms": 0.08817,
+            "frame_p95_ms": 0.103838,
+            "frame_max_ms": 0.167482,
+            "frame_mean_ms": 0.090834340625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002108,
+            "process_cpu_ms_per_frame": 0.14826006249999998,
+            "rss_bytes": 24100864,
+            "frame_p50_ms": 0.131459,
+            "frame_p95_ms": 0.177971,
+            "frame_max_ms": 0.410092,
+            "frame_mean_ms": 0.136737784375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001047,
+            "process_cpu_ms_per_frame": 0.038481003125,
+            "rss_bytes": 24100864,
+            "frame_p50_ms": 0.035441,
+            "frame_p95_ms": 0.057882,
+            "frame_max_ms": 0.108659,
+            "frame_mean_ms": 0.0391067546875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001239,
+            "process_cpu_ms_per_frame": 0.1025546640625,
+            "rss_bytes": 24100864,
+            "frame_p50_ms": 0.092453,
+            "frame_p95_ms": 0.118662,
+            "frame_max_ms": 0.32246,
+            "frame_mean_ms": 0.0923770453125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001444,
+            "process_cpu_ms_per_frame": 0.0417038578125,
+            "rss_bytes": 24100864,
+            "frame_p50_ms": 0.036576,
+            "frame_p95_ms": 0.057524,
+            "frame_max_ms": 0.20025,
+            "frame_mean_ms": 0.04187423125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.003279,
+            "process_cpu_ms_per_frame": 0.0943431671875,
+            "rss_bytes": 24100864,
+            "frame_p50_ms": 0.079452,
+            "frame_p95_ms": 0.112059,
+            "frame_max_ms": 0.648803,
+            "frame_mean_ms": 0.085037771875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001274,
+            "process_cpu_ms_per_frame": 0.06995261875,
+            "rss_bytes": 24186880,
+            "frame_p50_ms": 0.062214,
+            "frame_p95_ms": 0.109588,
+            "frame_max_ms": 0.252001,
+            "frame_mean_ms": 0.0702041578125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001917,
+            "process_cpu_ms_per_frame": 0.1166792734375,
+            "rss_bytes": 24219648,
+            "frame_p50_ms": 0.103368,
+            "frame_p95_ms": 0.133921,
+            "frame_max_ms": 0.439227,
+            "frame_mean_ms": 0.1064043953125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001849,
+            "process_cpu_ms_per_frame": 0.0001350796875,
+            "rss_bytes": 24244224,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000127,
+            "frame_max_ms": 0.000404,
+            "frame_mean_ms": 0.000113653125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001812,
+            "process_cpu_ms_per_frame": 0.000139034375,
+            "rss_bytes": 26144768,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.00014,
+            "frame_max_ms": 0.000548,
+            "frame_mean_ms": 0.0001169609375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000541,
+            "process_cpu_ms_per_frame": 9.26125e-05,
+            "rss_bytes": 24358912,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 8.1e-05,
+            "frame_max_ms": 0.000603,
+            "frame_mean_ms": 6.99625e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001208,
+            "process_cpu_ms_per_frame": 8.802343750000001e-05,
+            "rss_bytes": 24580096,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000384,
+            "frame_mean_ms": 6.81953125e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000902,
+            "process_cpu_ms_per_frame": 0.0001302890625,
+            "rss_bytes": 24580096,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.00012,
+            "frame_max_ms": 0.000319,
+            "frame_mean_ms": 0.00010874375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001765,
+            "process_cpu_ms_per_frame": 0.000131090625,
+            "rss_bytes": 24584192,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.000511,
+            "frame_mean_ms": 0.0001103015625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001114,
+            "process_cpu_ms_per_frame": 0.00012876406249999998,
+            "rss_bytes": 24584192,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000118,
+            "frame_max_ms": 0.000331,
+            "frame_mean_ms": 0.00010695312499999999
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001265,
+            "process_cpu_ms_per_frame": 0.0001296421875,
+            "rss_bytes": 25112576,
+            "frame_p50_ms": 0.000106,
+            "frame_p95_ms": 0.000121,
+            "frame_max_ms": 0.00039,
+            "frame_mean_ms": 0.0001094390625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000921,
+            "process_cpu_ms_per_frame": 0.093399084375,
+            "rss_bytes": 25112576,
+            "frame_p50_ms": 0.087768,
+            "frame_p95_ms": 0.132863,
+            "frame_max_ms": 0.276087,
+            "frame_mean_ms": 0.0937742328125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00167,
+            "process_cpu_ms_per_frame": 0.15322002031249998,
+            "rss_bytes": 25350144,
+            "frame_p50_ms": 0.132934,
+            "frame_p95_ms": 0.213741,
+            "frame_max_ms": 0.451815,
+            "frame_mean_ms": 0.1461405984375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000917,
+            "process_cpu_ms_per_frame": 0.0362458671875,
+            "rss_bytes": 25350144,
+            "frame_p50_ms": 0.035228,
+            "frame_p95_ms": 0.051741,
+            "frame_max_ms": 0.200473,
+            "frame_mean_ms": 0.0387927734375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001536,
+            "process_cpu_ms_per_frame": 0.0918366109375,
+            "rss_bytes": 25354240,
+            "frame_p50_ms": 0.079137,
+            "frame_p95_ms": 0.115623,
+            "frame_max_ms": 0.338475,
+            "frame_mean_ms": 0.0828016515625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00105,
+            "process_cpu_ms_per_frame": 0.036599153125,
+            "rss_bytes": 25354240,
+            "frame_p50_ms": 0.035327,
+            "frame_p95_ms": 0.049668,
+            "frame_max_ms": 0.17517,
+            "frame_mean_ms": 0.0385844453125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001858,
+            "process_cpu_ms_per_frame": 0.08813227031250001,
+            "rss_bytes": 25354240,
+            "frame_p50_ms": 0.076902,
+            "frame_p95_ms": 0.114119,
+            "frame_max_ms": 0.304406,
+            "frame_mean_ms": 0.0813716328125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001135,
+            "process_cpu_ms_per_frame": 0.0745712734375,
+            "rss_bytes": 25354240,
+            "frame_p50_ms": 0.063411,
+            "frame_p95_ms": 0.11127,
+            "frame_max_ms": 0.237188,
+            "frame_mean_ms": 0.0760359484375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001573,
+            "process_cpu_ms_per_frame": 0.1262048296875,
+            "rss_bytes": 25358336,
+            "frame_p50_ms": 0.109569,
+            "frame_p95_ms": 0.164798,
+            "frame_max_ms": 0.473707,
+            "frame_mean_ms": 0.11980560625
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001213,
+            "process_cpu_ms_per_frame": 0.0001361328125,
+            "rss_bytes": 25358336,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000126,
+            "frame_max_ms": 0.00036,
+            "frame_mean_ms": 0.0001134
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00205,
+            "process_cpu_ms_per_frame": 0.000134315625,
+            "rss_bytes": 28282880,
+            "frame_p50_ms": 0.00011,
+            "frame_p95_ms": 0.000125,
+            "frame_max_ms": 0.000372,
+            "frame_mean_ms": 0.000113278125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000966,
+            "process_cpu_ms_per_frame": 0.00010076874999999999,
+            "rss_bytes": 25493504,
+            "frame_p50_ms": 7.1e-05,
+            "frame_p95_ms": 8.6e-05,
+            "frame_max_ms": 0.000524,
+            "frame_mean_ms": 7.50375e-05
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001053,
+            "process_cpu_ms_per_frame": 8.91234375e-05,
+            "rss_bytes": 26083328,
+            "frame_p50_ms": 6.7e-05,
+            "frame_p95_ms": 6.9e-05,
+            "frame_max_ms": 0.000399,
+            "frame_mean_ms": 6.82125e-05
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001273,
+            "process_cpu_ms_per_frame": 0.00012978593749999999,
+            "rss_bytes": 26083328,
+            "frame_p50_ms": 0.000103,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000801,
+            "frame_mean_ms": 0.0001082421875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002474,
+            "process_cpu_ms_per_frame": 0.0001667359375,
+            "rss_bytes": 26083328,
+            "frame_p50_ms": 0.000137,
+            "frame_p95_ms": 0.000166,
+            "frame_max_ms": 0.000566,
+            "frame_mean_ms": 0.00014003125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"noop-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001113,
+            "process_cpu_ms_per_frame": 0.00012849999999999998,
+            "rss_bytes": 26083328,
+            "frame_p50_ms": 0.000104,
+            "frame_p95_ms": 0.000119,
+            "frame_max_ms": 0.000469,
+            "frame_mean_ms": 0.0001075671875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"noop-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001741,
+            "process_cpu_ms_per_frame": 0.0001330234375,
+            "rss_bytes": 26685440,
+            "frame_p50_ms": 0.000105,
+            "frame_p95_ms": 0.000129,
+            "frame_max_ms": 0.000533,
+            "frame_mean_ms": 0.00011
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001016,
+            "process_cpu_ms_per_frame": 0.09110120625,
+            "rss_bytes": 26685440,
+            "frame_p50_ms": 0.087545,
+            "frame_p95_ms": 0.104297,
+            "frame_max_ms": 0.451344,
+            "frame_mean_ms": 0.09147141875
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.002149,
+            "process_cpu_ms_per_frame": 0.1574481484375,
+            "rss_bytes": 26943488,
+            "frame_p50_ms": 0.136856,
+            "frame_p95_ms": 0.214166,
+            "frame_max_ms": 0.423487,
+            "frame_mean_ms": 0.146776546875
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000829,
+            "process_cpu_ms_per_frame": 0.036342959375,
+            "rss_bytes": 26943488,
+            "frame_p50_ms": 0.035063,
+            "frame_p95_ms": 0.045998,
+            "frame_max_ms": 0.086323,
+            "frame_mean_ms": 0.0366251765625
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001365,
+            "process_cpu_ms_per_frame": 0.0884912765625,
+            "rss_bytes": 26959872,
+            "frame_p50_ms": 0.077776,
+            "frame_p95_ms": 0.10052,
+            "frame_max_ms": 0.166144,
+            "frame_mean_ms": 0.0775425078125
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-context-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.000778,
+            "process_cpu_ms_per_frame": 0.0357033640625,
+            "rss_bytes": 26959872,
+            "frame_p50_ms": 0.035066,
+            "frame_p95_ms": 0.041685,
+            "frame_max_ms": 0.050254,
+            "frame_mean_ms": 0.03579344375
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-context-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001467,
+            "process_cpu_ms_per_frame": 0.0877919921875,
+            "rss_bytes": 26959872,
+            "frame_p50_ms": 0.077423,
+            "frame_p95_ms": 0.10736,
+            "frame_max_ms": 0.209497,
+            "frame_mean_ms": 0.0782056734375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"timer-compiled-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.00145,
+            "process_cpu_ms_per_frame": 0.06407381875,
+            "rss_bytes": 26959872,
+            "frame_p50_ms": 0.062846,
+            "frame_p95_ms": 0.07236,
+            "frame_max_ms": 0.092754,
+            "frame_mean_ms": 0.0642861828125
+          },
+          "actual_threads": 1,
+          "work": {}
+        },
+        "case=\"timer-compiled-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 640,
+          "metrics": {
+            "first_paint_ms": 0.001849,
+            "process_cpu_ms_per_frame": 0.1179287734375,
+            "rss_bytes": 29642752,
+            "frame_p50_ms": 0.107042,
+            "frame_p95_ms": 0.136144,
+            "frame_max_ms": 0.334865,
+            "frame_mean_ms": 0.107981434375
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-13T17:13:58.408392+00:00",
+  "history": {
+    "series": "d923217b73f1ae7797e72fffd68ac6e9d9acd734e40613cf0f1858e3b8a1eaa5",
+    "note": "Longer compiler scope/layout candidate; update increase persists; frame comparison inconclusive",
+    "archived_at": "2026-11-13T17:17:36.728501+00:00",
+    "report_sha256": "e9367e88d2416a5e4692429f80e050629f25251355e34f19790726057cde30b6"
+  }
+}

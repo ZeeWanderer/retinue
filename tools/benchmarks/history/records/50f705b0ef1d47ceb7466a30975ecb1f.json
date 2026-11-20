@@ -1,0 +1,1126 @@
+{
+  "schema": 1,
+  "suite": "view-ir",
+  "purpose": "regression",
+  "id": "50f705b0ef1d47ceb7466a30975ecb1f",
+  "created_at": "2026-11-13T11:19:22.388667+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 5,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "9203621576c172af1b549b0ed22cb6d5b673b8eda7204a4df7745c884af9ab51",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "2fc1ff02fd4e5a7aa1790dfcbc1d459bae89c7ff7dc81ee20b0874202b388df5",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "a29c93f1793000b4bbb3b0116942297352fdbf3d38dd5bf9f548778b122f7e2c"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.3-ogc1.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 3,
+    "adapter": "overlay",
+    "fixture_sha256": "0209bc45cc80c84ed92443907a4d146be8573c43280cf87af1fbf6ef98426b79",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [
+        "default",
+        "overlay"
+      ],
+      "profile_environment": {},
+      "cargo_target": [
+        "--lib"
+      ],
+      "CC_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin",
+      "CXX_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 160,
+      "hz": 0,
+      "cases": "list-filter-cycle-views-update,list-filter-cycle-views-frame,list-filter-cycle-graph-update,list-filter-cycle-graph-frame",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "96576623f4565167a986a481b45c9d891b6e9102db2d0a05b6dfa07cd2e3c420",
+      "elapsed_seconds": 6.317899547999332,
+      "load_average": [
+        2.0009765625,
+        2.201171875,
+        4.76611328125
+      ],
+      "cases": {
+        "case=\"list-filter-cycle-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.364764,
+            "process_cpu_ms_per_frame": 3.1298542375,
+            "rss_bytes": 20492288,
+            "frame_p50_ms": 2.943086,
+            "frame_p95_ms": 4.125325,
+            "frame_max_ms": 6.176262,
+            "frame_mean_ms": 3.1508820625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.916815,
+            "process_cpu_ms_per_frame": 4.3063193625,
+            "rss_bytes": 23146496,
+            "frame_p50_ms": 3.658072,
+            "frame_p95_ms": 4.959889,
+            "frame_max_ms": 5.883776,
+            "frame_mean_ms": 3.84840141875
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.619589,
+            "process_cpu_ms_per_frame": 2.76797701875,
+            "rss_bytes": 21630976,
+            "frame_p50_ms": 2.633688,
+            "frame_p95_ms": 4.196315,
+            "frame_max_ms": 4.983624,
+            "frame_mean_ms": 2.86190586875
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.259365,
+            "process_cpu_ms_per_frame": 3.5570856374999997,
+            "rss_bytes": 22925312,
+            "frame_p50_ms": 3.060894,
+            "frame_p95_ms": 3.703698,
+            "frame_max_ms": 5.308506,
+            "frame_mean_ms": 3.14264715
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.349829,
+            "process_cpu_ms_per_frame": 3.0015919125,
+            "rss_bytes": 22925312,
+            "frame_p50_ms": 2.95421,
+            "frame_p95_ms": 3.739491,
+            "frame_max_ms": 4.771526,
+            "frame_mean_ms": 3.08224541875
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.430744,
+            "process_cpu_ms_per_frame": 4.2199707687500005,
+            "rss_bytes": 24141824,
+            "frame_p50_ms": 3.456814,
+            "frame_p95_ms": 4.382418,
+            "frame_max_ms": 5.089384,
+            "frame_mean_ms": 3.60148634375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.48951,
+            "process_cpu_ms_per_frame": 2.60840855625,
+            "rss_bytes": 21839872,
+            "frame_p50_ms": 2.453976,
+            "frame_p95_ms": 3.442948,
+            "frame_max_ms": 4.742055,
+            "frame_mean_ms": 2.62412905
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.064078,
+            "process_cpu_ms_per_frame": 3.6155745500000003,
+            "rss_bytes": 23773184,
+            "frame_p50_ms": 2.928601,
+            "frame_p95_ms": 3.644327,
+            "frame_max_ms": 3.959052,
+            "frame_mean_ms": 3.00382923125
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.931002,
+            "process_cpu_ms_per_frame": 2.99070993125,
+            "rss_bytes": 22343680,
+            "frame_p50_ms": 2.873469,
+            "frame_p95_ms": 3.700104,
+            "frame_max_ms": 3.900744,
+            "frame_mean_ms": 3.0036688125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.419961,
+            "process_cpu_ms_per_frame": 4.3600522625,
+            "rss_bytes": 25505792,
+            "frame_p50_ms": 3.477229,
+            "frame_p95_ms": 4.287423,
+            "frame_max_ms": 4.738379,
+            "frame_mean_ms": 3.59134374375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.55155,
+            "process_cpu_ms_per_frame": 2.57777344375,
+            "rss_bytes": 22716416,
+            "frame_p50_ms": 2.4446,
+            "frame_p95_ms": 3.418138,
+            "frame_max_ms": 3.8635,
+            "frame_mean_ms": 2.5932411625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.934403,
+            "process_cpu_ms_per_frame": 3.7751065125,
+            "rss_bytes": 25051136,
+            "frame_p50_ms": 2.957305,
+            "frame_p95_ms": 3.545566,
+            "frame_max_ms": 3.809285,
+            "frame_mean_ms": 3.04171395
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "121fcd12ebb14788c8abb61e7159e5f2bd1dbd696bf1a75ed84e91d90b97b246",
+      "elapsed_seconds": 6.424719813999218,
+      "load_average": [
+        2.3212890625,
+        2.2646484375,
+        4.77294921875
+      ],
+      "cases": {
+        "case=\"list-filter-cycle-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.68492,
+            "process_cpu_ms_per_frame": 2.62497473125,
+            "rss_bytes": 19652608,
+            "frame_p50_ms": 2.557482,
+            "frame_p95_ms": 3.554673,
+            "frame_max_ms": 4.444994,
+            "frame_mean_ms": 2.71136553125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 4.266166,
+            "process_cpu_ms_per_frame": 3.68366513125,
+            "rss_bytes": 22040576,
+            "frame_p50_ms": 2.969105,
+            "frame_p95_ms": 4.295548,
+            "frame_max_ms": 5.728906,
+            "frame_mean_ms": 3.20443311875
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.951474,
+            "process_cpu_ms_per_frame": 3.1395488812499996,
+            "rss_bytes": 22413312,
+            "frame_p50_ms": 2.923056,
+            "frame_p95_ms": 4.053702,
+            "frame_max_ms": 5.397779,
+            "frame_mean_ms": 3.1531489437499998
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.570233,
+            "process_cpu_ms_per_frame": 4.199456425,
+            "rss_bytes": 23932928,
+            "frame_p50_ms": 3.41557,
+            "frame_p95_ms": 4.521823,
+            "frame_max_ms": 5.845311,
+            "frame_mean_ms": 3.64817765
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.537277,
+            "process_cpu_ms_per_frame": 2.66593346875,
+            "rss_bytes": 23932928,
+            "frame_p50_ms": 2.496687,
+            "frame_p95_ms": 3.597786,
+            "frame_max_ms": 4.328751,
+            "frame_mean_ms": 2.6774698125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.426159,
+            "process_cpu_ms_per_frame": 3.76531028125,
+            "rss_bytes": 25817088,
+            "frame_p50_ms": 3.001737,
+            "frame_p95_ms": 4.039097,
+            "frame_max_ms": 5.378406,
+            "frame_mean_ms": 3.164083425
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.94598,
+            "process_cpu_ms_per_frame": 3.063209675,
+            "rss_bytes": 22609920,
+            "frame_p50_ms": 2.911602,
+            "frame_p95_ms": 3.785113,
+            "frame_max_ms": 5.43753,
+            "frame_mean_ms": 3.0766084875
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 4.245101,
+            "process_cpu_ms_per_frame": 4.13475956875,
+            "rss_bytes": 24584192,
+            "frame_p50_ms": 3.378704,
+            "frame_p95_ms": 4.234808,
+            "frame_max_ms": 4.445314,
+            "frame_mean_ms": 3.54159671875
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.496515,
+            "process_cpu_ms_per_frame": 2.71999808125,
+            "rss_bytes": 24584192,
+            "frame_p50_ms": 2.50444,
+            "frame_p95_ms": 3.589257,
+            "frame_max_ms": 5.219296,
+            "frame_mean_ms": 2.73192093125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.586868,
+            "process_cpu_ms_per_frame": 3.99948495625,
+            "rss_bytes": 25415680,
+            "frame_p50_ms": 3.011599,
+            "frame_p95_ms": 4.311133,
+            "frame_max_ms": 4.961573,
+            "frame_mean_ms": 3.2655706625
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.907086,
+            "process_cpu_ms_per_frame": 3.0043707625,
+            "rss_bytes": 25415680,
+            "frame_p50_ms": 2.91053,
+            "frame_p95_ms": 3.480948,
+            "frame_max_ms": 5.006364,
+            "frame_mean_ms": 3.01776900625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.640712,
+            "process_cpu_ms_per_frame": 4.8660521,
+            "rss_bytes": 25927680,
+            "frame_p50_ms": 3.825945,
+            "frame_p95_ms": 4.886218,
+            "frame_max_ms": 5.607212,
+            "frame_mean_ms": 3.98319786875
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "889536d7cf282e9a3d0f3675c4e3228a0b10c78c9e1e3f7702720f228c6a33ce",
+      "elapsed_seconds": 6.229780159000256,
+      "load_average": [
+        2.9853515625,
+        2.4248046875,
+        4.7724609375
+      ],
+      "cases": {
+        "case=\"list-filter-cycle-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.023021,
+            "process_cpu_ms_per_frame": 2.86434844375,
+            "rss_bytes": 20652032,
+            "frame_p50_ms": 2.844224,
+            "frame_p95_ms": 3.114159,
+            "frame_max_ms": 3.721233,
+            "frame_mean_ms": 2.8798402125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.584739,
+            "process_cpu_ms_per_frame": 3.86289236875,
+            "rss_bytes": 23416832,
+            "frame_p50_ms": 3.291693,
+            "frame_p95_ms": 3.886862,
+            "frame_max_ms": 6.562853,
+            "frame_mean_ms": 3.38907024375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.442982,
+            "process_cpu_ms_per_frame": 2.4625081375,
+            "rss_bytes": 21880832,
+            "frame_p50_ms": 2.441162,
+            "frame_p95_ms": 2.618573,
+            "frame_max_ms": 3.325679,
+            "frame_mean_ms": 2.47242089375
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.943012,
+            "process_cpu_ms_per_frame": 3.5564353124999997,
+            "rss_bytes": 23068672,
+            "frame_p50_ms": 3.010734,
+            "frame_p95_ms": 3.413195,
+            "frame_max_ms": 4.746988,
+            "frame_mean_ms": 3.06856785625
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.064802,
+            "process_cpu_ms_per_frame": 3.078359325,
+            "rss_bytes": 23142400,
+            "frame_p50_ms": 3.015784,
+            "frame_p95_ms": 3.492091,
+            "frame_max_ms": 4.510692,
+            "frame_mean_ms": 3.0924555
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.498671,
+            "process_cpu_ms_per_frame": 4.156026918749999,
+            "rss_bytes": 25026560,
+            "frame_p50_ms": 3.430273,
+            "frame_p95_ms": 4.430669,
+            "frame_max_ms": 5.756555,
+            "frame_mean_ms": 3.59527818125
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.482038,
+            "process_cpu_ms_per_frame": 2.625407925,
+            "rss_bytes": 23240704,
+            "frame_p50_ms": 2.461007,
+            "frame_p95_ms": 3.508872,
+            "frame_max_ms": 4.337647,
+            "frame_mean_ms": 2.6365598125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.398196,
+            "process_cpu_ms_per_frame": 3.8268472312500004,
+            "rss_bytes": 23818240,
+            "frame_p50_ms": 2.968991,
+            "frame_p95_ms": 4.248779,
+            "frame_max_ms": 5.303404,
+            "frame_mean_ms": 3.167455725
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.346213,
+            "process_cpu_ms_per_frame": 3.0820180749999997,
+            "rss_bytes": 23818240,
+            "frame_p50_ms": 2.865086,
+            "frame_p95_ms": 4.023638,
+            "frame_max_ms": 5.960186,
+            "frame_mean_ms": 3.09532071875
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.903518,
+            "process_cpu_ms_per_frame": 4.5476311875,
+            "rss_bytes": 26742784,
+            "frame_p50_ms": 3.519145,
+            "frame_p95_ms": 4.651449,
+            "frame_max_ms": 5.845304,
+            "frame_mean_ms": 3.75327320625
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.474956,
+            "process_cpu_ms_per_frame": 2.63346785625,
+            "rss_bytes": 23953408,
+            "frame_p50_ms": 2.481121,
+            "frame_p95_ms": 3.442579,
+            "frame_max_ms": 4.531399,
+            "frame_mean_ms": 2.6455182125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.998237,
+            "process_cpu_ms_per_frame": 4.034007293749999,
+            "rss_bytes": 24956928,
+            "frame_p50_ms": 3.053958,
+            "frame_p95_ms": 4.218146,
+            "frame_max_ms": 5.164611,
+            "frame_mean_ms": 3.25456383125
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "e4ab87346e280d95b6ccddf53fb8f5fb1076a057c85ac33867dfea92836b5d12",
+      "elapsed_seconds": 6.328548315999797,
+      "load_average": [
+        3.38720703125,
+        2.517578125,
+        4.7900390625
+      ],
+      "cases": {
+        "case=\"list-filter-cycle-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.603496,
+            "process_cpu_ms_per_frame": 2.501324,
+            "rss_bytes": 19185664,
+            "frame_p50_ms": 2.449484,
+            "frame_p95_ms": 2.902903,
+            "frame_max_ms": 3.241419,
+            "frame_mean_ms": 2.51802893125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.275387,
+            "process_cpu_ms_per_frame": 3.55778018125,
+            "rss_bytes": 21540864,
+            "frame_p50_ms": 2.997826,
+            "frame_p95_ms": 3.455014,
+            "frame_max_ms": 4.115931,
+            "frame_mean_ms": 3.065125325
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.970042,
+            "process_cpu_ms_per_frame": 2.96801676875,
+            "rss_bytes": 21983232,
+            "frame_p50_ms": 2.922478,
+            "frame_p95_ms": 3.319696,
+            "frame_max_ms": 4.18315,
+            "frame_mean_ms": 2.98209370625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.358267,
+            "process_cpu_ms_per_frame": 4.10005025625,
+            "rss_bytes": 23388160,
+            "frame_p50_ms": 3.476159,
+            "frame_p95_ms": 4.34746,
+            "frame_max_ms": 4.93504,
+            "frame_mean_ms": 3.614289375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.507749,
+            "process_cpu_ms_per_frame": 2.6350903312500003,
+            "rss_bytes": 23388160,
+            "frame_p50_ms": 2.508244,
+            "frame_p95_ms": 3.475074,
+            "frame_max_ms": 4.306903,
+            "frame_mean_ms": 2.6527637
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.788409,
+            "process_cpu_ms_per_frame": 3.9168899500000003,
+            "rss_bytes": 23748608,
+            "frame_p50_ms": 3.108065,
+            "frame_p95_ms": 4.108739,
+            "frame_max_ms": 4.952374,
+            "frame_mean_ms": 3.2505487
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.58259,
+            "process_cpu_ms_per_frame": 2.9074013375,
+            "rss_bytes": 23748608,
+            "frame_p50_ms": 2.897014,
+            "frame_p95_ms": 3.179751,
+            "frame_max_ms": 3.499241,
+            "frame_mean_ms": 2.9347682
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 4.063083,
+            "process_cpu_ms_per_frame": 4.39177995,
+            "rss_bytes": 24178688,
+            "frame_p50_ms": 3.555289,
+            "frame_p95_ms": 4.684171,
+            "frame_max_ms": 6.694648,
+            "frame_mean_ms": 3.73240541875
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.957686,
+            "process_cpu_ms_per_frame": 2.60430694375,
+            "rss_bytes": 21901312,
+            "frame_p50_ms": 2.558044,
+            "frame_p95_ms": 2.923371,
+            "frame_max_ms": 3.085952,
+            "frame_mean_ms": 2.61756768125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.241102,
+            "process_cpu_ms_per_frame": 4.2332175437499995,
+            "rss_bytes": 24915968,
+            "frame_p50_ms": 3.186157,
+            "frame_p95_ms": 3.552967,
+            "frame_max_ms": 4.52632,
+            "frame_mean_ms": 3.23073984375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.965029,
+            "process_cpu_ms_per_frame": 3.0932259125000003,
+            "rss_bytes": 22515712,
+            "frame_p50_ms": 2.958601,
+            "frame_p95_ms": 4.525941,
+            "frame_max_ms": 5.221267,
+            "frame_mean_ms": 3.113259175
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 4.017384,
+            "process_cpu_ms_per_frame": 4.76673864375,
+            "rss_bytes": 25329664,
+            "frame_p50_ms": 3.792328,
+            "frame_p95_ms": 4.4944,
+            "frame_max_ms": 5.308818,
+            "frame_mean_ms": 3.8870545375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "1d01159e23b9be3c190371f4a5dc22d26545bac7bd9a5baa2e25a3fa877d37f2",
+      "elapsed_seconds": 6.300974927000425,
+      "load_average": [
+        3.99951171875,
+        2.7119140625,
+        4.806640625
+      ],
+      "cases": {
+        "case=\"list-filter-cycle-views-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.569471,
+            "process_cpu_ms_per_frame": 3.0718225375,
+            "rss_bytes": 20377600,
+            "frame_p50_ms": 2.951314,
+            "frame_p95_ms": 3.784258,
+            "frame_max_ms": 4.031168,
+            "frame_mean_ms": 3.08643226875
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 4.439908,
+            "process_cpu_ms_per_frame": 4.0316020125000005,
+            "rss_bytes": 23334912,
+            "frame_p50_ms": 3.385366,
+            "frame_p95_ms": 4.130143,
+            "frame_max_ms": 4.761488,
+            "frame_mean_ms": 3.5057335375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.561273,
+            "process_cpu_ms_per_frame": 2.5487061375,
+            "rss_bytes": 21848064,
+            "frame_p50_ms": 2.506385,
+            "frame_p95_ms": 2.838667,
+            "frame_max_ms": 3.169807,
+            "frame_mean_ms": 2.55917994375
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[430,720]/scale=1.0": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.077925,
+            "process_cpu_ms_per_frame": 3.63644115625,
+            "rss_bytes": 23011328,
+            "frame_p50_ms": 2.955216,
+            "frame_p95_ms": 3.509512,
+            "frame_max_ms": 3.751845,
+            "frame_mean_ms": 3.03641274375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.910023,
+            "process_cpu_ms_per_frame": 2.9696721375,
+            "rss_bytes": 23093248,
+            "frame_p50_ms": 2.901883,
+            "frame_p95_ms": 3.364352,
+            "frame_max_ms": 3.905079,
+            "frame_mean_ms": 2.98195565625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.90926,
+            "process_cpu_ms_per_frame": 4.2135625,
+            "rss_bytes": 24981504,
+            "frame_p50_ms": 3.423697,
+            "frame_p95_ms": 4.295655,
+            "frame_max_ms": 5.781763,
+            "frame_mean_ms": 3.6026720625
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.538757,
+            "process_cpu_ms_per_frame": 2.6430443437499997,
+            "rss_bytes": 23195648,
+            "frame_p50_ms": 2.506542,
+            "frame_p95_ms": 3.236704,
+            "frame_max_ms": 4.770599,
+            "frame_mean_ms": 2.653902225
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[516,864]/scale=1.2000000476837158": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.011964,
+            "process_cpu_ms_per_frame": 3.86583604375,
+            "rss_bytes": 23744512,
+            "frame_p50_ms": 3.03576,
+            "frame_p95_ms": 5.15811,
+            "frame_max_ms": 5.788532,
+            "frame_mean_ms": 3.275299725
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.14079,
+            "process_cpu_ms_per_frame": 2.99413766875,
+            "rss_bytes": 23744512,
+            "frame_p50_ms": 2.96657,
+            "frame_p95_ms": 3.364703,
+            "frame_max_ms": 3.74861,
+            "frame_mean_ms": 3.00725170625
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-views-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.714883,
+            "process_cpu_ms_per_frame": 4.620273625,
+            "rss_bytes": 26673152,
+            "frame_p50_ms": 3.551552,
+            "frame_p95_ms": 4.363169,
+            "frame_max_ms": 8.172826,
+            "frame_mean_ms": 3.7479408375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-update\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 2.983238,
+            "process_cpu_ms_per_frame": 2.586013425,
+            "rss_bytes": 23883776,
+            "frame_p50_ms": 2.501604,
+            "frame_p95_ms": 3.224616,
+            "frame_max_ms": 3.488715,
+            "frame_mean_ms": 2.59622868125
+          },
+          "actual_threads": 1,
+          "work": {
+            "items": 32
+          }
+        },
+        "case=\"list-filter-cycle-graph-frame\"/size=[645,1080]/scale=1.5": {
+          "frame_samples": 160,
+          "metrics": {
+            "first_paint_ms": 3.088677,
+            "process_cpu_ms_per_frame": 4.2702850625,
+            "rss_bytes": 25083904,
+            "frame_p50_ms": 3.191758,
+            "frame_p95_ms": 5.339839,
+            "frame_max_ms": 5.972495,
+            "frame_mean_ms": 3.4137863375
+          },
+          "actual_threads": 4,
+          "work": {
+            "items": 32
+          }
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-13T11:20:25.879415+00:00",
+  "history": {
+    "series": "5e339558f7f6dd6be76dd7b87b999e1c94eeee6b246e26ae088f5fc0b7855429",
+    "note": "IR filter/restore cycles, second same-binary arm; both transitions and native completion included. Same IR core as workload 2, corrected timing unit and case names only.",
+    "archived_at": "2026-11-13T11:20:46.827288+00:00",
+    "report_sha256": "29fe8becb3d8d41c6f0b857c5f28185af158eb5a755938daa07a98477aeebb2c"
+  }
+}

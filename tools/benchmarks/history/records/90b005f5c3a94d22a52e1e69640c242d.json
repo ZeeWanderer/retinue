@@ -1,0 +1,678 @@
+{
+  "schema": 1,
+  "suite": "gui-execution",
+  "purpose": "regression",
+  "id": "90b005f5c3a94d22a52e1e69640c242d",
+  "created_at": "2026-11-17T19:56:22.085268+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 9,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "b1278068c8ce0fa88973855b9a7f181f5d1163b59e17b9807b81db11c7a9da08",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "5e7f47fe7ffca08aae55ea10b692652154640d2794ef620b84afc93cf34db3d4",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "fbf5da941f0654afadeea43d06b4a698ef92ac41a1e715079b8bed0b4c01cced"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.4-ogc6.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 3,
+    "adapter": "overlay",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0\nLLVM version: 23.1.5",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [
+        "template-kernel-prototype"
+      ],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin",
+      "CXX_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 240,
+      "hz": 0,
+      "cases": "relic-scroll-layout",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "578bcf434a9f6c28722474c571d06be55ff3c88788c2a6843ccc128e809dabb2",
+      "elapsed_seconds": 2.265012249998108,
+      "load_average": [
+        3.61767578125,
+        10.7275390625,
+        11.73876953125
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 6.13776,
+            "process_cpu_ms_per_frame": 9.506161908333333,
+            "rss_bytes": 84418560,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.203574,
+            "phase_native_p50_ms": 2.289662,
+            "phase_native_p95_ms": 3.065889,
+            "phase_owner_p50_ms": 2.126731,
+            "phase_owner_p95_ms": 3.543828,
+            "phase_record_p50_ms": 0.088086,
+            "phase_record_p95_ms": 0.133598,
+            "phase_total_p50_ms": 4.808915,
+            "phase_total_p95_ms": 6.362207,
+            "phase_update_p50_ms": 1.585218,
+            "phase_update_p95_ms": 2.78799,
+            "frame_p50_ms": 4.810169,
+            "frame_p95_ms": 6.363763,
+            "frame_max_ms": 7.822646,
+            "frame_mean_ms": 4.872271270833333
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 3.857829,
+            "process_cpu_ms_per_frame": 7.525212341666667,
+            "rss_bytes": 83972096,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.199925,
+            "phase_native_p50_ms": 2.036095,
+            "phase_native_p95_ms": 2.566687,
+            "phase_owner_p50_ms": 1.18695,
+            "phase_owner_p95_ms": 2.440653,
+            "phase_record_p50_ms": 0.079999,
+            "phase_record_p95_ms": 0.113851,
+            "phase_total_p50_ms": 3.37739,
+            "phase_total_p95_ms": 5.050761,
+            "phase_update_p50_ms": 0.831645,
+            "phase_update_p95_ms": 1.999237,
+            "frame_p50_ms": 3.379,
+            "frame_p95_ms": 5.05173,
+            "frame_max_ms": 7.347864,
+            "frame_mean_ms": 3.5154220916666667
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "9ecb472c969b9a4ede2267dd711dc1a9beda70a2027e6275f31ff014c18e5b15",
+      "elapsed_seconds": 2.3529259229981108,
+      "load_average": [
+        3.21484375,
+        10.40673828125,
+        11.623046875
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 5.605539,
+            "process_cpu_ms_per_frame": 9.8070675875,
+            "rss_bytes": 85102592,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.151659,
+            "phase_native_p50_ms": 2.303266,
+            "phase_native_p95_ms": 3.320525,
+            "phase_owner_p50_ms": 2.357014,
+            "phase_owner_p95_ms": 4.384527,
+            "phase_record_p50_ms": 0.092775,
+            "phase_record_p95_ms": 0.178384,
+            "phase_total_p50_ms": 4.960166,
+            "phase_total_p95_ms": 7.086594,
+            "phase_update_p50_ms": 1.730778,
+            "phase_update_p95_ms": 3.472853,
+            "frame_p50_ms": 4.961347,
+            "frame_p95_ms": 7.08803,
+            "frame_max_ms": 13.681557,
+            "frame_mean_ms": 5.10193445
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 3.796173,
+            "process_cpu_ms_per_frame": 7.849210770833333,
+            "rss_bytes": 84725760,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.209206,
+            "phase_native_p50_ms": 2.100653,
+            "phase_native_p95_ms": 2.549812,
+            "phase_owner_p50_ms": 1.239045,
+            "phase_owner_p95_ms": 2.585011,
+            "phase_record_p50_ms": 0.085355,
+            "phase_record_p95_ms": 0.128717,
+            "phase_total_p50_ms": 3.497681,
+            "phase_total_p95_ms": 5.246497,
+            "phase_update_p50_ms": 0.877718,
+            "phase_update_p95_ms": 2.089642,
+            "frame_p50_ms": 3.49873,
+            "frame_p95_ms": 5.24743,
+            "frame_max_ms": 6.887033,
+            "frame_mean_ms": 3.7037786083333333
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "bcbf596cc691c8707e575b211050491c2812165c1d4967e90da4c51dce695a15",
+      "elapsed_seconds": 2.3436989349938813,
+      "load_average": [
+        3.75830078125,
+        10.39990234375,
+        11.6142578125
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 6.147455,
+            "process_cpu_ms_per_frame": 9.667818341666667,
+            "rss_bytes": 84914176,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.18238,
+            "phase_native_p50_ms": 2.439799,
+            "phase_native_p95_ms": 3.068686,
+            "phase_owner_p50_ms": 2.146202,
+            "phase_owner_p95_ms": 4.193466,
+            "phase_record_p50_ms": 0.092441,
+            "phase_record_p95_ms": 0.137766,
+            "phase_total_p50_ms": 4.762923,
+            "phase_total_p95_ms": 7.010107,
+            "phase_update_p50_ms": 1.606275,
+            "phase_update_p95_ms": 3.486044,
+            "frame_p50_ms": 4.763992,
+            "frame_p95_ms": 7.024295,
+            "frame_max_ms": 8.043733,
+            "frame_mean_ms": 5.041991883333333
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.417107,
+            "process_cpu_ms_per_frame": 7.65316845,
+            "rss_bytes": 84901888,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.15646,
+            "phase_native_p50_ms": 1.882211,
+            "phase_native_p95_ms": 2.621903,
+            "phase_owner_p50_ms": 1.320898,
+            "phase_owner_p95_ms": 2.815563,
+            "phase_record_p50_ms": 0.085595,
+            "phase_record_p95_ms": 0.149235,
+            "phase_total_p50_ms": 3.469942,
+            "phase_total_p95_ms": 5.2041,
+            "phase_update_p50_ms": 0.931669,
+            "phase_update_p95_ms": 2.2917,
+            "frame_p50_ms": 3.470738,
+            "frame_p95_ms": 5.206632,
+            "frame_max_ms": 6.90836,
+            "frame_mean_ms": 3.672199866666667
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "d7885f57597c71c9cc087f260e1c7ea872bc611f8a4b8d23fd51d415a8efff13",
+      "elapsed_seconds": 2.5088091689976864,
+      "load_average": [
+        5.0830078125,
+        10.455078125,
+        11.61865234375
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 6.609065,
+            "process_cpu_ms_per_frame": 10.564976087500002,
+            "rss_bytes": 84922368,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.148462,
+            "phase_native_p50_ms": 2.532204,
+            "phase_native_p95_ms": 3.064411,
+            "phase_owner_p50_ms": 2.765593,
+            "phase_owner_p95_ms": 5.181743,
+            "phase_record_p50_ms": 0.106869,
+            "phase_record_p95_ms": 0.191696,
+            "phase_total_p50_ms": 5.334521,
+            "phase_total_p95_ms": 7.820137,
+            "phase_update_p50_ms": 2.055826,
+            "phase_update_p95_ms": 4.249403,
+            "frame_p50_ms": 5.335619,
+            "frame_p95_ms": 7.821398,
+            "frame_max_ms": 9.160679,
+            "frame_mean_ms": 5.508805708333333
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.257383,
+            "process_cpu_ms_per_frame": 8.164560025,
+            "rss_bytes": 85098496,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.203671,
+            "phase_native_p50_ms": 2.104269,
+            "phase_native_p95_ms": 2.72809,
+            "phase_owner_p50_ms": 1.411993,
+            "phase_owner_p95_ms": 3.232493,
+            "phase_record_p50_ms": 0.094401,
+            "phase_record_p95_ms": 0.164827,
+            "phase_total_p50_ms": 3.677754,
+            "phase_total_p95_ms": 5.507564,
+            "phase_update_p50_ms": 0.994385,
+            "phase_update_p95_ms": 2.544092,
+            "frame_p50_ms": 3.678887,
+            "frame_p95_ms": 5.511757,
+            "frame_max_ms": 8.018429,
+            "frame_mean_ms": 3.9048293916666665
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "b1e776488db8389de444e363a5f29456afec7bb16b1d5be14bbe0c322080df50",
+      "elapsed_seconds": 2.5645249119988875,
+      "load_average": [
+        5.39697265625,
+        10.4306640625,
+        11.6044921875
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 6.167284,
+            "process_cpu_ms_per_frame": 10.796769820833333,
+            "rss_bytes": 85286912,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.177268,
+            "phase_native_p50_ms": 2.643238,
+            "phase_native_p95_ms": 3.659012,
+            "phase_owner_p50_ms": 2.921955,
+            "phase_owner_p95_ms": 5.391839,
+            "phase_record_p50_ms": 0.112327,
+            "phase_record_p95_ms": 0.183835,
+            "phase_total_p50_ms": 5.648431,
+            "phase_total_p95_ms": 8.495104,
+            "phase_update_p50_ms": 2.134179,
+            "phase_update_p95_ms": 4.406358,
+            "frame_p50_ms": 5.649704,
+            "frame_p95_ms": 8.496451,
+            "frame_max_ms": 10.917371,
+            "frame_mean_ms": 5.8176329375
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.156829,
+            "process_cpu_ms_per_frame": 8.073069425,
+            "rss_bytes": 85581824,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.16017,
+            "phase_native_p50_ms": 2.069377,
+            "phase_native_p95_ms": 2.724854,
+            "phase_owner_p50_ms": 1.422598,
+            "phase_owner_p95_ms": 2.917915,
+            "phase_record_p50_ms": 0.09165,
+            "phase_record_p95_ms": 0.152714,
+            "phase_total_p50_ms": 3.606063,
+            "phase_total_p95_ms": 5.413394,
+            "phase_update_p50_ms": 0.999948,
+            "phase_update_p95_ms": 2.311158,
+            "frame_p50_ms": 3.60754,
+            "frame_p95_ms": 5.414443,
+            "frame_max_ms": 6.459843,
+            "frame_mean_ms": 3.7920535291666666
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "52bc5b8f949a529b2caac3ef355eed89c664987466d484a380cf01cf69942719",
+      "elapsed_seconds": 2.240356681002595,
+      "load_average": [
+        5.22998046875,
+        10.23388671875,
+        11.52783203125
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 5.779593,
+            "process_cpu_ms_per_frame": 9.588373041666667,
+            "rss_bytes": 85049344,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.158513,
+            "phase_native_p50_ms": 2.356195,
+            "phase_native_p95_ms": 2.949998,
+            "phase_owner_p50_ms": 2.316175,
+            "phase_owner_p95_ms": 3.989489,
+            "phase_record_p50_ms": 0.091998,
+            "phase_record_p95_ms": 0.129588,
+            "phase_total_p50_ms": 4.733133,
+            "phase_total_p95_ms": 6.460891,
+            "phase_update_p50_ms": 1.756806,
+            "phase_update_p95_ms": 3.191562,
+            "frame_p50_ms": 4.733937,
+            "frame_p95_ms": 6.462228,
+            "frame_max_ms": 7.9057,
+            "frame_mean_ms": 4.918630308333333
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.518447,
+            "process_cpu_ms_per_frame": 7.121105204166667,
+            "rss_bytes": 84901888,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.179343,
+            "phase_native_p50_ms": 1.709441,
+            "phase_native_p95_ms": 2.629695,
+            "phase_owner_p50_ms": 1.220333,
+            "phase_owner_p95_ms": 2.714997,
+            "phase_record_p50_ms": 0.083414,
+            "phase_record_p95_ms": 0.126667,
+            "phase_total_p50_ms": 3.161336,
+            "phase_total_p95_ms": 5.017064,
+            "phase_update_p50_ms": 0.871048,
+            "phase_update_p95_ms": 2.178667,
+            "frame_p50_ms": 3.162425,
+            "frame_p95_ms": 5.022338,
+            "frame_max_ms": 8.165369,
+            "frame_mean_ms": 3.4094070833333334
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "9be17265c4ae01ed66235636cb86694d85e6a6434bec8af0fee3e6ab4ac443c9",
+      "elapsed_seconds": 2.32476482099446,
+      "load_average": [
+        5.4521484375,
+        10.19677734375,
+        11.5087890625
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 5.873051,
+            "process_cpu_ms_per_frame": 9.4409785,
+            "rss_bytes": 85487616,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.185319,
+            "phase_native_p50_ms": 2.24471,
+            "phase_native_p95_ms": 3.120467,
+            "phase_owner_p50_ms": 2.45927,
+            "phase_owner_p95_ms": 4.099076,
+            "phase_record_p50_ms": 0.090217,
+            "phase_record_p95_ms": 0.157941,
+            "phase_total_p50_ms": 4.699978,
+            "phase_total_p95_ms": 6.825036,
+            "phase_update_p50_ms": 1.769184,
+            "phase_update_p95_ms": 3.138472,
+            "frame_p50_ms": 4.700917,
+            "frame_p95_ms": 6.826235,
+            "frame_max_ms": 8.365626,
+            "frame_mean_ms": 4.926702975
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 3.992566,
+            "process_cpu_ms_per_frame": 8.066458191666666,
+            "rss_bytes": 84631552,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.142692,
+            "phase_native_p50_ms": 2.186633,
+            "phase_native_p95_ms": 2.898699,
+            "phase_owner_p50_ms": 1.202964,
+            "phase_owner_p95_ms": 2.515575,
+            "phase_record_p50_ms": 0.083196,
+            "phase_record_p95_ms": 0.110209,
+            "phase_total_p50_ms": 3.548023,
+            "phase_total_p95_ms": 4.943043,
+            "phase_update_p50_ms": 0.856086,
+            "phase_update_p95_ms": 2.056782,
+            "frame_p50_ms": 3.548926,
+            "frame_p95_ms": 4.944168,
+            "frame_max_ms": 7.565687,
+            "frame_mean_ms": 3.7826974
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "ea1376bb9d365596a3e0ab2015478134eeb31c1e90a3e97e05b8bbcc3d6d4647",
+      "elapsed_seconds": 2.2823677219930687,
+      "load_average": [
+        5.3154296875,
+        10.00927734375,
+        11.43310546875
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 5.941,
+            "process_cpu_ms_per_frame": 9.479826829166665,
+            "rss_bytes": 84557824,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.157425,
+            "phase_native_p50_ms": 2.228678,
+            "phase_native_p95_ms": 2.917803,
+            "phase_owner_p50_ms": 2.226951,
+            "phase_owner_p95_ms": 3.871914,
+            "phase_record_p50_ms": 0.090548,
+            "phase_record_p95_ms": 0.139839,
+            "phase_total_p50_ms": 4.799782,
+            "phase_total_p95_ms": 6.616203,
+            "phase_update_p50_ms": 1.660813,
+            "phase_update_p95_ms": 3.002288,
+            "frame_p50_ms": 4.801158,
+            "frame_p95_ms": 6.617749,
+            "frame_max_ms": 8.043138,
+            "frame_mean_ms": 4.916962366666667
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.796015,
+            "process_cpu_ms_per_frame": 7.675564195833333,
+            "rss_bytes": 84385792,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.148634,
+            "phase_native_p50_ms": 1.770323,
+            "phase_native_p95_ms": 2.717975,
+            "phase_owner_p50_ms": 1.228748,
+            "phase_owner_p95_ms": 2.609223,
+            "phase_record_p50_ms": 0.084555,
+            "phase_record_p95_ms": 0.134348,
+            "phase_total_p50_ms": 3.489523,
+            "phase_total_p95_ms": 5.194808,
+            "phase_update_p50_ms": 0.867248,
+            "phase_update_p95_ms": 2.126899,
+            "frame_p50_ms": 3.491171,
+            "frame_p95_ms": 5.196095,
+            "frame_max_ms": 6.965922,
+            "frame_mean_ms": 3.5661952125
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "e59abd6e965bd2a52c7453aea8a6154142252941e073bfed2ddfab72ef5e4818",
+      "elapsed_seconds": 2.4352161810020334,
+      "load_average": [
+        5.1298828125,
+        9.892578125,
+        11.3876953125
+      ],
+      "cases": {
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.0": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 5.879158,
+            "process_cpu_ms_per_frame": 9.838446483333334,
+            "rss_bytes": 85192704,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.163032,
+            "phase_native_p50_ms": 2.478794,
+            "phase_native_p95_ms": 3.081489,
+            "phase_owner_p50_ms": 2.131843,
+            "phase_owner_p95_ms": 3.910627,
+            "phase_record_p50_ms": 0.091335,
+            "phase_record_p95_ms": 0.137184,
+            "phase_total_p50_ms": 4.742163,
+            "phase_total_p95_ms": 6.970871,
+            "phase_update_p50_ms": 1.610704,
+            "phase_update_p95_ms": 3.209836,
+            "frame_p50_ms": 4.74404,
+            "frame_p95_ms": 6.972595,
+            "frame_max_ms": 9.546192,
+            "frame_mean_ms": 5.039147725
+          },
+          "actual_threads": 4,
+          "work": {}
+        },
+        "case=\"relic-scroll-layout\"/size=[2560,1440]/scale=1.2000000476837158": {
+          "frame_samples": 240,
+          "metrics": {
+            "first_paint_ms": 4.728188,
+            "process_cpu_ms_per_frame": 8.427501608333333,
+            "rss_bytes": 84987904,
+            "phase_layout_wait_p50_ms": 0.0,
+            "phase_layout_wait_p95_ms": 0.172913,
+            "phase_native_p50_ms": 2.181813,
+            "phase_native_p95_ms": 3.17087,
+            "phase_owner_p50_ms": 1.386742,
+            "phase_owner_p95_ms": 3.216194,
+            "phase_record_p50_ms": 0.09284,
+            "phase_record_p95_ms": 0.152316,
+            "phase_total_p50_ms": 3.881959,
+            "phase_total_p95_ms": 6.312887,
+            "phase_update_p50_ms": 0.979251,
+            "phase_update_p95_ms": 2.515263,
+            "frame_p50_ms": 3.883429,
+            "frame_p95_ms": 6.314435,
+            "frame_max_ms": 10.765551,
+            "frame_mean_ms": 4.080257316666667
+          },
+          "actual_threads": 4,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-17T19:57:25.031849+00:00",
+  "history": {
+    "series": "73aa18942ebdc999a3fc9b49b9a8e59812ec749ba5dcb134a5bd1473304847e5",
+    "note": "Primary overlay compaction: focused Relic control, previous native; Steam and Fossilize closed. Advisory, not an accepted baseline.",
+    "archived_at": "2026-11-17T19:57:41.411894+00:00",
+    "report_sha256": "2c6cb6345fa60a86f2b5e8736f372ba04046a7e1f9f238513953d502454acb82"
+  }
+}

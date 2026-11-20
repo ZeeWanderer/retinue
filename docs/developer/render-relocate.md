@@ -1,20 +1,8 @@
 # Relocate And Raster Caching
 
-Status: shared Wayland surface integration is implemented and verified with pixel,
-protocol and isolated-compositor tests. See the
-[integrated measurements](../../tools/benchmarks/history/2026-11-03-native-relocate.md)
-for gains and regressions by workload/thread count. Live game FPS is not verified.
-Use the [copy-executor follow-up](../../tools/benchmarks/history/2026-11-03-copy-executors.md)
-for corrected GUI comparisons and the decision to keep queued native copying.
-The [reference-architecture study](../../tools/benchmarks/history/2026-11-03-reference-scroll.md)
-compares exact no-relocation controls and actual Qt/Blend2D CPU paths.
-The [effective-cost follow-up](../../tools/benchmarks/history/2026-11-03-effective-cost.md)
-measures cache-aware admission and its small remaining metadata cost.
-The earlier prototype measurements are not acceptance results for this path.
-See the [prototype measurements](../../tools/benchmarks/history/2026-11-03-target-reuse.md)
-and [production investigation](../../tools/benchmarks/history/2026-11-03-relocate-production.md).
-The [independent-source comparison](../../tools/benchmarks/history/2026-11-03-independent-source.md)
-covers queued blits, scratch snapshots and final presentation-copy costs.
+Relocation reuses intact pixels in an acquired presentation buffer. Its benefit
+depends on the cost of the drawing it replaces. Compare identical scroll traces
+with and without reuse in the [benchmark workflows](../../tools/benchmarks/README.md).
 This extends the [render pipeline](render-pipeline.md), not the UI authoring API.
 
 ## Decision
@@ -198,7 +186,7 @@ uses coverage-weighted summaries, not a command walk for every candidate.
 The execution model ranks alternatives; it does not predict milliseconds. The
 planner cancels common replay work, compares avoided work with transfer traffic
 and setup, and requires a margin before selecting relocation. Worker scaling and
-weights come from [warm native experiments](../../tools/benchmarks/history/2026-11-04-cost-calibration.md),
+weights come from warm native workload measurements,
 with held-out workloads checked for decision regret. Pixel validity is independent
 of this advisory score. A large reduction in repaired area is not a latency guarantee.
 Cold preparation and cache admission still have separate policy; this is not a

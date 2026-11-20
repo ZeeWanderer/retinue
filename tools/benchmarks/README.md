@@ -30,7 +30,7 @@ smoke checks, not enough for a performance verdict. GUI traces have fixed length
 `BENCH_SAMPLES` controls overlay warm frames or complete optimizer-quality traces.
 
 Raw reports live in ignored `research/`. Selected compact measurements can be
-archived in [history/](history/README.md). Each session has an ID, UTC timestamps
+archived as [JSON records](history/records/). Each session has an ID, UTC timestamps
 and source provenance. A commit identifies the measured code; it need not have
 its own run or become a baseline.
 The rail scenario measures window chrome with an unpopulated Foundry, not a
@@ -116,6 +116,8 @@ python3 tools/benchmarks/history.py compare research/bench/candidate/report.json
 
 Archive meaningful changes, release checkpoints and reproduced regressions, not
 every commit. Records are immutable; baseline selection is separate and explicit.
+Export the time series with `python3 tools/benchmarks/timeline.py site OUTPUT_DIR` or a timing report with
+`python3 tools/benchmarks/timeline.py lnt MEASUREMENT_ID > run.json`.
 Git retains the selection reason and previous measurement. Series match workload,
 fixtures, build settings and machine, not source commit. A dirty run can be kept
 as evidence but cannot be an accepted baseline. Raw frames, traces, binaries and
@@ -152,7 +154,7 @@ All art must be warmed before timing; the test asserts this throughout the trace
 serial and persistent row-parallel copies using the same source and plan. Workload
 3 uses a loaded static rail and rejects unequal per-frame copy/repair coverage.
 `GUI_BENCH_CASES` filters these experiment cases. The copy workers and overrides
-are test/benchmark-only; see the [executor results](history/2026-11-03-copy-executors.md).
+are test/benchmark-only.
 `GUI_BENCH_MATERIALIZATIONS=explicit|fragments|none` compares Foundry's authored
 instance rasters, automatic fragments only, or no optional rasters. Asset and glyph
 caches stay enabled. Reports include preparation work and raster residency;
@@ -359,8 +361,6 @@ Pixel checks precede timing, including same-clip repair checks and the existing
 glow-only rounding tolerance. Current-frame presentation damage is not reduced by
 target reuse. Repeat in fresh processes and alternate `GUI_BENCH_REVERSE=1` before
 drawing conclusions; this measures neither input/layout nor compositor/game cost.
-See the [recorded prototype results](history/2026-11-03-target-reuse.md) and their
-coverage limits before using them to choose a production policy.
 
 For a synthetic control with substantial admitted row/viewport rasters:
 
@@ -387,8 +387,7 @@ include work descriptors, submission and completion times. Repeat in fresh
 processes; validate models on held-out sizes and mixtures. Compare selected-plan
 regret against the faster measured alternative, not predicted-time accuracy.
 This isolates native work. Whole-frame tests must still account for planning,
-remaining repairs, cache state and UI overhead. See the
-[calibration report](history/2026-11-04-cost-calibration.md).
+remaining repairs, cache state and UI overhead.
 
 For opt-in recording-phase detail, `make bench-gui GUI_BENCH_FEATURES=profiling
 GUI_BENCH_CASE=independent_source_benchmark GUI_BENCH_OUTPUT=...` includes the

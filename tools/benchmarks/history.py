@@ -37,11 +37,9 @@ def record_path(root, record_id):
     return root / "records" / (record_id + ".json")
 
 
-def archive(root, source, note):
+def archive(root, source, note=""):
     report = read_json(source)
     key = series(report)
-    if not note.strip():
-        raise ValueError("an archive note is required")
     path = record_path(root, report["id"])
     compact = copy.deepcopy(report)
     provenance = compact["provenance"]
@@ -49,9 +47,11 @@ def archive(root, source, note):
         provenance["untracked_sha256"] = fingerprint(provenance.pop("untracked"))
     for run in compact["runs"]:
         run.pop("raw", None)
-    compact["history"] = {"series": key, "note": note,
+    compact["history"] = {"series": key,
                           "archived_at": datetime.now(timezone.utc).isoformat(),
                           "report_sha256": fingerprint(report)}
+    if note.strip():
+        compact["history"]["note"] = note.strip()
     path.parent.mkdir(parents=True, exist_ok=True)
     write_json(path, compact, exclusive=True)
     return path
@@ -103,7 +103,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     record = commands.add_parser("archive", help="Copy compact results, not raw traces or executables")
     record.add_argument("report", type=Path)
-    record.add_argument("--note", required=True)
+    record.add_argument("--note", default="", help="optional experiment label")
     baseline = commands.add_parser("baseline", help="Explicitly select an archived clean measurement")
     baseline.add_argument("id")
     baseline.add_argument("--reason", required=True)

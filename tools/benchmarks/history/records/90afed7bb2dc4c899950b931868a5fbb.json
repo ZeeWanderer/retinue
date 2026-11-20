@@ -1,0 +1,538 @@
+{
+  "schema": 1,
+  "suite": "gui-rails",
+  "purpose": "regression",
+  "id": "90afed7bb2dc4c899950b931868a5fbb",
+  "created_at": "2026-11-13T00:37:27.504374+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 7,
+  "provenance": {
+    "revision": "bc083f77139becbf3f2708a831e7bd9a0dd4b6a2",
+    "patch_sha256": "9f461f61eaa51e0d579a54a0fe2729b16020e7a617d6de8a1bec19c0d8e0c6ac",
+    "submodules": "0464e1c8f1f43c861a0c73d4e59437fff255cdd9 crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n 0d2422b512a94f6a5325745a27275abbeb26ebbf tools/wf-luau-decompiler (v2.6.1-4-g0d2422b)",
+    "binary_sha256": "c34a0230d67b14a77fb946977f6484f094ed997d076b317e70aa1d4732d70754",
+    "dirty": true,
+    "external_assets": {},
+    "untracked_sha256": "007fcc01be83c0aff2b01deccf52468d3a27eb0287de1207651cf2689676ec24"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.2.15-ogc1.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 1,
+    "adapter": "gui",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin",
+      "CXX_version": "Homebrew clang version 23.1.5\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.5_1/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 120,
+      "hz": 0,
+      "cases": "",
+      "timeout": 1800,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "c2b2b952cebe6d9a458b54e7e59ba0628548f58fc5fee1cb4d6b483ef12a5837",
+      "elapsed_seconds": 0.5020487240035436,
+      "load_average": [
+        4.05810546875,
+        6.39306640625,
+        6.19580078125
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.24791100000000002,
+            "paint_ms_p95": 0.535097,
+            "frame_p50_ms": 0.469553,
+            "frame_p95_ms": 0.765873,
+            "frame_max_ms": 2.119726,
+            "frame_mean_ms": 0.5086918860759494
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.329517,
+            "paint_ms_p95": 1.0546920000000002,
+            "frame_p50_ms": 0.813645,
+            "frame_p95_ms": 1.393821,
+            "frame_max_ms": 2.680259,
+            "frame_mean_ms": 0.8547736419753086
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.296058,
+            "paint_ms_p95": 1.0396649999999998,
+            "frame_p50_ms": 0.787018,
+            "frame_p95_ms": 1.331285,
+            "frame_max_ms": 2.371917,
+            "frame_mean_ms": 0.8331315641025642
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.42383299999999996,
+            "paint_ms_p95": 1.0504449999999999,
+            "frame_p50_ms": 0.895613,
+            "frame_p95_ms": 1.4336419999999999,
+            "frame_max_ms": 2.1701200000000003,
+            "frame_mean_ms": 0.9474827236842105
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "94a65f07ff54b5d21bc667fffb359dc857a1bda4d4d65f3a00042e4c662fe47c",
+      "elapsed_seconds": 0.4875913949945243,
+      "load_average": [
+        4.05810546875,
+        6.39306640625,
+        6.19580078125
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.307256,
+            "paint_ms_p95": 0.638051,
+            "frame_p50_ms": 0.465483,
+            "frame_p95_ms": 0.986743,
+            "frame_max_ms": 2.756946,
+            "frame_mean_ms": 0.5402473918918919
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.297158,
+            "paint_ms_p95": 0.886007,
+            "frame_p50_ms": 0.7885340000000001,
+            "frame_p95_ms": 1.137274,
+            "frame_max_ms": 2.596161,
+            "frame_mean_ms": 0.7890540493827161
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.33504999999999996,
+            "paint_ms_p95": 1.134506,
+            "frame_p50_ms": 0.775154,
+            "frame_p95_ms": 1.538655,
+            "frame_max_ms": 2.9185499999999998,
+            "frame_mean_ms": 0.8707287866666666
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.3719,
+            "paint_ms_p95": 0.9005350000000001,
+            "frame_p50_ms": 0.85414,
+            "frame_p95_ms": 1.251695,
+            "frame_max_ms": 2.143004,
+            "frame_mean_ms": 0.8650405769230769
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "057457a42a3e36e376644690036cfa77939c2de798d51c682abd305cc127e028",
+      "elapsed_seconds": 0.5201905560024898,
+      "load_average": [
+        4.05810546875,
+        6.39306640625,
+        6.19580078125
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 73,
+          "metrics": {
+            "layout_ms_p95": 0.272527,
+            "paint_ms_p95": 0.581071,
+            "frame_p50_ms": 0.504051,
+            "frame_p95_ms": 0.839899,
+            "frame_max_ms": 2.694718,
+            "frame_mean_ms": 0.5684611369863014
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.47949,
+            "paint_ms_p95": 1.52471,
+            "frame_p50_ms": 0.973094,
+            "frame_p95_ms": 1.975578,
+            "frame_max_ms": 3.116475,
+            "frame_mean_ms": 1.0796775657894737
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 80,
+          "metrics": {
+            "layout_ms_p95": 0.29686300000000004,
+            "paint_ms_p95": 1.157971,
+            "frame_p50_ms": 0.798213,
+            "frame_p95_ms": 1.454834,
+            "frame_max_ms": 2.863457,
+            "frame_mean_ms": 0.8463002375
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.383125,
+            "paint_ms_p95": 1.735116,
+            "frame_p50_ms": 0.845163,
+            "frame_p95_ms": 1.8729,
+            "frame_max_ms": 2.669879,
+            "frame_mean_ms": 0.9263000506329114
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "b3faf30a8afc6f9f922032969f804f611b8e431fc5f00b7e6542fb9c126ee2b5",
+      "elapsed_seconds": 0.5104048749999492,
+      "load_average": [
+        4.05810546875,
+        6.39306640625,
+        6.19580078125
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.31992099999999996,
+            "paint_ms_p95": 0.65674,
+            "frame_p50_ms": 0.531126,
+            "frame_p95_ms": 0.9657309999999999,
+            "frame_max_ms": 2.0702030000000002,
+            "frame_mean_ms": 0.5675493417721519
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 85,
+          "metrics": {
+            "layout_ms_p95": 0.297014,
+            "paint_ms_p95": 1.373483,
+            "frame_p50_ms": 0.8451869999999999,
+            "frame_p95_ms": 1.707254,
+            "frame_max_ms": 2.628721,
+            "frame_mean_ms": 0.8549641529411764
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 76,
+          "metrics": {
+            "layout_ms_p95": 0.344034,
+            "paint_ms_p95": 1.5248460000000001,
+            "frame_p50_ms": 0.813104,
+            "frame_p95_ms": 1.791894,
+            "frame_max_ms": 2.5646039999999997,
+            "frame_mean_ms": 0.8844263421052632
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 74,
+          "metrics": {
+            "layout_ms_p95": 0.460115,
+            "paint_ms_p95": 1.045259,
+            "frame_p50_ms": 0.830022,
+            "frame_p95_ms": 1.446126,
+            "frame_max_ms": 2.8947629999999998,
+            "frame_mean_ms": 0.9217974459459459
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "e78d30acc20d00e70f0f64b2a1ddb143cc0e5767c2556215856ad5c5eedd34e6",
+      "elapsed_seconds": 0.48306203500396805,
+      "load_average": [
+        4.1337890625,
+        6.36962890625,
+        6.18896484375
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 81,
+          "metrics": {
+            "layout_ms_p95": 0.23722500000000002,
+            "paint_ms_p95": 0.424468,
+            "frame_p50_ms": 0.45139,
+            "frame_p95_ms": 0.661693,
+            "frame_max_ms": 0.83716,
+            "frame_mean_ms": 0.43311835802469134
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.362238,
+            "paint_ms_p95": 1.01312,
+            "frame_p50_ms": 0.8315389999999999,
+            "frame_p95_ms": 1.3439780000000001,
+            "frame_max_ms": 2.646288,
+            "frame_mean_ms": 0.8181535949367089
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.347075,
+            "paint_ms_p95": 0.856024,
+            "frame_p50_ms": 0.7295090000000001,
+            "frame_p95_ms": 1.229223,
+            "frame_max_ms": 2.6342179999999997,
+            "frame_mean_ms": 0.7565847468354431
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 77,
+          "metrics": {
+            "layout_ms_p95": 0.6669160000000001,
+            "paint_ms_p95": 1.042171,
+            "frame_p50_ms": 0.831316,
+            "frame_p95_ms": 2.1503949999999996,
+            "frame_max_ms": 2.359175,
+            "frame_mean_ms": 0.9150025584415584
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "0d31ec2537b65a05f11795a7194a758bbcecf5bf41f4209cc84a2457fe26ce95",
+      "elapsed_seconds": 0.48012096599995857,
+      "load_average": [
+        4.1337890625,
+        6.36962890625,
+        6.18896484375
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 73,
+          "metrics": {
+            "layout_ms_p95": 0.263444,
+            "paint_ms_p95": 0.446377,
+            "frame_p50_ms": 0.44954,
+            "frame_p95_ms": 0.694127,
+            "frame_max_ms": 1.992784,
+            "frame_mean_ms": 0.48649561643835615
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.300714,
+            "paint_ms_p95": 1.108862,
+            "frame_p50_ms": 0.771946,
+            "frame_p95_ms": 1.328585,
+            "frame_max_ms": 2.607035,
+            "frame_mean_ms": 0.8269430897435898
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 73,
+          "metrics": {
+            "layout_ms_p95": 0.320277,
+            "paint_ms_p95": 0.961616,
+            "frame_p50_ms": 0.785675,
+            "frame_p95_ms": 1.267231,
+            "frame_max_ms": 2.209393,
+            "frame_mean_ms": 0.8104216575342466
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 78,
+          "metrics": {
+            "layout_ms_p95": 0.42044499999999996,
+            "paint_ms_p95": 0.9284640000000001,
+            "frame_p50_ms": 0.833284,
+            "frame_p95_ms": 1.382222,
+            "frame_max_ms": 2.451492,
+            "frame_mean_ms": 0.8894192307692308
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    },
+    {
+      "raw_sha256": "5f8bcba3554a65b31616a3f2ab52115ed93abdb507d4f57a11bcb2f2f07c993f",
+      "elapsed_seconds": 0.5017162680014735,
+      "load_average": [
+        4.1337890625,
+        6.36962890625,
+        6.18896484375
+      ],
+      "cases": {
+        "width=1920/height=1080/scale=1.0/bounding_damage=false": {
+          "frame_samples": 82,
+          "metrics": {
+            "layout_ms_p95": 0.24308700000000003,
+            "paint_ms_p95": 0.543366,
+            "frame_p50_ms": 0.49307799999999996,
+            "frame_p95_ms": 0.736063,
+            "frame_max_ms": 2.099835,
+            "frame_mean_ms": 0.5009496219512195
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.0/bounding_damage=false": {
+          "frame_samples": 73,
+          "metrics": {
+            "layout_ms_p95": 0.39916799999999997,
+            "paint_ms_p95": 1.458059,
+            "frame_p50_ms": 0.9713700000000001,
+            "frame_p95_ms": 1.9530509999999999,
+            "frame_max_ms": 2.915113,
+            "frame_mean_ms": 0.983566
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=1.25/bounding_damage=false": {
+          "frame_samples": 79,
+          "metrics": {
+            "layout_ms_p95": 0.361598,
+            "paint_ms_p95": 0.952643,
+            "frame_p50_ms": 0.7150299999999999,
+            "frame_p95_ms": 1.261555,
+            "frame_max_ms": 2.665955,
+            "frame_mean_ms": 0.7604051392405063
+          },
+          "actual_threads": null,
+          "work": {}
+        },
+        "width=2560/height=1440/scale=2.0/bounding_damage=false": {
+          "frame_samples": 75,
+          "metrics": {
+            "layout_ms_p95": 0.442981,
+            "paint_ms_p95": 1.150904,
+            "frame_p50_ms": 0.8917,
+            "frame_p95_ms": 1.564192,
+            "frame_max_ms": 2.5294179999999997,
+            "frame_mean_ms": 0.93732408
+          },
+          "actual_threads": null,
+          "work": {}
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-13T00:37:31.014105+00:00",
+  "history": {
+    "series": "7022a9fdd6c5318d5a8310024b46894cca7d51e1bbede0eead215b70d9acbcb8",
+    "note": "Full post-layout headless matrix, seven independent runs; no accepted baseline changed. GUI/PoE modes compare layout execution within the same binary, not the previous release.",
+    "archived_at": "2026-11-13T01:19:58.259807+00:00",
+    "report_sha256": "de8042ded39900c7ea56df704dd873bdccd5f82b2a590dff532fab3c52cc82c8"
+  }
+}
