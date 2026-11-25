@@ -14,8 +14,8 @@ make profile-build PROFILE_APP=poe2companion PROFILE_FLAVOR=dev \
 ```
 
 The target builds only the selected executable, with Rust and native C++ debug
-information. It preserves the chosen flavor's optimization and assertion settings,
-including development companion reload. Native rendering stays Release. Nothing
+information. It preserves the chosen flavor's optimization and assertion settings.
+Native rendering stays Release. Nothing
 is staged, launched or reloaded; normal build output is untouched.
 
 Each new output directory contains the executable, its `.debug` file, an ELF

@@ -1,13 +1,11 @@
 use std::fs::{self, File};
 use std::io::Seek;
 use std::os::unix::ffi::OsStringExt;
-#[cfg(debug_assertions)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-#[cfg(debug_assertions)]
 use retinue_client::child::ChildIdentity;
 use rustix::process::{Pid, Signal, kill_process};
 
@@ -56,7 +54,7 @@ impl Launch {
             companion,
         };
         launch.wait_for(|this| this.game_pid().is_some());
-        if reload && cfg!(debug_assertions) {
+        if reload {
             launch.wait_for_log("reload.watching");
         }
         launch
@@ -99,7 +97,6 @@ impl Launch {
         self.wait_for(|this| this.log().contains(text));
     }
 
-    #[cfg(debug_assertions)]
     fn replace(&self, script: Option<&[u8]>) {
         let candidate = self.path("candidate");
         match script {
@@ -251,7 +248,7 @@ fn reload_probe_checks_owner_schema_and_build_before_starting_services() {
             || true,
         )
         .unwrap();
-        let accepted = cfg!(debug_assertions) && schema == 1 && owner == std::process::id();
+        let accepted = schema == 1 && owner == std::process::id();
         assert_eq!(result.status.success(), accepted);
         assert_eq!(
             result.stdout,
@@ -284,7 +281,6 @@ fn interrupt_returns_signal_code_without_terminating_the_launched_game() {
 }
 
 #[test]
-#[cfg(debug_assertions)]
 fn identical_staged_binary_reloads_same_pid_without_relaunching_the_game() {
     let _serial = SERIAL.lock().unwrap();
     let mut launch = Launch::start(true);
@@ -318,7 +314,6 @@ fn identical_staged_binary_reloads_same_pid_without_relaunching_the_game() {
 }
 
 #[test]
-#[cfg(debug_assertions)]
 fn rejected_candidate_recovers_old_monitor_and_is_not_retried() {
     let _serial = SERIAL.lock().unwrap();
     let mut launch = Launch::start(true);
@@ -334,7 +329,6 @@ fn rejected_candidate_recovers_old_monitor_and_is_not_retried() {
 }
 
 #[test]
-#[cfg(debug_assertions)]
 fn signal_during_reload_probe_cancels_and_reaps_the_probe() {
     let _serial = SERIAL.lock().unwrap();
     let mut launch = Launch::start(true);
@@ -357,7 +351,6 @@ fn signal_during_reload_probe_cancels_and_reaps_the_probe() {
 }
 
 #[test]
-#[cfg(debug_assertions)]
 fn explicit_opt_out_keeps_old_wrapper_until_the_game_exits() {
     let _serial = SERIAL.lock().unwrap();
     let mut launch = Launch::start(false);

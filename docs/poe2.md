@@ -14,8 +14,9 @@ Properties > General > Launch Options**:
 ```
 
 The launched command, arguments and exit status are preserved. Observer failure
-does not terminate the game. For development, use `poe2companiond`: rebuilding with
-`make dev-companion` reloads it without restarting the game. Set
+does not terminate the game. Use `poe2companion` for release rendering performance
+or `poe2companiond` for debug diagnostics. Rebuilding the same flavor reloads
+the companion once Evaluate is closed, without restarting the game. Set
 `POE2COMPANION_DEV_RELOAD=0` to disable reload.
 
 To attach separately to an already running game:

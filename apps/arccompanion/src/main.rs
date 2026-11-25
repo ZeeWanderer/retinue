@@ -12,7 +12,7 @@ const APP_ID: u32 = 1808500;
 #[command(
     version,
     about = "ARC Raiders launch scaffold; gameplay observation is not implemented",
-    after_help = "Environment:\n  ARCCOMPANION_DEV_RELOAD=0  Disable automatic development reload"
+    after_help = "Environment:\n  ARCCOMPANION_DEV_RELOAD=0  Disable automatic reload"
 )]
 struct Args {
     #[command(subcommand)]

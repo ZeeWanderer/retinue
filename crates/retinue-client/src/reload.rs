@@ -74,7 +74,7 @@ impl<S: Checkpoint> Handoff<S> {
 
     fn validate(&self, config: &Config, owner: u32) -> Result<(), String> {
         if self.schema != config.schema || self.owner != owner || !self.installed.is_absolute() {
-            return Err("incompatible development reload handoff".into());
+            return Err("incompatible reload handoff".into());
         }
         self.state.validate()?;
         if let Some(child) = &self.child {
@@ -89,7 +89,7 @@ impl<S: Checkpoint> Handoff<S> {
         let mut file = File::from(fd);
         serde_json::to_writer(&mut file, self).map_err(|error| error.to_string())?;
         if file.metadata().map_err(|error| error.to_string())?.len() > MAX_BYTES {
-            return Err("development reload handoff is too large".into());
+            return Err("reload handoff is too large".into());
         }
         file.rewind().map_err(|error| error.to_string())?;
         fcntl_add_seals(&file, SEALS).map_err(|error| error.to_string())?;
@@ -108,28 +108,49 @@ fn decode<S: Checkpoint>(
         .read_to_end(&mut bytes)
         .map_err(|error| error.to_string())?;
     if bytes.len() as u64 > MAX_BYTES {
-        return Err("development reload handoff is too large".into());
+        return Err("reload handoff is too large".into());
     }
     let handoff: Handoff<S> = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
     handoff.validate(config, owner)?;
     Ok(handoff)
 }
 
+pub fn installed_path() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    Ok(stable_install_path(exe))
+}
+
+fn stable_install_path(exe: PathBuf) -> PathBuf {
+    // A Homebrew upgrade changes the keg, not the formula's opt path.
+    for keg in exe.ancestors().skip(1) {
+        let Some(formula) = keg.parent() else {
+            continue;
+        };
+        let Some(cellar) = formula.parent() else {
+            continue;
+        };
+        if cellar.file_name().is_some_and(|n| n == "Cellar")
+            && let (Some(prefix), Some(name), Ok(suffix)) =
+                (cellar.parent(), formula.file_name(), exe.strip_prefix(keg))
+        {
+            let stable = prefix.join("opt").join(name).join(suffix);
+            if stable.canonicalize().is_ok_and(|p| p == exe) {
+                return stable;
+            }
+        }
+    }
+    exe
+}
+
 impl Config {
     pub fn enabled(&self) -> Result<bool, String> {
-        self.enabled_for_build(cfg!(debug_assertions), std::env::var(self.enable_env))
+        self.enabled_for_value(std::env::var(self.enable_env))
     }
 
-    fn enabled_for_build(
-        &self,
-        debug: bool,
-        value: Result<String, std::env::VarError>,
-    ) -> Result<bool, String> {
+    fn enabled_for_value(&self, value: Result<String, std::env::VarError>) -> Result<bool, String> {
         match value.as_deref() {
-            Err(std::env::VarError::NotPresent) => Ok(debug),
+            Err(std::env::VarError::NotPresent) | Ok("1") => Ok(true),
             Ok("0") => Ok(false),
-            Ok("1") if debug => Ok(true),
-            Ok("1") => Err(format!("{} requires a development build", self.enable_env)),
             _ => Err(format!("{} must be 0 or 1", self.enable_env)),
         }
     }
@@ -144,7 +165,7 @@ impl Config {
             return Ok(None);
         };
         if !self.enabled()? {
-            return Err("development reload handoff without reload enabled".into());
+            return Err("received handoff without reload enabled".into());
         }
         let fd: i32 = raw
             .to_str()
@@ -169,8 +190,8 @@ impl Config {
 
     /// Validate a candidate's stdin checkpoint without starting its services.
     pub fn check<S: Checkpoint>(&self) -> Result<(), String> {
-        if !cfg!(debug_assertions) {
-            return Err("replacement is not a development build".into());
+        if !self.enabled()? {
+            return Err("replacement has reload disabled".into());
         }
         let owner = rustix::process::getppid()
             .ok_or("reload parent disappeared")?
@@ -198,7 +219,7 @@ impl Gate {
     }
 
     pub fn pending(&self) -> bool {
-        cfg!(debug_assertions) && self.0.requested.load(Ordering::Acquire)
+        self.0.requested.load(Ordering::Acquire)
     }
 
     pub fn interaction(&self, active: bool) {
@@ -457,12 +478,10 @@ fn digest(file: &mut File) -> Result<[u8; 32], String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(debug_assertions)]
     use crate::child::{Monitor, Outcome};
     use std::io::Write;
     use std::os::fd::IntoRawFd;
     use std::os::unix::fs::PermissionsExt;
-    #[cfg(debug_assertions)]
     use std::time::Instant;
 
     const CONFIG: Config = Config {
@@ -489,21 +508,39 @@ mod tests {
     }
 
     #[test]
-    fn reload_defaults_to_development_builds_and_allows_opt_out() {
-        for debug in [false, true] {
-            assert_eq!(
-                CONFIG
-                    .enabled_for_build(debug, Err(std::env::VarError::NotPresent))
-                    .unwrap(),
-                debug
-            );
-            assert!(!CONFIG.enabled_for_build(debug, Ok("0".into())).unwrap());
-            for invalid in ["", "true", "2"] {
-                assert!(CONFIG.enabled_for_build(debug, Ok(invalid.into())).is_err());
-            }
+    fn reload_defaults_on_and_allows_opt_out() {
+        assert!(
+            CONFIG
+                .enabled_for_value(Err(std::env::VarError::NotPresent))
+                .unwrap()
+        );
+        assert!(CONFIG.enabled_for_value(Ok("1".into())).unwrap());
+        assert!(!CONFIG.enabled_for_value(Ok("0".into())).unwrap());
+        for invalid in ["", "true", "2"] {
+            assert!(CONFIG.enabled_for_value(Ok(invalid.into())).is_err());
         }
-        assert!(CONFIG.enabled_for_build(true, Ok("1".into())).unwrap());
-        assert!(CONFIG.enabled_for_build(false, Ok("1".into())).is_err());
+    }
+
+    #[test]
+    fn reload_follows_opt_only_when_it_identifies_the_running_keg() {
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir.path().canonicalize().unwrap();
+        let opt = prefix.join("opt/retinue");
+        std::fs::create_dir(opt.parent().unwrap()).unwrap();
+        for v in ["1", "2"] {
+            let bin = prefix.join("Cellar/retinue").join(v).join("bin");
+            std::fs::create_dir_all(&bin).unwrap();
+            std::fs::write(bin.join("companion"), v).unwrap();
+        }
+        let first = prefix.join("Cellar/retinue/1");
+        let exe = first.join("bin/companion");
+        std::os::unix::fs::symlink(&first, &opt).unwrap();
+        let watched = stable_install_path(exe.clone());
+        assert_eq!(watched, opt.join("bin/companion"));
+        std::fs::remove_file(&opt).unwrap();
+        std::os::unix::fs::symlink(prefix.join("Cellar/retinue/2"), &opt).unwrap();
+        assert_eq!(std::fs::read(watched).unwrap(), b"2");
+        assert_eq!(stable_install_path(exe.clone()), exe);
     }
 
     #[test]
@@ -516,12 +553,6 @@ mod tests {
         gate.interaction(true);
         assert!(!gate.quiesce_if_idle(true, &stopping));
         gate.interaction(false);
-        if !cfg!(debug_assertions) {
-            assert!(!gate.quiesce_if_idle(true, &stopping));
-            assert!(!gate.pending());
-            assert!(!gate.approved());
-            return;
-        }
         assert!(gate.quiesce_if_idle(true, &stopping));
         assert!(stopping.load(Ordering::Acquire));
         assert!(gate.approved());
@@ -634,7 +665,7 @@ mod tests {
                 }
                 CONFIG.resume::<State>()
             };
-            let expected = if !cfg!(debug_assertions) || case == "disabled" {
+            let expected = if case == "disabled" {
                 Some("without reload enabled")
             } else {
                 match case.as_str() {
@@ -649,8 +680,7 @@ mod tests {
             } else {
                 assert!(result.unwrap().is_some());
             }
-            let consumed = cfg!(debug_assertions)
-                && !matches!(case.as_str(), "disabled" | "unsealed" | "partial");
+            let consumed = !matches!(case.as_str(), "disabled" | "unsealed" | "partial");
             assert_eq!(std::env::var_os(CONFIG.handoff_env).is_none(), consumed);
             if consumed {
                 assert!(!std::path::Path::new(&format!("/proc/self/fd/{fd}")).exists());
@@ -742,7 +772,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
     fn watcher_returns_candidate_suppresses_rejected_stamp_and_joins_on_drop() {
         let dir = tempfile::tempdir().unwrap();
         let installed = dir.path().join("companion");
@@ -883,7 +912,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
     fn exec_preserves_pid_and_child_parentage_and_resumes_reaping() {
         const CHILD: &str = "RETINUE_CLIENT_TEST_REEXEC";
         if std::env::var_os(CHILD).is_some() {

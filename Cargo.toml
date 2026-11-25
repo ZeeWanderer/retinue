@@ -20,6 +20,12 @@ exclude = [".cache"]
 [profile.dev.package."*"]
 opt-level = 3
 
+[profile.dev.package.retinue-ui]
+opt-level = 3
+
+[profile.dev.package.retinue-render]
+opt-level = 3
+
 [profile.test]
 debug = "line-tables-only"
 

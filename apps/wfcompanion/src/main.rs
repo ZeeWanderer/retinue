@@ -63,7 +63,7 @@ Environment:
   WFCOMPANION_KSCREEN_DOCTOR   kscreen-doctor executable path
   WFCOMPANION_FFMPEG           ffmpeg executable path
   WFCOMPANION_LOG              Incident log path
-  WFCOMPANION_DEV_RELOAD       Set to 0 to disable automatic development reload
+  WFCOMPANION_DEV_RELOAD       Set to 0 to disable automatic reload
 "#;
 
 #[derive(Debug, Eq, PartialEq)]

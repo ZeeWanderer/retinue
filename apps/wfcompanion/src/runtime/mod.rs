@@ -30,7 +30,7 @@ pub(crate) fn run(
             (handoff.installed, handoff.child, handoff.state)
         }
         None => (
-            std::env::current_exe().map_err(|error| error.to_string())?,
+            retinue_client::reload::installed_path()?,
             None,
             reload::State::default(),
         ),

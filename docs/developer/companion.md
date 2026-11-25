@@ -403,13 +403,14 @@ Build and test commands live in [`workflows.md`](workflows.md). The
 [`wfinspect` guide](../wfinspect.md) covers live/offline queries, captures,
 resource extraction, script analysis, and event subscriptions.
 
-Development builds reload by default. Build with `make dev-companion` and use Steam launch options:
+Release and development companions reload by default. For normal play, build
+with `make prod-companion` and use Steam launch options:
 
 ```text
-/path/to/retinue/wfcompaniond launch -- %command%
+/path/to/retinue/wfcompanion launch -- %command%
 ```
 
-Later `make dev-companion` builds replace companion in the same process once
+Later builds of the same flavor replace the companion in the same process once
 relic screens, interaction and captures are idle. The game stays running;
 inventory ordering and pending snapshots survive. A brief observation gap is
 reported by `reload.exec` and `reload.resumed` in the incident log. A rejected
@@ -419,11 +420,12 @@ the launch wrapper. Set `WFCOMPANION_DEV_RELOAD=0` to disable reload.
 `retinue-client` shares signal handling, child ownership, candidate validation and
 same-PID replacement across companions. Each game owns its idle gate and handoff
 state. PoE2 drains publication and retains unacknowledged/coalesced observations;
-ARC's launch stub retains only child ownership. Their development builds also
+ARC's launch stub retains only child ownership. Both profiles also
 reload by default, controlled by `POE2COMPANION_DEV_RELOAD` and
 `ARCCOMPANION_DEV_RELOAD` respectively.
 
-Production builds require a restart after staging. Replacing a running executable
+Older release companions built without a watcher need a one-time restart.
+Replacing a running executable
 can invalidate KWin screenshot authorization until it restarts or reloads.
 
 Preview commands live in the [user companion guide](../companion.md#previews).

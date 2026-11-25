@@ -41,10 +41,7 @@ pub(crate) fn launch(
             eprintln!("arccompanion: reload.resumed");
             (handoff.installed, Some(child))
         }
-        None => (
-            std::env::current_exe().map_err(|error| error.to_string())?,
-            None,
-        ),
+        None => (reload::installed_path()?, None),
     };
     let mut rejected = None;
     loop {

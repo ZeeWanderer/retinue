@@ -3,7 +3,6 @@ mod support;
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::os::unix::ffi::OsStringExt;
-#[cfg(debug_assertions)]
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -11,7 +10,6 @@ use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-#[cfg(debug_assertions)]
 use retinue_client::child::ChildIdentity;
 use rustix::process::{Pid, Signal, kill_process};
 use serde_json::json;
@@ -161,7 +159,6 @@ impl Launch {
         kill_process(Pid::from_raw(self.companion.id() as i32).unwrap(), signal).unwrap();
     }
 
-    #[cfg(debug_assertions)]
     fn replace(&self) {
         let candidate = self.path("candidate");
         fs::copy(BINARY, &candidate).unwrap();
@@ -266,7 +263,7 @@ async fn fatal_publish_failure_preserves_child_exit_and_remains_interruptible() 
         support::read(&mut reader).await;
         support::acknowledge(&mut writer, &json!(999)).await;
         launch
-            .wait_for_log("waiting for launched command or development reload")
+            .wait_for_log("waiting for launched command or companion reload")
             .await;
         let child = launch.game_pid().await;
         assert!(running(child));
@@ -324,7 +321,6 @@ async fn child_exit_with_missing_daemon_has_bounded_drain_and_one_ensure() {
 }
 
 #[tokio::test]
-#[cfg(debug_assertions)]
 async fn same_pid_reload_replays_pending_sample_without_relaunching_game() {
     let _serial = SERIAL.lock().unwrap();
     let (mut launch, listener) = Launch::start(true, Some(game("read marker; exit 7")), true);
@@ -362,7 +358,6 @@ async fn same_pid_reload_replays_pending_sample_without_relaunching_game() {
 }
 
 #[tokio::test]
-#[cfg(debug_assertions)]
 async fn interrupt_during_reload_drain_cancels_replacement_and_preserves_game() {
     let _serial = SERIAL.lock().unwrap();
     let (mut launch, listener) = Launch::start(true, Some(game("read marker; exit 7")), true);

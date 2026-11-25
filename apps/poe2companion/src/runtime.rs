@@ -146,13 +146,7 @@ pub fn run(
             eprintln!("poe2companion: reload.resumed");
             (handoff.installed, handoff.child, handoff.state)
         }
-        None => (
-            retinue_client::executable_path()
-                .ok_or("executable path unavailable")?
-                .to_owned(),
-            None,
-            State::default(),
-        ),
+        None => (reload::installed_path()?, None, State::default()),
     };
     let mode = if launch.is_some() || child.is_some() {
         "launch"
@@ -351,7 +345,7 @@ async fn observe(
                     failure => {
                         let error = match failure { Some((_, Err(error))) => error.to_string(), _ => "publisher stopped".into() };
                         if mode != "launch" { break Err(error); }
-                        eprintln!("poe2companion: {error}; waiting for launched command or development reload");
+                        eprintln!("poe2companion: {error}; waiting for launched command or companion reload");
                         failed = true;
                     }
                 }

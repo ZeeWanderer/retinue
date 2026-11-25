@@ -51,8 +51,8 @@ wfcli companion uninstall
 
 Use `dev/bin/wfcompanion` or `wfcompaniond` to test a development build. Its diagnostic
 HUD hides automatically when Warframe starts; production starts with it hidden.
-Development builds reload when rebuilt and idle; set `WFCOMPANION_DEV_RELOAD=0`
-to disable this.
+Both builds reload when replaced and idle. Use `wfcompanion` for release rendering
+performance; set `WFCOMPANION_DEV_RELOAD=0` to disable reload.
 
 ## Standalone Mode
 
