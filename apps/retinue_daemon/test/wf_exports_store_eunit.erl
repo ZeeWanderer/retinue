@@ -43,56 +43,58 @@ queued_catalogs_cache_built_entities_test() ->
     end.
 
 code_change_discards_obsolete_cache_shapes_test() ->
-    CurrentKey = {4, entities, mods, undefined, false},
+    CurrentKey = {5, entities, mods, undefined, false},
     OldKey = {entities, mods, undefined, false},
     State = #{cache => #{CurrentKey => current, OldKey => old}},
     {ok, Updated} = wf_exports_store:code_change(undefined, State, undefined),
     ?assertEqual(#{CurrentKey => current}, maps:get(cache, Updated)).
 
-concurrent_cache_updates_do_not_restore_stale_entries_test() ->
+dataset_build_is_single_flight_and_retries_after_builder_exit_test() ->
     Started = setup_stores(),
-    TestPid = self(),
-    Seed = fun(_Request, State) ->
-        {{ok, seeded}, State#{cache => #{shared => old}}}
-    end,
-    application:set_env(retinue_daemon, daemon_catalog_execute_fun, Seed),
+    Owner = whereis(wf_exports_store),
+    Parent = self(),
     try
-        ?assertEqual({ok, seeded}, submit_and_wait_reply(#{kind => seed})),
-        Execute = fun(Request, State) ->
-            Kind = maps:get(kind, Request),
-            TestPid ! {catalog_worker_started, Kind, self()},
-            receive continue -> ok end,
-            Cache = maps:get(cache, State),
-            case Kind of
-                update_shared -> {{ok, updated}, State#{cache => Cache#{shared => new}}};
-                add_other -> {{ok, added}, State#{cache => Cache#{other => value}}};
-                inspect -> {{ok, Cache}, State}
-            end
-        end,
-        application:set_env(retinue_daemon, daemon_catalog_execute_fun, Execute),
-        {ok, SharedRef} = wf_exports_store:submit(self(), #{kind => update_shared}),
-        {ok, OtherRef} = wf_exports_store:submit(self(), #{kind => add_other}),
-        SharedWorker = receive
-            {catalog_worker_started, update_shared, Pid1} -> Pid1
-        after 1000 -> error(shared_worker_not_started)
-        end,
-        OtherWorker = receive
-            {catalog_worker_started, add_other, Pid2} -> Pid2
-        after 1000 -> error(other_worker_not_started)
-        end,
-        SharedWorker ! continue,
-        ?assertEqual({ok, updated}, await_query(SharedRef)),
-        OtherWorker ! continue,
-        ?assertEqual({ok, added}, await_query(OtherRef)),
-        application:set_env(
-          retinue_daemon, daemon_catalog_execute_fun,
-          fun(_Request, State) -> {{ok, maps:get(cache, State)}, State} end),
-        {ok, Cache} = submit_and_wait_reply(#{kind => inspect}),
-        ?assertEqual(new, maps:get(shared, Cache)),
-        ?assertEqual(value, maps:get(other, Cache))
+        Builder = spawn(fun() ->
+            build = gen_server:call(Owner, {checkout, k, first}),
+            Parent ! building,
+            receive finish -> ok end
+        end),
+        receive building -> ok after 1000 -> error(builder_missing) end,
+        Waiter = gen_server:send_request(Owner, {checkout, k, first}),
+        ?assertEqual(timeout, gen_server:wait_response(Waiter, 5)),
+        exit(Builder, kill),
+        ?assertEqual({reply,retry}, gen_server:wait_response(Waiter, 1000)),
+        build = gen_server:call(Owner, {checkout, k, first}),
+        Same = gen_server:send_request(Owner, {checkout, k, first}),
+        New = gen_server:send_request(Owner, {checkout, k, second}),
+        ok = gen_server:call(Owner, {publish, k, first, {ok, old}}),
+        ?assertEqual({reply,{ok,old}}, gen_server:wait_response(Same, 1000)),
+        ?assertEqual({reply,retry}, gen_server:wait_response(New, 1000)),
+        build = gen_server:call(Owner, {checkout, k, second}),
+        ok = gen_server:call(Owner, {publish, k, second, {error, bad_file}}),
+        ?assertEqual({ok,old}, gen_server:call(Owner, {checkout, k, first}))
     after
-        application:unset_env(retinue_daemon, daemon_catalog_execute_fun),
         cleanup_stores(Started)
+    end.
+
+idle_cache_expires_and_reacquired_page_is_unchanged_test() ->
+    application:set_env(retinue_daemon, catalog_idle_grace_ms, 20),
+    Started = setup_stores(),
+    try
+        Request = catalog_request("mods", ["--exports-dir",fixture_exports(),"--limit","2"]),
+        Result = submit_and_wait(Request),
+        await_eviction(100),
+        ?assertEqual(Result, submit_and_wait(Request)),
+        {ok, _, Direct} = wf_exports_query:query("mods",maps:get(query,Request)),
+        ?assertEqual(Direct,maps:get(results,Result))
+    after cleanup_stores(Started), application:unset_env(retinue_daemon,catalog_idle_grace_ms)
+    end.
+
+await_eviction(0) -> error(idle_catalog_not_released);
+await_eviction(N) ->
+    case wf_exports_store:status() of
+        #{cached_datasets := 0} -> ok;
+        _ -> timer:sleep(5), await_eviction(N-1)
     end.
 
 malformed_typed_query_does_not_crash_store_test() ->

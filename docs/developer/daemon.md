@@ -122,11 +122,18 @@ the staged runtime; game-specific settings keep their existing names.
 options. With active watches, one global timer polls worldstate; every due watch evaluates against
 the same parsed snapshot. Fetch failure retains the last good snapshot and marks delivery stale.
 
-`wf_exports_store` serializes official export and Codex queries. Catalog keys include source
-directory, selected files, entity kind, modification time, and size. `wf_source_manager`
-prepares missing managed data and queues periodic stale refreshes. Explicit custom source
-directories are never modified. Refresh writes use atomic rename; active readers retain complete
-old files and later catalog signatures rebuild cached entities.
+`wf_exports_store` runs concurrent queries against shared catalog generations. A
+generation contains individually encoded rows; workers retain sort keys and offsets
+while scanning, then decode only the returned page a second time. Concurrent misses
+for the same dataset share one build. File identity, modification time and size
+invalidate a generation; existing readers finish against their original binary.
+
+`wf_source_manager` checks managed sources on demand and periodically while a
+Warframe companion or GUI is connected. Daemon startup, status checks and PoE2
+connections do not schedule Warframe maintenance. Explicit updates still work
+without a game. Custom source directories are read-only. After one minute without
+catalog queries or player-view usage, the respective cache releases its derived
+data; saved groups, player snapshots and downloaded sources are unaffected.
 
 Query text reaches the daemon uncompiled. `wf_query_parse` builds the AST; entity modules expose
 typed fields and retain raw data paths where a parser has not added semantics.

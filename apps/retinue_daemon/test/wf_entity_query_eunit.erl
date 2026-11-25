@@ -42,6 +42,18 @@ unlimited_page_returns_every_match_test() ->
     ?assertEqual(3, maps:get(shown, Result)),
     ?assertEqual(Entries, maps:get(slice, Result)).
 
+packed_query_matches_list_test() ->
+    Entries = [item("Beta", 3), item("Alpha", 3), (item("Alpha", 3))#{tag => duplicate},
+               item("Other", 2), item([16#401], 1)],
+    Rows = wf_entity_query:pack(Entries),
+    {ok, Sorts} = wf_entity_query:compile_sorts(
+      [#{key => masteryReq, dir => desc}, #{key => name, dir => asc}], wf_entity_exports, item),
+    lists:foreach(fun({A,S,O,L}) ->
+        Run = fun(E) -> wf_entity_query:execute(E, A, S, wf_entity_exports, item, O, L) end,
+        ?assertEqual(Run(Entries), Run(Rows))
+    end, [{A,S,O,L} || A <- [match_all, compiled("masteryReq>=3"), compiled("absent")],
+                       S <- [[], Sorts], {O,L} <- [{0,infinity}, {1,2}, {20,1}, {0,0}]]).
+
 compiled(Query) ->
     {ok, Ast} = wf_query_parse:parse(Query),
     {ok, Compiled} = wf_entity_query:compile(Ast, wf_entity_exports, item),

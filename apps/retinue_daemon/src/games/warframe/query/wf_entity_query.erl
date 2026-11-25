@@ -3,7 +3,7 @@
 %%%-------------------------------------------------------------------
 -module(wf_entity_query).
 
--export([compile/3, compile_sorts/3, match/4, execute/7]).
+-export([compile/3, compile_sorts/3, match/4, execute/7, pack/1, execute_packed/8]).
 
 -type schema() :: module().
 -type kind() :: atom().
@@ -40,14 +40,54 @@ match(Entry, {'or', Asts}, Schema, Kind) ->
     lists:any(fun(Ast) -> match(Entry, Ast, Schema, Kind) end, Asts).
 
 -doc "Filter, stable-sort, and page normalized entities through one shared execution path.".
--spec execute([map()], ast(), [map()], schema(), kind(), non_neg_integer(),
+-spec execute([map()] | binary(), ast(), [map()], schema(), kind(), non_neg_integer(),
               non_neg_integer() | infinity) -> map().
+execute(Entries, Ast, Sorts, Schema, Kind, Offset, Limit) when is_binary(Entries) ->
+    execute_packed(Entries, Ast, Sorts, Schema, Kind, Offset, Limit, fun(_) -> true end);
 execute(Entries, Ast, Sorts, Schema, Kind, Offset, Limit) ->
     Filtered = [Entry || Entry <- Entries, match(Entry, Ast, Schema, Kind)],
     Sorted = sort_entries(Filtered, Sorts),
     Slice = take(Limit, drop(Offset, Sorted)),
     #{kind => Kind, slice => Slice,
       total => length(Sorted), shown => length(Slice)}.
+
+%% One immutable binary is shared between workers. Keep only sort keys and
+%% byte ranges while scanning, and materialize full entities for the reply page.
+pack(Entries) ->
+    iolist_to_binary([begin
+        B = term_to_binary(E), [<<(byte_size(B)):32>>, B]
+    end || E <- Entries]).
+
+execute_packed(Rows, Ast, Sorts, Schema, Kind, Offset, Limit, Include) ->
+    Key = fun(E) ->
+        case Include(E) andalso match(E, Ast, Schema, Kind) of
+            false -> skip;
+            true -> [sort_value(E, maps:get(field, S)) || S <- Sorts]
+        end
+    end,
+    Hits = packed_hits(Rows, 0, Key, []),
+    Ordered = case Sorts of
+        [] -> Hits;
+        _ -> lists:sort(fun({A,I,_},{B,J,_}) -> keys_before(A,B,Sorts,I,J) end, Hits)
+    end,
+    Slice = [binary_to_term(binary:part(Rows,I,N), [safe]) ||
+                {_,I,N} <- take(Limit, drop(Offset, Ordered))],
+    #{kind => Kind, slice => Slice, total => length(Hits), shown => length(Slice)}.
+
+packed_hits(<<>>, _, _, Acc) -> lists:reverse(Acc);
+packed_hits(<<N:32, B:N/binary, Rest/binary>>, I, Key, Acc) ->
+    Next = case Key(binary_to_term(B, [safe])) of
+        skip -> Acc;
+        Keys -> [{Keys,I+4,N}|Acc]
+    end,
+    packed_hits(Rest, I+4+N, Key, Next).
+
+keys_before([], [], [], I, J) -> I =< J;
+keys_before([A|As], [B|Bs], [S|Ss], I, J) ->
+    case compare_sort_values(A, B, maps:get(dir, S, asc)) of
+        eq -> keys_before(As, Bs, Ss, I, J);
+        Order -> Order =:= lt
+    end.
 
 compile_ast(match_all, _Schema, _Kind, _Now) -> {ok, match_all};
 compile_ast({term, Text}, _Schema, _Kind, _Now) ->

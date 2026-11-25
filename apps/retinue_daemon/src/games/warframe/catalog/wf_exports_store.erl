@@ -12,7 +12,7 @@
          terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(CACHE_VERSION, 4).
+-define(CACHE_VERSION, 5).
 -define(DEFAULT_WORKERS, 8).
 
 -type state() :: map().
@@ -20,7 +20,7 @@
 -doc "Start daemon-owned searchable export and knowledge cache.".
 -spec start_link() -> {ok, pid()} | ignore | {error, term()}.
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], [{hibernate_after, 30000}]).
 
 -doc "Start one export query; reply arrives as `{retinue_daemon, Ref, Reply}`.".
 -spec submit(pid(), map()) -> {ok, reference()} | {error, term()}.
@@ -35,7 +35,8 @@ status() ->
 -spec init([]) -> {ok, state()}.
 init([]) ->
     {ok, #{queue => queue:new(), workers => #{},
-           monitors => #{}, cache => #{}, max_workers => worker_limit()}}.
+           monitors => #{}, cache => #{}, loads => #{}, idle_timer => undefined,
+           max_workers => worker_limit()}}.
 
 -spec handle_call(term(), gen_server:from(), state()) -> {reply, term(), state()}.
 handle_call({submit, Client, Request}, _From, State) when is_pid(Client), is_map(Request) ->
@@ -46,6 +47,28 @@ handle_call({submit, Client, Request}, _From, State) when is_pid(Client), is_map
     retinue_activity:activity_start(),
     State1 = State#{monitors => Monitors#{Monitor => Ref}},
     {reply, {ok, Ref}, enqueue_item(Item, State1)};
+handle_call({checkout, Key, Sig}, From = {Pid, _}, State = #{cache := Cache, loads := Loads}) ->
+    case {maps:get(Key, Cache, none), maps:get(Key, Loads, none)} of
+        {#{signature := Sig, data := Data}, _} -> {reply, {ok, Data}, State};
+        {_, none} ->
+            Load = #{pid => Pid, monitor => monitor(process, Pid), waiters => []},
+            {reply, build, State#{loads => Loads#{Key => Load}}};
+        {_, #{waiters := W} = Load} ->
+            {noreply, State#{loads => Loads#{Key => Load#{waiters => [{Sig,From}|W]}}}}
+    end;
+handle_call({publish, Key, Sig, Result}, {Pid, _}, State = #{cache := Cache, loads := Loads})
+  when map_get(pid, map_get(Key, Loads)) =:= Pid ->
+    #{pid := Pid, monitor := Ref, waiters := Waiters} = maps:get(Key, Loads),
+    demonitor(Ref, [flush]),
+    [gen_server:reply(From, case S =:= Sig of true -> Result; false -> retry end)
+     || {S,From} <- Waiters],
+    Next = case Result of
+        {ok, Data} -> Cache#{Key => #{signature => Sig, data => Data}};
+        _ -> Cache
+    end,
+    {reply, ok, State#{cache => Next, loads => maps:remove(Key, Loads)}};
+handle_call({publish, _, _, _}, _From, State) ->
+    {reply, {error, not_catalog_builder}, State};
 handle_call(status, _From, State) ->
     {reply, #{queued => queued_requests(maps:get(queue, State)),
               processing => map_size(maps:get(workers, State, #{})) > 0,
@@ -62,28 +85,37 @@ handle_cast(_Message, State) ->
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(process_queue, State) ->
     {noreply, start_queued(State)};
-handle_info({catalog_result, Token, Reply, CacheChanges}, State) ->
+handle_info({catalog_result, Token, Reply, _LegacyChanges}, State) ->
+    handle_info({catalog_result, Token, Reply}, State);
+handle_info({catalog_result, Token, Reply}, State) ->
     case maps:take(Token, maps:get(workers, State, #{})) of
         error -> {noreply, State};
         {#{worker_monitor := WorkerMonitor, item := Item}, Workers} ->
             erlang:demonitor(WorkerMonitor, [flush]),
-            MergedCache = apply_cache_changes(CacheChanges, maps:get(cache, State)),
-            {noreply, start_queued(
-                        complete_group(
-                          Item, Reply, State#{workers => Workers, cache => MergedCache}))}
+            {noreply, idle(start_queued(complete_group(Item, Reply, State#{workers => Workers})))}
     end;
-handle_info({'DOWN', Monitor, process, _Pid, Reason}, State) ->
+handle_info({'DOWN', Monitor, process, _Pid, Reason}, State0) ->
+    Loads = maps:filter(fun(_, Load) ->
+        case maps:get(monitor, Load) =:= Monitor of
+            true -> [gen_server:reply(F, retry) || {_,F} <- maps:get(waiters, Load)], false;
+            false -> true
+        end
+    end, maps:get(loads, State0)),
+    State = State0#{loads => Loads},
     case take_worker_by_monitor(Monitor, maps:get(workers, State, #{})) of
         {ok, Item, Workers} ->
-            {noreply, start_queued(
+            {noreply, idle(start_queued(
                         complete_group(Item, {error, {catalog_worker_down, Reason}},
-                                      State#{workers => Workers}))};
+                                      State#{workers => Workers})))};
         error ->
             case cancel_client(Monitor, State) of
                 {not_found, State1} -> {noreply, State1};
-                {canceled, State1} -> {noreply, start_queued(State1)}
+                {canceled, State1} -> {noreply, idle(start_queued(State1))}
             end
     end;
+handle_info({timeout, Ref, evict}, #{idle_timer := Ref, workers := W} = State)
+  when map_size(W) =:= 0 ->
+    {noreply, State#{cache => #{}, idle_timer => undefined}, hibernate};
 handle_info(_Message, State) ->
     {noreply, State}.
 
@@ -104,7 +136,8 @@ code_change(_OldVsn, State, _Extra) ->
                              || Item <- queue:to_list(maps:get(queue, State, queue:new()))]),
     State1 = maps:without([processing, current], State),
     self() ! process_queue,
-    {ok, State1#{cache => Current,
+    {ok, State1#{cache => Current, loads => maps:get(loads, State1, #{}),
+                 idle_timer => maps:get(idle_timer, State1, undefined),
                  queue => Queue,
                  workers => Workers,
                  monitors => maps:get(monitors, State1, #{}),
@@ -117,14 +150,19 @@ current_cache_key(Key) when is_tuple(Key) ->
     end;
 current_cache_key(_Key) -> false.
 
+idle(#{workers := W, cache := Cache} = State) when map_size(W) =:= 0, map_size(Cache) > 0 ->
+    case maps:get(idle_timer, State) of undefined -> ok; Ref -> erlang:cancel_timer(Ref) end,
+    Grace = application:get_env(retinue_daemon, catalog_idle_grace_ms, 60000),
+    State#{idle_timer => erlang:start_timer(Grace, self(), evict)};
+idle(State) -> State.
+
 start_item(Item, State) ->
     Parent = self(),
     Token = make_ref(),
-    Cache = maps:get(cache, State),
+    Request = maps:get(request, Item),
     {Pid, WorkerMonitor} = spawn_monitor(fun() ->
-        {Reply, ExecuteState} = safe_execute(maps:get(request, Item), #{cache => Cache}),
-        Changes = cache_changes(Cache, maps:get(cache, ExecuteState)),
-        Parent ! {catalog_result, Token, Reply, Changes}
+        {Reply, _} = safe_execute(Request, #{owner => Parent}),
+        Parent ! {catalog_result, Token, Reply}
     end),
     Worker = #{worker_pid => Pid, worker_monitor => WorkerMonitor, item => Item},
     State#{workers => (maps:get(workers, State, #{}))#{Token => Worker}}.
@@ -180,26 +218,6 @@ migrate_current(_Current, Workers) -> Workers.
 queued_requests(Queue) ->
     lists:sum([1 + length(maps:get(followers, Item, [])) || Item <- queue:to_list(Queue)]).
 
-cache_changes(Before, After) ->
-    maps:fold(
-      fun(Key, Value, Acc) ->
-          case maps:find(Key, Before) of
-              {ok, Value} -> Acc;
-              Previous -> [{Key, Previous, Value} | Acc]
-          end
-      end,
-      [], After).
-
-apply_cache_changes(Changes, Cache) ->
-    lists:foldl(
-      fun({Key, Previous, Value}, Acc) ->
-          case {Previous, maps:find(Key, Acc)} of
-              {error, error} -> Acc#{Key => Value};
-              {{ok, Expected}, {ok, Expected}} -> Acc#{Key => Value};
-              _ -> Acc
-          end
-      end,
-      Cache, Changes).
 
 start_queued(State) ->
     case map_size(maps:get(workers, State)) < maps:get(max_workers, State) of
@@ -322,21 +340,20 @@ execute(Request, State) ->
             RequestQuery = normalize_query_paths(Query0, Cwd),
             case prepare_query(Service, Command, RequestQuery) of
                 {ok, Query} ->
-                    case ensure_sources(Command, Query) of
-                        ok ->
-                            case cached_entries(Command, Query, State) of
-                                {ok, Cached, State1} ->
-                                    case execute_entries(Service, Command, Query, Cached) of
-                                        {ok, Query1, Results} ->
-                                            {{ok, #{command => Command, query => Query1,
-                                                    results => Results}}, State1};
-                                        {error, Errors} -> {{error, {query_errors, Errors}}, State1}
-                                    end;
-                                {error, Reason, State1} ->
-                                    {{error, Reason}, State1}
+                    case cached_entries(Command, Query, State#{ensure =>
+                              fun() -> ensure_sources(Command, Query) end}) of
+                        {ok, Cached, State1} ->
+                            case {maps:get(exports_dir, Query, undefined),
+                                  maps:get(knowledge_dir, Query, undefined)} of
+                                {undefined, undefined} -> gen_server:cast(wf_source_manager, catalog_demand);
+                                _ -> ok
+                            end,
+                            case execute_entries(Service, Command, Query, Cached) of
+                                {ok, Query1, Results} ->
+                                    {{ok, #{command => Command, query => Query1, results => Results}}, State1};
+                                {error, Errors} -> {{error, {query_errors, Errors}}, State1}
                             end;
-                        {error, Reason} ->
-                            {{error, Reason}, State}
+                        {error, Reason, State1} -> {{error, Reason}, State1}
                     end;
                 {error, Errors} ->
                     {{error, {query_errors, Errors}}, State}
@@ -418,20 +435,28 @@ build_knowledge_cache(Command, Parsed) ->
         {error, Reason} -> {error, Reason}
     end.
 
-cached(Key, Paths, Loader, State) ->
+cached(Key, Paths, Loader, #{owner := Owner, ensure := Ensure} = State) ->
     Signature = signature(Paths),
-    Cache = maps:get(cache, State),
-    case maps:get(Key, Cache, undefined) of
-        #{signature := Signature, data := Data} ->
-            {ok, Data, State};
-        _ ->
-            case Loader() of
-                {ok, Data} ->
-                    Entry = #{signature => Signature, data => Data},
-                    {ok, Data, State#{cache => Cache#{Key => Entry}}};
-                {error, Reason} ->
-                    {error, Reason, State}
-            end
+    case gen_server:call(Owner, {checkout, Key, Signature}, infinity) of
+        {ok, Data} -> {ok, Data, State};
+        {error, Reason} -> {error, Reason, State};
+        retry -> cached(Key, Paths, Loader, State);
+        build ->
+            {LoadedSignature, Result} = case Ensure() of
+                ok ->
+                    Before = signature(Paths),
+                    case Loader() of
+                        {ok, #{entries := Entries} = Data} ->
+                            case signature(Paths) of
+                                Before -> {Before, {ok, Data#{entries => wf_entity_query:pack(Entries)}}};
+                                _ -> {Before, {error, catalog_changed_during_load}}
+                            end;
+                        Error -> {Before, Error}
+                    end;
+                Error -> {Signature, Error}
+            end,
+            ok = gen_server:call(Owner, {publish, Key, LoadedSignature, Result}, infinity),
+            case Result of {ok, R} -> {ok, R, State}; {error, E} -> {error, E, State} end
     end.
 
 signature(Paths) ->
@@ -439,7 +464,7 @@ signature(Paths) ->
 
 file_signature(Path) ->
     case file:read_file_info(Path, [{time, posix}]) of
-        {ok, Info} -> {Info#file_info.mtime, Info#file_info.size};
+        {ok, Info} -> {Info#file_info.inode, Info#file_info.mtime, Info#file_info.size};
         {error, Reason} -> {missing, Reason}
     end.
 

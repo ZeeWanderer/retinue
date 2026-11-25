@@ -152,6 +152,13 @@ handle_call(Request, _From, State) ->
     {reply, {error, {unknown_request, Request}}, State}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
+handle_cast(view_cache_used, State) ->
+    Delay = application:get_env(retinue_daemon, catalog_idle_grace_ms, 60000),
+    Timer = case maps:get(view_timer, State, undefined) of
+        undefined -> erlang:start_timer(Delay, self(), retire_views);
+        Running -> Running
+    end,
+    {noreply, State#{view_timer => Timer, view_until => erlang:monotonic_time(millisecond) + Delay}};
 handle_cast(_Message, State) ->
     {noreply, State}.
 
@@ -162,6 +169,14 @@ handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
         {Ref, Monitors} ->
             Subscribers = maps:remove(Ref, maps:get(subscribers, State)),
             {noreply, State#{subscribers => Subscribers, monitors => Monitors}}
+    end;
+handle_info({timeout, Ref, retire_views}, #{view_timer := Ref, view_until := Until} = State) ->
+    case Until - erlang:monotonic_time(millisecond) of
+        Left when Left > 0 ->
+            {noreply, State#{view_timer => erlang:start_timer(Left, self(), retire_views)}};
+        _ ->
+            invalidate_view_cache(),
+            {noreply, maps:without([view_timer, view_until], State), hibernate}
     end;
 handle_info(persist_snapshot, State) ->
     {noreply, flush_snapshot(State#{persist_timer => undefined})};

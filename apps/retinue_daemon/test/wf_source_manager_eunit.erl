@@ -52,15 +52,28 @@ periodic_refresh_queues_stale_sources_test() ->
                         fun(Action) -> Parent ! {source_update, Action}, ok end),
     {ok, Pid} = wf_source_manager:start_link(),
     try
+        ?assertEqual(undefined, maps:get(refresh_timer, sys:get_state(Pid))),
+        receive {source_update, Idle} -> error({idle_refresh, Idle}) after 30 -> ok end,
+        Client = spawn(fun() -> receive close -> ok end end),
+        gen_server:cast(Pid, {source_client, Client, true}),
         ?assertEqual(
            [exports, languages, nodes, star_chart, wfcd],
-           lists:sort(collect_updates(5, [])))
+           lists:sort(collect_updates(5, []))),
+        Client ! close,
+        await_no_clients(Pid, 100)
     after
         gen_server:stop(Pid),
         gen_server:stop(Activity),
         application:unset_env(retinue_daemon, source_refresh_interval_ms),
         application:unset_env(retinue_daemon, source_max_age_seconds),
         application:unset_env(retinue_daemon, source_update_fun)
+    end.
+
+await_no_clients(_, 0) -> error(source_client_not_released);
+await_no_clients(Pid, N) ->
+    case sys:get_state(Pid) of
+        #{source_clients := Clients, refresh_timer := undefined} when map_size(Clients) =:= 0 -> ok;
+        _ -> timer:sleep(5), await_no_clients(Pid, N-1)
     end.
 
 collect_updates(0, Acc) -> Acc;

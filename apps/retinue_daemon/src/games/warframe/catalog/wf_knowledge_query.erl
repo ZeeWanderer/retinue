@@ -126,10 +126,15 @@ build_entries(Command, Query, Data) ->
 -spec execute_entries(command(), map(), [map()], map()) -> {ok, map(), map()}.
 execute_entries(Command, Query, Entries, Meta) ->
     Kind = command_kind(Command),
-    Included = [Entry || Entry <- Entries, include_entry(Kind, Entry, Query)],
-    Result0 = wf_entity_query:execute(
-      Included, maps:get(query, Query), maps:get(compiled_sort, Query),
-      wf_entity_knowledge, Kind, maps:get(offset, Query), maps:get(limit, Query)),
+    Ast = maps:get(query, Query), Sort = maps:get(compiled_sort, Query),
+    Offset = maps:get(offset, Query), Limit = maps:get(limit, Query),
+    Include = fun(E) -> include_entry(Kind, E, Query) end,
+    Result0 = case is_binary(Entries) of
+        true -> wf_entity_query:execute_packed(Entries, Ast, Sort, wf_entity_knowledge,
+                                              Kind, Offset, Limit, Include);
+        false -> wf_entity_query:execute([E || E <- Entries, Include(E)], Ast, Sort,
+                                        wf_entity_knowledge, Kind, Offset, Limit)
+    end,
     {ok, Query, Result0#{source_meta => Meta}}.
 
 include_entry(codex, Entry, Query) ->

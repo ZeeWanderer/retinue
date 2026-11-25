@@ -42,11 +42,10 @@ status() -> gen_server:call(?SERVER, status).
 init([]) ->
     Path = path(),
     Issues = load(Path),
-    {Subscription, Snapshot} = subscribe_player(),
-    self() ! {refresh, Snapshot},
+    {Subscription, _Snapshot} = subscribe_player(),
     {ok, #{schema => ?SCHEMA, path => Path, issues => Issues,
            subscription => Subscription, subscription_view => metadata,
-           audit_worker => undefined, audit_pending => false, audit_waiters => #{},
+           audit_worker => undefined, audit_pending => false, audit_waiters => #{}, initial_audit => true,
            dirty => false, persist_timer => undefined, refresh_error => undefined}}.
 
 handle_call({reconcile, Scope, Issues}, _From, State) ->
@@ -66,6 +65,7 @@ handle_call(status, _From, State) ->
 handle_call(Request, _From, State) ->
     {reply, {error, {unknown_request, Request}}, State}.
 
+handle_cast(client_active, #{initial_audit := true} = State) -> {noreply, request_audit(State)};
 handle_cast(_Message, State) -> {noreply, State}.
 
 handle_info({refresh, _Snapshot}, State) ->
@@ -167,7 +167,8 @@ request_audit(State = #{audit_worker := undefined}) ->
         Parent ! {audit_result, Token, Result}
     end),
     Timer = erlang:send_after(audit_timeout(), self(), {audit_timeout, Token}),
-    State#{audit_worker => #{pid => Pid, monitor => Monitor, token => Token, timer => Timer},
+    State#{initial_audit => false,
+           audit_worker => #{pid => Pid, monitor => Monitor, token => Token, timer => Timer},
            audit_pending => false};
 request_audit(State) ->
     State#{audit_pending => true}.

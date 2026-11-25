@@ -135,6 +135,14 @@ handle_cast({release_local_worker, Pid}, State) when is_pid(Pid) ->
 handle_cast({diagnostics_consume, Client, Ref}, State) ->
     Pending = wf_companion_diagnostics:consume(Client, Ref, maps:get(diagnostics, State)),
     {noreply, State#{diagnostics => Pending}};
+handle_cast({replay_source_clients, Manager}, State) ->
+    maps:foreach(fun(Pid, Client) ->
+        case uses_warframe_sources(Client) of
+            true -> gen_server:cast(Manager, {source_client, Pid, true});
+            false -> ok
+        end
+    end, maps:get(connections, State)),
+    {noreply, State};
 handle_cast(_Message, State) ->
     {noreply, State}.
 
@@ -336,6 +344,7 @@ await_socket(Parent) ->
     end.
 
 update_client_activity(Pid, Previous, Client) ->
+    source_transition(Pid, uses_warframe_sources(Previous), uses_warframe_sources(Client)),
     set_client_activity(is_active_client(Previous), is_active_client(Client)),
     set_gui_activity(Pid, is_warframe_gui(Previous), is_warframe_gui(Client)).
 
@@ -346,6 +355,7 @@ set_client_activity(false, true) ->
 set_client_activity(_Previous, _Client) -> ok.
 
 release_client_activity(Pid, Info) ->
+    source_transition(Pid, uses_warframe_sources(Info), false),
     release_activity(is_active_client(Info)),
     set_gui_activity(Pid, is_warframe_gui(Info), false).
 
@@ -357,6 +367,16 @@ is_active_client(#{game := <<"warframe">>, client := <<"wfcompanion">>}) -> true
 is_active_client(#{game := <<"poe2">>, client := <<"poe2companion">>}) -> true;
 is_active_client(#{game := <<"warframe">>, client := <<"wfgui">>}) -> true;
 is_active_client(_Client) -> false.
+
+uses_warframe_sources(#{game := <<"warframe">>} = Client) -> is_active_client(Client);
+uses_warframe_sources(_) -> false.
+
+source_transition(_Pid, Same, Same) -> ok;
+source_transition(Pid, false, true) ->
+    gen_server:cast(wf_resolution_issues, client_active),
+    gen_server:cast(wf_source_manager, {source_client, Pid, true});
+source_transition(Pid, _, Active) ->
+    gen_server:cast(wf_source_manager, {source_client, Pid, Active}).
 
 is_warframe_gui(#{game := <<"warframe">>, client := <<"wfgui">>}) -> true;
 is_warframe_gui(_) -> false.

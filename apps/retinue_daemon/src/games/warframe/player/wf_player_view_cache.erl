@@ -3,6 +3,7 @@
 -define(TABLE, wf_player_view_cache).
 
 get(Key, Build) ->
+    gen_server:cast(wf_player_service, view_cache_used),
     Slot = element(1, Key),
     case lookup(Slot) of
         [{Slot, Key, _, {ready, Value}}] -> Value;

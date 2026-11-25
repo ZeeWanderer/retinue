@@ -14,6 +14,7 @@ player_service_test_() ->
          fun notifies_and_releases_dead_subscribers/0,
          fun reloads_persisted_snapshot/0,
          fun publish_invalidates_derived_views/0,
+         fun idle_view_retirement_preserves_snapshot/0,
          fun unchanged_publish_keeps_revision_and_views/0,
          fun unchanged_game_publish_refreshes_transient_state/0,
          fun game_stop_does_not_erase_cached_inventory/0,
@@ -68,6 +69,23 @@ publish_invalidates_derived_views() ->
     true = ets:insert(wf_player_view_cache, {test_view, cached}),
     {ok, _} = wf_player_service:publish(<<"profile">>, #{<<"rank">> => 13}),
     ?assertEqual([], ets:lookup(wf_player_view_cache, test_view)).
+
+idle_view_retirement_preserves_snapshot() ->
+    application:set_env(retinue_daemon, catalog_idle_grace_ms, 15),
+    try
+        Snapshot = wf_player_service:snapshot(),
+        cached = wf_player_view_cache:get({test_view, 1}, fun() -> cached end),
+        await_view_retired(100),
+        ?assertEqual(Snapshot, wf_player_service:snapshot())
+    after application:unset_env(retinue_daemon, catalog_idle_grace_ms)
+    end.
+
+await_view_retired(0) -> error(view_not_retired);
+await_view_retired(N) ->
+    case ets:member(wf_player_view_cache, test_view) of
+        false -> ok;
+        true -> timer:sleep(5), await_view_retired(N-1)
+    end.
 
 unchanged_publish_keeps_revision_and_views() ->
     Data = #{<<"value">> => 1},

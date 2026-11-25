@@ -87,12 +87,16 @@ init([]) ->
     MaxAge = daemon_env(source_max_age_seconds, ?DEFAULT_MAX_AGE_SECONDS),
     State = #{queue => queue:new(), current => undefined, client_monitors => #{},
               refresh_interval_ms => Interval, max_age_seconds => MaxAge,
-              refresh_timer => undefined},
-    {ok, schedule_refresh(State, initial_refresh_delay(Interval))}.
+              refresh_timer => undefined, source_clients => #{}},
+    gen_server:cast(retinue_local_api, {replay_source_clients, self()}),
+    {ok, State}.
 
 handle_call({ensure_catalog, Command, Query}, From, State) ->
     Job = #{kind => ensure, command => Command, query => Query, reply => {call, From}},
-    {noreply, enqueue(Job, State)};
+    State1 = enqueue(Job, State),
+    Managed = maps:get(exports_dir, Query, undefined) =:= undefined andalso
+              maps:get(knowledge_dir, Query, undefined) =:= undefined,
+    {noreply, case Managed of true -> demand_refresh(State1); false -> State1 end};
 handle_call({submit, Client, Request}, _From, State) when is_pid(Client), is_map(Request) ->
     case maps:get(action, Request, undefined) of
         refresh ->
@@ -114,6 +118,14 @@ handle_call(status, _From, State) ->
 handle_call(Request, _From, State) ->
     {reply, {error, {unknown_request, Request}}, State}.
 
+handle_cast(catalog_demand, State) ->
+    {noreply, demand_refresh(State)};
+handle_cast({source_client, Pid, true}, #{source_clients := Clients} = State)
+  when not is_map_key(Pid, Clients) ->
+    Added = State#{source_clients => Clients#{Pid => monitor(process, Pid)}},
+    {noreply, ensure_refresh_timer(demand_refresh(Added))};
+handle_cast({source_client, Pid, false}, State) ->
+    {noreply, remove_source_client(Pid, State)};
 handle_cast(_Message, State) ->
     {noreply, State}.
 
@@ -165,6 +177,9 @@ handle_info({source_job_timeout, Token},
             State = #{current := #{token := Token, pid := Pid} = Current}) ->
     exit(Pid, kill),
     {noreply, State#{current => Current#{timed_out => true}}};
+handle_info({'DOWN', Monitor, process, Pid, _}, #{source_clients := Clients} = State)
+  when map_get(Pid, Clients) =:= Monitor ->
+    {noreply, remove_source_client(Pid, State)};
 handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
     case maps:take(Monitor, maps:get(client_monitors, State)) of
         error -> {noreply, State};
@@ -173,10 +188,9 @@ handle_info({'DOWN', Monitor, process, _Pid, _Reason}, State) ->
             retinue_activity:activity_end(),
             {noreply, State#{queue => Queue, client_monitors => Monitors}}
     end;
-handle_info(refresh_stale_sources, State) ->
-    cancel_refresh_timer(maps:get(refresh_timer, State, undefined)),
+handle_info({timeout, Timer, refresh_stale_sources}, #{refresh_timer := Timer} = State) ->
     State1 = State#{refresh_timer => undefined},
-    State2 = maybe_enqueue_stale_refresh(State1),
+    State2 = demand_refresh(State1),
     {noreply, schedule_refresh(State2, maps:get(refresh_interval_ms, State2))};
 handle_info(_Message, State) ->
     {noreply, State}.
@@ -205,7 +219,33 @@ code_change(_OldVsn, State, _Extra) ->
                                  daemon_env(source_max_age_seconds,
                                             ?DEFAULT_MAX_AGE_SECONDS)),
                     refresh_timer => maps:get(refresh_timer, State, undefined)},
-    {ok, ensure_refresh_timer(State1)}.
+    case maps:is_key(source_clients, State1) of
+        true -> {ok, State1};
+        false ->
+            cancel_refresh_timer(maps:get(refresh_timer, State1)),
+            gen_server:cast(retinue_local_api, {replay_source_clients, self()}),
+            {ok, State1#{refresh_timer => undefined, source_clients => #{}}}
+    end.
+
+remove_source_client(Pid, #{source_clients := Clients} = State) ->
+    case maps:take(Pid, Clients) of
+        error -> State;
+        {Ref, Rest} ->
+            demonitor(Ref, [flush]),
+            case map_size(Rest) of
+                0 ->
+                    cancel_refresh_timer(maps:get(refresh_timer, State)),
+                    State#{source_clients => Rest, refresh_timer => undefined};
+                _ -> State#{source_clients => Rest}
+            end
+    end.
+
+demand_refresh(#{refresh_interval_ms := Interval} = State) ->
+    Now = erlang:monotonic_time(millisecond),
+    case Interval > 0 andalso Now >= maps:get(refresh_due, State, Now) of
+        true -> (maybe_enqueue_stale_refresh(State))#{refresh_due => Now + Interval};
+        false -> State
+    end.
 
 enqueue(Job, State) ->
     self() ! process_queue,
@@ -252,6 +292,7 @@ ensure_requirements(Command, Query) ->
     case [Failure || {#{managed := false}, _} = Failure <- Failures] of
         [{Requirement, {error, Reason}} | _] ->
             source_error(Requirement, Reason, custom);
+        [] when Failures =:= [] -> ok;
         [] ->
             Managed = [Requirement || {Requirement, _} <- Failures],
             case refresh_requirements(Managed) of
@@ -430,11 +471,6 @@ stale_wfcd(Path, MaxAge, Now) ->
         {error, _} -> true
     end.
 
-initial_refresh_delay(Interval) when is_integer(Interval), Interval > 0 ->
-    min(60000, Interval);
-initial_refresh_delay(_Interval) ->
-    0.
-
 ensure_refresh_timer(#{refresh_timer := Timer} = State)
   when is_reference(Timer) ->
     State;
@@ -442,7 +478,7 @@ ensure_refresh_timer(State) ->
     schedule_refresh(State, maps:get(refresh_interval_ms, State)).
 
 schedule_refresh(State, Delay) when is_integer(Delay), Delay > 0 ->
-    Timer = erlang:send_after(Delay, self(), refresh_stale_sources),
+    Timer = erlang:start_timer(Delay, self(), refresh_stale_sources),
     State#{refresh_timer => Timer};
 schedule_refresh(State, _Delay) ->
     State#{refresh_timer => undefined}.

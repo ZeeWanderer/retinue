@@ -278,13 +278,13 @@ audit_shutdown_stops_worker_and_timer_test() ->
 
 periodic_source_check_is_queued_and_coalesced_without_owner_io_test() ->
     {{noreply, Queued}, Calls} = traced_calls({file, read_file, 1}, fun() ->
-        wf_source_manager:handle_info(refresh_stale_sources, source_state())
+        wf_source_manager:handle_cast(catalog_demand, (source_state())#{refresh_interval_ms => 60000})
     end),
     ?assertEqual([], Calls),
     [Job] = queue:to_list(maps:get(queue, Queued)),
     ?assertMatch(#{kind := periodic, max_age_seconds := 0, reply := none}, Job),
     Coalesced = lists:foldl(fun(_, State) ->
-        {noreply, Next} = wf_source_manager:handle_info(refresh_stale_sources, State), Next
+        {noreply, Next} = wf_source_manager:handle_cast(catalog_demand, State), Next
     end, Queued, lists:seq(1, 100)),
     ?assertEqual(1, queue:len(maps:get(queue, Coalesced))).
 
@@ -292,7 +292,7 @@ source_worker_timeout_waits_for_down_before_releasing_slot_test() ->
     with_source_worker(fun(State, Worker, Tag) ->
         Current = maps:get(current, State),
         Token = maps:get(token, Current),
-        {noreply, Coalesced} = wf_source_manager:handle_info(refresh_stale_sources, State),
+        {noreply, Coalesced} = wf_source_manager:handle_cast(catalog_demand, State),
         ?assertEqual(0, queue:len(maps:get(queue, Coalesced))),
         {noreply, TimingOut} = wf_source_manager:handle_info({source_job_timeout, Token}, State),
         ?assertMatch(#{timed_out := true}, maps:get(current, TimingOut)),
@@ -369,6 +369,8 @@ with_resolution(Fun) ->
             {ok, Player} = wf_player_service:start_link(),
             try
                 {ok, Pid} = wf_resolution_issues:start_link(),
+                ?assertEqual(undefined, maps:get(audit_worker, sys:get_state(Pid))),
+                gen_server:cast(Pid, client_active),
                 try Fun(Pid)
                 after stop(Pid) end
             after stop(Player) end
