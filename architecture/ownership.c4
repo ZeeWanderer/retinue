@@ -1,0 +1,22 @@
+model {
+  desktop.shell -> ui.input 'Uses physical hit, capture target and release activation from one dispatch'
+  desktop.shell -> desktop.page 'Delegates page and rail events to their ControlHosts'
+  desktop.shell -> desktop.foundry 'Delegates Foundry events to its interactive graph'
+  desktop.foundry -> ui.input 'Dispatch supplies the current hit for hover, hints and presses'
+  desktop.mount -> desktop.media 'Uses its page image-store leases; no separate loader'
+  desktop.page -> desktop.media 'Asks for visible assets and observes local image content'
+  desktop.demand -> desktop.media 'Routes session events and resolver replies through one descriptor publisher; retries requested content after a source change or failure'
+  desktop.demand -> desktop.foundry 'Combines demand and forwards changed or recovering descriptors'
+  wf.surface -> wf.relic 'Forwards interaction while enabled; passive kiosk tooltip is not an input owner'
+  wf.relic -> ui.input 'Publishes action regions when its static frame changes'
+  wf.media -> wf.relic 'Delivers decoded scene image handles'
+  poe.evaluate -> ui.input 'Panel owns ordered semantic hits; layout graph publishes geometry only'
+  poe.evaluate -> ui.inputRegion 'Publishes pointer regions for the visible panel and popups'
+  poe.chrome -> poe.evaluate 'Cached local artwork at the requested size'
+  poe.currencies -> poe.evaluate 'Publishes resolved currency images by request generation'
+}
+views {
+  view inputAssetOwnership {
+    include desktop.*, wf.*, poe.*, ui.input, ui.inputRegion
+  }
+}

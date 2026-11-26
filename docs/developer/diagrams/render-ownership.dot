@@ -1,0 +1,39 @@
+// Regenerate from the repository root:
+// dot -Tsvg docs/developer/diagrams/render-ownership.dot -o docs/images/render-ownership.svg
+digraph RenderOwnership {
+  graph [bgcolor="#ffffff", pad="0.18", ranksep="0.35", nodesep="0.28", ordering=out]
+  node [shape=box, style="rounded,filled", fontname="sans-serif", fontsize=12,
+        fontcolor="#18292e", fillcolor="#e7f2f1", color="#59777a", margin="0.12,0.08"]
+  edge [fontname="sans-serif", fontsize=10, color="#47636a", fontcolor="#263f48", arrowsize=0.7]
+
+  model [label="Application / UI owner\nEvents, data changes and deadlines"]
+  graph_ir [label="Keyed instance graph\nActive identities, outlets and dirty bindings"]
+  layout [label="Retained scene tree\nLocal layout and recorded paint programs"]
+  projection [label="Scene projection\nOrdered world geometry and paint ranges", fillcolor="#ffe9bf", color="#936523"]
+  input [label="Input owner\nHit regions, focus and capture"]
+  frame [label="Paint frame\nOrdered instances, clips and groups"]
+  surface [label="Surface snapshot\nComposed paint identities and bounds"]
+  history [label="Host + surface history\nInvalidation, buffer age, prior scenes"]
+  planner [label="Repair planner\nWhat this target must copy or repaint"]
+  packet [label="Packet preparation\nResources and commands for repair"]
+  native [label="Native render job\nLeased pixels + Blend2D"]
+  present [label="Host presentation\nSubmit damage; advance history"]
+
+  model -> graph_ir [label="changed inputs"]
+  graph_ir -> layout [label="edits / retained subtrees"]
+  layout -> projection [label="local results"]
+  projection -> input [label="keyed bounds"]
+  projection -> frame [label="paint placements"]
+  {rank=same; input; frame}
+  input -> model [label="next action", style=dashed, constraint=false]
+  frame -> surface [label="visible content"]
+  {rank=same; surface; history}
+  surface -> planner [label="new evidence"]
+  history -> planner [label="target validity"]
+  planner -> packet [label="repair region"]
+  frame -> packet [label="source programs", constraint=false]
+  packet -> native [label="ready draw packet"]
+  planner -> native [label="copy / repair instructions", constraint=false]
+  native -> present [label="completed lease"]
+  present -> history [label="accepted submission", style=dashed, constraint=false]
+}

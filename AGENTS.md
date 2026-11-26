@@ -8,6 +8,9 @@
 - Keep retained evidence under ignored `research/`, not `/tmp`.
 
 ## Architecture
+- When ownership, dependencies or execution order change, edit the affected `architecture/*.c4` view and read it back with Schematic. Verify it against source and tests.
+- Keep decisions, measurements and handoffs in DotContext.
+- Human-facing guides are curated views of that knowledge. Link guides from the model and refresh affected guides before publishing; readers must not need private project notes.
 - Follow [project structure](docs/developer/structure.md). Share mechanisms, not game-specific policy.
 - Keep fetching, canonical data and domain computation in the daemon; presentation and input in clients.
 - Update affected apps and tests in lockstep; follow [compatibility policy](docs/developer/daemon.md#build-identity).

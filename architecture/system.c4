@@ -1,0 +1,108 @@
+specification {
+  element application
+  element service
+  element library
+  element component
+  element boundary
+}
+
+model {
+  cli = application 'Retinue CLI' {
+    description 'One command tree with game-specific entry aliases. Formats user output; does not own game catalogs.'
+    metadata { source 'apps/retinue_cli/src' guide 'docs/developer/daemon.md' }
+  }
+  desktop = application 'Warframe desktop GUI' {
+    metadata { source 'apps/wfgui/src' guide 'docs/gui.md' }
+    shell = component 'Window input routing' { metadata { source 'apps/wfgui/src/presentation/shell/input.rs' graph 'apps/wfgui/src/presentation/shell/composition/mod.rs' } }
+    foundry = component 'Foundry interaction' { metadata { source 'apps/wfgui/src/presentation/foundry/composition.rs' } }
+    page = component 'Page host' {
+      description 'Owns back-to-front control order, pointer capture, keyboard focus, accessibility and the page image store.'
+      metadata { source 'apps/wfgui/src/presentation/controls/mod.rs' }
+    }
+    mount = component 'Mounted child view' {
+      description 'Retains local layout and paint for an external slot. The page host can prepare a fresh child on its existing executor when the size proposal does not depend on solved parent geometry. There is no separate input root or worker budget.'
+      metadata { source 'apps/wfgui/src/presentation/controls/mounted_view.rs' eligibility 'apps/wfgui/src/presentation/listing/mod.rs' placement 'apps/wfgui/src/presentation/listing/retained_grid.rs' }
+    }
+    demand = component 'Window asset demand and descriptor delivery' {
+      description 'Frame preparation enumerates demand after layout. Input dispatch can request explicit refresh without enumerating visible assets.'
+      metadata { source 'apps/wfgui/src/app/resources.rs' owner 'apps/wfgui/src/app.rs' }
+    }
+    media = component 'Page and rail media' { metadata { source 'apps/wfgui/src/domain/media/mod.rs' leases 'apps/wfgui/src/domain/media/image_store/mod.rs' } }
+  }
+  wf = application 'Warframe companion' {
+    metadata { source 'apps/wfcompanion' guide 'docs/developer/companion.md' }
+    surface = component 'Warframe input gate' { metadata { source 'apps/wfcompanion/src/presentation/overlay_host.rs' } }
+    relic = component 'Relic interaction and static frame' { metadata { source 'apps/wfcompanion/src/presentation/renderer.rs' } }
+    media = component 'Relic scene image loader' { metadata { source 'apps/wfcompanion/src/domain/media.rs' } }
+  }
+  poe = application 'Path of Exile 2 companion' {
+    metadata { source 'apps/poe2companion' }
+    evaluate = component 'Evaluate panel' { metadata { source 'apps/poe2companion/src/presentation/evaluate/panel.rs' host 'apps/poe2companion/src/presentation/overlay_host.rs' } }
+    chrome = component 'Local panel artwork' { metadata { source 'apps/poe2companion/src/presentation/evaluate/artwork.rs' } }
+    currencies = component 'Market currency images' { metadata { source 'apps/poe2companion/src/domain/currency.rs' } }
+  }
+  arc = application 'ARC Raiders launcher' {
+    description 'Launch scaffold. There is no ARC-specific daemon supervisor or gameplay overlay.'
+    metadata { source 'apps/arccompanion' }
+  }
+  inspect = application 'Retinue Inspect' { metadata { source 'apps/retinue-inspect' } }
+  adapters = library 'Native observation and game adapters' {
+    metadata { source 'crates/retinue-native' warframe 'crates/retinue-warframe' poe2 'crates/retinue-poe2' }
+  }
+  client = library 'Native client infrastructure' {
+    metadata { source 'crates/retinue-client' }
+    wire = component 'Local socket client' { metadata { source 'crates/retinue-client/src/transport.rs' } }
+    lifecycle = component 'Child monitoring and reload handoff' { metadata { source 'crates/retinue-client/src/reload.rs' monitor 'crates/retinue-client/src/child.rs' } }
+  }
+  contracts = library 'Shared protocol definitions' {
+    description 'Native clients and the daemon use the same schema sources. The Erlang CLI request path is distinct from this wire contract.'
+    metadata { source 'apps/retinue_core/proto/retinue_wire.proto' rust 'crates/retinue-protocol' warframe 'apps/wfcore/proto' poe2 'apps/poe2core/proto' }
+  }
+  daemon = application 'Retinue daemon' {
+    metadata { source 'apps/retinue_daemon/src/retinue_sup.erl' guide 'docs/developer/daemon.md' }
+    socket = boundary 'Native local API' { metadata { source 'apps/retinue_daemon/src/runtime/retinue_local_api.erl' dispatch 'apps/retinue_daemon/src/runtime/retinue_connection.erl' } }
+    rpc = boundary 'Erlang distribution API' { metadata { source 'apps/retinue_daemon/src/runtime/retinue_daemon.erl' client 'apps/retinue_cli/src/client/retinue_daemon_client.erl' } }
+    dispatch = component 'Game request dispatch' { metadata { source 'apps/retinue_daemon/src/runtime/retinue_games.erl' } }
+    activity = service 'Activity and resource lifetime' { metadata { source 'apps/retinue_daemon/src/runtime/retinue_activity.erl' } }
+    games = service 'Game supervision' {
+      description 'Supervises Warframe and PoE2 subtrees independently. Individual services own their data and request lifetimes.'
+      metadata { source 'apps/retinue_daemon/src/games/retinue_games_sup.erl' }
+    }
+    warframe = service 'Warframe services' {
+      description 'Player state, catalog sources, world state, market and build computation.'
+      metadata { source 'apps/retinue_daemon/src/games/warframe/wf_sup.erl' domain 'apps/wfcore' }
+    }
+    poe2 = service 'PoE2 services' {
+      description 'Session state, catalog, assets, trade searches and price prediction.'
+      metadata { source 'apps/retinue_daemon/src/games/poe2/retinue_poe2_sup.erl' domain 'apps/poe2core' }
+    }
+    health = service 'Health checks and incidents' { metadata { source 'apps/retinue_daemon/src/runtime/retinue_checks.erl' guide 'docs/developer/health.md' } }
+  }
+  cli -> daemon.rpc 'Requests and responses as Erlang terms'
+  desktop -> client.wire 'Requests page data and receives updates'
+  wf -> client.wire 'Reports observations and requests Warframe data'
+  poe -> client.wire 'Reports observations and requests trade data'
+  wf -> client.lifecycle 'Preserves running game on companion replacement'
+  poe -> client.lifecycle 'Preserves running game on companion replacement'
+  arc -> client.lifecycle 'Launch and reload only'
+  client.wire -> daemon.socket 'Versioned local socket contract'
+  client.wire -> contracts 'Encodes and decodes native messages'
+  daemon.socket -> contracts 'Selects game protocol and checks compatibility'
+  wf -> adapters 'Warframe observations'
+  poe -> adapters 'PoE2 observations'
+  inspect -> adapters 'Offline and live inspection'
+  daemon.games -> daemon.warframe 'Supervises'
+  daemon.games -> daemon.poe2 'Supervises'
+  daemon.socket -> daemon.warframe 'Selects the Warframe protocol handler at handshake'
+  daemon.socket -> daemon.poe2 'Selects the PoE2 protocol handler at handshake'
+  daemon.socket -> daemon.activity 'Reports active connection transitions'
+  daemon.rpc -> daemon.dispatch 'Dispatches requests and subscriptions'
+  daemon.dispatch -> daemon.warframe 'Routes Warframe commands'
+  daemon.dispatch -> daemon.poe2 'Routes PoE2 commands'
+  desktop.page -> desktop.mount 'Owns the slot, placement and mounted lifetime'
+}
+
+views {
+  view system { include * }
+  view daemonServices of daemon { include daemon.* }
+}

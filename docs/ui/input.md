@@ -4,6 +4,11 @@ Attach interactions to retained content. The shared router uses the resolved
 view geometry, clipping and painter order; do not construct a second page-wide
 hit-test tree from manually rounded rectangles.
 
+A host that already routes its own actions can use
+`InstanceGraph::with_host_routed_input`. It still gets published geometry and
+clipping, but the graph does not install view handlers or build its own target
+index. The host is then the sole owner of dispatch, capture, and focus.
+
 ## Route A Gesture
 
 `InputOptions` describes input behavior; `EventHandler` handles events with an

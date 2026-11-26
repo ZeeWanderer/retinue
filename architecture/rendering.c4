@@ -1,0 +1,101 @@
+model {
+  ui = library 'Retinue UI' {
+    metadata { source 'crates/retinue-ui' guide 'docs/developer/render-pipeline.md' }
+    graph = component 'Compiled views and instance graph' { metadata { source 'crates/retinue-ui/src/ir/graph.rs' } }
+    scene = component 'Layout and scene projection' {
+      description 'Owns layout inputs, retained geometry and invalidation. Independent placements can run in disjoint worker batches; negotiated child measurements return synchronously.'
+      metadata { source 'crates/retinue-ui/src/scene/projection.rs' solver 'crates/retinue-ui/src/scene/layout/solver.rs' batches 'crates/retinue-ui/src/scene/layout/solver/batch.rs' }
+    }
+    text = component 'Declarative text layout' {
+      description 'Each mounted Text leaf retains its shaped paragraph and placed glyph runs. When the first query supplies a width, the leaf resolves intrinsic metrics and places at that width before exporting glyphs.'
+      metadata { source 'crates/retinue-ui/src/view/text.rs' paragraph 'crates/retinue-ui/src/drawing/text/paragraph.rs' }
+    }
+    input = component 'Input routing and placed geometry' { metadata { source 'crates/retinue-ui/src/input' guide 'docs/ui/input.md' } }
+    surface = component 'Presentation and buffer leases' { metadata { source 'crates/retinue-ui/src/presentation_buffers.rs' } }
+    inputRegion = boundary 'Wayland overlay input region' {
+      description 'Declares which surface pixels receive pointer events. Window-system routing is not semantic hit testing, focus or capture.'
+      metadata { source 'crates/retinue-ui/src/surface.rs' }
+    }
+  }
+  taffy = library 'Taffy box algorithms' {
+    description 'Low-level root, flexbox, grid, leaf and query-cache algorithms. Operates on Retinue storage; does not own a second scene tree or schedule workers.'
+    metadata { source 'crates/retinue-ui/Cargo.toml' }
+  }
+  render = library 'Retinue Render' {
+    metadata { source 'crates/retinue-render' guide 'docs/developer/render-pipeline.md' }
+    frame = component 'Ordered programs and placements' { metadata { source 'crates/retinue-render/src/frame.rs' } }
+    repair = component 'Surface snapshot and buffer repair' {
+      description 'The host can request full damage independently of the scene diff. The acquired buffer age determines repair; relocation can reduce replay without narrowing current-frame presentation damage.'
+      metadata { source 'crates/retinue-render/src/surface.rs' }
+    }
+    packet = component 'Packet assembly and admission' {
+      description 'The page supplies slot order and repair demand, not a cache decision. Repeated compatible repairs can admit a leaf packet; a changed publication invalidates it.'
+      metadata { source 'crates/retinue-render/src/renderer/packet.rs' admission 'crates/retinue-render/src/renderer/packet/leaf.rs' assembly 'crates/retinue-render/src/renderer/packet/job.rs' }
+    }
+    budget = component 'Shared resource and execution budget' { metadata { source 'crates/retinue-render/src/host.rs' } }
+    executor = component 'Bounded task graph executor' {
+      description 'Each ready node reserves its declared participants before dispatch. A queued layout tree currently requests the entire host thread budget, so two such tree jobs cannot overlap within one host.'
+      metadata { source 'crates/retinue-render/src/work/graph.rs' dispatch 'crates/retinue-render/src/work/pool.rs' }
+    }
+    raster = component 'Raster planning and residency' { metadata { source 'crates/retinue-render/src/renderer.rs' } }
+    painter = component 'Native drawing' { metadata { source 'crates/retinue-render/src/painter/blend2d.rs' } }
+    evidence = component 'Completed-paint evidence' { metadata { source 'crates/retinue-render/src/renderer/evidence.rs' } }
+  }
+  wf -> ui 'Overlay views and input'
+  poe -> ui 'Evaluate panel and input'
+  desktop.page -> ui.graph 'Publishes page inputs'
+  desktop.mount -> ui.graph 'Updates local child inputs'
+  ui.graph -> ui.scene 'Publish active layout and paint changes'
+  ui.scene -> taffy 'Solve a box using the retained tree and the current proposal'
+  taffy -> ui.scene 'Synchronously request child layout and write results through Retinue tree traits'
+  ui.scene -> ui.text 'Measure or place text at the proposed width; reuse matching paragraph placement'
+  ui.text -> ui.scene 'Supply intrinsic metrics to layout and placed glyph runs to recording'
+  ui.scene -> render.executor 'Submit an eligible layout tree; owner-only and small trees stay local'
+  render.budget -> render.executor 'Bound participants across submitted jobs'
+  ui.scene -> render.frame 'Recorded programs, clips and placements'
+  desktop.page -> ui.input 'Registers controls in painter order'
+  desktop.mount -> ui.input 'Supplies local geometry and placement, not interaction state'
+  render.frame -> render.repair 'Visible scene and paint identity'
+  ui.surface -> render.repair 'Event damage and acquired buffer history'
+  render.repair -> render.packet 'Required repair in local coordinates'
+  render.frame -> render.packet 'Ordered source draws'
+  render.raster -> render.packet 'Available resource leases'
+  render.budget -> render.raster 'Host memory and worker limits'
+  render.packet -> render.painter 'Immutable drawing inputs; child jobs compose in slot order'
+  render.painter -> render.evidence 'Successful native finish credits visible retained-packet uses'
+  render.evidence -> render.raster 'Publication-scoped raster use, not speculative assembly'
+  render.painter -> ui.surface 'Completed pixels for presentation'
+}
+views {
+  view framePipeline { include ui.*, taffy, render.*, desktop.page, desktop.mount }
+  dynamic view listingEntry {
+    title 'Fresh mounted listing: current layout dependencies'
+    desktop.page -> ui.graph 'Publish listing metrics and cells, install root slot and child'
+    ui.graph -> ui.scene 'Resolve the page root'
+    ui.scene -> render.executor 'If eligible, move solver inputs and state into a layout job'
+    desktop.page -> desktop.mount 'Frame preparation: supply current size proposal without waiting for root geometry'
+    desktop.mount -> ui.scene 'Advance unpublished child layout; without an executor prepare inline at placement'
+    ui.scene -> render.executor 'Eligible child solve uses the same pool and wake as the root'
+    render.executor -> ui.scene 'Completed solves become available to their owners'
+    ui.scene -> desktop.page 'Join root and staged children before publication; navigation drops abandoned work'
+    desktop.page -> desktop.mount 'Place published child using viewport clip and translation'
+    desktop.mount -> desktop.page 'Return placed hit geometry'
+    desktop.page -> ui.input 'Bind actions for the completed layout'
+  }
+  dynamic view retainedFrame {
+    desktop.page -> ui.graph 'Publish visible keyed cells: keep surviving keys, add entering cells and remove leaving ones'
+    desktop.page -> desktop.mount 'Place the existing child: translate within the scroll band; change its local offset only when rebasing'
+    desktop.mount -> ui.graph 'Prepare inline on the owner only when the viewport or child inputs changed; this is not fresh mount admission'
+    ui.graph -> ui.scene 'On keyed edits, lay out changed children and restore unchanged subtrees into the dense local geometry projection'
+    ui.scene -> ui.text 'Measure entering or changed text; a retained paragraph can reflow without rebuilding its source shaping'
+    ui.text -> ui.scene 'Recording borrows the placed glyph runs'
+    desktop.mount -> desktop.page 'Reuse local hit geometry unless input revision, order or mounted keys changed'
+    desktop.page -> ui.input 'Bind actions using translated, clipped child targets'
+    ui.scene -> render.frame 'Publish retained commands'
+    render.frame -> render.repair 'Record the child under its placed clip'
+    render.repair -> render.packet 'Translate buffer repair into child coordinates'
+    render.packet -> render.painter 'Execute child packet in parent paint order'
+    render.painter -> render.evidence 'Credit completed drawing'
+    render.painter -> ui.surface 'Return completed buffer'
+  }
+}

@@ -1,0 +1,12 @@
+diff placedText 'Trial: reuse the result of text placement' {
+  description 'Evaluate sharing immutable glyphs and layout metrics within a mounted viewport. The existing paragraph path remains authoritative on a miss or a change of width.'
+  add {
+    extend ui {
+      placedText = component 'Viewport-local placed text' {
+        description 'Bounded store of immutable intrinsic widths, used width, baselines and draw-ready glyphs. Never shares a mutable shaping buffer.'
+      }
+    }
+    ui.text -> ui.placedText 'Find compatible placement or publish after successful layout'
+    ui.placedText -> ui.text 'Return size, baselines and glyphs without shaping or positioning'
+  }
+}
