@@ -100,6 +100,34 @@ fn template(seen: Rc<Cell<u32>>, calls: Rc<Cell<u32>>) -> Rc<Template<Inputs>> {
 }
 
 #[test]
+fn host_routing_publishes_geometry_without_installing_a_second_target() {
+    let mut graph = InstanceGraph::with_host_routed_input();
+    let root = graph.mount(template(Default::default(), Default::default()), initial());
+    graph.set_root(Some(root)).unwrap();
+    for offset in [0.0, 12.0] {
+        graph
+            .stage(
+                root,
+                Inputs {
+                    offset,
+                    ..initial()
+                },
+            )
+            .unwrap();
+        let update = graph.advance((200, 100), 1.0, None).unwrap();
+        assert!(update.completion.unwrap().is_ready());
+        assert_eq!(graph.geometry(address(root, 1)).unwrap().layout.x, offset);
+        assert_eq!(update.work.input_updates, 0);
+        assert!(graph.input().targets().is_empty());
+    }
+    assert!(
+        graph
+            .bind_input(address(root, 0), true, Some(InputOptions::default()))
+            .is_err()
+    );
+}
+
+#[test]
 fn observed_handler_edits_skip_layout_and_reuse_transaction_storage() {
     let mut graph = InstanceGraph::default();
     let seen = Rc::new(Cell::new(0));

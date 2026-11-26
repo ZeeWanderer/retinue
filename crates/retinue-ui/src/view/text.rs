@@ -1,6 +1,8 @@
 #[cfg(any(test, feature = "reference-frontend"))]
 use super::{Element, IntoElement};
 use super::{Primitive, PrimitiveOutput, ViewContext};
+#[cfg(feature = "layout-profiling")]
+use crate::profiling::{Scope, layout::TextPart};
 use crate::{
     Bounds,
     drawing::{
@@ -8,7 +10,7 @@ use crate::{
         text::{ParagraphDrawing, ParagraphSpec, ParagraphState, TextAlignment},
     },
     layout::{
-        Available, Layout, LayoutAlgorithm, LayoutError, LayoutSize, Proposal, Subviews,
+        Layout, LayoutAlgorithm, LayoutError, LayoutSize, Proposal, Subviews,
         alignment::{AlignmentGuide, AlignmentId, Axis},
     },
     scene::Algorithm,
@@ -160,20 +162,11 @@ impl Layout for TextMeasure {
         _: &mut Subviews<'_, '_>,
         cache: &mut TextCache,
     ) -> Result<LayoutSize, LayoutError> {
-        let width = match proposal.width {
-            Available::Ideal => cache
-                .paragraph
-                .ideal_width(&self.paragraph)
-                .map_err(LayoutError::Text)?,
-            Available::MinContent => cache
-                .paragraph
-                .minimum_width(&self.paragraph)
-                .map_err(LayoutError::Text)?,
-            Available::Limit(width) => width,
-        };
+        #[cfg(feature = "layout-profiling")]
+        let _scope = Scope::text(TextPart::Measure);
         Ok(cache
             .paragraph
-            .layout(&self.paragraph, width, self.alignment)
+            .layout_for(&self.paragraph, proposal.width, self.alignment)
             .map_err(LayoutError::Text)?
             .size)
     }
@@ -183,6 +176,8 @@ impl Layout for TextMeasure {
         _: &mut Subviews<'_, '_>,
         cache: &mut TextCache,
     ) -> Result<(), LayoutError> {
+        #[cfg(feature = "layout-profiling")]
+        let _scope = Scope::text(TextPart::Place);
         cache.placed = Some(
             cache
                 .paragraph
@@ -199,6 +194,8 @@ impl Layout for TextMeasure {
         _: &mut Subviews<'_, '_>,
         cache: &mut TextCache,
     ) -> Result<Option<f32>, LayoutError> {
+        #[cfg(feature = "layout-profiling")]
+        let _scope = Scope::text(TextPart::Guide);
         let layout = cache
             .paragraph
             .layout(&self.paragraph, bounds.width, self.alignment)

@@ -153,10 +153,22 @@ impl<'a> Computation<'a> {
         }
     }
 
-    fn custom(&mut self, node: usize, input: LayoutInput, layout: LayoutAlgorithm) -> LayoutOutput {
+    fn custom(
+        &mut self,
+        node: usize,
+        input: LayoutInput,
+        layout: LayoutAlgorithm,
+        #[cfg(feature = "geometry-census")] mut visit: Option<
+            &mut crate::scene::census::solver::Visit,
+        >,
+    ) -> LayoutOutput {
         let inputs = self.inputs;
         let entry = inputs[node].as_ref().unwrap();
         let key = entry.key;
+        #[cfg(feature = "geometry-census")]
+        if let Some(v) = &mut visit {
+            v.algorithm(layout.name());
+        }
         let style: &Style = &entry.style;
         let mut cache = layout.cache(self.take_cache(node));
         let mut context = LayoutContext {
@@ -165,6 +177,8 @@ impl<'a> Computation<'a> {
             input,
             parent_size: input.parent_size,
             placed: None,
+            #[cfg(feature = "geometry-census")]
+            pairs: None,
         };
         if let Err(error) = layout.refresh(&mut cache, &mut context) {
             context.tree.state.failure.get_or_insert(LayoutFailure {
@@ -174,31 +188,57 @@ impl<'a> Computation<'a> {
             context.tree.put_cache(node, cache);
             return LayoutOutput::DEFAULT;
         }
+        #[cfg(feature = "geometry-census")]
+        let (adapter, mut callback_ns) = (visit.as_deref().and_then(|v| v.clock()), 0);
+        #[cfg(feature = "geometry-census")]
+        if visit.is_some() && input.run_mode == RunMode::PerformLayout {
+            context.pairs = Some(crate::scene::census::solver::MeasurePairs::new(
+                adapter.is_some(),
+            ));
+        }
         let output = compute_leaf_layout(
             input,
             style,
             |_, _| 0.0,
-            |_, space| match layout.measure(
-                Proposal {
-                    width: available(space.width),
-                    height: available(space.height),
-                },
-                &mut context,
-                &mut cache,
-            ) {
-                Ok(size) if size.valid() => Size {
-                    width: size.width,
-                    height: size.height,
-                },
-                result => {
-                    context.tree.state.failure.get_or_insert(LayoutFailure {
-                        container: key,
-                        error: result.err().unwrap_or(LayoutError::InvalidGeometry),
-                    });
-                    Size::ZERO
+            |_, space| {
+                #[cfg(feature = "geometry-census")]
+                let begin = adapter.map(|_| {
+                    (
+                        std::time::Instant::now(),
+                        crate::scene::census::solver::Visit::child_ns(),
+                    )
+                });
+                let result = match layout.measure(
+                    Proposal {
+                        width: available(space.width),
+                        height: available(space.height),
+                    },
+                    &mut context,
+                    &mut cache,
+                ) {
+                    Ok(size) if size.valid() => Size {
+                        width: size.width,
+                        height: size.height,
+                    },
+                    result => {
+                        context.tree.state.failure.get_or_insert(LayoutFailure {
+                            container: key,
+                            error: result.err().unwrap_or(LayoutError::InvalidGeometry),
+                        });
+                        Size::ZERO
+                    }
+                };
+                #[cfg(feature = "geometry-census")]
+                if let Some(v) = &mut visit {
+                    callback_ns = v.measured(begin);
                 }
+                result
             },
         );
+        #[cfg(feature = "geometry-census")]
+        if let (Some(t), Some(v)) = (adapter, visit.as_deref_mut()) {
+            v.adapter_ns = (t.elapsed().as_nanos() as u64).saturating_sub(callback_ns);
+        }
         if input.run_mode == RunMode::PerformLayout && context.tree.state.failure.is_none() {
             let insets = style
                 .padding
@@ -243,6 +283,10 @@ impl<'a> Computation<'a> {
                 }
             }
         }
+        #[cfg(feature = "geometry-census")]
+        if let (Some(v), Some(pairs)) = (visit, context.pairs.take()) {
+            v.placement = pairs.totals;
+        }
         context.tree.put_cache(node, cache);
         output
     }
@@ -254,6 +298,8 @@ pub(crate) struct LayoutContext<'a> {
     input: LayoutInput,
     parent_size: Size<Option<f32>>,
     placed: Option<Vec<bool>>,
+    #[cfg(feature = "geometry-census")]
+    pairs: Option<crate::scene::census::solver::MeasurePairs>,
 }
 
 impl LayoutContext<'_> {
@@ -313,6 +359,15 @@ impl LayoutContext<'_> {
             height: space(proposal.height)?,
         };
         let id = self.tree.get_child_id(self.node.into(), child);
+        #[cfg(feature = "geometry-census")]
+        let matched = self.pairs.as_mut().and_then(|p| {
+            (self.placed.is_some() && p.matches(child, proposal)).then(|| {
+                (
+                    self.tree.state.computed,
+                    p.timed.then(std::time::Instant::now),
+                )
+            })
+        });
         let size = self
             .tree
             .compute_child_layout(
@@ -333,6 +388,15 @@ impl LayoutContext<'_> {
             .size;
         if self.tree.state.failure.is_some() {
             return Err(LayoutError::ChildFailed(key));
+        }
+        #[cfg(feature = "geometry-census")]
+        if let Some(p) = &mut self.pairs {
+            if let Some((before, start)) = matched {
+                p.totals[2] += u64::from(self.tree.state.computed != before);
+                p.totals[3] += start.map_or(0, |t| t.elapsed().as_nanos() as u64);
+            } else if self.placed.is_none() {
+                p.measured(child, proposal);
+            }
         }
         Ok(LayoutSize::new(size.width, size.height))
     }
@@ -416,7 +480,22 @@ impl LayoutPartialTree for Computation<'_> {
     }
 
     fn compute_child_layout(&mut self, node: NodeId, input: LayoutInput) -> LayoutOutput {
+        #[cfg(feature = "geometry-census")]
+        let mut visit = crate::scene::census::solver::Visit::begin(input, || {
+            let entry = self.inputs[usize::from(node)].as_ref().unwrap();
+            match (entry.kind, entry.children.is_empty()) {
+                (Kind::Flex | Kind::Grid, true) => "plain_leaf",
+                (Kind::Flex, false) => "flex",
+                (Kind::Grid, false) => "grid",
+                (_, true) => "custom_leaf",
+                (_, false) => "custom_container",
+            }
+        });
         let output = compute_cached_layout(self, node, input, |tree, node, input| {
+            #[cfg(feature = "geometry-census")]
+            if let Some(v) = &mut visit {
+                v.miss = true;
+            }
             tree.state.computed += 1;
             let slot = usize::from(node);
             if std::mem::take(&mut tree.geometry_mut(slot).reset_child_queries) {
@@ -434,9 +513,13 @@ impl LayoutPartialTree for Computation<'_> {
             match entry.kind {
                 Kind::Flex => compute_flexbox_layout(tree, node, input),
                 Kind::Grid => compute_grid_layout(tree, node, input),
-                Kind::Shared | Kind::Owner => {
-                    tree.custom(slot, input, tree.algorithm(slot).unwrap())
-                }
+                Kind::Shared | Kind::Owner => tree.custom(
+                    slot,
+                    input,
+                    tree.algorithm(slot).unwrap(),
+                    #[cfg(feature = "geometry-census")]
+                    visit.as_mut(),
+                ),
             }
         });
         let geometry = self.geometry_mut(usize::from(node));

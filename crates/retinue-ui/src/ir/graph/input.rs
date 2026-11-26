@@ -123,6 +123,9 @@ impl InstanceGraph {
         enabled: bool,
         input: Option<InputOptions>,
     ) -> Result<()> {
+        if self.host_routes_input {
+            return Err("input is routed by the host");
+        }
         self.key(address.instance, address.local)?;
         self.inputs
             .pending

@@ -1,6 +1,78 @@
 use super::*;
 
 #[test]
+fn first_proposal_matches_unconstrained_shaping_then_reflow() {
+    let style = TextStyle::default();
+    for (source, limit) in [
+        ("Lith 013", Some(1)),
+        ("", None),
+        ("office a\u{301} next\n\nlast", Some(2)),
+        ("abc אבג 123", None),
+        ("a word that needs elision", Some(1)),
+        ("hidden", Some(0)),
+    ] {
+        let spec = ParagraphSpec::new(source, &style, limit);
+        for proposal in [
+            Available::Ideal,
+            Available::MinContent,
+            Available::Limit(0.),
+            Available::Limit(39.25),
+        ] {
+            for alignment in [
+                TextAlignment::Leading,
+                TextAlignment::Center,
+                TextAlignment::Trailing,
+            ] {
+                let natural = spec.shape(source).unwrap();
+                let widths = natural.layout().calculate_content_widths();
+                let width = column_width(widths, proposal);
+                let mut reference = Placement {
+                    full: Some(natural),
+                    visible: None,
+                    key: None,
+                    error: None,
+                };
+                reference.place(&spec, width, alignment).unwrap();
+                let expected = reference.visible.as_ref().unwrap();
+                let mut state = ParagraphState::default();
+                let actual = state.layout_for(&spec, proposal, alignment).unwrap();
+                assert_eq!(
+                    (actual.size, actual.baseline, actual.last_baseline),
+                    (expected.size, expected.baseline, expected.last_baseline)
+                );
+                assert_eq!(
+                    actual.lines().collect::<Vec<_>>(),
+                    expected.lines().collect::<Vec<_>>()
+                );
+                assert_eq!(actual.shaped().runs(), expected.shaped().runs());
+                if source == "Lith 013" && alignment == TextAlignment::Center {
+                    use retinue_render::painter::Painter;
+                    let pixels = |layout: &TextLayout| {
+                        let mut bytes = vec![0; 160 * 64 * 4];
+                        let mut p = Painter::new(&mut bytes, 160, 64).unwrap();
+                        layout.shaped().prepare().unwrap().draw(
+                            &mut p,
+                            (3.25, 5.5),
+                            1.2,
+                            Color::rgb(0xffffff),
+                        );
+                        p.finish().unwrap();
+                        bytes
+                    };
+                    let before = pixels(expected);
+                    if proposal == Available::Ideal {
+                        assert!(before.iter().any(|&v| v != 0));
+                    }
+                    assert_eq!(before, pixels(actual));
+                }
+                let measured = state.current().unwrap().widths;
+                assert_eq!((measured.min, measured.max), (widths.min, widths.max));
+            }
+        }
+    }
+}
+
+#[test]
 fn intrinsic_width_roundoff_does_not_elide_but_real_constraints_do() {
     for text in ["Ember Prime", "Warframes / Archwings", "office AV"] {
         let paragraph = Paragraph::new(text, &TextStyle::default(), Some(1));

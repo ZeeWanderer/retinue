@@ -4,6 +4,7 @@ pub struct UpdateProfile {
     pub evaluation: std::time::Duration,
     pub bodies: std::time::Duration,
     pub lowering: std::time::Duration,
+    pub existing_nodes_materialized: usize,
     pub scene: std::time::Duration,
     pub input: std::time::Duration,
 }

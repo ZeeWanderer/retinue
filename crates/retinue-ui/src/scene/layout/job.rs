@@ -47,6 +47,8 @@ pub(in crate::scene) struct Pending {
     storage: Arc<Mutex<Option<Storage>>>,
     output: OwnedOutput<()>,
     submission: Option<Submission>,
+    #[cfg(feature = "layout-profiling")]
+    pub(in crate::scene) worker_window: Option<(std::time::Instant, std::time::Instant)>,
     #[cfg(feature = "profiling")]
     pub(in crate::scene) elapsed: std::time::Duration,
 }
@@ -57,6 +59,7 @@ impl Pending {
         let storage = self.storage.lock().unwrap().take().unwrap();
         #[cfg(feature = "layout-profiling")]
         if let Some(job) = storage.job {
+            self.worker_window = Some((job.started, job.finished));
             job.collected(std::time::Instant::now());
         }
         #[cfg(feature = "profiling")]
@@ -161,6 +164,8 @@ impl Tree {
                 storage,
                 output,
                 submission: Some(submission),
+                #[cfg(feature = "layout-profiling")]
+                worker_window: None,
                 #[cfg(feature = "profiling")]
                 elapsed: std::time::Duration::ZERO,
             }),

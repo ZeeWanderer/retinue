@@ -82,6 +82,7 @@ pub struct InstanceGraph {
     clock: Option<Clock>,
     timing: Timing<Handle>,
     inputs: input::Inputs,
+    host_routes_input: bool,
     names: names::Names,
     root: Option<Handle>,
     pending_root: Option<Option<Handle>>,
@@ -128,6 +129,7 @@ impl Default for InstanceGraph {
             clock: None,
             timing: Timing::default(),
             inputs: input::Inputs::default(),
+            host_routes_input: false,
             names: names::Names::default(),
             root: None,
             pending_root: None,
@@ -150,6 +152,15 @@ impl Default for InstanceGraph {
 }
 
 impl InstanceGraph {
+    /// Publish scene geometry, but leave input dispatch (including focus and
+    /// capture) to the host. Authored handlers are not installed in this mode.
+    pub fn with_host_routed_input() -> Self {
+        Self {
+            host_routes_input: true,
+            ..Self::default()
+        }
+    }
+
     fn host_element(key: Key) -> scene::Element {
         let mut root = scene::Element::new(
             key,
@@ -626,7 +637,12 @@ impl InstanceGraph {
             }
             return Ok(());
         }
-        work.nodes_materialized += pool.structure(handle)?.materialized;
+        let nodes = pool.structure(handle)?.materialized;
+        work.nodes_materialized += nodes;
+        #[cfg(feature = "profiling")]
+        if self.active.contains(&handle) {
+            work.existing_nodes_materialized += nodes;
+        }
         let mut outlets = Vec::new();
         for &local in pool.outlets(handle)? {
             let mut children = Vec::new();
@@ -888,6 +904,8 @@ impl InstanceGraph {
         let mut roots = Vec::new();
         if let Some(plan) = &topology {
             work.topology_visited = plan.active.len();
+            #[cfg(feature = "profiling")]
+            let started = std::time::Instant::now();
             let mut children = Vec::new();
             if let Some(root) = plan.root {
                 self.lower(root, plan, &mut work, &mut children, changes)?;
@@ -896,6 +914,11 @@ impl InstanceGraph {
                 Box::new(Self::host_element(self.host)),
                 children,
             ));
+            #[cfg(feature = "profiling")]
+            {
+                self.profile.lowering += started.elapsed();
+                self.profile.existing_nodes_materialized = work.existing_nodes_materialized;
+            }
         }
         let needs_backend = !roots.is_empty()
             || !changes.scene.is_empty()
@@ -903,6 +926,9 @@ impl InstanceGraph {
             || self.scene.frame().size() != size
             || self.scene.frame().scale() != scale;
         let future_active = topology.as_ref().map_or(&self.active, |plan| &plan.active);
+        if self.host_routes_input {
+            changes.inputs.clear();
+        }
         let inputs_changed = self.inputs.changed(future_active)
             || changes.inputs.iter().any(|(key, input)| {
                 let address = self.locate(*key).unwrap();

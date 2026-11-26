@@ -228,6 +228,8 @@ fn static_multi_root_template_keeps_property_and_retained_node_identity() {
     graph.set_root(Some(root)).unwrap();
     let mounted = graph.advance((100, 100), 1.0, None).unwrap();
     assert_eq!(mounted.work.nodes_materialized, 5);
+    #[cfg(feature = "profiling")]
+    assert_eq!(mounted.work.existing_nodes_materialized, 0);
     assert_eq!(graph.scene().geometry().len(), 6);
     for local in [Local(1), Local(3)] {
         let bounds = graph
@@ -248,6 +250,8 @@ fn static_multi_root_template_keeps_property_and_retained_node_identity() {
         .unwrap();
     let reordered = graph.advance((100, 100), 1.0, None).unwrap();
     assert_eq!(reordered.work.nodes_materialized, 1);
+    #[cfg(feature = "profiling")]
+    assert_eq!(reordered.work.existing_nodes_materialized, 1);
     let after: Vec<_> = graph
         .scene()
         .frame()

@@ -15,6 +15,26 @@ use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_prese
 
 const MAX_FRAMES: usize = 20_000;
 
+impl Surface {
+    pub(super) fn prepare_commit_reference(&mut self) -> Result<(), String> {
+        if self.measurement.as_ref().is_some_and(|m| m.verify) {
+            let size = crate::presentation_buffers::buffer_size(self.size, self.scale)?;
+            self.buffers.reference(self.app.full_reference(size)?);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Transfer {
+    Full,
+    Repair,
+    #[default]
+    Current,
+    ReleasedLatest,
+}
+
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Policy {
@@ -63,6 +83,14 @@ impl Frame {
 
 #[derive(Clone, Serialize)]
 pub struct Report {
+    pub transfer: Transfer,
+    pub peak_shm: usize,
+    pub chosen_latest: u64,
+    pub copied_pixels: u64,
+    pub repaired_pixels: u64,
+    pub damage_pixels: u64,
+    pub planning_ns: u64,
+    pub native_finish_ns: u64,
     pub clock_id: Option<u32>,
     pub dispatches: u64,
     pub coalesced_updates: u64,
@@ -114,6 +142,7 @@ struct Counters {
 }
 
 struct State {
+    verify: bool,
     start: Instant,
     clock: Option<ClockId>,
     pending: Option<(u64, Instant)>,
@@ -128,12 +157,21 @@ pub struct Capture(Rc<RefCell<State>>);
 impl Default for Capture {
     fn default() -> Self {
         Self(Rc::new(RefCell::new(State {
+            verify: false,
             start: Instant::now(),
             clock: None,
             pending: None,
             rendering: None,
             measurement: None,
             report: Report {
+                transfer: Transfer::Current,
+                peak_shm: 0,
+                chosen_latest: 0,
+                copied_pixels: 0,
+                repaired_pixels: 0,
+                damage_pixels: 0,
+                planning_ns: 0,
+                native_finish_ns: 0,
                 clock_id: None,
                 dispatches: 0,
                 coalesced_updates: 0,
@@ -148,6 +186,11 @@ impl Default for Capture {
 }
 
 impl Capture {
+    pub fn select_transfer(&self, policy: Transfer, verify: bool) {
+        let mut state = self.0.borrow_mut();
+        state.report.transfer = policy;
+        state.verify = verify;
+    }
     pub fn begin_measurement(&self) {
         let mut state = self.0.borrow_mut();
         state.measurement = Some(Counters {
@@ -225,12 +268,30 @@ fn clock_ns(clock: ClockId) -> u64 {
 
 pub(super) struct Measurement {
     pub policy: Policy,
+    pub transfer: Transfer,
+    pub verify: bool,
     capture: Capture,
     presentation: wp_presentation::WpPresentation,
     pending: usize,
 }
 
 impl Measurement {
+    pub fn storage(&self, bytes: usize, latest: bool) {
+        let mut s = self.capture.0.borrow_mut();
+        s.report.peak_shm = s.report.peak_shm.max(bytes);
+        s.report.chosen_latest += u64::from(latest);
+    }
+    pub fn work(&self, frame: &retinue_render::surface::Submission) {
+        let mut s = self.capture.0.borrow_mut();
+        if s.measurement.is_none() {
+            return;
+        }
+        s.report.copied_pixels += frame.copied_pixels;
+        s.report.repaired_pixels += frame.repaired_pixels;
+        s.report.damage_pixels += frame.damage.area();
+        s.report.planning_ns += frame.planning_ns;
+        s.report.native_finish_ns += frame.finish_ns;
+    }
     pub fn pointer_frame(
         &self,
         events: &[PointerEvent],
@@ -260,8 +321,12 @@ impl Measurement {
         policy: Policy,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let presentation = globals.bind(qh, 1..=2, ())?;
+        let transfer = capture.0.borrow().report.transfer;
+        let verify = capture.0.borrow().verify;
         Ok(Self {
             policy,
+            transfer,
+            verify,
             capture,
             presentation,
             pending: 0,

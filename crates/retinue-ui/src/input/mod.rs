@@ -2,11 +2,13 @@
 
 mod controls;
 mod handler;
+mod placement;
 mod router;
 mod target;
 
 pub use controls::{ControlDispatch, ControlRegion, Controls};
 pub use handler::EventHandler;
+pub use placement::{LocalInputGeometry, PlacedInputGeometry};
 pub use router::{Dispatch, Router};
 pub use target::{Activation, FocusPolicy, HitRegion, HitShape, InputOptions, Interaction, Target};
 

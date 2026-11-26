@@ -1,5 +1,5 @@
 use super::{font::TextFace, shaping::ShapedText};
-use parley::{Alignment, AlignmentOptions};
+use parley::Alignment;
 use retinue_render::{
     Bounds, Color, Command,
     painter::CachedFont,
@@ -15,6 +15,9 @@ pub enum LabelAlignment {
     Center,
     WrappedCenter,
 }
+
+#[cfg(test)]
+mod benchmark;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Key {
@@ -80,14 +83,15 @@ fn label(
             return Ok(label);
         }
         let face = TextFace::for_font(font)?;
-        let shaped: ShapedText = face.shape(text, size)?.reflow(
+        let shaped: ShapedText = face.shape_at(
+            text,
+            size,
             width,
-            if width.is_some() {
+            Some(if width.is_some() {
                 Alignment::Center
             } else {
                 Alignment::Start
-            },
-            AlignmentOptions::default(),
+            }),
         )?;
         let value = Label {
             text: text.into(),
@@ -227,6 +231,37 @@ mod tests {
             assert_eq!(a_origin.0 + 20.0, b_origin.0);
             assert_eq!(a_origin.1 + 10.0, b_origin.1);
             assert!(std::ptr::eq(a.glyphs().as_ptr(), b.glyphs().as_ptr()));
+        }
+    }
+
+    #[test]
+    fn single_placement_preserves_original_glyphs_and_line_breaks() {
+        let font = load_overlay_font().unwrap();
+        let face = TextFace::for_font(&font).unwrap();
+        for text in ["office AV", "one\n\ntwo", "A\u{407}\u{ffff}Z"] {
+            for width in [None, Some(0.0), Some(43.0), Some(230.0)] {
+                let alignment = if width.is_some() {
+                    Alignment::Center
+                } else {
+                    Alignment::Start
+                };
+                let old = face
+                    .shape(text, 18.0)
+                    .unwrap()
+                    .reflow(width, alignment, Default::default())
+                    .unwrap();
+                let new = label(&font, text, 18.0, width).unwrap();
+                assert_eq!(old.layout().width(), new.width);
+                assert_eq!(old.layout().height(), new.height);
+                assert_eq!(
+                    old.layout()
+                        .lines()
+                        .map(|l| l.text_range())
+                        .collect::<Vec<_>>(),
+                    new.lines
+                );
+                assert_eq!(old.runs(), new.runs);
+            }
         }
     }
 

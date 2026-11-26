@@ -210,15 +210,16 @@ fn batching_threshold_keeps_the_serial_result() {
     assert_eq!(serial.computed, batched.computed);
 }
 
-#[test]
-fn sparse_reordered_slots_remain_disjoint_and_use_canonical_keys() {
-    let (inputs, root, mut paints) = fixture(13, true);
+fn sparse_slots(
+    (inputs, root, mut paints): (Inputs, usize, Vec<(usize, Paint)>),
+    stride: usize,
+) -> (Inputs, usize, Vec<(usize, Paint)>) {
     let count = inputs.len();
     let remap = |slot: usize| {
         let reversed = count - 1 - slot;
-        (reversed / 2 + (reversed % 2) * count.div_ceil(2)) * 2 + 1
+        (reversed / 2 + (reversed % 2) * count.div_ceil(2)) * stride + 1
     };
-    let mut sparse: Vec<_> = (0..count * 2).map(|_| None).collect();
+    let mut sparse: Vec<_> = (0..count * stride).map(|_| None).collect();
     for (slot, input) in Arc::try_unwrap(inputs)
         .ok()
         .unwrap()
@@ -234,8 +235,12 @@ fn sparse_reordered_slots_remain_disjoint_and_use_canonical_keys() {
     for (slot, _) in &mut paints {
         *slot = remap(*slot);
     }
-    let inputs = Arc::new(sparse);
-    let root = remap(root);
+    (Arc::new(sparse), remap(root), paints)
+}
+
+#[test]
+fn sparse_reordered_slots_remain_disjoint_and_use_canonical_keys() {
+    let (inputs, root, paints) = sparse_slots(fixture(13, true), 2);
     let size = Size {
         width: 961.25,
         height: 800.75,
@@ -442,15 +447,24 @@ fn layout_batch_benchmark() {
         ("cards", 48, false),
         ("skewed", 48, true),
         ("reflow", 48, false),
+        ("sparse-reflow", 48, false),
     ] {
         for mode in ["serial", "queued", "batched"] {
             let name = format!("{label}-{mode}");
             if !bench::selected(&name) {
                 continue;
             }
-            let (inputs, root, _) = fixture(count, long);
-            let alternate = if label == "reflow" {
-                fixture_width(count, long, 172.25).0
+            let reflow = label.ends_with("reflow");
+            let storage = |fixture| {
+                if label == "sparse-reflow" {
+                    sparse_slots(fixture, 16)
+                } else {
+                    fixture
+                }
+            };
+            let (inputs, root, _) = storage(fixture(count, long));
+            let alternate = if reflow {
+                storage(fixture_width(count, long, 172.25)).0
             } else {
                 inputs.clone()
             };
@@ -488,7 +502,7 @@ fn layout_batch_benchmark() {
                     *selected = frame % 2;
                     let inputs = &variants[*selected];
                     result.changed.clear();
-                    if label == "reflow" {
+                    if reflow {
                         let mut current = Some(grid);
                         while let Some(slot) = current {
                             let node = result.nodes[slot].as_mut().unwrap();
@@ -521,8 +535,8 @@ fn layout_batch_benchmark() {
                 },
                 |(_, result, selected)| {
                     assert_eq!(geometry(result), expected[*selected]);
-                    serde_json::json!({"nodes": variants[0].len(), "items": count, "computations": result.computed,
-                        "participants": participants, "cold_state": label != "reflow", "mode": mode})
+                    serde_json::json!({"nodes": variants[0].iter().flatten().count(), "slots": variants[0].len(), "items": count, "computations": result.computed,
+                        "participants": participants, "cold_state": !reflow, "mode": mode})
                 },
             );
             case["actual_threads"] =

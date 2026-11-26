@@ -4,6 +4,8 @@ mod lease;
 #[cfg(feature = "desktop")]
 pub mod readiness;
 pub mod render;
+#[cfg(feature = "benchmark")]
+mod verify;
 pub use lease::Lease;
 
 use retinue_render::damage::Region;
@@ -41,6 +43,8 @@ pub struct Buffers {
     geometry: Option<((u32, u32), wl_shm::Format)>,
     returned: Arc<Mutex<Vec<(usize, Slot)>>>,
     allocated: usize,
+    #[cfg(feature = "benchmark")]
+    oracle: verify::Oracle,
 }
 
 impl Default for Buffers {
@@ -52,6 +56,8 @@ impl Default for Buffers {
             geometry: None,
             returned: Arc::default(),
             allocated: 0,
+            #[cfg(feature = "benchmark")]
+            oracle: Default::default(),
         }
     }
 }
@@ -63,6 +69,27 @@ pub struct Pixels<'a> {
 }
 
 impl Buffers {
+    #[cfg(feature = "benchmark")]
+    pub(crate) fn reference(&mut self, image: Vec<u8>) {
+        self.oracle.pending = Some(image);
+    }
+
+    #[cfg(feature = "benchmark")]
+    pub(crate) fn latest_writable(
+        &mut self,
+        size: (u32, u32),
+        format: wl_shm::Format,
+    ) -> Option<usize> {
+        self.collect();
+        if self.geometry != Some((size, format)) {
+            return None;
+        }
+        self.latest.filter(|i| {
+            self.slots[*i]
+                .as_ref()
+                .is_some_and(|s| !s.buffer.slot().has_active_buffers())
+        })
+    }
     pub fn len(&self) -> usize {
         self.slots.len()
     }
@@ -184,6 +211,23 @@ impl Buffers {
         damage: &Region,
         before_commit: impl FnOnce(),
     ) -> Result<(), String> {
+        #[cfg(feature = "benchmark")]
+        if self.oracle.pending.is_some() {
+            let (size, format) = self.geometry.ok_or("missing target geometry")?;
+            let slot = self.slots[index]
+                .as_mut()
+                .ok_or("leased target at commit")?;
+            let target = slot
+                .buffer
+                .canvas(&mut slot.pool)
+                .ok_or("busy target at commit")?;
+            self.oracle.check(
+                target,
+                size,
+                format,
+                (surface.version() >= 4).then_some(damage),
+            )?;
+        }
         self.buffer(index)
             .attach_to(surface)
             .map_err(|e| e.to_string())?;
@@ -201,6 +245,8 @@ impl Buffers {
         }
         before_commit();
         surface.commit();
+        #[cfg(feature = "benchmark")]
+        self.oracle.committed();
         self.submitted(index);
         Ok(())
     }

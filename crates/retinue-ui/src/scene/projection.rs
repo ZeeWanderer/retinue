@@ -161,6 +161,8 @@ impl Scene {
                     }
                     node.recorded_layout = revision;
                     self.stats.recordings += 1;
+                    #[cfg(feature = "geometry-census")]
+                    census::count(|c| c.recordings += 1);
                     painted = true;
                 }
                 painted |= self.frame.instances()[chunk].cache != paint.cache;
@@ -233,20 +235,30 @@ impl Scene {
                 context: self.render_context(index, self.frame.scale()),
             })
             .collect::<Vec<_>>();
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.paint_placements += placements.len());
         let damage = self
             .frame
             .patch_resolved(updates, placements, groups)
             .expect("valid scene patch");
+        let mut ancestors = std::collections::BTreeSet::new();
         for range in merged.iter().rev() {
             for index in range.clone().rev() {
-                self.aggregate(index);
-            }
-            let mut parent = self.projection[range.start].parent;
-            while let Some(index) = parent {
-                if !self.aggregate(index) {
-                    break;
+                if self.aggregate(index)
+                    && index == range.start
+                    && let Some(parent) = self.projection[index].parent
+                {
+                    ancestors.insert(parent);
                 }
-                parent = self.projection[index].parent;
+            }
+        }
+        // Projection indices are in preorder. Process shared parents only after
+        // their changed descendants; a recolor does not change ancestor bounds.
+        while let Some(index) = ancestors.pop_last() {
+            if self.aggregate(index)
+                && let Some(parent) = self.projection[index].parent
+            {
+                ancestors.insert(parent);
             }
         }
         if geometry_moved && !hit_policy_changed {
@@ -270,6 +282,8 @@ impl Scene {
     }
 
     pub(super) fn project_geometry(&mut self, index: usize, paint: Option<PaintExtent>) {
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.world_resolves += 1);
         let placement = &self.projection[index];
         let (parent, clip) = placement.parent.map_or(
             (
@@ -326,6 +340,10 @@ impl Scene {
         let mut paint = self.projection[index].own_paint;
         let mut child = index + 1;
         while child < self.projection[index].end {
+            #[cfg(test)]
+            {
+                self.stats.bounds_child_visits += 1;
+            }
             paint = paint.union(self.geometry[child].paint);
             child = self.projection[child].end;
         }
@@ -336,16 +354,16 @@ impl Scene {
 }
 
 pub(super) fn layout_pixels(bounds: Bounds, scale: f32) -> retinue_render::PaintExtent {
-    let x = (bounds.x * scale).round() as i32;
-    let y = (bounds.y * scale).round() as i32;
+    let x = Bounds::pixel_position(bounds.x, scale);
+    let y = Bounds::pixel_position(bounds.y, scale);
     // Shared edges must convert identically; rounding width separately can overlap neighbors.
     retinue_render::PaintExtent {
         x,
         y,
-        width: (((bounds.x + bounds.width) * scale).round() as i32)
+        width: Bounds::pixel_position(bounds.x + bounds.width, scale)
             .saturating_sub(x)
             .max(0) as u32,
-        height: (((bounds.y + bounds.height) * scale).round() as i32)
+        height: Bounds::pixel_position(bounds.y + bounds.height, scale)
             .saturating_sub(y)
             .max(0) as u32,
     }

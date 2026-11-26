@@ -42,6 +42,8 @@ impl Scene {
             return Err("composition scale must be positive and finite");
         }
         self.root.ok_or("composition has no root")?;
+        #[cfg(feature = "profiling")]
+        let started = std::time::Instant::now();
         let replacement = if roots.is_empty() {
             None
         } else {
@@ -69,6 +71,10 @@ impl Scene {
         } else {
             self.tree.state.changed.clear();
             self.tree.topology_changed = false;
+        }
+        #[cfg(feature = "profiling")]
+        {
+            self.profile.reconcile += started.elapsed();
         }
         self.tree.state.computed = 0;
         let relayout = self.apply_changes(changes.drain(..))

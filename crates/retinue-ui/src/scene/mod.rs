@@ -2,6 +2,8 @@
 
 #[cfg(test)]
 mod batch_tests;
+#[cfg(feature = "geometry-census")]
+pub mod census;
 pub(crate) mod execution;
 pub(crate) mod layout;
 #[cfg(test)]
@@ -140,6 +142,10 @@ impl Element {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UpdateStats {
+    #[cfg(test)]
+    pub(crate) bounds_child_visits: usize,
+    #[cfg(test)]
+    pub(crate) restored_records: usize,
     pub nodes: usize,
     pub layout_computations: usize,
     pub recordings: usize,
@@ -148,11 +154,18 @@ pub struct UpdateStats {
 
 #[cfg(feature = "profiling")]
 #[derive(Clone, Copy, Debug, Default)]
+/// Cumulative over the scene's lifetime; subtract snapshots for a frame sample.
 pub struct UpdateProfile {
+    /// Most recently collected asynchronous solve, not a cumulative duration.
+    #[cfg(feature = "layout-profiling")]
+    pub last_worker_window: Option<(std::time::Instant, std::time::Instant)>,
     pub reconcile: std::time::Duration,
     pub layout: std::time::Duration,
     pub projection: std::time::Duration,
     pub geometry: std::time::Duration,
+    /// Subset of geometry time spent restoring unchanged subtrees.
+    pub restoration: std::time::Duration,
+    pub restored_records: usize,
     pub frame: std::time::Duration,
     pub recording: std::time::Duration,
 }
@@ -462,10 +475,23 @@ impl Scene {
         }
         #[cfg(feature = "profiling")]
         let started = std::time::Instant::now();
+        // A zero-length sibling can precede a painted group at the same start.
+        // PaintFrame puts the longer range first; placements need its final indices.
+        let reordered = draft.groups.windows(2).any(|pair| {
+            pair[0].instances.start == pair[1].instances.start
+                && pair[0].instances.end < pair[1].instances.end
+        });
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.paint_placements += draft.instances.len());
         let damage = self
             .frame
             .replace(size, scale, draft.instances, draft.groups)
             .expect("valid scene frame");
+        if reordered {
+            for (i, group) in self.frame.groups().iter().enumerate() {
+                self.projection[self.geometry_index[&group.key]].group = Some(i);
+            }
+        }
         #[cfg(feature = "profiling")]
         {
             self.profile.frame += started.elapsed();
@@ -508,6 +534,8 @@ impl Scene {
         if input.style.display == taffy::Display::None {
             return Rect::default();
         }
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.world_resolves += 1);
         let origin = (
             parent.0 + layout.location.x + node.offset.0,
             parent.1 + layout.location.y + node.offset.1,
@@ -552,6 +580,8 @@ impl Scene {
                 }
                 node.recorded_layout = revision;
                 self.stats.recordings += 1;
+                #[cfg(feature = "geometry-census")]
+                census::count(|c| c.recordings += 1);
             }
             let recorded = node.recorded.as_ref().unwrap();
             paint_bounds = recorded.bounds().visible((pixels.x, pixels.y), clip);
@@ -840,10 +870,14 @@ impl Scene {
     }
 
     pub fn geometry(&self) -> &[Geometry] {
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.slice_requests += 1);
         &self.geometry
     }
 
-    pub(crate) fn input_revision(&self) -> u64 {
+    /// Changes when this scene republishes structural geometry, placement or hit
+    /// policy. Only compare revisions from the same scene, not across remounts.
+    pub fn input_revision(&self) -> u64 {
         self.input_revision
     }
 
@@ -859,6 +893,11 @@ impl Scene {
     }
 
     pub fn bounds(&self, key: Key) -> Option<Geometry> {
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| {
+            c.bounds_calls += 1;
+            c.bounds_keys.insert(key);
+        });
         self.geometry_index
             .get(&key)
             .map(|&index| self.geometry[index])

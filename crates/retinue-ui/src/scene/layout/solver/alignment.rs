@@ -104,6 +104,8 @@ impl Computation<'_> {
                 height: Some(bounds.height),
             },
             placed: None,
+            #[cfg(feature = "geometry-census")]
+            pairs: None,
         };
         let result = algorithm
             .refresh(&mut cache, &mut context)

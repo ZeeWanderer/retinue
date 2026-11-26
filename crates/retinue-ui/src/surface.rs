@@ -120,6 +120,10 @@ pub trait Application {
     fn render_host(&self) -> Option<retinue_render::RenderHost> {
         None
     }
+    #[cfg(feature = "benchmark")]
+    fn full_reference(&mut self, _size: (u32, u32)) -> Result<Vec<u8>, String> {
+        Err("fixture does not provide an independent reference".into())
+    }
     fn render_threads(&self) -> std::num::NonZeroU32 {
         std::num::NonZeroU32::MIN
     }
@@ -448,17 +452,46 @@ impl Surface {
         }
         let (width, height) = crate::presentation_buffers::buffer_size(self.size, self.scale)?;
         let count = self.buffers.len();
-        let Some(index) = self.buffers.acquire(
-            &self.shm,
-            (width, height),
-            wl_shm::Format::Argb8888,
-            self.app.relocation() != retinue_render::surface::Relocation::Disabled,
-        )?
-        else {
+        let relocation = self.app.relocation();
+        #[cfg(feature = "benchmark")]
+        let transfer = self
+            .measurement
+            .as_ref()
+            .map(|m| m.transfer)
+            .unwrap_or_default();
+        #[cfg(feature = "benchmark")]
+        let relocation = match transfer {
+            benchmark::Transfer::Full | benchmark::Transfer::Repair => {
+                retinue_render::surface::Relocation::Disabled
+            }
+            _ => relocation,
+        };
+        #[cfg(feature = "benchmark")]
+        let latest = (transfer == benchmark::Transfer::ReleasedLatest)
+            .then(|| {
+                self.buffers
+                    .latest_writable((width, height), wl_shm::Format::Argb8888)
+            })
+            .flatten();
+        #[cfg(not(feature = "benchmark"))]
+        let latest = None;
+        let Some(index) = (match latest {
+            Some(index) => Some(index),
+            None => self.buffers.acquire(
+                &self.shm,
+                (width, height),
+                wl_shm::Format::Argb8888,
+                relocation != retinue_render::surface::Relocation::Disabled,
+            )?,
+        }) else {
             return Ok(());
         };
         if self.buffers.len() > count {
             self.repaint.add_buffer();
+        }
+        #[cfg(feature = "benchmark")]
+        if let Some(m) = &self.measurement {
+            m.storage(self.buffers.allocated_bytes(), latest.is_some());
         }
         #[cfg(feature = "benchmark")]
         let paint_start = Instant::now();
@@ -472,7 +505,11 @@ impl Surface {
         }
         let scene = self.app.paint_scene();
         self.preparation.finish();
-        self.repaint.set_relocation(self.app.relocation());
+        self.repaint.set_relocation(relocation);
+        #[cfg(feature = "benchmark")]
+        if transfer == benchmark::Transfer::Full {
+            self.repaint.invalidate(Damage::Full);
+        }
         let host = self.app.render_host();
         let _pass = host.as_ref().map(|host| host.begin_pass(0));
         let threads = self.app.render_threads();
@@ -561,6 +598,8 @@ impl Surface {
                 .set_input_region(Some(region.wl_region()));
             self.pointer_regions = regions;
         }
+        #[cfg(feature = "benchmark")]
+        self.prepare_commit_reference()?;
         self.buffers
             .present(index, self.layer.wl_surface(), &plan.damage, || {
                 self.layer
@@ -572,6 +611,10 @@ impl Surface {
                 }
             })?;
         self.frame_pending = true;
+        #[cfg(feature = "benchmark")]
+        if let Some(m) = &self.measurement {
+            m.work(&plan);
+        }
         self.repaint.submitted(plan);
         self.app.presented();
         Ok(())
@@ -606,6 +649,8 @@ impl Surface {
                 .set_input_region(Some(region.wl_region()));
             self.pointer_regions = std::mem::take(&mut self.render_regions);
         }
+        #[cfg(feature = "benchmark")]
+        self.prepare_commit_reference()?;
         self.buffers.present(
             index,
             self.layer.wl_surface(),
@@ -626,6 +671,10 @@ impl Surface {
             },
         )?;
         self.frame_pending = true;
+        #[cfg(feature = "benchmark")]
+        if let Some(m) = &self.measurement {
+            m.work(&rendered.submission);
+        }
         self.repaint.submitted(rendered.submission);
         self.app.presented();
         Ok(())

@@ -6,6 +6,8 @@ use retinue_render::{damage::AgeRepaintTracker, painter::Painter};
 use std::time::{Duration, Instant};
 use taffy::Dimension;
 
+mod structural_benchmark;
+
 fn label(
     font: &retinue_render::painter::CachedFont,
     bounds: Bounds,
@@ -884,6 +886,30 @@ fn scoped_layout_and_topology_changes_match_full_reconciliation() {
 }
 
 #[test]
+fn sibling_recolor_does_not_rescan_parent_bounds() {
+    for count in [1_u64, 32, 512] {
+        let mut scene = Scene::default();
+        let siblings = Element::row(0, 0.0, (1..=512).map(child).collect());
+        scene
+            .update(siblings, (32768, 60), 1.0, RecordingMode::Retained)
+            .unwrap();
+        let before = scene.bounds(0.into()).unwrap().paint;
+        let damage = scene
+            .patch(
+                (1..=count)
+                    .map(|n| Change::Paint(n.into(), Some(fill(1000 + n, [120, 8, 100, 255])))),
+            )
+            .unwrap();
+        assert_ne!(damage, Damage::None);
+        assert_eq!(scene.bounds(0.into()).unwrap().paint, before);
+        assert_eq!(
+            scene.stats.bounds_child_visits, 0,
+            "dirty siblings: {count}"
+        );
+    }
+}
+
+#[test]
 fn sibling_patch_ranges_repair_ancestor_overflow_and_reappearing_content() {
     let mut root = Element::row(
         0,
@@ -1616,5 +1642,19 @@ fn image_arrival_and_clipped_glyphs_match_full_replay_during_scroll() {
                 .unwrap();
             assert!(max <= 2, "scale={scale} frame={frame} max={max}");
         }
+    }
+}
+
+#[test]
+fn half_pixel_ties_keep_the_same_edge_across_the_origin() {
+    let snap = super::projection::layout_pixels;
+    let scale = 1.5;
+    let positive = Bounds::new(45., 45., 20., 18.);
+    for offset in [3, 69, 114] {
+        let origin = 45. - offset as f32 / scale;
+        let moved = Bounds::new(origin, origin, 20., 18.);
+        let delta = (-offset, -offset);
+        assert_eq!(positive.pixels(scale).translated(delta), moved.pixels(scale));
+        assert_eq!(snap(positive, scale).translated(delta), snap(moved, scale));
     }
 }

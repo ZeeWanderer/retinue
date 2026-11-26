@@ -165,6 +165,20 @@ impl TextFace {
     }
 
     pub fn shape(&self, text: &str, size: f32) -> Result<ShapedText, TextError> {
+        self.shape_at(text, size, None, None)
+    }
+
+    pub(super) fn shape_at(
+        &self,
+        text: &str,
+        size: f32,
+        width: Option<f32>,
+        alignment: Option<parley::Alignment>,
+    ) -> Result<ShapedText, TextError> {
+        self.position(text, self.build(text, size)?, width, alignment)
+    }
+
+    pub(super) fn build(&self, text: &str, size: f32) -> Result<Layout<()>, TextError> {
         if !size.is_finite() || size <= 0.0 {
             return Err(TextError::InvalidSize);
         }
@@ -172,6 +186,8 @@ impl TextFace {
         SHAPER.with(|context| {
             let mut context = context.borrow_mut();
             let mut fonts = self.fonts.borrow_mut();
+            #[cfg(feature = "layout-profiling")]
+            let _build = crate::profiling::Scope::text(crate::profiling::layout::TextPart::Build);
             let mut builder = context.ranged_builder(&mut fonts, text, 1.0, false);
             builder.push_default(StyleProperty::FontFamily(families));
             builder.push_default(StyleProperty::FontWeight(self.info.weight()));
@@ -179,11 +195,26 @@ impl TextFace {
             builder.push_default(StyleProperty::FontWidth(self.info.width()));
             builder.push_default(StyleProperty::FontSize(size));
             builder.push_default(StyleProperty::OverflowWrap(OverflowWrap::Anywhere));
-            let mut layout = builder.build(text);
-            layout.break_all_lines(None);
-            let resolved = self.resolved_fonts(&layout)?;
-            ShapedText::from_resolved(text, layout, resolved)
+            Ok(builder.build(text))
         })
+    }
+
+    pub(super) fn position(
+        &self,
+        text: &str,
+        mut layout: Layout<()>,
+        width: Option<f32>,
+        alignment: Option<parley::Alignment>,
+    ) -> Result<ShapedText, TextError> {
+        #[cfg(feature = "layout-profiling")]
+        let _position =
+            crate::profiling::Scope::text(crate::profiling::layout::TextPart::InitialPosition);
+        layout.break_all_lines(width);
+        if let Some(alignment) = alignment {
+            layout.align(alignment, Default::default());
+        }
+        let resolved = self.resolved_fonts(&layout)?;
+        ShapedText::from_resolved(text, layout, resolved, alignment.map(|a| (width, a)))
     }
 }
 

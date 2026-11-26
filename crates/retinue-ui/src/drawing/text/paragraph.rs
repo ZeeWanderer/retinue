@@ -1,5 +1,9 @@
 use super::{TextStyle, font::TextFace, shaping::ShapedText};
-use crate::{Bounds, drawing::DrawingContext, layout::LayoutSize};
+use crate::{
+    Bounds,
+    drawing::DrawingContext,
+    layout::{Available, LayoutSize},
+};
 use parley::{Alignment, AlignmentOptions, ContentWidths};
 use retinue_render::{
     Color, Command,
@@ -74,20 +78,20 @@ impl Paragraph {
         }
     }
 
-    fn initialize(&self) -> Result<(), TextError> {
+    fn initialize(&self, first: Option<(Available, TextAlignment)>) -> Result<(), TextError> {
         if self.state.borrow().content.is_none() {
-            self.state.borrow_mut().content(&self.spec)?;
+            self.state.borrow_mut().content(&self.spec, first)?;
         }
         self.state.borrow().current().map(|_| ())
     }
 
     pub fn ideal_width(&self) -> Result<f32, TextError> {
-        self.initialize()?;
+        self.initialize(None)?;
         Ok(self.state.borrow().current()?.widths.max)
     }
 
     pub fn minimum_width(&self) -> Result<f32, TextError> {
-        self.initialize()?;
+        self.initialize(None)?;
         Ok(self.state.borrow().current()?.widths.min)
     }
 
@@ -99,10 +103,13 @@ impl Paragraph {
         alignment: TextAlignment,
     ) -> Result<Ref<'_, TextLayout>, TextError> {
         validate_width(width)?;
-        self.initialize()?;
+        self.initialize(Some((Available::Limit(width), alignment)))?;
         let state = self.state.borrow();
         let content = state.current()?;
-        if !content.placed(width, alignment)? {
+        if !content.placed(
+            column_width(content.widths, Available::Limit(width)),
+            alignment,
+        )? {
             drop(state);
             self.state
                 .borrow_mut()
@@ -129,16 +136,41 @@ impl ParagraphSpec {
     }
 
     fn shape(&self, text: &str) -> Result<ShapedText, TextError> {
+        #[cfg(feature = "layout-profiling")]
+        let _scope = crate::profiling::Scope::text(crate::profiling::layout::TextPart::Shape);
         TextFace::cached(&self.font)?.shape(text, self.font_size)
     }
 }
 
 impl ParagraphState {
-    fn content(&mut self, spec: &ParagraphSpec) -> Result<&mut Content, TextError> {
+    fn content(
+        &mut self,
+        spec: &ParagraphSpec,
+        first: Option<(Available, TextAlignment)>,
+    ) -> Result<&mut Content, TextError> {
         self.content
             .get_or_insert_with(|| {
-                let full = spec.shape(&spec.text)?;
-                let widths = full.layout().calculate_content_widths();
+                #[cfg(feature = "layout-profiling")]
+                let _scope =
+                    crate::profiling::Scope::text(crate::profiling::layout::TextPart::Shape);
+                let face = TextFace::cached(&spec.font)?;
+                let layout = face.build(&spec.text, spec.font_size)?;
+                // Intrinsic widths depend on shaped clusters, not on positioned glyph runs.
+                let widths = layout.calculate_content_widths();
+                let width = first.map(|(proposal, _)| column_width(widths, proposal));
+                let alignment = first.map(|(_, alignment)| alignment.native());
+                let full = face.position(&spec.text, layout, width, alignment)?;
+                #[cfg(feature = "layout-profiling")]
+                if _scope.recorded() {
+                    crate::profiling::layout::paragraphs::built(
+                        &spec.text,
+                        spec.font.identity(),
+                        spec.font_size,
+                        width,
+                        first.map(|(_, alignment)| alignment as u8),
+                        spec.line_limit,
+                    );
+                }
                 Ok(Content {
                     widths,
                     state: Placement {
@@ -161,14 +193,6 @@ impl ParagraphState {
             .map_err(|error| *error)
     }
 
-    pub(crate) fn ideal_width(&mut self, spec: &ParagraphSpec) -> Result<f32, TextError> {
-        Ok(self.content(spec)?.widths.max)
-    }
-
-    pub(crate) fn minimum_width(&mut self, spec: &ParagraphSpec) -> Result<f32, TextError> {
-        Ok(self.content(spec)?.widths.min)
-    }
-
     pub(crate) fn placed(&self) -> Result<&TextLayout, TextError> {
         let state = &self.current()?.state;
         if let Some(error) = state.error {
@@ -186,12 +210,23 @@ impl ParagraphState {
         width: f32,
         alignment: TextAlignment,
     ) -> Result<&TextLayout, TextError> {
-        validate_width(width)?;
-        let content = self.content(spec)?;
+        self.layout_for(spec, Available::Limit(width), alignment)
+    }
+
+    pub(crate) fn layout_for(
+        &mut self,
+        spec: &ParagraphSpec,
+        proposal: Available,
+        alignment: TextAlignment,
+    ) -> Result<&TextLayout, TextError> {
+        if let Available::Limit(width) = proposal {
+            validate_width(width)?;
+        }
+        let content = self.content(spec, Some((proposal, alignment)))?;
+        let width = column_width(content.widths, proposal);
         if content.placed(width, alignment)? {
             return Ok(content.state.visible.as_ref().unwrap());
         }
-        let width = content.column_width(width);
         let key = (width.to_bits(), alignment);
         let state = &mut content.state;
         if let Err(error) = state.place(spec, width, alignment) {
@@ -210,22 +245,27 @@ fn validate_width(width: f32) -> Result<(), TextError> {
     Ok(())
 }
 
-impl Content {
-    fn column_width(&self, width: f32) -> f32 {
-        let width = width.max(self.widths.min).min(self.widths.max);
-        // A scale round trip can undershoot the intrinsic width by one ULP.
-        if width.next_up() >= self.widths.max {
-            self.widths.max
-        } else {
-            width
-        }
+fn column_width(widths: ContentWidths, proposal: Available) -> f32 {
+    let width = match proposal {
+        Available::MinContent => widths.min,
+        Available::Ideal => widths.max,
+        Available::Limit(width) => width,
     }
+    .max(widths.min)
+    .min(widths.max);
+    // A scale round trip can undershoot the intrinsic width by one ULP.
+    if width.next_up() >= widths.max {
+        widths.max
+    } else {
+        width
+    }
+}
 
+impl Content {
     fn placed(&self, width: f32, alignment: TextAlignment) -> Result<bool, TextError> {
         if let Some(error) = self.state.error {
             return Err(error);
         }
-        let width = self.column_width(width);
         Ok(self.state.key == Some((width.to_bits(), alignment)))
     }
 }
@@ -295,6 +335,8 @@ fn elide(
     width: f32,
     alignment: TextAlignment,
 ) -> Result<(Arc<str>, ShapedText), TextError> {
+    #[cfg(feature = "layout-profiling")]
+    let _scope = crate::profiling::Scope::text(crate::profiling::layout::TextPart::Elide);
     let limit = paragraph.line_limit.unwrap();
     let range = limit
         .checked_sub(1)

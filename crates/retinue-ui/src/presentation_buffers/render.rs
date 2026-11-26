@@ -33,6 +33,7 @@ struct Native {
 enum State {
     Preparing { packet: PacketJob, target: Target },
     Painting(Native),
+    Discarded,
 }
 
 /// One frame continuation. Drop joins native jobs before mappings or code can unload.
@@ -53,8 +54,7 @@ impl RenderJob {
         background: [u8; 4],
         wake: Wake,
     ) -> Result<Self, String> {
-        wake();
-        Ok(Self {
+        let mut job = Self {
             state: Some(State::Preparing {
                 packet: packet.into(),
                 target: Target {
@@ -66,7 +66,14 @@ impl RenderJob {
             executor: host.executor(),
             threads: host.task_threads(threads),
             wake,
-        })
+        };
+        // Pending preparation and native painting both own a completion wake.
+        // A discarded frame has no worker to tell the host to reclaim its slot.
+        job.start_if_ready()?;
+        if matches!(job.state, Some(State::Discarded)) {
+            (job.wake)();
+        }
+        Ok(job)
     }
 
     fn paint(&self, packet: DrawPacket, target: Target) -> Result<Native, String> {
@@ -125,21 +132,32 @@ impl RenderJob {
         })
     }
 
+    fn start_if_ready(&mut self) -> Result<(), String> {
+        let Some(State::Preparing { packet, .. }) = &mut self.state else {
+            return Ok(());
+        };
+        let Some(result) = packet.poll() else {
+            return Ok(());
+        };
+        let Some(State::Preparing { target, .. }) = self.state.take() else {
+            unreachable!()
+        };
+        self.state = Some(match result {
+            Ok(packet) => State::Painting(self.paint(packet, target)?),
+            Err(PacketError::Invalidated) => State::Discarded,
+            Err(PacketError::Failed(error)) => return Err(error),
+        });
+        Ok(())
+    }
+
     /// `Ok(None)` discards a frame whose renderer was reset during preparation.
     pub fn poll(&mut self) -> Option<Result<Option<Rendered>, String>> {
-        if let Some(State::Preparing { packet, .. }) = &mut self.state {
-            let result = packet.poll()?;
-            let Some(State::Preparing { target, .. }) = self.state.take() else {
-                unreachable!()
-            };
-            match result {
-                Ok(packet) => match self.paint(packet, target) {
-                    Ok(native) => self.state = Some(State::Painting(native)),
-                    Err(error) => return Some(Err(error)),
-                },
-                Err(PacketError::Invalidated) => return Some(Ok(None)),
-                Err(PacketError::Failed(error)) => return Some(Err(error)),
-            }
+        if let Err(error) = self.start_if_ready() {
+            return Some(Err(error));
+        }
+        if matches!(self.state, Some(State::Discarded)) {
+            self.state.take();
+            return Some(Ok(None));
         }
         let Some(State::Painting(native)) = self.state.as_mut() else {
             return None;

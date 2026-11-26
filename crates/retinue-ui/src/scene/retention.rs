@@ -62,6 +62,14 @@ impl Scene {
         draft: &mut FrameDraft,
     ) -> Rect {
         let end = snapshot.projection[start].end;
+        #[cfg(feature = "geometry-census")]
+        census::count(|c| c.restored_slots += end - start);
+        #[cfg(feature = "profiling")]
+        let started = std::time::Instant::now();
+        #[cfg(test)]
+        {
+            self.stats.restored_records += end - start;
+        }
         let base = self.geometry.len();
         // Published arrays stay dense and ordered, even for unchanged subtrees.
         let first_paint = snapshot.projection[start].instances.start;
@@ -134,6 +142,11 @@ impl Scene {
             for index in (base..self.geometry.len()).rev() {
                 self.aggregate(index);
             }
+        }
+        #[cfg(feature = "profiling")]
+        {
+            self.profile.restoration += started.elapsed();
+            self.profile.restored_records += end - start;
         }
         self.geometry[base].paint
     }

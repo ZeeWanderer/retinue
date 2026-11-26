@@ -507,10 +507,8 @@ fn exercise_render_job(shm: &Shm) {
             wake,
         )
         .unwrap();
-        woke.recv_timeout(Duration::from_secs(5))
-            .expect("the host must poll a new frame");
-        assert!(job.poll().is_none());
         assert_eq!(host.executor().stats().queued, 1);
+        assert_eq!(woke.try_recv(), Err(mpsc::TryRecvError::Empty));
         let late = Rect {
             x: 3,
             y: 5,

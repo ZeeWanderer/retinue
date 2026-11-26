@@ -76,6 +76,8 @@ pub struct Work {
     pub instances_mounted: usize,
     pub instances_unmounted: usize,
     pub nodes_materialized: usize,
+    #[cfg(feature = "profiling")]
+    pub existing_nodes_materialized: usize,
     pub topology_visited: usize,
 }
 

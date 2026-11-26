@@ -25,15 +25,27 @@ struct Placement {
     last_line: Option<Alignment>,
 }
 
+impl Placement {
+    fn new(width: Option<f32>, alignment: Alignment, options: AlignmentOptions) -> Self {
+        Self {
+            width,
+            alignment,
+            overflow: options.align_when_overflowing,
+            last_line: options.last_line_alignment,
+        }
+    }
+}
+
 impl ShapedText {
     pub fn from_layout(source: &str, layout: Layout<()>) -> Result<Self, TextError> {
-        Self::from_resolved(source, layout, HashMap::new())
+        Self::from_resolved(source, layout, HashMap::new(), None)
     }
 
     pub(super) fn from_resolved(
         source: &str,
         layout: Layout<()>,
         mut fonts: HashMap<(u64, u32), Font>,
+        aligned: Option<(Option<f32>, Alignment)>,
     ) -> Result<Self, TextError> {
         if source.len() != layout.text_len() {
             return Err(TextError::UnsupportedLayout(
@@ -52,7 +64,9 @@ impl ShapedText {
             layout,
             runs: runs.into(),
             fonts,
-            placement: None,
+            placement: aligned.map(|(width, alignment)| {
+                Placement::new(width, alignment, AlignmentOptions::default())
+            }),
         })
     }
 
@@ -70,13 +84,10 @@ impl ShapedText {
                 "line width must be nonnegative and finite",
             ));
         }
-        let placement = Placement {
-            width,
-            alignment,
-            overflow: options.align_when_overflowing,
-            last_line: options.last_line_alignment,
-        };
+        let placement = Placement::new(width, alignment, options);
         if self.placement != Some(placement) {
+            #[cfg(feature = "layout-profiling")]
+            let _scope = crate::profiling::Scope::text(crate::profiling::layout::TextPart::Reflow);
             self.layout.break_all_lines(width);
             self.layout.align(alignment, options);
             self.runs = Self::resolve(&self.layout, &mut self.fonts, Some(&self.source))?.into();

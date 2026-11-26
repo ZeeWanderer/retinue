@@ -103,6 +103,7 @@ fn structural_projection_matches_fresh_geometry_groups_hits_and_aged_pixels() {
         let mut renderer = Renderer::new(ResidencyPolicy::desktop(64 * 1024));
         let mut direct = Renderer::new(ResidencyPolicy::desktop(0));
         let mut tracker = AgeRepaintTracker::default();
+        let mut last_keys = Vec::new();
         let mut buffers = [
             vec![0; (size.0 * size.1 * 4) as usize],
             vec![0; (size.0 * size.1 * 4) as usize],
@@ -116,8 +117,12 @@ fn structural_projection_matches_fresh_geometry_groups_hits_and_aged_pixels() {
             oracle
                 .update(tree(frame), size, scale, RecordingMode::Always)
                 .unwrap();
-            assert_eq!(scene.geometry.len(), oracle.geometry.len());
-            for (actual, expected) in scene.geometry.iter().zip(&oracle.geometry) {
+            let published = scene.geometry();
+            assert_eq!(published.len(), oracle.geometry().len());
+            for key in last_keys.drain(..) {
+                assert_eq!(scene.bounds(key).is_some(), oracle.bounds(key).is_some());
+            }
+            for (actual, expected) in published.iter().zip(oracle.geometry()) {
                 let fields = |g: &Geometry| {
                     (
                         g.key,
@@ -134,6 +139,11 @@ fn structural_projection_matches_fresh_geometry_groups_hits_and_aged_pixels() {
                     fields(expected),
                     "scale={scale}, frame={frame}"
                 );
+                assert_eq!(
+                    fields(&scene.bounds(expected.key).unwrap()),
+                    fields(expected)
+                );
+                last_keys.push(expected.key);
             }
             assert_eq!(
                 scene.frame.groups(),
@@ -312,6 +322,30 @@ fn structural_insert_skips_geometry_work_in_unchanged_subtrees() {
         scene.stats.nodes
     );
     assert_eq!(scene.stats.recordings, 2);
+}
+
+#[test]
+fn retained_empty_group_does_not_take_its_painted_siblings_range() {
+    fn describe(extra: bool) -> Element {
+        let mut empty = Element::at(30, Bounds::new(0.0, 0.0, 10.0, 10.0));
+        empty.cache_hint = CacheHint::Stable;
+        let mut children = vec![cell(1, 0)];
+        if extra {
+            children.insert(0, empty);
+        }
+        Element::at(0, Bounds::new(0.0, 0.0, 150.0, 100.0)).with_children(children)
+    }
+    let mut retained = Scene::default();
+    for extra in [true, false, true] {
+        retained
+            .update(describe(extra), (150, 100), 1.0, RecordingMode::Retained)
+            .unwrap();
+        let mut fresh = Scene::default();
+        fresh
+            .update(describe(extra), (150, 100), 1.0, RecordingMode::Always)
+            .unwrap();
+        assert_eq!(retained.frame().groups(), fresh.frame().groups());
+    }
 }
 
 #[test]

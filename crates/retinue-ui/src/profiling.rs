@@ -81,6 +81,8 @@ pub const IR_NAMES: [&str; 11] = [
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Location {
     Frame(Phase),
+    #[cfg(feature = "layout-profiling")]
+    Text(layout::TextPart),
     #[cfg(feature = "ir-profiling")]
     Ir(IrPart),
 }
@@ -114,6 +116,8 @@ pub struct IrSample {
 
 struct Accounting {
     #[cfg(feature = "layout-profiling")]
+    text_detail: bool,
+    #[cfg(feature = "layout-profiling")]
     layout: layout::Trace,
     phase: Location,
     depth: usize,
@@ -126,6 +130,8 @@ struct Accounting {
 impl Accounting {
     fn new() -> Self {
         Self {
+            #[cfg(feature = "layout-profiling")]
+            text_detail: false,
             #[cfg(feature = "layout-profiling")]
             layout: layout::Trace::default(),
             phase: Phase::Host.into(),
@@ -145,6 +151,11 @@ impl Accounting {
         }
         match self.phase {
             Location::Frame(p) => self.elapsed[p as usize] += dt,
+            #[cfg(feature = "layout-profiling")]
+            Location::Text(part) => {
+                self.layout.text_time(part, dt);
+                self.elapsed[Phase::Layout as usize] += dt;
+            }
             #[cfg(feature = "ir-profiling")]
             Location::Ir(part) => {
                 self.ir.ns[part as usize] += dt;
@@ -181,6 +192,14 @@ thread_local! {
 pub struct Capture(PhantomData<Rc<()>>);
 
 impl Capture {
+    /// Include nested text costs in the layout phase for this owner-thread capture only.
+    #[cfg(feature = "layout-profiling")]
+    pub fn start_with_text_layout() -> Self {
+        let capture = Self::start();
+        ACTIVE.with_borrow_mut(|active| active.as_mut().unwrap().accounting.text_detail = true);
+        capture
+    }
+
     pub fn start() -> Self {
         ACTIVE.with_borrow_mut(|active| {
             assert!(active.is_none(), "nested profiling capture");
@@ -216,19 +235,43 @@ pub struct Scope {
 }
 
 impl Scope {
+    #[cfg(feature = "layout-profiling")]
+    pub(crate) fn recorded(&self) -> bool {
+        self.previous.is_some()
+    }
+
+    #[cfg(feature = "layout-profiling")]
+    pub(crate) fn text(part: layout::TextPart) -> Self {
+        use layout::TextPart::{Guide, Measure, Place};
+        Self::open(|accounting| match accounting.phase {
+            _ if !accounting.text_detail => None,
+            Location::Frame(Phase::Layout) if matches!(part, Measure | Place | Guide) => {
+                Some(Location::Text(part))
+            }
+            Location::Text(_) => Some(Location::Text(part)),
+            _ => None,
+        })
+    }
+
     pub fn enter(phase: Phase) -> Self {
         Self::open(|_| Some(phase.into()))
     }
 
     #[cfg(feature = "ir-profiling")]
     pub(crate) fn ir(part: IrPart) -> Self {
-        Self::open(|current| matches!(current, Location::Ir(_)).then_some(Location::Ir(part)))
+        Self::open(|accounting| {
+            matches!(accounting.phase, Location::Ir(_)).then_some(Location::Ir(part))
+        })
     }
 
-    fn open(location: impl FnOnce(Location) -> Option<Location>) -> Self {
+    fn open(location: impl FnOnce(&Accounting) -> Option<Location>) -> Self {
         let previous = ACTIVE.with_borrow_mut(|active| {
             let active = active.as_mut()?;
-            let phase = location(active.accounting.phase)?;
+            let phase = location(&active.accounting)?;
+            #[cfg(feature = "layout-profiling")]
+            if let Location::Text(part) = phase {
+                active.accounting.layout.text_call(part);
+            }
             #[cfg(feature = "ir-profiling")]
             if let Location::Ir(part) = phase {
                 active.accounting.ir.calls[part as usize] += 1;
@@ -267,6 +310,44 @@ impl Drop for Scope {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "layout-profiling")]
+    fn text_cost_partitions_owner_layout_and_ignores_paint() {
+        use layout::TextPart::*;
+        assert!(Scope::text(Measure).previous.is_none());
+        {
+            let capture = Capture::start();
+            {
+                let _layout = Scope::enter(Phase::Layout);
+                assert!(Scope::text(Measure).previous.is_none());
+            }
+            assert_eq!(capture.finish().layout.text_calls, [0; 8]);
+        }
+        let capture = Capture::start_with_text_layout();
+        assert!(Scope::text(Shape).previous.is_none());
+        {
+            let _layout = Scope::enter(Phase::Layout);
+            assert!(Scope::text(Reflow).previous.is_none());
+            let _measure = Scope::text(Measure);
+            {
+                let _shape = Scope::text(Shape);
+            }
+            {
+                let _reflow = Scope::text(Reflow);
+            }
+        }
+        {
+            let _paint = Scope::enter(Phase::Record);
+            assert!(Scope::text(Place).previous.is_none());
+        }
+        let sample = capture.finish();
+        assert_eq!(sample.layout.text_calls, [1, 0, 0, 1, 1, 0, 0, 0]);
+        assert!(
+            sample.layout.text_ns.iter().sum::<u64>() <= sample.phases_ns[Phase::Layout as usize]
+        );
+        assert_eq!(sample.phases_ns.iter().sum::<u64>(), sample.total_ns);
+    }
 
     #[test]
     fn nested_phases_partition_time_including_same_phase_recursion() {

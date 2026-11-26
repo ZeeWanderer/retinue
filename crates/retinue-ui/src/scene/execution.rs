@@ -49,6 +49,10 @@ impl Scene {
             self.profile.layout += pending.work.elapsed;
         }
         let pending = self.pending_layout.take().unwrap();
+        #[cfg(feature = "layout-profiling")]
+        {
+            self.profile.last_worker_window = pending.work.worker_window;
+        }
         if let Err(error) = result {
             self.layout_unpublished = true;
             return Err(error);

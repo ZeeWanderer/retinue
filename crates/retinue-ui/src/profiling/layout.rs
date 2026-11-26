@@ -1,6 +1,8 @@
 use rustix::time::{ClockId, clock_gettime};
 use std::time::Instant;
 
+pub mod paragraphs;
+
 pub const PHASES: [&str; 14] = [
     "layout_dispatch",
     "layout_worker_wall",
@@ -23,9 +25,35 @@ const DISPATCH: usize = 6;
 const PICKUP: usize = 7;
 const OTHER: usize = 8;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TextPart {
+    Measure,
+    Place,
+    Guide,
+    Shape,
+    Reflow,
+    Elide,
+    Build,
+    InitialPosition,
+}
+
+pub const TEXT_PARTS: [&str; 8] = [
+    "measure",
+    "place",
+    "guide",
+    "shape",
+    "reflow",
+    "elide",
+    "build",
+    "initial_position",
+];
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Sample {
     pub ns: [u64; PHASES.len()],
+    /// Exclusive owner-thread time inside text layout; already included in the layout phase.
+    pub text_ns: [u64; TEXT_PARTS.len()],
+    pub text_calls: [u32; TEXT_PARTS.len()],
     pub jobs: u32,
     pub groups: u32,
     pub slots: usize,
@@ -98,6 +126,14 @@ impl Job {
 }
 
 impl Trace {
+    pub(super) fn text_time(&mut self, part: TextPart, ns: u64) {
+        self.sample.text_ns[part as usize] += ns;
+    }
+
+    pub(super) fn text_call(&mut self, part: TextPart) {
+        self.sample.text_calls[part as usize] += 1;
+    }
+
     pub(super) fn wait(&mut self, start: u64, end: u64) {
         self.waits.push((start, end));
     }
