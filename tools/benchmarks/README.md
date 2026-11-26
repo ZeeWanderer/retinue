@@ -5,6 +5,184 @@ experiments and checks requiring a compositor, daemon, game or local assets.
 Native implementations remain with their owners; this directory supplies the
 catalog, process runner and report comparison. Python 3.11+ is required.
 
+## Shared UI Workloads
+
+Select by the change a user makes and by the stage being changed. There is no
+single representative frame; a local improvement and a whole-host timing
+answer different questions.
+
+| Question | Workload | Timing boundary |
+| --- | --- | --- |
+| What does a quiet UI or a single ticking label cost? | `gui-rail-updates`: idle, one timer, visible timers | Events rail update; paint through native completion only if needed. Not an idle desktop event loop. |
+| Does the desktop gain or lose when it must paint? | `gui-execution`: Foundry repaint, reflow, scroll; Relic scroll | Shell through native completion; no compositor. |
+| Does membership churn disturb stationary siblings? | `scene-structure`: mounted and shifted; vary subtree size | Structural publication, not a frame. Pair with a host workload that actually edits membership. |
+| Does the same small overlay change need new geometry, content, or both? | `wf-tooltip`: unchanged, translate, price update, toggle price | Kiosk scene preparation to surface snapshot; no buffer, raster or game. |
+| What does a retained overlay cost to repair or change? | `wf-overlay`: loading buffer cycle, static copy, relic scene change | Relic fixture to native completion; not screen-open latency. |
+| What about pointer, scrolling, or resizing? | `poe2-overlay`: partial hover, listing scroll, scale change, warm repaint | Evaluate panel through native completion; not input-to-display or game FPS. |
+| What about keyboard editing? | `text-editor`: selection and insert | Isolated editable field; excludes filtering, application dispatch and presentation. |
+
+For text costs on listing row changes, run `make bench-gui GUI_BENCH_CASE=listing_phase_regression GUI_BENCH_FEATURES=layout-profiling,geometry-census GUI_BENCH_OUTPUT=listing.json`.
+In `scroll_work`, the mounted child's `text_ns` splits owner-thread text layout into mutually exclusive times **within** `solve_ns`.
+`build` is Parley layout construction; `initial_position` includes the first line layout and native glyph export; `reflow` is subsequent positioning.
+Use `text_calls` to distinguish cold shaping from cache hits. Compare frame latency without profiling enabled.
+
+Set `GUI_BENCH_TEXT_KEYS=1` on that command to record which cold builds repeat.
+`paragraph_keys` has one array per scroll frame, including warm-up frames. Each pair
+identifies shaping inputs and their first placement (effective width, alignment and
+line limit). IDs are local to the trace; no label strings are exported. A repeat
+is a reuse opportunity, not an observed cache hit. The synthetic listing repeats
+reward names; use `GUI_BENCH_CASE=relic_scroll_benchmark GUI_BENCH_LIVE=1` with a
+running daemon to check whether the same pattern holds for the current listing.
+Run `python3 tools/benchmarks/paragraph_reuse.py listing.json` for counts and a
+simulated placement-cache hit count. `--start` and `--stop` select a half-open
+frame interval; earlier frames still prime the history. `--capacity` is in
+entries, not bytes. The initial viewport predates the trace, so “first observed”
+does not necessarily mean the application has never drawn that label.
+
+To locate slow frames in the catalog drag benchmark, run:
+
+```sh
+GUI_BENCH_SCROLL_PHASES=scheduler GUI_BENCH_SCALE=2 GUI_BENCH_THREADS=4 \
+  make bench-gui GUI_BENCH_CASE=relic_scroll_benchmark GUI_BENCH_LIVE=1 GUI_BENCH_OUTPUT=drag-1.json
+# Repeat into separate files with the same catalog and settings.
+python3 tools/benchmarks/scroll_phases.py drag-*.json
+```
+
+The report compares the slowest 5% of complete frames with the middle 5% and
+with the same input positions in the other runs. It rejects mismatched listings
+or scroll sequences. `submit` ends when commands have been issued; `finish`
+includes native synchronous completion. This benchmark paints a whole page
+headlessly, not the window's damage regions or compositor.
+`scheduler` measures owner and process CPU time plus the owner's runnable delay;
+it does not attribute worker waits. Use `clocks` to omit the scheduler reads.
+Alternate with repeated uninstrumented runs (variable unset) to measure noise
+and probe overhead before interpreting small timing differences.
+
+For the same drag through the window's input, damage, and draw-packet paths,
+run `RETINUE_BENCH_THREADS=4 GUI_BENCH_SCALE=2 make bench-gui GUI_BENCH_CASE=shell_catalog_drag GUI_BENCH_OUTPUT=shell-drag.json`.
+This case requires a running daemon with a scrollable relic catalog. It rotates
+three CPU buffers and measures through native completion, not display presentation.
+Compare the catalog digest, per-frame offsets and visible item ranges before
+comparing latency. Use `GUI_BENCH_CHECK_PIXELS=1` in separate verification runs
+to hash the rendered page after every measured frame; this deliberately excludes
+the rails, which can show changing world-state data.
+
+To inspect layout work, add `GUI_BENCH_FEATURES=geometry-census` and set
+`GUI_BENCH_SOLVER=counts` or `timed`. Supported cases: `shell_catalog_drag`,
+`listing_phase_regression`, and `shell_execution_benchmark`. Each `solver`
+sample groups child queries by algorithm kind, measurement or placement, and
+number of known dimensions. Bounded available space is **not** a known size.
+Queries minus misses gives cache hits; a custom algorithm name is present only
+on dispatch. Worker queries are included.
+
+In timed captures, hit and miss self times exclude nested queries on the same
+thread. The leaf-adapter and custom-measure times are **parts of** miss time,
+not extra stages. Leaf-adapter time is the custom layout's Taffy leaf call
+excluding its measurement callback. Plain-leaf miss time also includes cache
+and dependency handling. These are instrumented wall times: they include
+probe overhead and may overlap across workers. Use probe-off runs for frame
+latency; do not treat the sum of solver times as recoverable frame time.
+Run `python3 tools/benchmarks/solver_census.py report.json` for mean exact-size
+queries, misses and box work per frame. `--phase crossing`, for example, selects
+the row-crossing frames in the listing fixture. “Box work” counts plain leaf and
+flex/grid misses plus the leaf adapter for custom layouts, not custom placement.
+Use `--placement-pairs` to group placement-time child measurements by custom
+layout. A match means the same child and proposal were measured earlier in
+that invocation. The miss count distinguishes recomputation from a cache
+lookup. Matched time is inclusive of child work and instrumentation, not an
+estimate of the frame time a cache would save.
+
+### Isolating Incoming Row Cost
+
+The 200% drag in `gui-relics` can expose a slowdown hidden by a faster
+whole-window drag. It does not identify the cause: movement and replacement
+of visible rows happen in the same frame. Use the following controls when
+investigating this case; they are an experiment design, not additional
+maintained suites.
+
+| Hold constant | Vary | What it distinguishes |
+| --- | --- | --- |
+| Card count, geometry, labels and damage | No edit; translate only; replace identities at a fixed offset; translate and replace | Cost of movement, membership churn, or their interaction |
+| Incoming row identities, bounds and motion | Fixed-size non-text leaves; measured labels with repeated strings; measured labels with unique strings of the same dimensions | Reconciliation versus text measurement, and whether reusable text actually exists |
+| Label sequence and viewport | First visit; revisit at the same proposal; revisit at a different width | Compulsory work versus reusable shaping or placement |
+
+Start with the existing `listing-geometry-census` movement and replacement
+controls. Compare the **same input frames** across arms and count entering
+cells, layout queries versus actual solves, paragraph builds, and geometry
+publications. Time normal release builds separately from counter collection.
+A faster ablation identifies work to investigate; removing text is not an
+equivalent rendering strategy. Compare any candidate enabled and disabled
+with identical content, pixels and hit targets. Check both reuse and no-reuse
+inputs, then repeat on `shell_catalog_drag` at 100%, 120% and 200% before
+choosing an optimizer rule. Scale alone is not a signal for admission.
+
+Keep distributions per workload, scale and host. For a storage change that
+enables a later consumer change, compare baseline, storage alone, consumer
+alone (when possible), and both together. A baseline on an unchanged host
+describes exposure, not the effect of the candidate.
+
+The `listing-geometry-census` experiment compares the same Relic grid after
+a four-pixel logical offset, a visible identity replacement at a fixed origin,
+both edits together, and a natural row crossing. It counts world bounds
+resolved, publication records, keyed geometry queries, and hit regions.
+Requesting an ordered slice is not counted as reading every element.
+Outside the census, it checks fresh-tree pixels and hit targets. The isolated
+paint-frame comparison times patching a retained set of programs, not drawing
+or presentation. Run `gui-execution` with `BENCH_FEATURES=geometry-census` to
+collect the same owner-thread counts in each whole-shell frame. Use these
+builds for counts, not normal-build timing. None of these counters are part
+of a normal build.
+
+The `listing-viewport-placement` experiment scrolls a Relic card grid with
+the production listing controller and pointer bindings. It compares rebuilding
+world-positioned draw packets with replaying a retained packet at a viewport
+offset. Both mount the same cards, repaint the same viewport and rotate three
+buffers; neither copies pixels to scroll. Samples separate input/update time
+from elapsed time through native drawing completion with four threads, and
+flag frames where the mounted range changes. The correctness test also checks
+row edits, pointer capture and keyboard navigation; keyboard traversal uses
+the eager path. This measures the card viewport, not the desktop shell or
+compositor. Both scales use the same 1000 x 700 physical target. Each sample
+reports mounted cards and replayed commands; `repaint-aa` compares two eager
+hosts to measure variation without changing strategies.
+
+`shell-viewport-placement` compares the normal Relic page with the same page
+delegating its grid to a retained packet. Both use the same 1680 x 1050
+physical window, page controls and rails. Timing starts at a supplied scroll
+offset and ends after native drawing to one of three rotating buffers. The
+same region is repaired on both paths: the center pane by default, the toolbar
+in `toolbar-live`, or one visible card in `card-live`. Compositor presentation and
+automatic damage discovery are not timed. A separate pixel check exercises
+computed damage and three-buffer repair. The shell report separates update
+and recording, packet preparation, and native drawing through completion.
+`-live` keeps local layout and recorded commands but prepares the child
+packet for the current repair. `-reuse` also retains the renderer's last
+leaf packet when the optimizer admits it. This can include ordered draws
+prepared for overlapping translated repairs, with use feedback from completed painting. Set
+`GUI_BENCH_COMPARE_PACKETS=1` to pair `-reuse` with `-live` directly
+instead of the eager layout. This pairing includes `offset-damage-reuse`
+and `crossings-damage-reuse`, which compute scene damage and buffer-age repairs
+inside each timed frame. Without `GUI_BENCH_COMPARE_PACKETS` these cases compare
+ordinary and retained layout, each with its own composed damage. The
+`hover-damage-reuse` case alternates the pointer between two cards, timing
+the page input and layout update as well. Set `GUI_BENCH_SCENARIOS` to a
+comma-separated list to run just those traces. When invoking a benchmark binary directly, set
+`RETINUE_BENCH_NO_PACKET_REUSE=1` to disable the packet pass. The standard
+benchmark driver clears these overrides. `repaint-primed` freezes the child during
+warm-up to test whether its first packet is representative. `repaint-aa`
+uses two eager hosts as a noise control.
+
+`shell-viewport-census` replays the same center-pane repairs and offsets on
+all three paths. Each row records actual membership changes, geometry work,
+new paint recordings and child updates. Leaf hits, builds and invalidations
+of an occupied packet are counted only on the reuse path. Local repair area
+and overlap with the preceding frame describe geometry, not reusable pixels
+or commands. On unchanged grid
+publications the report also counts retained, entering and leaving paint
+instances before renderer materialization. Exclude the twelve
+warm-up frames before comparing steady-state counts; use the uninstrumented
+placement benchmark for time.
+
 ## Maintained Workloads
 
 ```bash
@@ -20,6 +198,16 @@ Also available: `wf-overlay`, `poe2-drag`, `gui-foundry`, `gui-relics`, `gui-dra
 the shared acquired-buffer renderer; it does not measure compositor or game FPS.
 `text-layout` compares native paragraph reflow with fresh shaping and run resolution;
 it excludes painting and platform presentation.
+`label-placement` isolates positioning glyph runs on a fresh label. `layer-repair`
+compares seeding a new layer from the previous raster with full replay for the same
+small edit, varying size and paint complexity. `gui-semantics` measures accessibility
+tree construction during pointer bursts, not delivery to an assistive client.
+`scene-structure` inserts or removes one leaf and counts the unchanged geometry
+and placement records republished alongside it. In `mounted-*` the untouched
+sibling comes first; in `shifted-*` its preorder position changes without a move
+on screen. Neither case measures scrolling or drawing.
+`packet-work` isolates packet construction for a one-pixel repair and the clip
+query used for each replayed program.
 `text-view` measures production `view::Text` updates: fresh trees, width changes, color-only
 changes and line-limit elision. It includes layout and command recording, not painting.
 `view-ir` is a representation experiment: the same Cycle display through retained
@@ -65,7 +253,9 @@ correctness test. This workload does not represent a complete application frame.
 layout for real grid/stack/Text trees. It includes cold state allocation,
 partitioning and completion, with warm font registrations. The reflow case keeps
 shaping caches while alternating widths; the skewed case clusters long text to
-test load balancing. It excludes body evaluation, paint recording and presentation;
+test load balancing. Compare `reflow-*` with `sparse-reflow-*` to hold the
+live tree and proposals constant while scattering its slots across a 16x larger arena.
+It excludes body evaluation, paint recording and presentation;
 it is not a full-frame speedup.
 `gui-execution` compares direct owner painting, immutable packet painting on the
 owner, queued native execution with inline layout, and queued layout plus native
@@ -112,6 +302,13 @@ existing caller-side final paint path. The `-queued` cases offer the executor
 without forcing admission: small trees may run inline. Raw results report actual
 `layout_waits`. It does not measure platform presentation
 or the production host's final native-pass queue.
+
+`poe2-frozen-replay` freezes a warmed Evaluate panel once at 2560x1440, 100%.
+It times clearing the mapped target, replaying just the panel, and both together.
+Compare the single-frame pixel hashes and draw counts before comparing timings.
+The native finish time is included in the frame time. Panel-only samples do not
+clear between frames. Neither layout nor compositor presentation is timed.
+
 The runner builds one release test binary, verifies an exact ignored-test selector,
 saves it with source/binary/toolchain/fixture provenance, then runs independent
 processes. It does not stage or reload applications. Each run gets fresh XDG
@@ -413,6 +610,17 @@ and ready-to-present p50/p95/p99, presentation intervals, discarded/unresolved
 frames, coalesced updates, dispatch counts, CPU utilization and memory. Presentation
 uses the compositor's advertised clock; timestamps from different clock domains
 are never directly subtracted. Unsupported presentation timing fails explicitly.
+
+`make bench-overlay-transfer BENCH_SCALES=1,1.2` uses the same mapped fixture
+with deadline scheduling throughout. It compares full repaint, incremental repair,
+current donor selection and reuse of the latest slot when released. Compare CPU
+and frame timings alongside copied/repaired pixels, peak SHM and how often the
+candidate actually selected a released latest slot. Allocation is not RSS.
+
+Run with `RETINUE_VERIFY_SHM=1` separately for correctness. Before attachment,
+the validator checks the complete target against full replay of that same frame's
+commands. It also checks that applying the announced damage to the previous
+committed image reconstructs the new one. Validation runs are not timing data.
 An update belongs to the frame whose rendering was prepared with that revision,
 not whichever frame happened to commit after the update arrived.
 CPU totals exclude warmup and include producer and final feedback drain; 100%
@@ -467,6 +675,41 @@ premultiplied intermediate-image rounding, or three only inside known glow regio
 A mismatch outside those bounds fails the run.
 The captured region must not depend on live callbacks. Reports exclude layout,
 presentation and game impact; use the end-to-end scroll benchmarks alongside them.
+
+### Frame Publication
+
+```bash
+RETINUE_BENCH_PUBLICATION=edits make bench-gui GUI_BENCH_CASE=publication_trial \
+  GUI_BENCH_OUTPUT=research/publication-edits.json
+```
+
+Compare `current`, `dense` (rebuild dependencies), `edits` (update changed
+consumers), `edits-fragments` (also reuse cached fragments), and `edits-items`
+(also retain explicitly cached items by stable instance key). These are
+benchmark policies, not app settings. The alternatives use the published paint
+order directly; layout and input are unchanged. They do not promote whole layers.
+With `edits-items`, set `RETINUE_BENCH_COMPACT_PACKET=1` to freeze only the
+intersecting image/program draws instead of passing the ordered frame to the
+worker. This control does not affect direct painting.
+
+For the production scroll path, build `gui-relics` with the `profiling`
+feature. Compare samples with the same offset change: `window.before` and
+`window.after` are half-open ranges in the fixture's fixed item order.
+`pointer_ms` measures input delivery; `tick_ms` includes the resulting UI
+update. `content_visits` counts resource/font bindings examined, not placement
+or draw work. Use uninstrumented binaries for frame-time comparisons.
+
+The fixture scrolls, edits and reorders relics at 125%. Each repaired image is
+checked against a full replay before timing. `prepare_ns` ends when the native
+packet is frozen; `replay_floor_ns` runs that packet through Blend2D completion
+with the same damage. It is a floor for **that packet**, not a universal raster
+cost: a cached fragment blit and an uncached glow are different native work.
+Use the same policy with the GUI execution and PoE overlay suites for frame
+latency, CPU and process memory. Compare repeated runs in alternating order.
+When a suite changes direction, repeat the affected case in a fresh process:
+process RSS can include allocations from earlier cases. The PoE overlay suite's
+`queued` cases queue layout, not paint submission; the scheduling suite exercises
+the mapped surface and packet handoff.
 
 ### Completed-Target Reuse
 

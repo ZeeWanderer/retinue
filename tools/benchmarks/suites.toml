@@ -149,7 +149,7 @@ test = "scene::layout::batch_tests::layout_batch_benchmark"
 source = "crates/retinue-ui/src/scene/layout/batch_tests.rs"
 adapter = "overlay"
 raw = "layout-batches.json"
-cases = ["small-serial", "small-queued", "small-batched", "cards-serial", "cards-queued", "cards-batched", "skewed-serial", "skewed-queued", "skewed-batched", "reflow-serial", "reflow-queued", "reflow-batched"]
+cases = ["small-serial", "small-queued", "small-batched", "cards-serial", "cards-queued", "cards-batched", "skewed-serial", "skewed-queued", "skewed-batched", "reflow-serial", "reflow-queued", "reflow-batched", "sparse-reflow-serial", "sparse-reflow-queued", "sparse-reflow-batched"]
 workload = 1
 fixtures = ["assets/fonts/roboto/*", "crates/retinue-ui/src/scene/layout/batch_tests.rs"]
 
@@ -166,6 +166,19 @@ cases = ["loading-buffer-cycle", "static-frame-copy", "static-frame-copy-cpu", "
 workload = 2
 fixtures = ["apps/wfcompanion/src/presentation/relic/fixture.rs", "assets/fonts/roboto/*"]
 
+[suite.wf-tooltip]
+description = "Warframe kiosk state to surface snapshot: unchanged, position only, price text only, and conditional price row contents. Excludes raster and presentation."
+owner = "wfcompanion"
+package = "wfcompanion"
+target = ["--bin", "wfcompanion"]
+test = "presentation::renderer::tests::tooltip_publication_benchmark"
+source = "apps/wfcompanion/src/presentation/renderer.rs"
+adapter = "overlay"
+raw = "wf-tooltip.json"
+cases = ["unchanged", "translate", "price-update", "toggle-price"]
+workload = 1
+fixtures = ["apps/wfcompanion/src/presentation/ducats/mod.rs", "assets/fonts/roboto/*"]
+
 [suite.poe2-overlay]
 description = "Exercises Evaluate repaint, hover, scrolling and scale changes with fixture listings. Does not measure game FPS."
 owner = "poe2companion"
@@ -177,6 +190,19 @@ adapter = "overlay"
 raw = "poe2.json"
 cases = ["warm-repaint-inline", "warm-repaint-queued", "hover-inline", "hover-queued", "hover-partial-inline", "hover-partial-queued", "listing-scroll-inline", "listing-scroll-queued", "scale-change-inline", "scale-change-queued"]
 workload = 2
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+
+[suite.poe2-frozen-replay]
+description = "Separates full-target clearing from replay of a frozen Evaluate packet on mapped memory."
+owner = "poe2companion"
+package = "poe2companion"
+target = ["--lib"]
+test = "presentation::evaluate::panel::replay_benchmark::frozen_replay_benchmark"
+source = "apps/poe2companion/src/presentation/evaluate/panel/replay_benchmark.rs"
+adapter = "overlay"
+raw = "poe2-frozen-replay.json"
+cases = ["clear", "panel", "combined"]
+workload = 1
 fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
 
 [suite.gui-execution]
@@ -191,6 +217,71 @@ raw = "gui-execution.json"
 cases = ["foundry-repaint-owner", "foundry-repaint-packet", "foundry-repaint-dag", "foundry-repaint-layout", "foundry-repaint-desktop", "foundry-reflow-owner", "foundry-reflow-packet", "foundry-reflow-dag", "foundry-reflow-layout", "foundry-reflow-desktop", "foundry-scroll-owner", "foundry-scroll-packet", "foundry-scroll-dag", "foundry-scroll-layout", "foundry-scroll-desktop", "relic-scroll-owner", "relic-scroll-packet", "relic-scroll-dag", "relic-scroll-layout", "relic-scroll-desktop"]
 workload = 3
 fixtures = ["apps/wfgui/src/data/storage.rs", "apps/wfgui/src/data/foundry.rs", "apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.layer-repair]
+description = "Measures copying a previous layer plus a small repair against full replay for identical output and bounded edit size."
+owner = "retinue-render"
+package = "retinue-render"
+target = ["--lib"]
+test = "execution::tests::layer_repair::layer_repair_benchmark"
+source = "crates/retinue-render/src/execution/tests/layer_repair.rs"
+adapter = "overlay"
+raw = "layer-repair.json"
+cases = ["flat-replay","flat-seed","decorated-replay","decorated-seed"]
+workload = 1
+fixtures = ["crates/retinue-render/src/execution/tests/layer_repair.rs"]
+
+[suite.packet-work]
+description = "Freezes a one-pixel repair from increasing retained plans and compares native packet clip queries."
+owner = "retinue-render"
+package = "retinue-render"
+target = ["--lib"]
+test = "renderer::packet::benchmark::packet_work_benchmark"
+source = "crates/retinue-render/src/renderer/packet/benchmark.rs"
+adapter = "overlay"
+raw = "packet-work.json"
+cases = ["freeze-32", "freeze-128", "freeze-512", "clip-region-1", "clip-count-1", "clip-region-8", "clip-count-8"]
+workload = 1
+fixtures = ["crates/retinue-render/src/renderer/packet/benchmark.rs"]
+
+[suite.gui-semantics]
+description = "Measures the cost of constructing accessibility updates for one or eight Relic card pointer transitions, without platform transport."
+owner = "wfgui"
+package = "wfgui"
+target = ["--bin", "wfgui"]
+test = "presentation::shell::benchmark::semantics::accessibility_producer_benchmark"
+source = "apps/wfgui/src/presentation/shell/benchmark/semantics.rs"
+adapter = "overlay"
+raw = "gui-semantics.json"
+cases = ["one-inactive", "one-active", "eight-inactive", "eight-active"]
+workload = 1
+fixtures = ["apps/wfgui/src/presentation/fixtures.rs", "assets/fonts/roboto/*"]
+
+[suite.label-placement]
+description = "Compares one-pass and two-pass native glyph placement for an uncached label, with and without wrapping."
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "drawing::text::labels::benchmark::label_placement_benchmark"
+source = "crates/retinue-ui/src/drawing/text/labels/benchmark.rs"
+adapter = "overlay"
+raw = "label-placement.json"
+cases = ["direct", "double", "wrapped-direct", "wrapped-double"]
+workload = 1
+fixtures = ["assets/fonts/roboto/*"]
+
+[suite.scene-structure]
+description = "One local structural edit with an unrelated retained subtree; measures update time and retained records republished."
+owner = "retinue-ui"
+package = "retinue-ui"
+target = ["--lib"]
+test = "scene::tests::structural_benchmark::scene_structure_benchmark"
+source = "crates/retinue-ui/src/scene/tests/structural_benchmark.rs"
+adapter = "overlay"
+raw = "scene-structure.json"
+cases = ["mounted-32", "mounted-128", "mounted-512", "shifted-32", "shifted-128", "shifted-512"]
+workload = 1
+fixtures = ["crates/retinue-ui/src/scene/tests/structural_benchmark.rs"]
 
 [suite.gui-rails]
 description = "Animates the desktop rails around an unpopulated Foundry. Measures window chrome, not scrolling a populated grid."
@@ -335,6 +426,78 @@ environment = "headless"
 command = "RETINUE_TEXT_CAPTURE_DIR=<absolute-directory> make test-ui-sdk UI_TEST='--test text_editor text_editor_capture -- --ignored'"
 
 [[manual]]
+id = "listing-geometry-census"
+source = "apps/wfgui/src/presentation/listing/tests/geometry_census.rs"
+test = "listing_geometry_census"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_FEATURES=geometry-census GUI_BENCH_CASE=listing_geometry_census GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "listing-viewport-placement"
+source = "apps/wfgui/src/presentation/listing/tests/viewport_placement.rs"
+test = "scroll_viewport_trial"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=scroll_viewport_trial GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-viewport-placement"
+source = "apps/wfgui/src/presentation/listing/tests/viewport_placement/shell_trial.rs"
+test = "shell_viewport_trial"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=shell_viewport_trial GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "relic-scroll-eager-control"
+source = "apps/wfgui/src/presentation/benchmark/mod.rs"
+test = "relic_scroll_eager_control"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=relic_scroll_eager_control GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-listing-phases"
+source = "apps/wfgui/src/presentation/shell/benchmark/execution/listing_phases.rs"
+test = "listing_phase_regression"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=listing_phase_regression GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-catalog-drag"
+source = "apps/wfgui/src/presentation/shell/benchmark/execution/listing_phases/catalog_drag.rs"
+test = "shell_catalog_drag"
+purpose = "experiment"
+environment = "running-daemon-with-player-relic-catalog"
+command = "GUI_BENCH_SCALE=1.2 make bench-gui GUI_BENCH_CASE=shell_catalog_drag GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-mount-topology"
+source = "apps/wfgui/src/presentation/shell/benchmark/entry.rs"
+test = "listing_mount_topology"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_FEATURES=geometry-census GUI_BENCH_CASE=listing_mount_topology GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-listing-entry"
+source = "apps/wfgui/src/presentation/shell/benchmark/entry.rs"
+test = "listing_entry_and_first_scroll"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_CASE=listing_entry_and_first_scroll GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "shell-viewport-census"
+source = "apps/wfgui/src/presentation/listing/tests/viewport_placement/shell_trial/census.rs"
+test = "shell_viewport_census"
+purpose = "experiment"
+environment = "headless"
+command = "make bench-gui GUI_BENCH_FEATURES=geometry-census GUI_BENCH_CASE=shell_viewport_census GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
 id = "gui-resource-dispatch"
 source = "apps/wfgui/src/app/benchmark.rs"
 test = "resource_dispatch_benchmark"
@@ -399,6 +562,14 @@ environment = "compositor"
 command = "make bench-overlay-scheduling"
 
 [[manual]]
+id = "overlay-transfer"
+source = "apps/poe2companion/src/presentation/evaluate/panel/scheduling_benchmark.rs"
+test = "overlay_transfer_benchmark"
+purpose = "experiment"
+environment = "compositor"
+command = "make bench-overlay-transfer"
+
+[[manual]]
 id = "wf-assets"
 source = "apps/wfcompanion/src/domain/media.rs"
 test = "benchmark_scene_assets"
@@ -429,6 +600,14 @@ test = "paint_replay_benchmark"
 purpose = "experiment"
 environment = "headless"
 command = "make bench-gui GUI_BENCH_CASE=paint_replay_benchmark GUI_BENCH_OUTPUT=<report.json>"
+
+[[manual]]
+id = "gui-publication"
+source = "apps/wfgui/src/presentation/benchmark/replay/publication.rs"
+test = "publication_trial"
+purpose = "experiment"
+environment = "headless"
+command = "RETINUE_BENCH_PUBLICATION=<current|dense|edits|edits-fragments|edits-items> make bench-gui GUI_BENCH_CASE=publication_trial GUI_BENCH_OUTPUT=<report.json>"
 
 [[manual]]
 id = "view-ir-allocations"
