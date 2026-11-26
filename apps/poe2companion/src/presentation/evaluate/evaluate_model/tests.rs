@@ -176,10 +176,13 @@ fn cooldown_wakes_at_display_boundary_and_stops_when_finished() {
 fn prediction_survives_search_edits_but_not_a_new_item_league_or_close() {
     let mut m = EvaluateModel::default();
     m.league = "A".into();
-    m.evaluation = Some(Evaluation {
-        prediction_available: true,
-        ..Evaluation::default()
-    });
+    m.evaluation = Some(
+        Evaluation {
+            prediction_available: true,
+            ..Evaluation::default()
+        }
+        .into(),
+    );
     let (first, request) = m.predict().unwrap();
     assert_eq!(request["league"], "A");
     m.invalidate();
@@ -206,10 +209,13 @@ fn prediction_survives_search_edits_but_not_a_new_item_league_or_close() {
     m.copy();
     m.predicted(third, estimate());
     assert!(m.estimate.is_none());
-    m.evaluation = Some(Evaluation {
-        prediction_available: true,
-        ..Evaluation::default()
-    });
+    m.evaluation = Some(
+        Evaluation {
+            prediction_available: true,
+            ..Evaluation::default()
+        }
+        .into(),
+    );
     let (last, _) = m.predict().unwrap();
     m.dismiss();
     m.predicted(last, estimate());
@@ -233,13 +239,7 @@ fn fixture() -> EvaluateModel {
 fn profile_selection_survives_filter_edits_and_searches() {
     let mut model = fixture();
     assert_eq!(model.profile, Some(Profile::Quick));
-    model
-        .evaluation
-        .as_mut()
-        .unwrap()
-        .item
-        .profiles
-        .push(Profile::Exact);
+    model.edit_evaluation().item.profiles.push(Profile::Exact);
     model.apply_profile(Profile::Exact);
     model.invalidate();
     assert_eq!(model.profile, Some(Profile::Exact));
@@ -296,7 +296,7 @@ fn refresh_preserves_rows_until_search_returns_and_clears_them_on_filter_edit() 
 #[test]
 fn exact_profile_keeps_merged_modifiers_and_unranked_properties_off() {
     let mut model = fixture();
-    let item = &mut model.evaluation.as_mut().unwrap().item;
+    let item = &mut model.edit_evaluation().item;
     item.profiles.push(Profile::Exact);
     item.modifiers[0].section = "property".into();
     item.modifiers[0].quick_selected = true;
@@ -330,7 +330,7 @@ fn profile_is_not_inferred_from_manually_selected_filters() {
     }
     model.invalidate();
     assert_eq!(model.profile, Some(Profile::Broad));
-    let evaluation = model.evaluation.clone().unwrap();
+    let evaluation = model.evaluation.as_deref().unwrap().clone();
     model.evaluated(model.generation.wrapping_sub(1), evaluation.clone());
     assert_eq!(model.profile, Some(Profile::Broad));
     model.evaluated(model.generation, evaluation);
@@ -352,7 +352,7 @@ fn profile_bounds_are_supplied_by_daemon_for_every_row() {
         row["supported"] = json!(true);
         row["exact_selected"] = json!(true);
         row["ranges"] = case["expected"].clone();
-        let mut evaluation = model.evaluation.take().unwrap();
+        let mut evaluation = std::sync::Arc::unwrap_or_clone(model.evaluation.take().unwrap());
         evaluation.item.profiles.push(Profile::Exact);
         evaluation.item.modifiers = vec![serde_json::from_value(row).unwrap()];
         model.evaluated(0, evaluation);
@@ -401,7 +401,7 @@ fn category_defaults_and_profile_inclusion_come_from_daemon() {
     model.apply_profile(Profile::Exact);
     assert_eq!(model.profile, Some(Profile::Quick));
 
-    let mut evaluation = model.evaluation.take().unwrap();
+    let mut evaluation = std::sync::Arc::unwrap_or_clone(model.evaluation.take().unwrap());
     evaluation.item.profiles = vec![Profile::Base, Profile::Quick, Profile::Broad];
     evaluation.item.default_profile = Some(Profile::Base);
     evaluation.item.modifiers[0].base_selected = true;
@@ -474,13 +474,16 @@ fn automatic_search_uses_daemon_eligibility_and_budget() {
     for eligible in [false, true] {
         for allowed in [false, true] {
             let mut model = EvaluateModel::default();
-            model.evaluation = Some(Evaluation {
-                item: Item {
-                    auto_search: eligible,
-                    ..Item::default()
-                },
-                ..Evaluation::default()
-            });
+            model.evaluation = Some(
+                Evaluation {
+                    item: Item {
+                        auto_search: eligible,
+                        ..Item::default()
+                    },
+                    ..Evaluation::default()
+                }
+                .into(),
+            );
             assert_eq!(
                 model.restored(
                     0,
@@ -523,7 +526,7 @@ fn cache_lookup_can_restore_rare_items_during_cooldown_without_searching() {
 #[test]
 fn cache_miss_tracks_only_the_last_automatic_attempt() {
     let mut model = fixture();
-    model.evaluation.as_mut().unwrap().item.auto_search = true;
+    model.edit_evaluation().item.auto_search = true;
     let miss = || Restoration {
         results: None,
         auto_search_allowed: true,
@@ -547,7 +550,7 @@ fn cache_miss_tracks_only_the_last_automatic_attempt() {
 #[test]
 fn cache_miss_on_a_rare_item_waits_for_search_or_a_result_selector() {
     let mut model = fixture();
-    model.evaluation.as_mut().unwrap().item.auto_search = false;
+    model.edit_evaluation().item.auto_search = false;
     let miss = || Restoration {
         results: None,
         auto_search_allowed: true,
@@ -562,7 +565,7 @@ fn cache_miss_on_a_rare_item_waits_for_search_or_a_result_selector() {
 #[test]
 fn automatic_budget_denial_is_not_retried_but_empty_cached_results_are_hits() {
     let mut model = fixture();
-    model.evaluation.as_mut().unwrap().item.auto_search = true;
+    model.edit_evaluation().item.auto_search = true;
     let reply = |allowed| Restoration {
         results: None,
         auto_search_allowed: allowed,

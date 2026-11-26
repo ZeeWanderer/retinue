@@ -20,7 +20,7 @@ pub struct EvaluateModel {
     pub copying: bool,
     pub loading: bool,
     pub text: String,
-    pub evaluation: Option<Evaluation>,
+    pub evaluation: Option<std::sync::Arc<Evaluation>>,
     pub filters: Vec<Filter>,
     pub profile: Option<Profile>,
     pub conditions: Vec<bool>,
@@ -65,6 +65,11 @@ impl Presentation {
 }
 
 impl EvaluateModel {
+    #[cfg(test)]
+    pub(super) fn edit_evaluation(&mut self) -> &mut Evaluation {
+        std::sync::Arc::make_mut(self.evaluation.as_mut().unwrap())
+    }
+
     pub fn currency_request(&self, scale: f32) -> crate::domain::currency::Request {
         let ids = self
             .results
@@ -212,7 +217,7 @@ impl EvaluateModel {
         };
         self.base = evaluation.item.base_required || evaluation.item.category.is_none();
         let profile = evaluation.item.default_profile;
-        self.evaluation = Some(evaluation);
+        self.evaluation = Some(evaluation.into());
         self.update_league();
         if let Some(profile) = profile {
             self.apply_profile(profile);

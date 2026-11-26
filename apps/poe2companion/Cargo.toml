@@ -19,6 +19,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 
 [dev-dependencies]
+memmap2 = "0.9"
 retinue-ui = { path = "../../crates/retinue-ui", features = ["benchmark"] }
 tempfile = "3"
 rustix = { version = "1", features = ["time"] }

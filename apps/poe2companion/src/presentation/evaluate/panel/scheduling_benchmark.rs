@@ -7,7 +7,7 @@ use retinue_ui::{
     surface,
     surface::{
         Application, Input,
-        benchmark::{Capture, Policy},
+        benchmark::{Capture, Policy, Transfer},
     },
 };
 use serde_json::{Value, json};
@@ -144,6 +144,10 @@ impl Application for Panel {
                 dirty = dirty
                     .union(self.view.target_damage(old))
                     .union(self.view.target_damage(self.interaction.hover));
+            } else if self.scenario == "async-drag" {
+                let step = (signal.revision % 12) as u32;
+                self.interaction.position = Some((32 + step * 7, 72 + step * 2));
+                dirty = dirty.union(Damage::rect(self.view.bounds));
             } else {
                 self.interaction.scroll = signal.revision as usize % 10;
                 dirty = Damage::Full;
@@ -175,6 +179,19 @@ impl Application for Panel {
 
     fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
         self.view.paint_scene()
+    }
+    fn full_reference(&mut self, size: (u32, u32)) -> Result<Vec<u8>, String> {
+        // Validate transfer and repair, not equivalence of cached vs directly
+        // rasterized translucent layers. Use the same published materials.
+        let full = Damage::Full.regions(size);
+        let packet = self.view.composition.freeze(&full)?;
+        let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
+        let mut painter =
+            Painter::with_threads(&mut pixels, size.0, size.1, self.view.render_budget)
+                .map_err(|e| e.to_string())?;
+        packet.draw(&mut painter);
+        painter.finish().map_err(|e| e.to_string())?;
+        Ok(pixels)
     }
     fn render_host(&self) -> Option<retinue_render::RenderHost> {
         Some(self.view.render_host())
@@ -237,6 +254,26 @@ fn interval(scenario: &str, revision: u64) -> Duration {
 }
 
 fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usize) -> Value {
+    run_transfer(
+        scenario,
+        scale,
+        policy,
+        count,
+        pass,
+        Transfer::Current,
+        false,
+    )
+}
+
+fn run_transfer(
+    scenario: &'static str,
+    scale: f32,
+    policy: Policy,
+    count: u64,
+    pass: usize,
+    transfer: Transfer,
+    verify: bool,
+) -> Value {
     let data: Value = serde_json::from_slice(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/evaluate-reference.json"
@@ -247,7 +284,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         0,
         serde_json::from_value(data["evaluation"].clone()).unwrap(),
     );
-    if scenario == "async-scroll" {
+    if matches!(scenario, "async-scroll" | "async-drag") {
         let mut results: crate::data::evaluation::Results =
             serde_json::from_value(data["results"].clone()).unwrap();
         results.listings = results.listings.iter().cloned().cycle().take(30).collect();
@@ -297,6 +334,7 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         Ok(emitted)
     });
     let capture = Capture::default();
+    capture.select_transfer(transfer, verify);
     let size = Rc::new(RefCell::new((0, 0)));
     let app = Panel {
         view,
@@ -327,8 +365,9 @@ fn run(scenario: &'static str, scale: f32, policy: Policy, count: u64, pass: usi
         policy,
     );
     stop.store(true, Ordering::Release);
-    let emitted = producer.join().unwrap().unwrap();
+    let emitted = producer.join().unwrap();
     result.unwrap();
+    let emitted = emitted.unwrap();
     let report = capture.report();
     let period = report
         .measurement
@@ -416,6 +455,60 @@ fn overlay_scheduling_benchmark() {
         }
     }
     assert!(!cases.is_empty(), "no scheduling cases selected");
+}
+
+#[test]
+#[ignore = "make bench-overlay-transfer (mapped, click-through fixture)"]
+fn overlay_transfer_benchmark() {
+    let count = std::env::var("RETINUE_BENCH_SAMPLES")
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+    assert!((10..=1000).contains(&count));
+    let verify = std::env::var_os("RETINUE_VERIFY_SHM").is_some();
+    let mut cases = Vec::new();
+    let policies = [
+        Transfer::Full,
+        Transfer::Repair,
+        Transfer::Current,
+        Transfer::ReleasedLatest,
+    ];
+    for scale in std::env::var("RETINUE_BENCH_SCALES")
+        .unwrap()
+        .split(',')
+        .map(|s| s.parse().unwrap())
+    {
+        for scenario in ["async-hover", "async-scroll", "async-drag"] {
+            if !render_bench::selected(scenario) {
+                continue;
+            }
+            for pass in 0..if verify { 1 } else { 4 } {
+                for i in 0..policies.len() {
+                    let index = if pass % 2 == 0 { i } else { 3 - i };
+                    let transfer = policies[(index + pass / 2 * 2) % 4];
+                    cases.push(run_transfer(
+                        scenario,
+                        scale,
+                        Policy::Deadlines,
+                        count,
+                        pass,
+                        transfer,
+                        verify,
+                    ));
+                    render_bench::report_with_scope(
+                        if verify {
+                            "mapped-shm-correctness"
+                        } else {
+                            "mapped-transfer"
+                        },
+                        cases.clone(),
+                        "Mapped Evaluate fixture. Full/repair/current/released-latest; only released targets are writable. Correctness runs compare SHM pixels and announced damage against full replay of the same scene and materials; do not use them for timing.",
+                    );
+                }
+            }
+        }
+    }
+    assert!(!cases.is_empty());
 }
 
 #[test]

@@ -288,14 +288,18 @@ bench-overlays: native-bridges
 	+$(CARGO) test --release --locked -p poe2companion --lib overlay_benchmark -- --ignored --nocapture --test-threads=1
 	+$(CARGO) test --release --locked -p wfcompanion --bin wfcompanion overlay_benchmark -- --ignored --nocapture --test-threads=1
 
-bench-overlay-scheduling: BENCH_THREADS = 4
-bench-overlay-scheduling: export RETINUE_BENCH_OUTPUT := $(abspath $(BENCH_OUTPUT))
-bench-overlay-scheduling: export RETINUE_BENCH_SAMPLES := $(BENCH_SAMPLES)
-bench-overlay-scheduling: export RETINUE_BENCH_THREADS = $(BENCH_THREADS)
-bench-overlay-scheduling: export RETINUE_BENCH_CASES := $(BENCH_CASES)
-bench-overlay-scheduling: export RETINUE_BENCH_SCALES := $(BENCH_SCALES)
+bench-overlay-scheduling bench-overlay-transfer: BENCH_THREADS = 4
+bench-overlay-scheduling bench-overlay-transfer: export RETINUE_BENCH_OUTPUT := $(abspath $(BENCH_OUTPUT))
+bench-overlay-scheduling bench-overlay-transfer: export RETINUE_BENCH_SAMPLES := $(BENCH_SAMPLES)
+bench-overlay-scheduling bench-overlay-transfer: export RETINUE_BENCH_THREADS = $(BENCH_THREADS)
+bench-overlay-scheduling bench-overlay-transfer: export RETINUE_BENCH_CASES := $(BENCH_CASES)
+bench-overlay-scheduling bench-overlay-transfer: export RETINUE_BENCH_SCALES := $(BENCH_SCALES)
 bench-overlay-scheduling: native-bridges
 	+$(CARGO) test --release --locked -p poe2companion --lib overlay_scheduling_benchmark -- --ignored --nocapture --test-threads=1
+
+.PHONY: bench-overlay-transfer
+bench-overlay-transfer: native-bridges
+	+$(CARGO) test --release --locked -p poe2companion --lib overlay_transfer_benchmark -- --ignored --nocapture --test-threads=1
 
 .PHONY: bench-overlay-pointer
 bench-overlay-pointer: export RETINUE_BENCH_OUTPUT := $(abspath $(BENCH_OUTPUT))

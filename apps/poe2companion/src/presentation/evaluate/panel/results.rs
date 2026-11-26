@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn item_groups_and_profiles_match_reference_vertical_spacing() {
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         let mut model = fixture();
         model.results = None;
         for scale in [1.0, 1.2, 1.25, 1.5] {
@@ -910,7 +910,7 @@ mod tests {
     fn error_plaque_precedes_search_and_wraps_without_clipping() {
         let mut model = fixture();
         model.results = None;
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         for message in [
             "Trade service unavailable",
             "The trade service returned an error. Please wait for its rate limit to expire before trying this search again.",

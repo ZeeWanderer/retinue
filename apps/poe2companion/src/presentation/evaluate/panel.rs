@@ -1,7 +1,7 @@
 use super::artwork::Artwork;
 use super::evaluate_model::{EvaluateModel, number};
 use super::evaluate_view::EvaluateView;
-use crate::data::evaluation::{Item, Profile};
+use crate::data::evaluation::{Evaluation, Item, Profile};
 use retinue_render::{
     CacheHint, Key, LayerPolicy,
     damage::Damage,
@@ -24,6 +24,8 @@ use std::{cell::RefCell, rc::Rc};
 mod movement_benchmark;
 mod plaques;
 mod prices;
+#[cfg(test)]
+mod replay_benchmark;
 mod results;
 #[cfg(test)]
 mod scheduling_benchmark;
@@ -116,7 +118,7 @@ impl Menu {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Hit {
     pub target: Target,
     pub rect: Rect,
@@ -257,6 +259,7 @@ pub struct EvaluatePanel {
     ui_bold: Rc<CachedFont>,
     ui_semibold: Rc<CachedFont>,
     item: Rc<CachedFont>,
+    wrapped: Option<WrappedRows>,
     composition: Surface,
     layout_scene: RefCell<InstanceGraph>,
     layout_inputs: State<EvaluateView>,
@@ -264,7 +267,10 @@ pub struct EvaluatePanel {
     editor_bounds: Option<Rect>,
     artwork: Artwork,
     pub hits: Vec<Hit>,
+    previous_hits: Vec<Hit>,
     input: Controls<(Target, usize)>,
+    #[cfg(test)]
+    input_publications: usize,
     pointer: (f64, f64),
     prepared: Option<Frame>,
     pub bounds: Rect,
@@ -324,7 +330,7 @@ impl EvaluatePanel {
         let editor = LineEdit::new(&ui).map_err(|error| error.to_string())?;
         let layout_inputs = State::<EvaluateView>::default();
         let inputs = layout_inputs.clone();
-        let mut layout_scene = InstanceGraph::default();
+        let mut layout_scene = InstanceGraph::with_host_routed_input();
         let root = layout_scene.mount_body(move |cx| inputs.read().body(cx), Default::default())?;
         layout_scene.set_root(Some(root))?;
         Ok(Self {
@@ -354,6 +360,7 @@ impl EvaluatePanel {
                 .map_err(|e| e.to_string())?,
             ),
             composition,
+            wrapped: None,
             layout_scene: RefCell::new(layout_scene),
             layout_inputs,
             layout_execution: None,
@@ -365,7 +372,10 @@ impl EvaluatePanel {
             #[cfg(test)]
             paint_profile: [0; 2],
             hits: Vec::new(),
+            previous_hits: Vec::new(),
             input: Controls::default(),
+            #[cfg(test)]
+            input_publications: 0,
             pointer: (0.0, 0.0),
             prepared: None,
             panel: Rect {
@@ -633,13 +643,15 @@ impl EvaluatePanel {
         else {
             return Ok(std::task::Poll::Pending);
         };
+        self.prepare_artwork(&layout, model, interaction, s)?;
+        let previous_scale = self.scale;
+        std::mem::swap(&mut self.hits, &mut self.previous_hits);
         self.hits.clear();
         self.animation = Damage::None;
         self.age_deadline = None;
         self.editor_bounds = None;
         self.scale = s;
         self.item_rows = rows.len();
-        self.prepare_artwork(&layout, model, interaction, s)?;
         let mut p = Recording::new(size);
         let main = layout.bounds(Node::Main);
         self.panel = main;
@@ -1098,6 +1110,24 @@ impl EvaluatePanel {
                 }
             }
         }
+        if self.hits != self.previous_hits || s != previous_scale {
+            self.publish_hits(s);
+        }
+        let drawing = p.finish();
+        #[cfg(test)]
+        {
+            self.paint_profile[0] += profile_start.elapsed().as_nanos() as u64;
+        }
+        let damage = self.composition.update(drawing, render.size)?;
+        self.prepared = Some(render);
+        Ok(std::task::Poll::Ready(damage))
+    }
+
+    fn publish_hits(&mut self, s: f32) {
+        #[cfg(test)]
+        {
+            self.input_publications += 1;
+        }
         let mut occurrences = std::collections::HashMap::new();
         self.input.update(self.hits.iter().map(|hit| {
             let occurrence = occurrences.entry(hit.target).or_insert(0);
@@ -1115,14 +1145,6 @@ impl EvaluatePanel {
             region.input.activation = Activation::Press;
             region
         }));
-        let drawing = p.finish();
-        #[cfg(test)]
-        {
-            self.paint_profile[0] += profile_start.elapsed().as_nanos() as u64;
-        }
-        let damage = self.composition.update(drawing, render.size)?;
-        self.prepared = Some(render);
-        Ok(std::task::Poll::Ready(damage))
     }
 
     pub fn paint_scene(&self) -> Option<retinue_render::surface::Snapshot> {
@@ -1799,11 +1821,24 @@ impl EvaluatePanel {
         }
     }
 
-    fn rows(&self, model: &EvaluateModel, s: f32) -> Vec<Row> {
+    fn rows(&mut self, model: &EvaluateModel, s: f32) -> Rc<[Row]> {
         let Some(e) = &model.evaluation else {
-            return Vec::new();
+            self.wrapped = None;
+            return Rc::default();
         };
-        self.rows_for_item(&e.item, s)
+        if let Some(wrapped) = &self.wrapped
+            && wrapped.source.as_ptr() == std::sync::Arc::as_ptr(e)
+            && wrapped.scale == s
+        {
+            return wrapped.rows.clone();
+        }
+        let rows: Rc<[Row]> = self.rows_for_item(&e.item, s).into();
+        self.wrapped = Some(WrappedRows {
+            source: std::sync::Arc::downgrade(e),
+            scale: s,
+            rows: rows.clone(),
+        });
+        rows
     }
 
     fn rows_for_item(&self, item: &Item, s: f32) -> Vec<Row> {
@@ -2108,6 +2143,12 @@ impl EvaluatePanel {
             color,
         );
     }
+}
+
+struct WrappedRows {
+    source: std::sync::Weak<Evaluation>,
+    scale: f32,
+    rows: Rc<[Row]>,
 }
 
 struct Row {
@@ -2950,8 +2991,25 @@ mod tests {
     }
 
     #[test]
+    fn wrapped_rows_follow_item_and_effective_scale_not_filter_edits() {
+        let mut panel = EvaluatePanel::new().unwrap();
+        let mut model = fixture();
+        let a = panel.rows(&model, 1.0);
+        model.invalidate();
+        assert!(Rc::ptr_eq(&a, &panel.rows(&model, 1.0)));
+        let b = panel.rows(&model, 1.25);
+        assert!(!Rc::ptr_eq(&a, &b));
+        model.edit_evaluation().item.item_level = Some(42);
+        let c = panel.rows(&model, 1.25);
+        assert!(!Rc::ptr_eq(&b, &c));
+        assert!(c.iter().any(|row| row.lines == ["Item Level: 42"]));
+        model.copy();
+        assert!(panel.rows(&model, 1.25).is_empty());
+    }
+
+    #[test]
     fn ready_and_results_have_distinct_sections() {
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         let mut model = fixture();
         let rows = view.rows(&model, 1.0);
         let ready = view
@@ -2976,9 +3034,8 @@ mod tests {
         for scale in [1.0, 1.25, 1.5] {
             let mut view = EvaluatePanel::new().unwrap();
             let mut model = fixture();
-            model.evaluation.as_mut().unwrap().item.modifiers[0].supported = false;
-            model.evaluation.as_mut().unwrap().item.modifiers[0].resolution =
-                Some("unknown".into());
+            model.edit_evaluation().item.modifiers[0].supported = false;
+            model.edit_evaluation().item.modifiers[0].resolution = Some("unknown".into());
             model.results = Some(Default::default());
             let size = (2560, 1440);
             let mut pixels = vec![0; size.0 as usize * size.1 as usize * 4];
@@ -3178,7 +3235,7 @@ mod tests {
     fn league_menu_scrolls_and_keeps_options_inside_the_popup() {
         let mut view = EvaluatePanel::new().unwrap();
         let mut model = fixture();
-        let evaluation = model.evaluation.as_mut().unwrap();
+        let evaluation = model.edit_evaluation();
         evaluation.leagues = (0..60)
             .map(|i| crate::data::evaluation::League {
                 id: format!("league-{i}"),
@@ -3556,6 +3613,17 @@ mod tests {
             };
             view.prepare(render, &model, &Interaction::default())
                 .unwrap();
+            let publications = view.input_publications;
+            view.prepare(
+                Frame {
+                    phase: 0.75,
+                    ..render
+                },
+                &model,
+                &Interaction::default(),
+            )
+            .unwrap();
+            assert_eq!(view.input_publications, publications);
             let close = view
                 .hits
                 .iter()
@@ -3592,6 +3660,7 @@ mod tests {
                 },
             )
             .unwrap();
+            assert_eq!(view.input_publications, publications + 1);
             let popup = view
                 .hits
                 .iter()
@@ -3751,8 +3820,7 @@ mod tests {
     #[test]
     fn crafting_base_profiles_fit_without_overlap() {
         let mut model = fixture();
-        model.evaluation.as_mut().unwrap().item.profiles =
-            vec![Profile::Base, Profile::Quick, Profile::Broad];
+        model.edit_evaluation().item.profiles = vec![Profile::Base, Profile::Quick, Profile::Broad];
         model.apply_profile(Profile::Base);
         let mut view = EvaluatePanel::new().unwrap();
         let size = (2560, 1440);
@@ -3930,7 +3998,7 @@ mod tests {
     }
     #[test]
     fn item_column_is_inset_and_header_tracks_line_count() {
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         let model = fixture();
         for scale in [1.0, 1.25] {
             let rows = view.rows(&model, scale);
@@ -3949,7 +4017,7 @@ mod tests {
     }
     #[test]
     fn item_scroll_keeps_surviving_rows_and_retires_departed_names() {
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         let model = fixture();
         let rows = view.rows(&model, 1.0);
         let layout = |scroll| {
@@ -3970,14 +4038,12 @@ mod tests {
 
     #[test]
     fn scrolling_never_moves_search_or_changes_panel_height() {
-        let view = EvaluatePanel::new().unwrap();
+        let mut view = EvaluatePanel::new().unwrap();
         let mut model = fixture();
         let original = model.evaluation.as_ref().unwrap().item.modifiers.clone();
         for _ in 0..3 {
             model
-                .evaluation
-                .as_mut()
-                .unwrap()
+                .edit_evaluation()
                 .item
                 .modifiers
                 .extend(original.clone());
