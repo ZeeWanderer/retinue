@@ -1,0 +1,1000 @@
+{
+  "schema": 1,
+  "suite": "gui-relics",
+  "purpose": "regression",
+  "id": "6e3de0d9d76b41a0aba64e70c2102846",
+  "created_at": "2026-11-26T23:04:14.380116+00:00",
+  "environment": "headless",
+  "state": "complete",
+  "expected_runs": 8,
+  "provenance": {
+    "revision": "c2280f042c721a136227b81aaccdd2ae603b857c",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "submodules": "677a10bac2c24f7e068cf1f9e675bf51c7b534ea crates/retinue-render/vendor/asmjit (heads/master)\n 58ca9460b4138af6e793184682e9324e0a8053b2 crates/retinue-render/vendor/blend2d (heads/master)\n f404e72a9f64627c5e4d77c874988eb33be62f23 tools/wf-luau-decompiler (v2.7-10-gf404e72)",
+    "binary_sha256": "e259d4d3f08d2cb12e70f87c1037b434f3dc2185b0dd2df8aa9466872593cb6d",
+    "dirty": false,
+    "external_assets": {},
+    "untracked_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  "machine": {
+    "host": "bazzite",
+    "kernel": "7.3.5-ogc3.1.fc45.x86_64",
+    "cpu": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "affinity": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "governors": [
+      "performance"
+    ],
+    "locale": {
+      "LANG": "en_GB.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "TZ": ""
+    },
+    "allocator_environment": {
+      "LD_PRELOAD": "",
+      "LD_LIBRARY_PATH": "",
+      "MALLOC_CONF": "",
+      "MALLOC_ARENA_MAX": "",
+      "MIMALLOC_VERBOSE": "",
+      "MIMALLOC_PURGE_DELAY": ""
+    }
+  },
+  "compatibility": {
+    "workload": 1,
+    "adapter": "gui",
+    "fixture_sha256": "21e67e329209c16b7b4c08efcd7e276694e210cd9ea368697e15c026015811a3",
+    "external_assets": {},
+    "build": {
+      "RUSTFLAGS": "",
+      "CARGO_ENCODED_RUSTFLAGS": "",
+      "CC": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang",
+      "CXX": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin/clang++",
+      "CFLAGS": "",
+      "CXXFLAGS": "",
+      "LDFLAGS": "",
+      "LLVM_ROOT": "/var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6",
+      "RETINUE_CPU_BASELINE": "",
+      "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)\nbinary: rustc\ncommit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a\ncommit-date: 2026-11-09\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0\nLLVM version: 23.1.5",
+      "profile": "release",
+      "cargo_profile": {
+        "opt_level": "3",
+        "debuginfo": 0,
+        "debug_assertions": false,
+        "overflow_checks": false,
+        "test": true
+      },
+      "features": [],
+      "profile_environment": {},
+      "cargo_target": [
+        "--bin",
+        "wfgui"
+      ],
+      "CC_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin",
+      "CXX_version": "Homebrew clang version 23.1.6\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /var/home/linuxbrew/.linuxbrew/Cellar/llvm/23.1.6/bin"
+    },
+    "config": {
+      "threads": 4,
+      "samples": 120,
+      "hz": 0,
+      "cases": "",
+      "timeout": 600,
+      "cache": "fresh-process-and-xdg-per-run"
+    }
+  },
+  "runs": [
+    {
+      "raw_sha256": "5e69d92713120825bdf421f0c53e8055601d19f6ae8c9ddfa874680f78687775",
+      "elapsed_seconds": 1.591389271998196,
+      "load_average": [
+        4.6259765625,
+        4.3046875,
+        7.67333984375
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.496421,
+            "process_cpu_ms_p95": 4.979020999999989,
+            "update_ms_p95": 1.17788,
+            "frame_p50_ms": 1.3041839999999998,
+            "frame_p95_ms": 2.650927,
+            "frame_max_ms": 3.404064,
+            "frame_mean_ms": 1.4469039714285714
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.909696,
+            "process_cpu_ms_p95": 6.634911000000102,
+            "update_ms_p95": 1.969017,
+            "frame_p50_ms": 3.002005,
+            "frame_p95_ms": 3.7778669999999996,
+            "frame_max_ms": 5.173577000000001,
+            "frame_mean_ms": 2.84446145
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.1746510000000001,
+            "process_cpu_ms_p95": 3.417267999999922,
+            "update_ms_p95": 0.8032999999999999,
+            "frame_p50_ms": 0.984424,
+            "frame_p95_ms": 1.820872,
+            "frame_max_ms": 2.361751,
+            "frame_mean_ms": 1.1015447357142858
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.417386,
+            "process_cpu_ms_p95": 4.937922000000071,
+            "update_ms_p95": 1.41876,
+            "frame_p50_ms": 2.358498,
+            "frame_p95_ms": 2.793113,
+            "frame_max_ms": 3.494246,
+            "frame_mean_ms": 2.3110044285714286
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.383917,
+            "process_cpu_ms_p95": 1.3144560000000638,
+            "update_ms_p95": 0.06498799999999999,
+            "frame_p50_ms": 0.361248,
+            "frame_p95_ms": 0.49598800000000004,
+            "frame_max_ms": 0.873163,
+            "frame_mean_ms": 0.38332262857142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.676976,
+            "process_cpu_ms_p95": 2.5195239999998194,
+            "update_ms_p95": 0.749645,
+            "frame_p50_ms": 1.061127,
+            "frame_p95_ms": 1.405051,
+            "frame_max_ms": 1.8130279999999999,
+            "frame_mean_ms": 1.0986313857142858
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "8006e09cd5c8169700331bda924c70f0be87e6ac3358df268fbc212cb144bee1",
+      "elapsed_seconds": 1.564876506003202,
+      "load_average": [
+        4.6259765625,
+        4.3046875,
+        7.67333984375
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.663138,
+            "process_cpu_ms_p95": 5.2446990000000255,
+            "update_ms_p95": 1.26464,
+            "frame_p50_ms": 1.3113409999999999,
+            "frame_p95_ms": 2.8729720000000003,
+            "frame_max_ms": 3.271435,
+            "frame_mean_ms": 1.5033557357142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.8068929999999999,
+            "process_cpu_ms_p95": 6.196460999999999,
+            "update_ms_p95": 1.867221,
+            "frame_p50_ms": 2.955791,
+            "frame_p95_ms": 3.5356620000000003,
+            "frame_max_ms": 3.9912660000000004,
+            "frame_mean_ms": 2.7482745142857143
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.075973,
+            "process_cpu_ms_p95": 3.544168000000127,
+            "update_ms_p95": 0.792628,
+            "frame_p50_ms": 0.9916980000000001,
+            "frame_p95_ms": 1.8199889999999999,
+            "frame_max_ms": 2.5484679999999997,
+            "frame_mean_ms": 1.0885808571428572
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.416743,
+            "process_cpu_ms_p95": 4.875035000000025,
+            "update_ms_p95": 1.362503,
+            "frame_p50_ms": 2.3029230000000003,
+            "frame_p95_ms": 2.709732,
+            "frame_max_ms": 3.2930390000000003,
+            "frame_mean_ms": 2.243974842857143
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.386025,
+            "process_cpu_ms_p95": 1.2453639999998813,
+            "update_ms_p95": 0.07419,
+            "frame_p50_ms": 0.357079,
+            "frame_p95_ms": 0.48485500000000004,
+            "frame_max_ms": 0.894127,
+            "frame_mean_ms": 0.3853018
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.541631,
+            "process_cpu_ms_p95": 2.1058750000001965,
+            "update_ms_p95": 0.654578,
+            "frame_p50_ms": 1.039752,
+            "frame_p95_ms": 1.2099,
+            "frame_max_ms": 1.530656,
+            "frame_mean_ms": 1.0449456214285715
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "1bc2699e23b2cf0369a4da9fcd657cb745bb4f7055e89285b69db132980324ee",
+      "elapsed_seconds": 1.5511436340020737,
+      "load_average": [
+        4.41552734375,
+        4.26611328125,
+        7.642578125
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.4345180000000002,
+            "process_cpu_ms_p95": 4.836535999999995,
+            "update_ms_p95": 1.1865809999999999,
+            "frame_p50_ms": 1.278194,
+            "frame_p95_ms": 2.61234,
+            "frame_max_ms": 3.240759,
+            "frame_mean_ms": 1.4160299071428573
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.973787,
+            "process_cpu_ms_p95": 6.551000999999928,
+            "update_ms_p95": 1.927387,
+            "frame_p50_ms": 2.97212,
+            "frame_p95_ms": 3.7546649999999997,
+            "frame_max_ms": 4.105243,
+            "frame_mean_ms": 2.802405114285714
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.048746,
+            "process_cpu_ms_p95": 3.4345800000000963,
+            "update_ms_p95": 0.787012,
+            "frame_p50_ms": 0.9745440000000001,
+            "frame_p95_ms": 1.810864,
+            "frame_max_ms": 2.3454499999999996,
+            "frame_mean_ms": 1.067184157142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.3642979999999998,
+            "process_cpu_ms_p95": 4.696596999999656,
+            "update_ms_p95": 1.351615,
+            "frame_p50_ms": 2.2734690000000004,
+            "frame_p95_ms": 2.690436,
+            "frame_max_ms": 3.1494180000000003,
+            "frame_mean_ms": 2.2257013714285714
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.355314,
+            "process_cpu_ms_p95": 1.210414000000128,
+            "update_ms_p95": 0.06629,
+            "frame_p50_ms": 0.355321,
+            "frame_p95_ms": 0.43207,
+            "frame_max_ms": 0.855815,
+            "frame_mean_ms": 0.37762835
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.522555,
+            "process_cpu_ms_p95": 2.1098620000002484,
+            "update_ms_p95": 0.647569,
+            "frame_p50_ms": 1.01626,
+            "frame_p95_ms": 1.1718060000000001,
+            "frame_max_ms": 1.5026169999999999,
+            "frame_mean_ms": 1.0246731571428571
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "f154e168d206c12725356129a74c161e3626d04968bc5ce0fbea2d94c3f346ac",
+      "elapsed_seconds": 1.5391528670006664,
+      "load_average": [
+        4.41552734375,
+        4.26611328125,
+        7.642578125
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.495267,
+            "process_cpu_ms_p95": 5.150107999999989,
+            "update_ms_p95": 1.2159810000000002,
+            "frame_p50_ms": 1.317804,
+            "frame_p95_ms": 2.734655,
+            "frame_max_ms": 3.336464,
+            "frame_mean_ms": 1.4585912
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.7301849999999999,
+            "process_cpu_ms_p95": 6.045093000000179,
+            "update_ms_p95": 1.8798860000000002,
+            "frame_p50_ms": 2.8880160000000004,
+            "frame_p95_ms": 3.489903,
+            "frame_max_ms": 4.3724300000000005,
+            "frame_mean_ms": 2.7232868142857143
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.07808,
+            "process_cpu_ms_p95": 3.4420179999997345,
+            "update_ms_p95": 0.8194269999999999,
+            "frame_p50_ms": 0.986821,
+            "frame_p95_ms": 1.842238,
+            "frame_max_ms": 2.6144499999999997,
+            "frame_mean_ms": 1.0737752285714286
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.351631,
+            "process_cpu_ms_p95": 4.7193389999997635,
+            "update_ms_p95": 1.365226,
+            "frame_p50_ms": 2.292976,
+            "frame_p95_ms": 2.6936769999999997,
+            "frame_max_ms": 2.788562,
+            "frame_mean_ms": 2.2212942
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.35368299999999997,
+            "process_cpu_ms_p95": 1.1658660000002783,
+            "update_ms_p95": 0.063535,
+            "frame_p50_ms": 0.355075,
+            "frame_p95_ms": 0.416598,
+            "frame_max_ms": 0.842249,
+            "frame_mean_ms": 0.3741872214285714
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.49890199999999996,
+            "process_cpu_ms_p95": 2.043847999999798,
+            "update_ms_p95": 0.637405,
+            "frame_p50_ms": 1.0158159999999998,
+            "frame_p95_ms": 1.130477,
+            "frame_max_ms": 1.25519,
+            "frame_mean_ms": 1.0107523285714286
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "0f72c3ece9d3c66b552781e69ef6a25ea943204a59fc062ec294310253b9fbb3",
+      "elapsed_seconds": 1.5510872570011998,
+      "load_average": [
+        4.41552734375,
+        4.26611328125,
+        7.642578125
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.432945,
+            "process_cpu_ms_p95": 5.252243000000021,
+            "update_ms_p95": 1.190403,
+            "frame_p50_ms": 1.278089,
+            "frame_p95_ms": 2.832476,
+            "frame_max_ms": 3.425675,
+            "frame_mean_ms": 1.4265656714285715
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.759561,
+            "process_cpu_ms_p95": 6.220694000000094,
+            "update_ms_p95": 1.886889,
+            "frame_p50_ms": 2.868587,
+            "frame_p95_ms": 3.560165,
+            "frame_max_ms": 3.9535229999999997,
+            "frame_mean_ms": 2.7546613285714288
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.0400660000000002,
+            "process_cpu_ms_p95": 3.363958999999795,
+            "update_ms_p95": 0.78106,
+            "frame_p50_ms": 0.978029,
+            "frame_p95_ms": 1.8329659999999999,
+            "frame_max_ms": 2.590551,
+            "frame_mean_ms": 1.06579285
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.587101,
+            "process_cpu_ms_p95": 5.425326000000041,
+            "update_ms_p95": 1.4343279999999998,
+            "frame_p50_ms": 2.338578,
+            "frame_p95_ms": 2.983073,
+            "frame_max_ms": 3.6539189999999997,
+            "frame_mean_ms": 2.300420792857143
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.367994,
+            "process_cpu_ms_p95": 1.3089530000002014,
+            "update_ms_p95": 0.08813599999999999,
+            "frame_p50_ms": 0.35603700000000005,
+            "frame_p95_ms": 0.60973,
+            "frame_max_ms": 1.004516,
+            "frame_mean_ms": 0.38156544285714283
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.51101,
+            "process_cpu_ms_p95": 2.0597890000003645,
+            "update_ms_p95": 0.639928,
+            "frame_p50_ms": 1.007275,
+            "frame_p95_ms": 1.1483,
+            "frame_max_ms": 1.408264,
+            "frame_mean_ms": 1.0114478928571429
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "3c924af709ca54ed1306f1ebf7bd9bff4563a820868704ff941ad6853f6731dc",
+      "elapsed_seconds": 1.5613145099996473,
+      "load_average": [
+        4.2216796875,
+        4.22802734375,
+        7.61181640625
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.4685709999999998,
+            "process_cpu_ms_p95": 5.02527699999996,
+            "update_ms_p95": 1.120888,
+            "frame_p50_ms": 1.269215,
+            "frame_p95_ms": 2.664371,
+            "frame_max_ms": 3.5431109999999997,
+            "frame_mean_ms": 1.4154028857142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 2.0389720000000002,
+            "process_cpu_ms_p95": 6.882640999999921,
+            "update_ms_p95": 1.97924,
+            "frame_p50_ms": 2.986024,
+            "frame_p95_ms": 3.840935,
+            "frame_max_ms": 5.097701,
+            "frame_mean_ms": 2.8448547285714287
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.074929,
+            "process_cpu_ms_p95": 3.5017370000000483,
+            "update_ms_p95": 0.787774,
+            "frame_p50_ms": 0.9802490000000001,
+            "frame_p95_ms": 1.819602,
+            "frame_max_ms": 2.274257,
+            "frame_mean_ms": 1.0765824928571428
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.38897,
+            "process_cpu_ms_p95": 4.667551999999887,
+            "update_ms_p95": 1.352848,
+            "frame_p50_ms": 2.30116,
+            "frame_p95_ms": 2.665771,
+            "frame_max_ms": 2.9205989999999997,
+            "frame_mean_ms": 2.248955385714286
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.36644299999999996,
+            "process_cpu_ms_p95": 1.2702540000000226,
+            "update_ms_p95": 0.06754500000000001,
+            "frame_p50_ms": 0.360813,
+            "frame_p95_ms": 0.483687,
+            "frame_max_ms": 0.930118,
+            "frame_mean_ms": 0.3815468857142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.549154,
+            "process_cpu_ms_p95": 2.08539699999983,
+            "update_ms_p95": 0.659521,
+            "frame_p50_ms": 1.0393329999999998,
+            "frame_p95_ms": 1.1727269999999999,
+            "frame_max_ms": 1.493797,
+            "frame_mean_ms": 1.0438034214285714
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "008744cd3da17535376a0d148b2f8a74c0ba6ba58eff1e955c057b26658626dc",
+      "elapsed_seconds": 1.596004428996821,
+      "load_average": [
+        4.2216796875,
+        4.22802734375,
+        7.61181640625
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.4663110000000001,
+            "process_cpu_ms_p95": 5.234372000000008,
+            "update_ms_p95": 1.140004,
+            "frame_p50_ms": 1.2991439999999999,
+            "frame_p95_ms": 2.816799,
+            "frame_max_ms": 3.539852,
+            "frame_mean_ms": 1.44572305
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.8522239999999999,
+            "process_cpu_ms_p95": 6.4071409999999105,
+            "update_ms_p95": 1.981243,
+            "frame_p50_ms": 2.951272,
+            "frame_p95_ms": 3.712162,
+            "frame_max_ms": 4.024958000000001,
+            "frame_mean_ms": 2.8124977714285713
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.522661,
+            "process_cpu_ms_p95": 4.396844000000101,
+            "update_ms_p95": 0.823681,
+            "frame_p50_ms": 0.9816569999999999,
+            "frame_p95_ms": 2.0226189999999997,
+            "frame_max_ms": 2.927332,
+            "frame_mean_ms": 1.1620295285714286
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.711749,
+            "process_cpu_ms_p95": 5.302240999999867,
+            "update_ms_p95": 1.501522,
+            "frame_p50_ms": 2.338793,
+            "frame_p95_ms": 3.167796,
+            "frame_max_ms": 3.6030089999999997,
+            "frame_mean_ms": 2.34159655
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.36470600000000003,
+            "process_cpu_ms_p95": 1.2805950000001758,
+            "update_ms_p95": 0.064512,
+            "frame_p50_ms": 0.353556,
+            "frame_p95_ms": 0.45140600000000003,
+            "frame_max_ms": 0.8433120000000001,
+            "frame_mean_ms": 0.3761957857142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.608124,
+            "process_cpu_ms_p95": 2.395748999999796,
+            "update_ms_p95": 0.713845,
+            "frame_p50_ms": 1.0296509999999999,
+            "frame_p95_ms": 1.277393,
+            "frame_max_ms": 1.823534,
+            "frame_mean_ms": 1.05795325
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    },
+    {
+      "raw_sha256": "93e0b54d61edd6d90a987973fd85bd4fc29fda68ed0aa19f71db66c00e7f7f86",
+      "elapsed_seconds": 1.567219380995084,
+      "load_average": [
+        4.2216796875,
+        4.22802734375,
+        7.61181640625
+      ],
+      "cases": {
+        "size=[1992,1394]/scale=1.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.48766,
+            "process_cpu_ms_p95": 5.238154999999978,
+            "update_ms_p95": 1.1617979999999999,
+            "frame_p50_ms": 1.29377,
+            "frame_p95_ms": 2.714494,
+            "frame_max_ms": 3.130997,
+            "frame_mean_ms": 1.4397838142857142
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1992,1394]/scale=1.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 2.06535,
+            "process_cpu_ms_p95": 6.504181000000017,
+            "update_ms_p95": 1.947044,
+            "frame_p50_ms": 3.009662,
+            "frame_p95_ms": 3.731763,
+            "frame_max_ms": 4.562062,
+            "frame_mean_ms": 2.830051157142857
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.0864340000000001,
+            "process_cpu_ms_p95": 3.58690700000011,
+            "update_ms_p95": 0.7962779999999999,
+            "frame_p50_ms": 0.9779680000000001,
+            "frame_p95_ms": 1.852998,
+            "frame_max_ms": 2.352549,
+            "frame_mean_ms": 1.0683976857142856
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1850,1382]/scale=1.25/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 1.412171,
+            "process_cpu_ms_p95": 4.857865000000402,
+            "update_ms_p95": 1.451621,
+            "frame_p50_ms": 2.318088,
+            "frame_p95_ms": 2.831288,
+            "frame_max_ms": 3.095116,
+            "frame_mean_ms": 2.2698368642857143
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"wheel\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.391858,
+            "process_cpu_ms_p95": 1.3290489999999409,
+            "update_ms_p95": 0.08388100000000001,
+            "frame_p50_ms": 0.362701,
+            "frame_p95_ms": 0.546057,
+            "frame_max_ms": 0.889389,
+            "frame_mean_ms": 0.38759677857142855
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        },
+        "size=[1424,1348]/scale=2.0/mode=\"drag\"": {
+          "frame_samples": 140,
+          "metrics": {
+            "paint_ms_p95": 0.54731,
+            "process_cpu_ms_p95": 2.125395000000026,
+            "update_ms_p95": 0.664117,
+            "frame_p50_ms": 1.033289,
+            "frame_p95_ms": 1.170128,
+            "frame_max_ms": 1.507727,
+            "frame_mean_ms": 1.04205015
+          },
+          "actual_threads": null,
+          "work": {
+            "items": 300,
+            "live": false
+          }
+        }
+      }
+    }
+  ],
+  "completed_at": "2026-11-26T23:04:26.950770+00:00",
+  "history": {
+    "series": "7a304a6fbdf012642fd502fdc01a02b53f5a2abd3b672aafebf1f929be8b5bfd",
+    "archived_at": "2026-11-26T23:07:34.405441+00:00",
+    "report_sha256": "5fb7255057b7d66966b311c415a8ff067827d466fa71744b7d8fadc8a047a5dd"
+  }
+}
