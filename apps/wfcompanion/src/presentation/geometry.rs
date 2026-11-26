@@ -20,6 +20,13 @@ pub(crate) struct ScreenOutput {
 }
 
 impl ScreenOutput {
+    pub(crate) fn close_bounds(&self) -> Option<Rect> {
+        self.hit_regions
+            .iter()
+            .find(|r| r.target == HitTarget::Close)
+            .map(|r| r.bounds)
+    }
+
     #[cfg(test)]
     pub(crate) fn contains(&self, target: HitTarget, position: (f64, f64)) -> bool {
         self.hit_regions

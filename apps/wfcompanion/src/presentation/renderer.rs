@@ -49,7 +49,7 @@ pub(super) struct Frame {
 #[derive(Clone, Copy)]
 pub(super) enum SurfaceScene<'a> {
     Empty,
-    Relic(Duration),
+    Relic(Duration, bool),
     Ducats(&'a crate::ducats::Scene),
 }
 
@@ -163,7 +163,36 @@ impl Renderer {
         Ok(changed)
     }
 
-    pub(super) fn prepare_frame_layout(&mut self, key: FrameKey) -> Result<bool, String> {
+    pub(super) fn prepare_relic_layout(
+        &mut self,
+        (width, height): (u32, u32),
+        scale: u32,
+        content: &crate::relic::Scene,
+        view: RelicViewState,
+    ) -> Result<bool, String> {
+        if self.frame.as_ref().is_some_and(|f| {
+            let Scene::Relic {
+                content: old,
+                view: old_view,
+            } = &f.key.scene;
+            (f.key.width, f.key.height, f.key.scale) == (width, height, scale)
+                && *old_view == view
+                && old == content
+        }) {
+            return Ok(false);
+        }
+        self.prepare_frame_layout(FrameKey {
+            width,
+            height,
+            scale,
+            scene: Scene::Relic {
+                content: content.clone(),
+                view,
+            },
+        })
+    }
+
+    fn prepare_frame_layout(&mut self, key: FrameKey) -> Result<bool, String> {
         let changed = ensure_frame(
             &mut self.frame,
             key,
@@ -254,13 +283,13 @@ impl Renderer {
         let mut scene =
             retinue_render::surface::Snapshot::new(size, retinue_render::Color::rgba(0, 0, 0, 0));
         let animation = match surface {
-            SurfaceScene::Relic(elapsed) => {
+            SurfaceScene::Relic(elapsed, hovered) => {
                 let frame = self
                     .frame()
                     .filter(|f| (f.key.width, f.key.height) == size)
                     .ok_or("surface has no matching relic frame")?;
                 self.static_paint.record_surface(&mut scene);
-                frame.output.animation_bounds.map(|_| elapsed)
+                Some((elapsed, hovered))
             }
             SurfaceScene::Ducats(tooltip) => {
                 super::ducats::prepare(size, &self.font, &self.assets.ducats, tooltip);
@@ -337,7 +366,7 @@ impl Renderer {
         repair: &retinue_render::damage::Region,
         scene: SurfaceScene<'_>,
     ) -> Result<(), String> {
-        if let SurfaceScene::Relic(_) = scene {
+        if let SurfaceScene::Relic(..) = scene {
             let cache = self
                 .frame()
                 .filter(|frame| {
@@ -403,7 +432,7 @@ impl Renderer {
         let _pass = self.render_host.begin_pass(0);
         let mut packets = Vec::new();
         match scene {
-            SurfaceScene::Relic(_) => {
+            SurfaceScene::Relic(..) => {
                 let frame = self.frame().ok_or("no prepared relic frame")?;
                 if let Some(image) = frame.image.get() {
                     packets.push(retinue_render::PacketJob::ready(
@@ -446,17 +475,24 @@ impl Renderer {
     fn prepare_transients(
         &self,
         size: (u32, u32),
-        animation: Option<Duration>,
+        animation: Option<(Duration, bool)>,
         status: Option<screens::StatusParams<'_>>,
     ) -> Result<(), String> {
         let mut recording = Recording::new(size);
-        if let (Some(frame), Some(elapsed)) = (self.frame.as_ref(), animation) {
+        if let (Some(frame), Some((elapsed, hovered))) = (self.frame.as_ref(), animation) {
             screens::draw_animation(
                 &mut recording,
                 &frame.key.scene,
                 &frame.output,
                 frame.key.scale,
                 elapsed,
+            );
+            screens::draw_close(
+                &mut recording,
+                &self.assets,
+                &frame.output,
+                frame.key.scale,
+                hovered,
             );
         }
         if let Some(view) = status {
@@ -483,8 +519,12 @@ impl Renderer {
         animation: Option<Duration>,
         status: Option<screens::StatusParams<'_>>,
     ) {
-        self.prepare_transients((painter.width(), painter.height()), animation, status)
-            .unwrap();
+        self.prepare_transients(
+            (painter.width(), painter.height()),
+            animation.map(|t| (t, false)),
+            status,
+        )
+        .unwrap();
         self.transient_paint
             .borrow_mut()
             .prepare_rasters(&painter.visible_regions());
@@ -609,7 +649,6 @@ pub(crate) fn render_relic_suggestions_preview(
         RelicViewState {
             suggestion_offset: offset,
             interaction_active: true,
-            close_hovered: false,
         },
     )
 }
@@ -626,7 +665,6 @@ fn render_relic_scene_preview(
         RelicViewState {
             suggestion_offset: 0,
             interaction_active: false,
-            close_hovered: false,
         },
     )
 }
@@ -660,7 +698,7 @@ fn render_relic_scene_preview_with_view(
             width,
             height,
         },
-        SurfaceScene::Relic(elapsed),
+        SurfaceScene::Relic(elapsed, false),
         None,
     )?;
     straight_rgba(&overlay, width, height)
@@ -800,7 +838,6 @@ mod tests {
                 view: RelicViewState {
                     suggestion_offset: 0,
                     interaction_active: false,
-                    close_hovered: false,
                 },
             },
         }
@@ -831,7 +868,7 @@ mod tests {
                 }
                 let tooltip = super::super::ducats::fixture(size);
                 let scene = if relic {
-                    SurfaceScene::Relic(Duration::from_millis(350))
+                    SurfaceScene::Relic(Duration::from_millis(350), false)
                 } else {
                     SurfaceScene::Ducats(&tooltip)
                 };
@@ -1022,7 +1059,7 @@ mod tests {
                         &mut buffers[index],
                         size,
                         &plan.repair,
-                        SurfaceScene::Relic(elapsed),
+                        SurfaceScene::Relic(elapsed, false),
                         show_hud.then(|| overlapping_status(scale, pulse)),
                     )
                     .unwrap();
@@ -1080,7 +1117,7 @@ mod tests {
                         *content = mock_relic_scene();
                     }
                     assert!(renderer.prepare_frame(key.clone()).unwrap());
-                    SurfaceScene::Relic(Duration::from_millis(750))
+                    SurfaceScene::Relic(Duration::from_millis(750), false)
                 }
                 _ => SurfaceScene::Empty,
             };
@@ -1112,7 +1149,7 @@ mod tests {
                     &mut pixels,
                     size,
                     full,
-                    SurfaceScene::Relic(Duration::ZERO),
+                    SurfaceScene::Relic(Duration::ZERO, false),
                     None
                 )
                 .is_err()
@@ -1124,7 +1161,7 @@ mod tests {
                     &mut pixels,
                     size,
                     full,
-                    SurfaceScene::Relic(Duration::ZERO),
+                    SurfaceScene::Relic(Duration::ZERO, false),
                     None
                 )
                 .is_err()
@@ -1158,7 +1195,6 @@ mod tests {
                 view: RelicViewState {
                     suggestion_offset: 0,
                     interaction_active: false,
-                    close_hovered: false,
                 },
             },
         };
@@ -1187,7 +1223,6 @@ mod tests {
                 view: RelicViewState {
                     suggestion_offset: 0,
                     interaction_active: false,
-                    close_hovered: false,
                 },
             },
         };
@@ -1196,37 +1231,64 @@ mod tests {
     }
 
     #[test]
-    fn completed_frames_need_no_transient_surface_paint() {
+    fn completed_frames_are_stable_and_close_hover_only_changes_close_pixels() {
         let mut renderer = Renderer::load().unwrap();
-        for content in [
-            mock_relic_scene(),
-            crate::relic::suggestion_fixture().unwrap(),
+        for (size, content) in [
+            ((1920, 1080), mock_relic_scene()),
+            ((1920, 1080), crate::relic::suggestion_fixture().unwrap()),
+            ((3840, 2160), crate::relic::suggestion_fixture().unwrap()),
         ] {
+            let view = RelicViewState {
+                suggestion_offset: 0,
+                interaction_active: true,
+            };
             renderer
                 .prepare_frame(FrameKey {
-                    width: 1920,
-                    height: 1080,
+                    width: size.0,
+                    height: size.1,
                     scale: 1,
                     scene: Scene::Relic {
-                        content,
-                        view: RelicViewState {
-                            suggestion_offset: 0,
-                            interaction_active: true,
-                            close_hovered: false,
-                        },
+                        content: content.clone(),
+                        view,
                     },
                 })
                 .unwrap();
             let frame = renderer.frame().unwrap();
             assert!(frame.output.animation_bounds.is_none());
-            let mut surface = frame.image().bgra().to_vec();
-            let mut painter = Painter::new(&mut surface, 1920, 1080).unwrap();
-            renderer.draw_transients(&mut painter, Some(Duration::from_millis(750)), None);
-            painter.finish().unwrap();
-            assert!(
-                surface == frame.image().bgra(),
-                "completed frame gained transient pixels"
-            );
+            let image = frame.image().clone();
+            let full = Damage::Full.regions(size);
+            let mut surface = vec![0; image.byte_len()];
+            let close = frame.output.close_bounds();
+            renderer
+                .paint_surface(
+                    &mut surface,
+                    size,
+                    full.clone(),
+                    SurfaceScene::Relic(Duration::ZERO, false),
+                    None,
+                )
+                .unwrap();
+            let idle = surface.clone();
+            for hovered in [true, false] {
+                assert!(
+                    !renderer
+                        .prepare_relic_layout(size, 1, &content, view)
+                        .unwrap()
+                );
+                let scene = SurfaceScene::Relic(Duration::from_secs(1), hovered);
+                let repair: retinue_render::damage::Region =
+                    close.map(Into::into).unwrap_or_default();
+                renderer
+                    .paint_surface(&mut surface, size, repair, scene, None)
+                    .unwrap();
+                let mut reference = vec![0; image.byte_len()];
+                renderer
+                    .paint_surface(&mut reference, size, full.clone(), scene, None)
+                    .unwrap();
+                assert!(surface == reference);
+                assert_eq!(surface != idle, hovered && close.is_some());
+                assert!(Arc::ptr_eq(&image, renderer.frame().unwrap().image()));
+            }
         }
     }
 
@@ -1244,7 +1306,6 @@ mod tests {
                     view: RelicViewState {
                         suggestion_offset: 0,
                         interaction_active: true,
-                        close_hovered: false,
                     },
                 },
             })
@@ -1283,7 +1344,6 @@ mod tests {
                         view: RelicViewState {
                             suggestion_offset: 0,
                             interaction_active: true,
-                            close_hovered: false,
                         },
                     },
                 })
@@ -1408,7 +1468,6 @@ mod tests {
                             view: RelicViewState {
                                 suggestion_offset: 0,
                                 interaction_active: false,
-                                close_hovered: false,
                             },
                         },
                     })
@@ -1424,6 +1483,55 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    #[ignore = "make bench BENCH_SUITE=wf-tooltip"]
+    fn tooltip_publication_benchmark() {
+        let mut cases = Vec::new();
+        for size in [(1920, 1080), (2560, 1440)] {
+            for name in ["unchanged", "translate", "price-update", "toggle-price"] {
+                if !crate::render_bench::selected(name) {
+                    continue;
+                }
+                cases.push(crate::render_bench::measure(
+                    name,
+                    size,
+                    1.0,
+                    || {
+                        let renderer = Renderer::load().unwrap();
+                        let a = super::super::ducats::fixture(size);
+                        let mut b = a.clone();
+                        match name {
+                            "translate" => {
+                                for n in [0, 2] {
+                                    b.hover.panel[n] += 36.0;
+                                    b.hover.price_label[n] += 36.0;
+                                }
+                            }
+                            "price-update" => b.quote.as_mut().unwrap().lowest_sell = Some(9),
+                            "toggle-price" => b.listed = false,
+                            "unchanged" => {}
+                            _ => unreachable!(),
+                        }
+                        (renderer, [a, b])
+                    },
+                    |(renderer, states), index| {
+                        std::hint::black_box(renderer.prepare_surface(
+                            size,
+                            SurfaceScene::Ducats(&states[index % 2]),
+                            None,
+                        ).unwrap());
+                    },
+                    |_| serde_json::json!({"scale_kind": "buffer scale; fixture fits output dimensions"}),
+                ));
+            }
+        }
+        crate::render_bench::report_with_scope(
+            "wf-tooltip",
+            cases,
+            "Prepared kiosk state to retained surface snapshot. Excludes game reads, daemon, rasterization, buffer repair and presentation. Unchanged is a repeated preparation, not an idle frame.",
+        );
     }
 
     #[test]
@@ -1460,7 +1568,10 @@ mod tests {
                                 &mut buffers[buffer_index],
                                 size,
                                 plan.repair,
-                                SurfaceScene::Relic(Duration::from_millis(index as u64 * 33)),
+                                SurfaceScene::Relic(
+                                    Duration::from_millis(index as u64 * 33),
+                                    false,
+                                ),
                                 None,
                             )
                             .unwrap();
@@ -1515,7 +1626,6 @@ mod tests {
                                     view: RelicViewState {
                                         suggestion_offset: if changing { index % 4 } else { 0 },
                                         interaction_active: false,
-                                        close_hovered: false,
                                     },
                                 },
                             })
@@ -1523,7 +1633,7 @@ mod tests {
                         if name == "static-frame-copy-cpu" {
                             let _pass = renderer.render_host.begin_frame(NonZeroU32::MIN);
                             renderer
-                                .prepare_surface(size, SurfaceScene::Relic(Duration::ZERO), None)
+                                .prepare_surface(size, SurfaceScene::Relic(Duration::ZERO, false), None)
                                 .unwrap();
                             renderer
                                 .frame()
@@ -1543,7 +1653,7 @@ mod tests {
                                     pixels,
                                     size,
                                     Damage::Full.bounds(size).unwrap(),
-                                    SurfaceScene::Relic(Duration::ZERO),
+                                    SurfaceScene::Relic(Duration::ZERO, false),
                                     None,
                                 )
                                 .unwrap();

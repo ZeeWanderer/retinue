@@ -28,7 +28,6 @@ pub(super) fn draw(
         scale,
         suggestion_offset,
         interaction_active,
-        close_hovered,
     } = view;
     let layout = suggestion_geometry::compute(
         painter.width() / scale,
@@ -98,23 +97,6 @@ pub(super) fn draw(
         16.0 * scale as f32,
         &suggestions.trace_count.to_string(),
         [255, 255, 255, 255],
-    );
-    if close_hovered {
-        painter.fill_rounded_rect(
-            layout.close.x,
-            layout.close.y,
-            layout.close.width,
-            layout.close.height,
-            6 * scale,
-            css_rgba(139, 171, 204, 107),
-        );
-    }
-    painter.draw_image_contained(
-        &icons.close,
-        layout.close.x + 5 * scale,
-        layout.close.y + 5 * scale,
-        18 * scale,
-        18 * scale,
     );
 
     let grid = layout.grid;

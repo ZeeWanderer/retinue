@@ -33,7 +33,7 @@ use wayland_client::protocol::{wl_output, wl_pointer, wl_seat, wl_shm, wl_surfac
 use wayland_client::{Connection, QueueHandle};
 
 use super::overlay_model::Presentation;
-use super::renderer::{FrameKey, LOADING_FRAME_INTERVAL, Renderer, SurfaceScene};
+use super::renderer::{LOADING_FRAME_INTERVAL, Renderer, SurfaceScene};
 use super::screens::{STATUS_HEIGHT, STATUS_INSET, STATUS_WIDTH, StatusParams};
 use crate::UiEvent;
 use crate::incident;
@@ -596,7 +596,9 @@ impl Overlay {
     fn update_pointer(&mut self, connection: &Connection, position: (f64, f64)) {
         let hovered = self.renderer.move_pointer(position) == Some(HitTarget::Close);
         if self.presentation.set_close_hovered(hovered) {
-            self.request_full_redraw();
+            if let Some(rect) = self.renderer.frame().and_then(|f| f.output.close_bounds()) {
+                self.repaint.invalidate(Damage::rect(rect));
+            }
         }
         if let Some(pointer) = self.themed_pointer.as_ref() {
             let icon = if hovered {
@@ -771,15 +773,12 @@ impl Overlay {
             .filter(|_| scene_visible)
             .map(|(_, _, started)| started.elapsed());
         if let Some((scene, _, _)) = self.relic_scene.as_ref().filter(|_| scene_visible) {
-            let key = FrameKey {
-                width,
-                height,
+            match self.renderer.prepare_relic_layout(
+                (width, height),
                 scale,
-                scene: self
-                    .presentation
-                    .scene(scene.clone(), self.interaction_active),
-            };
-            match self.renderer.prepare_frame_layout(key) {
+                scene,
+                self.presentation.view(self.interaction_active),
+            ) {
                 Ok(true) => self.request_full_redraw(),
                 Ok(false) => {}
                 Err(error) => {
@@ -800,7 +799,10 @@ impl Overlay {
             None
         };
         let scene = if scene_visible {
-            SurfaceScene::Relic(loading_elapsed.unwrap_or_default())
+            SurfaceScene::Relic(
+                loading_elapsed.unwrap_or_default(),
+                self.presentation.close_hovered(),
+            )
         } else if self.overlay_enabled
             && self.warframe_active
             && let Some((scene, _, _)) = &self.ducat_scene

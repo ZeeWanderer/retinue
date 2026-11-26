@@ -53,9 +53,21 @@ pub(super) fn draw_static(
                 scale,
                 suggestion_offset: view.suggestion_offset,
                 interaction_active: view.interaction_active,
-                close_hovered: view.close_hovered,
             },
         ),
+    }
+}
+
+pub(super) fn draw_close(
+    painter: &mut Recording,
+    assets: &Assets,
+    output: &ScreenOutput,
+    scale: u32,
+    hovered: bool,
+) {
+    if let Some(rect) = output.close_bounds() {
+        painter.section(retinue_render::Key::new("relic.close", 0), rect);
+        relic::draw_close(painter, &assets.relic, rect, scale, hovered);
     }
 }
 

@@ -10,7 +10,6 @@ pub(super) enum Scene {
 pub(super) struct RelicViewState {
     pub(super) suggestion_offset: usize,
     pub(super) interaction_active: bool,
-    pub(super) close_hovered: bool,
 }
 
 #[derive(Default)]
@@ -21,14 +20,10 @@ pub(super) struct Presentation {
 }
 
 impl Presentation {
-    pub(super) fn scene(&self, content: crate::relic::Scene, interaction_active: bool) -> Scene {
-        Scene::Relic {
-            content,
-            view: RelicViewState {
-                suggestion_offset: self.suggestion_offset,
-                interaction_active,
-                close_hovered: self.close_hovered,
-            },
+    pub(super) fn view(&self, interaction_active: bool) -> RelicViewState {
+        RelicViewState {
+            suggestion_offset: self.suggestion_offset,
+            interaction_active,
         }
     }
 
@@ -98,7 +93,7 @@ mod tests {
         assert!(!state.scroll_suggestions(8, 0.4));
         assert!(!state.scroll_suggestions(8, 0.4));
         assert!(state.scroll_suggestions(8, 0.4));
-        let Scene::Relic { view, .. } = state.scene(crate::relic::Scene::Reading, false);
+        let view = state.view(false);
         assert_eq!(view.suggestion_offset, 2);
     }
 }

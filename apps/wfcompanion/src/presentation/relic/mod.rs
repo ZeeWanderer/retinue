@@ -104,7 +104,6 @@ pub(super) struct PaintOptions {
     pub(super) scale: u32,
     pub(super) suggestion_offset: usize,
     pub(super) interaction_active: bool,
-    pub(super) close_hovered: bool,
 }
 
 pub(super) fn draw_static_relic_scene(
@@ -143,6 +142,32 @@ pub(super) fn draw_loading_pulse(
     elapsed: Duration,
 ) {
     reward::draw_loading_pulse(painter, bounds, scale, elapsed);
+}
+
+pub(super) fn draw_close(
+    painter: &mut Canvas,
+    assets: &Assets,
+    rect: crate::presentation::geometry::Rect,
+    scale: u32,
+    hovered: bool,
+) {
+    if hovered {
+        painter.fill_rounded_rect(
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            6 * scale,
+            retinue_render::painter::css_rgba(139, 171, 204, 107),
+        );
+    }
+    painter.draw_image_contained(
+        &assets.icons.close,
+        rect.x + 5 * scale,
+        rect.y + 5 * scale,
+        18 * scale,
+        18 * scale,
+    );
 }
 
 fn draw_vaulted_icon(
