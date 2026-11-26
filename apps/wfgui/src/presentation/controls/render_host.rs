@@ -8,9 +8,19 @@ use retinue_ui::{drawing::PixelCanvas as Canvas, scene::Scene};
 const OVERLAYS: ElementKey = super::view_host::OVERLAYS;
 const CHROME: ElementKey = super::view_host::CHROME;
 
+struct StagedMount {
+    key: ElementKey,
+    child: super::mounted_view::Mount,
+    proposal: Box<dyn FnMut((u32, u32)) -> (u32, u32)>,
+}
+
 pub(super) struct Composition {
     pub(super) renderer: Rc<RefCell<Renderer>>,
     pub(super) host: super::view_host::Host,
+    pub(super) mounts: HashMap<ElementKey, super::mounted_view::Mount>,
+    staged: Vec<StagedMount>,
+    #[cfg(test)]
+    inline_mounts: bool,
     images: HashMap<ElementKey, Request>,
     slots: HashMap<ElementKey, std::ops::Range<usize>>,
     #[cfg(all(test, feature = "profiling"))]
@@ -32,6 +42,10 @@ impl Default for Composition {
         Self {
             renderer: Rc::new(RefCell::new(renderer)),
             host: super::view_host::Host::empty(),
+            mounts: Default::default(),
+            staged: Vec::new(),
+            #[cfg(test)]
+            inline_mounts: false,
             images: HashMap::new(),
             slots: HashMap::new(),
             #[cfg(all(test, feature = "profiling"))]
@@ -50,7 +64,11 @@ impl Composition {
     }
 
     pub(super) fn bounds(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
-        self.host.bounds(key)
+        self.host.bounds(key).or_else(|| {
+            self.mounts
+                .values()
+                .find_map(|child| child.borrow().bounds(key))
+        })
     }
 
     pub(super) fn input_bounds(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
@@ -70,7 +88,11 @@ impl Composition {
     }
 
     pub fn deadline(&self, _now: Instant) -> Option<Instant> {
-        self.host.next_deadline()
+        self.host
+            .next_deadline()
+            .into_iter()
+            .chain(self.mounts.values().filter_map(|m| m.borrow().deadline()))
+            .min()
     }
 
     pub fn image_damage(
@@ -86,7 +108,11 @@ impl Composition {
                 bind_icon(&self.host, key, request, media);
             }
         }
-        if self.host.needs_update() {
+        let child_damage = self
+            .mounts
+            .values()
+            .fold(Damage::None, |d, m| d.union(m.borrow_mut().update()));
+        child_damage.union(if self.host.needs_update() {
             match self
                 .host
                 .update(size, scale, retinue_ui::timeline::FrameTime::now())
@@ -96,10 +122,12 @@ impl Composition {
             }
         } else {
             Default::default()
-        }
+        })
     }
 
     fn reset_view(&mut self) {
+        self.staged.clear();
+        self.mounts.clear();
         let execution = self.host.execution.take();
         self.host = super::view_host::Host::empty();
         self.host.execution = execution;
@@ -108,9 +136,15 @@ impl Composition {
         self.renderer.borrow_mut().clear_cache();
     }
 
-    fn install_compiled(&mut self, view: impl retinue_ui::authoring::View) {
+    fn install_compiled(
+        &mut self,
+        view: impl retinue_ui::authoring::View,
+        images: crate::domain::media::image_store::ImageStore,
+    ) {
+        self.staged.clear();
+        self.mounts.clear();
         let execution = self.host.execution.clone();
-        self.host = super::view_host::Host::compiled(view);
+        self.host = super::view_host::Host::compiled_with_images(view, images);
         self.host.execution = execution;
         self.images.clear();
         self.slots.clear();
@@ -123,6 +157,10 @@ impl Composition {
         scale: f32,
         time: retinue_ui::timeline::FrameTime,
     ) -> std::task::Poll<retinue_render::damage::Damage> {
+        #[cfg(all(test, feature = "geometry-census"))]
+        let _root = crate::app::benchmark::entry_cost::start(
+            crate::app::benchmark::entry_cost::Stage::Root,
+        );
         let damage = self.host.update(size, scale, time);
         if damage.is_pending() {
             return damage;
@@ -136,15 +174,36 @@ impl Composition {
     }
 
     pub fn set_render_host(&mut self, host: retinue_render::RenderHost) {
+        for child in self.mounts.values() {
+            child.borrow().renderer.borrow_mut().set_host(host.clone());
+        }
         self.renderer.borrow_mut().set_host(host);
     }
 
     pub fn clear_cache(&mut self) {
+        for child in self.mounts.values() {
+            child.borrow().renderer.borrow_mut().clear_cache();
+        }
         self.renderer.borrow_mut().clear_cache();
     }
 
     pub fn cache_stats(&self) -> retinue_render::ResidencyStats {
-        self.renderer.borrow().residency_stats()
+        let mut stats = self.renderer.borrow().residency_stats();
+        for child in self.mounts.values() {
+            let s = child.borrow().renderer.borrow().residency_stats();
+            stats.entries += s.entries;
+            stats.selected_bytes += s.selected_bytes;
+            stats.warm_bytes += s.warm_bytes;
+            stats.warm_limit_bytes += s.warm_limit_bytes;
+            stats.retired_bytes += s.retired_bytes;
+            stats.live_bytes += s.live_bytes;
+            stats.pending_bytes += s.pending_bytes;
+            stats.peak_limit_bytes += s.peak_limit_bytes;
+            stats.hits += s.hits;
+            stats.misses += s.misses;
+            stats.evictions += s.evictions;
+        }
+        stats
     }
 
     pub fn update(&mut self, ui: &ControlHost) {
@@ -254,6 +313,9 @@ impl Composition {
         }
         self.host.images.publish(media);
         self.host.prepare(ui.size, ui.scale);
+        for mount in self.mounts.values() {
+            mount.borrow_mut().update();
+        }
         #[cfg(all(test, feature = "profiling"))]
         {
             self.paint_profile = (started.elapsed(), Duration::ZERO, Duration::ZERO);
@@ -261,6 +323,9 @@ impl Composition {
     }
 
     pub fn prepare_rasters(&mut self, repair: &retinue_render::damage::Region) {
+        for mount in self.mounts.values() {
+            mount.borrow().prepare_rasters(repair);
+        }
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
         self.renderer
@@ -283,7 +348,7 @@ impl Composition {
                 height: ui.size.1,
                 ..Rect::default()
             },
-            |_, _| unreachable!("control ink is recorded"),
+            |key, p| self.mounts[&key].borrow().draw(p),
         );
         #[cfg(all(test, feature = "profiling"))]
         {
@@ -294,6 +359,7 @@ impl Composition {
     pub fn report(&self) -> serde_json::Value {
         let renderer = self.renderer.borrow();
         let stats = self.host.stats();
+        let children: Vec<_> = self.mounts.values().map(|m| m.borrow()).collect();
         serde_json::json!({"declarative":true, "view":{
             "bodies":stats.bodies,"mounted":stats.mounted,
             "unmounted":stats.unmounted,"projected":stats.projected,
@@ -302,7 +368,8 @@ impl Composition {
             "rasters":renderer.stats.prepared_rasters,"blits":renderer.stats.blits,"repaired_pixels":renderer.stats.repaired_pixels,"raster_bytes":renderer.residency_stats().live_bytes,
             "simplified_commands":renderer.stats.simplified_commands,"promoted_layers":renderer.stats.promoted_layers,"demoted_layers":renderer.stats.demoted_layers,
             "layer_bytes":renderer.stats.layer_bytes,"layer_prepare_ns":renderer.stats.layer_prepare_ns,
-            "geometry":self.host.named_geometry().map(|node|serde_json::json!({
+            "child_views":children.len(),"resident_raster_bytes":self.cache_stats().live_bytes,
+            "geometry":self.host.named_geometry().chain(children.iter().flat_map(|m| m.named_geometry())).map(|node|serde_json::json!({
                 "scope":node.key.namespace,"id":node.key.value,"parent":node.parent.map(|key|(key.namespace,key.value)),
                 "layout":[node.layout.x,node.layout.y,node.layout.width,node.layout.height],
                 "hit":[node.hit.x,node.hit.y,node.hit.width,node.hit.height],
@@ -330,6 +397,9 @@ impl Composition {
                 self.scene().frame().scale(),
             );
         }
+        for child in self.mounts.values() {
+            child.borrow().declared_elements(&mut elements);
+        }
         elements
     }
 }
@@ -352,6 +422,43 @@ fn bind_icon(host: &super::view_host::Host, key: ElementKey, request: &Request, 
 }
 
 impl ControlHost {
+    /// Mount whose size can be proposed without the solved parent geometry.
+    pub(crate) fn mount_fixed_view(
+        &mut self,
+        key: ElementKey,
+        view: impl retinue_ui::authoring::View,
+        proposal: impl FnMut((u32, u32)) -> (u32, u32) + 'static,
+    ) -> std::rc::Weak<std::cell::RefCell<super::mounted_view::MountedView>> {
+        let c = self.composition.get_mut();
+        let child = super::mounted_view::MountedView::new(
+            view,
+            c.host.images.clone(),
+            c.renderer.borrow().host().clone(),
+        );
+        assert!(
+            !c.mounts.contains_key(&key) && !c.staged.iter().any(|m| m.key == key),
+            "duplicate mounted slot"
+        );
+        let handle = Rc::downgrade(&child);
+        let queue = c.host.execution.is_some();
+        #[cfg(test)]
+        let queue = queue && !c.inline_mounts;
+        if queue {
+            c.staged.push(StagedMount {
+                key,
+                child,
+                proposal: Box::new(proposal),
+            });
+        } else {
+            c.mounts.insert(key, child);
+        }
+        handle
+    }
+
+    #[cfg(test)]
+    pub(crate) fn use_inline_mounts(&mut self) {
+        self.composition.get_mut().inline_mounts = true;
+    }
     pub fn view_control(&mut self, key: ElementKey, bind: impl FnOnce(&mut ControlHost, Rect)) {
         let Some(node) = self.composition.borrow().bounds(key) else {
             return;
@@ -412,7 +519,19 @@ impl ControlHost {
             .insert(key, first..self.visuals.len());
     }
     pub fn install_compiled(&mut self, view: impl retinue_ui::authoring::View) {
-        self.composition.get_mut().install_compiled(view);
+        self.install_compiled_with_images(view, self.image_store());
+    }
+
+    pub(crate) fn image_store(&self) -> crate::domain::media::image_store::ImageStore {
+        self.composition.borrow().host.images.clone()
+    }
+
+    pub(crate) fn install_compiled_with_images(
+        &mut self,
+        view: impl retinue_ui::authoring::View,
+        images: crate::domain::media::image_store::ImageStore,
+    ) {
+        self.composition.get_mut().install_compiled(view, images);
     }
 
     pub fn reset_view(&mut self) {
@@ -441,10 +560,39 @@ impl ControlHost {
     }
 
     pub fn resolve_view(&mut self, time: retinue_ui::timeline::FrameTime) -> bool {
-        self.composition
-            .borrow_mut()
-            .update_view(self.size, self.scale, time)
-            .is_ready()
+        self.resolve_view_for(time, LayoutPass::Update)
+    }
+
+    pub(crate) fn resolve_view_for(
+        &mut self,
+        time: retinue_ui::timeline::FrameTime,
+        pass: LayoutPass,
+    ) -> bool {
+        let c = self.composition.get_mut();
+        if c.staged.is_empty() {
+            return c.update_view(self.size, self.scale, time).is_ready();
+        }
+        let mut children_ready = pass == LayoutPass::PrepareFrame;
+        if children_ready {
+            let execution = c
+                .host
+                .execution
+                .as_ref()
+                .expect("staged mount requires an executor");
+            for m in &mut c.staged {
+                let size = (m.proposal)(self.size);
+                children_ready &= m
+                    .child
+                    .borrow_mut()
+                    .poll_first_layout(size, self.scale, execution);
+            }
+        }
+        if !c.update_view(self.size, self.scale, time).is_ready() || !children_ready {
+            return false;
+        }
+        c.mounts
+            .extend(c.staged.drain(..).map(|m| (m.key, m.child)));
+        true
     }
 
     pub fn layout_time(
@@ -455,7 +603,8 @@ impl ControlHost {
     }
 
     pub fn layout_pending(&self) -> bool {
-        self.composition.borrow().host.is_layout_pending()
+        let c = self.composition.borrow();
+        !c.staged.is_empty() || c.host.is_layout_pending()
     }
 
     #[cfg(test)]
@@ -488,14 +637,39 @@ impl ControlHost {
     }
 
     pub fn view_bounds(&self, key: ElementKey) -> Option<Rect> {
+        if let Some(placement) = &self.binding_inputs {
+            return placement.hit_bounds(key);
+        }
         let composition = self.composition.borrow();
         let node = composition.bounds(key)?;
         Some(node.hit)
     }
 
+    /// Register named hits at the child's place in the parent's control order.
+    /// The child supplies geometry only; interaction state stays with this host.
+    pub fn bind_placed_hits(
+        &mut self,
+        placement: retinue_ui::input::PlacedInputGeometry,
+        bind: impl FnOnce(&mut Self),
+    ) {
+        assert!(self.building);
+        let first = self.buttons.len();
+        assert!(self.binding_inputs.replace(placement).is_none());
+        bind(self);
+        self.projected_inputs.push((
+            first..self.buttons.len(),
+            self.binding_inputs.take().unwrap(),
+        ));
+    }
+
     #[cfg(test)]
     pub fn view_geometry(&self, key: ElementKey) -> Option<retinue_ui::scene::Geometry> {
         self.composition.borrow().bounds(key)
+    }
+
+    #[cfg(test)]
+    pub fn input_geometry_revision(&self) -> u64 {
+        self.composition.borrow().scene().input_revision()
     }
 
     pub fn view_hit(
@@ -547,11 +721,75 @@ impl ControlHost {
 
 #[cfg(test)]
 impl ControlHost {
+    pub(crate) fn viewport_dirty(&self) -> bool {
+        self.composition.borrow().host.needs_update()
+    }
+
+    pub(crate) fn override_packet_reuse(&self, enabled: bool) {
+        self.composition
+            .borrow()
+            .renderer
+            .borrow_mut()
+            .set_leaf_packet_reuse(enabled);
+    }
+
+    pub(crate) fn leaf_packet_counts(&self) -> Option<[usize; 3]> {
+        self.composition
+            .borrow()
+            .renderer
+            .borrow()
+            .leaf_packet_counts()
+    }
+
+    pub(crate) fn child_packet_counts(&self, key: ElementKey) -> Option<[usize; 3]> {
+        self.composition
+            .borrow()
+            .mounts
+            .get(&key)?
+            .borrow()
+            .renderer
+            .borrow()
+            .leaf_packet_counts()
+    }
+
+    #[cfg(feature = "geometry-census")]
+    pub(crate) fn viewport_selection_counts(
+        &self,
+        prior: &retinue_render::damage::Region,
+        current: &retinue_render::damage::Region,
+    ) -> [usize; 3] {
+        let c = self.composition.borrow();
+        let mut counts = [0; 3];
+        for instance in c.scene().frame().instances() {
+            let bounds = instance.visible_bounds();
+            match (prior.intersects(bounds), current.intersects(bounds)) {
+                (true, true) => counts[0] += 1,
+                (false, true) => counts[1] += 1,
+                (true, false) => counts[2] += 1,
+                (false, false) => {}
+            }
+        }
+        counts
+    }
+
+    pub(crate) fn freeze_viewport(&self, clip: Rect, media: &Media) -> retinue_render::DrawPacket {
+        self.prepare_paint(media);
+        let repair = clip.into();
+        self.prepare_rasters(&repair);
+        let c = self.composition.borrow();
+        c.renderer
+            .borrow_mut()
+            .freeze(c.scene().frame(), &repair, |_, _| {
+                Err("unexpected external viewport content".into())
+            })
+            .unwrap()
+    }
+
     pub(crate) fn paint_snapshot(
         &self,
         target: &mut retinue_render::PaintFrame,
         clip: Rect,
-    ) -> retinue_render::FrameSnapshot {
+    ) -> (retinue_render::FrameSnapshot, Damage) {
         let composition = self.composition.borrow();
         let frame = composition.scene().frame();
         let instances = frame
@@ -563,7 +801,7 @@ impl ControlHost {
                 instance
             })
             .collect();
-        target
+        let damage = target
             .replace(
                 frame.size(),
                 frame.scale(),
@@ -575,7 +813,7 @@ impl ControlHost {
             !target.has_external_paint(),
             "replay needs a recorded replacement for live paint"
         );
-        target.snapshot()
+        (target.snapshot(), damage)
     }
 
     pub(crate) fn set_layer_caching(&mut self, enabled: bool) {
@@ -704,7 +942,7 @@ impl Visual {
     }
 }
 
-fn logical(r: Rect, scale: f32) -> Bounds {
+pub(super) fn logical(r: Rect, scale: f32) -> Bounds {
     Bounds::new(
         r.x as f32 / scale,
         r.y as f32 / scale,

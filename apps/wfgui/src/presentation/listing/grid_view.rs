@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(super) struct GridView {
     pub model: Model,
     pub fonts: Fonts,

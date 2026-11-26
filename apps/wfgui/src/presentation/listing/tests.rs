@@ -1,5 +1,9 @@
 use super::*;
 
+#[cfg(feature = "geometry-census")]
+mod geometry_census;
+mod viewport_placement;
+
 #[test]
 fn listing_layout_preserves_fractional_coordinates_across_scales() {
     let expected = Bounds::new(17.25, 12.125, 180.125, 27.5);
@@ -52,6 +56,34 @@ fn render(pages: &Pages) -> Vec<u8> {
 }
 
 #[test]
+fn moving_a_relic_window_keeps_retained_payloads_and_updates_hover_and_replacements() {
+    let mut pages = pages(1.0, 1);
+    let listing = &mut pages.relics;
+    let template = listing.items[0].clone();
+    listing.items = vec![template; 6];
+    listing.visible = (0..6).collect();
+    let mut view = ListingController::new(Page::Relics);
+    let order = KeyedOrder::new((0..6).map(|n| Key::new("fixture", n))).unwrap();
+    let id = order.keys()[2];
+    view.sync_relic_cells(listing, &order, 0..4, Some(2));
+    let first = view.model.cells.get(id).unwrap();
+    assert!(first.hovered);
+    view.sync_relic_cells(listing, &order, 1..5, Some(4));
+    let current = view.model.cells.get(id).unwrap();
+    assert!(!current.hovered);
+    assert!(std::rc::Rc::ptr_eq(&first.item, &current.item));
+    assert!(std::rc::Rc::ptr_eq(
+        first.relic_bindings.as_ref().unwrap(),
+        current.relic_bindings.as_ref().unwrap()
+    ));
+    assert!(view.model.cells.item(order.keys()[0]).is_none());
+    assert!(view.model.cells.get(order.keys()[4]).unwrap().hovered);
+    listing.edit_fixture_rows(|rows| rows[2].name = "Changed".into());
+    view.sync_relic_cells(listing, &order, 1..5, Some(4));
+    assert_eq!(view.model.cells.get(id).unwrap().item.name, "Changed");
+}
+
+#[test]
 fn category_retargeting_and_collapse_repair_the_previous_label() {
     use crate::presentation::tests::{TestImages, assert_pixels_match};
     use retinue_render::PaintFrame;
@@ -90,7 +122,7 @@ fn category_retargeting_and_collapse_repair_the_previous_label() {
             pages.layout_center();
             images.load(&mut pages);
             pages.ui.prepare_paint(&pages.media);
-            let snapshot = pages.ui.paint_snapshot(&mut capture, clip);
+            let (snapshot, _) = pages.ui.paint_snapshot(&mut capture, clip);
             let frame = snapshot.frame();
             let damage = previous
                 .replace(
@@ -127,7 +159,7 @@ fn category_retargeting_and_collapse_repair_the_previous_label() {
             fresh_ui.begin((width, height), scale);
             fresh_ui.install_compiled(pages.relics_view.view(&fresh_ui));
             fresh_ui.update_view(FrameTime::now());
-            pages.relics_view.bind(&mut fresh_ui, &pages.relics);
+            pages.relics_view.bind(&mut fresh_ui, &pages.relics, None);
             fresh_ui.finish();
             let mut fresh = vec![0; pixels.len()];
             let mut painter = Painter::new(&mut fresh, width, height).unwrap();
@@ -234,55 +266,137 @@ fn retained_listing_records_are_shared_until_the_source_changes() {
 }
 
 #[test]
+fn relic_scroll_publishes_moved_cards_without_rebinding_their_content() {
+    let mut pages = pages(1.25, 1);
+    // Count publications in the flat renderer, independently of child placement.
+    pages.relics_view.eager_grid = true;
+    pages.set_page(Page::Relics);
+    let base = pages.relics.items[0].clone();
+    pages.relics.items = (0..90)
+        .map(|i| {
+            let mut row = base.clone();
+            row.id = format!("relic-{i}");
+            row.name = format!("Item {i:03}");
+            row
+        })
+        .collect();
+    pages.relics.reorder(&pages.quotes, true);
+    pages.layout_center();
+    let clip = Rect {
+        width: pages.ui.size.0,
+        height: pages.ui.size.1,
+        ..Default::default()
+    };
+    let content = |pages: &Pages| {
+        let (snapshot, _) = pages.ui.paint_snapshot(&mut Default::default(), clip);
+        snapshot
+            .frame()
+            .instances()
+            .iter()
+            .map(|c| (c.key, c.program.id()))
+            .collect::<HashMap<_, _>>()
+    };
+    render(&pages);
+    let mut prior = content(&pages);
+    let mut saw_entry = false;
+    for offset in [4.0, 8.0, 90.0, 135.0, 270.0] {
+        pages.relics.scroll.to(offset, false, Instant::now());
+        pages.tick(Instant::now());
+        render(&pages);
+        let next = content(&pages);
+        let added = next.keys().filter(|k| !prior.contains_key(*k)).count();
+        saw_entry |= added != 0;
+        let writes = next
+            .iter()
+            .filter(|(k, p)| prior.get(*k) != Some(*p))
+            .count();
+        let removed = prior.keys().filter(|k| !next.contains_key(*k)).count();
+        assert!(
+            pages.ui.paint_stats().content_visits <= writes + removed,
+            "offset {offset}: {} visits for {writes} writes and {removed} removals",
+            pages.ui.paint_stats().content_visits
+        );
+        prior = next;
+    }
+    assert!(saw_entry);
+}
+
+#[test]
 fn scrolling_listing_artwork_matches_a_fresh_tree() {
     use crate::{presentation::tests::TestImages, presentation::tests::assert_pixels_match};
+    fn hit_targets(pages: &mut Pages) -> Vec<Option<String>> {
+        let origin = pages.ui.pointer();
+        let (width, height) = pages.ui.size;
+        let mut targets = Vec::new();
+        for y in (0..height).step_by(37) {
+            for x in (0..width).step_by(91) {
+                pages.ui.pointer_move((x.into(), y.into()));
+                targets.push(pages.ui.hover.clone());
+            }
+        }
+        pages.ui.pointer_move(origin);
+        targets
+    }
+    fn fixture(page: Page, scale: f32, eager: bool) -> Pages {
+        let mut pages = pages(scale, 80);
+        pages.relics_view.eager_grid = eager;
+        let listing = if page == Page::Inventory {
+            &mut pages.inventory
+        } else {
+            &mut pages.relics
+        };
+        let template = listing.items[0].clone();
+        listing.items = (0..80)
+            .map(|i| {
+                let mut row = template.clone();
+                row.id = format!("artwork-{i:03}");
+                row.name = format!("Item {i:03}");
+                let asset = Asset {
+                    id: "test.artwork".into(),
+                    source: "wfcd".into(),
+                    image_name: "artwork.png".into(),
+                };
+                row.asset = Some(asset.clone());
+                for reward in &mut row.rewards {
+                    reward.asset = Some(asset.clone());
+                }
+                row
+            })
+            .collect();
+        listing.reorder(&pages.quotes, true);
+        pages.set_page(page);
+        pages
+    }
     for page in [Page::Inventory, Page::Relics] {
         for scale in [1.0, 1.25, 2.0] {
-            let mut pages = pages(scale, 80);
-            let listing = if page == Page::Inventory {
-                &mut pages.inventory
-            } else {
-                &mut pages.relics
-            };
-            let template = listing.items[0].clone();
-            listing.items = (0..80)
-                .map(|i| {
-                    let mut row = template.clone();
-                    row.id = format!("artwork-{i:03}");
-                    row.name = format!("Item {i:03}");
-                    let asset = Asset {
-                        id: "test.artwork".into(),
-                        source: "wfcd".into(),
-                        image_name: "artwork.png".into(),
-                    };
-                    row.asset = Some(asset.clone());
-                    for reward in &mut row.rewards {
-                        reward.asset = Some(asset.clone());
-                    }
-                    row
-                })
-                .collect();
-            listing.reorder(&pages.quotes, true);
-            pages.set_page(page);
+            let mut pages = fixture(page, scale, false);
+            let mut oracle = fixture(page, scale, true);
             let mut images = TestImages::new();
             for offset in [0.0, 8.0, 36.0, 90.0, 135.0, 270.0, 800.0, 430.0, 75.0, 0.0] {
-                let listing = if page == Page::Inventory {
-                    &mut pages.inventory
-                } else {
-                    &mut pages.relics
-                };
-                listing.scroll.to(offset * scale, false, Instant::now());
-                pages.layout_center();
-                images.load(&mut pages);
-                let retained = render(&pages);
                 let view = if page == Page::Inventory {
-                    &pages.inventory_view
+                    &oracle.inventory_view
                 } else {
-                    &pages.relics_view
+                    &oracle.relics_view
                 };
-                pages.ui.install_compiled(view.view(&pages.ui));
-                pages.layout_center();
-                let fresh = render(&pages);
+                oracle.ui.install_compiled(view.view(&oracle.ui));
+                for p in [&mut pages, &mut oracle] {
+                    p.listing_mut()
+                        .scroll
+                        .to(offset * scale, false, Instant::now());
+                    p.layout_center();
+                    images.load(p);
+                }
+                let retained = render(&pages);
+                let hits = hit_targets(&mut pages);
+                let fresh = render(&oracle);
+                let fresh_hits = hit_targets(&mut oracle);
+                assert!(
+                    fresh_hits
+                        .iter()
+                        .flatten()
+                        .any(|id| id.starts_with("list:item:"))
+                );
+                assert_eq!(hits, fresh_hits, "{page:?} scale={scale} offset={offset}");
                 assert_pixels_match(
                     &retained,
                     &fresh,

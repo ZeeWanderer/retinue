@@ -159,6 +159,9 @@ impl Composition {
     }
 
     pub fn invalidate(&self, key: Key, damage: Damage) -> Damage {
+        if damage == Damage::None {
+            return Damage::None;
+        }
         let tree = self.tree.borrow();
         tree.named_bounds(key)
             .expect("unique shell name")
@@ -176,21 +179,20 @@ impl Composition {
         &self,
         position: (f64, f64),
         phase: retinue_ui::input::PointerPhase,
-    ) -> (Option<Control>, Option<Control>) {
+    ) -> retinue_ui::input::Dispatch {
         use retinue_ui::{input::Event, input::PointerId};
         let mut tree = self.tree.borrow_mut();
         let scale = tree.frame().scale();
-        let result = tree.dispatch(&Event::Pointer {
+        tree.dispatch(&Event::Pointer {
             id: PointerId::MOUSE,
             phase,
             position: (position.0 as f32 / scale, position.1 as f32 / scale),
             modifiers: Default::default(),
-        });
-        let control = |id: Option<retinue_ui::runtime::ViewId>| {
-            id.and_then(|id| tree.input_key(id))
-                .and_then(|key| CONTROLS.into_iter().find(|c| control_key(*c) == key))
-        };
-        (control(result.target), control(result.activated))
+        })
+    }
+    pub fn input_control(&self, id: Option<retinue_ui::runtime::ViewId>) -> Option<Control> {
+        let key = self.tree.borrow().input_key(id?)?;
+        CONTROLS.into_iter().find(|c| control_key(*c) == key)
     }
     pub fn window_action(
         &self,

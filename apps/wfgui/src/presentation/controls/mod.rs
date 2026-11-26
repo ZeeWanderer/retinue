@@ -21,9 +21,16 @@ use std::{
 
 #[cfg(test)]
 mod control_tests;
+pub(crate) mod mounted_view;
 mod render_host;
 mod report;
 pub(crate) mod view_host;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LayoutPass {
+    Update,
+    PrepareFrame,
+}
 
 pub use crate::presentation::style::{ACCENT, BAD, CARD, GOOD, MUTED, PANEL, POPOVER, TEXT};
 
@@ -103,11 +110,18 @@ pub struct ControlHost {
     pub hover: Option<String>,
     pressed: Option<String>,
     input: Controls<ControlId>,
+    projected_inputs: Vec<(
+        std::ops::Range<usize>,
+        retinue_ui::input::PlacedInputGeometry,
+    )>,
+    binding_inputs: Option<retinue_ui::input::PlacedInputGeometry>,
     input_scale: f32,
     input_changed: bool,
     building: bool,
     #[cfg(all(test, feature = "profiling"))]
     pub(crate) input_profile: Duration,
+    #[cfg(all(test, feature = "geometry-census"))]
+    pub(crate) input_census: (usize, usize),
     pointer: (f64, f64),
     pub signals: Vec<Signal>,
     pub focus_visible: FocusVisible,
@@ -205,11 +219,15 @@ impl ControlHost {
             hover: None,
             pressed: None,
             input: Controls::default(),
+            projected_inputs: Vec::new(),
+            binding_inputs: None,
             input_scale: 1.0,
             input_changed: false,
             building: false,
             #[cfg(all(test, feature = "profiling"))]
             input_profile: Duration::ZERO,
+            #[cfg(all(test, feature = "geometry-census"))]
+            input_census: (0, 0),
             pointer: (-1.0, -1.0),
             signals: vec![],
             focus_visible: Default::default(),
@@ -252,6 +270,7 @@ impl ControlHost {
         self.viewport = None;
         self.viewports.clear();
         self.buttons.clear();
+        self.projected_inputs.clear();
         self.choices.clear();
         self.selected_choices.clear();
         self.modal_start = 0;
@@ -336,20 +355,31 @@ impl ControlHost {
         let regions = self
             .active_buttons()
             .iter()
-            .filter_map(|button| {
+            .enumerate()
+            .filter_map(|(index, button)| {
                 let owner = button.binding.map(|(key, _)| key);
                 let occurrence = occurrences.entry((&button.key, owner)).or_insert(0);
                 let id = (button.key.clone(), owner, *occurrence);
                 *occurrence += 1;
                 let mut region = if let Some((key, local)) = button.binding {
-                    let node = (*bounds
-                        .entry(key)
-                        .or_insert_with(|| composition.input_bounds(key)))?;
-                    let mut region = ControlRegion::geometry(id, node);
+                    let mut region = if let Some((_, placement)) = self
+                        .projected_inputs
+                        .iter()
+                        .find(|(range, _)| range.contains(&(self.modal_start + index)))
+                    {
+                        placement.region(key, id)?
+                    } else {
+                        ControlRegion::geometry(
+                            id,
+                            (*bounds
+                                .entry(key)
+                                .or_insert_with(|| composition.input_bounds(key)))?,
+                        )
+                    };
                     if let Some(local) = local {
                         region.bounds = retinue_ui::Bounds::new(
-                            node.layout.x + local.x,
-                            node.layout.y + local.y,
+                            region.bounds.x + local.x,
+                            region.bounds.y + local.y,
                             local.width,
                             local.height,
                         );
@@ -381,6 +411,11 @@ impl ControlHost {
             })
             .collect::<Vec<_>>();
         drop(composition);
+        #[cfg(all(test, feature = "geometry-census"))]
+        {
+            self.input_census.0 += bounds.len();
+            self.input_census.1 += regions.len();
+        }
         self.input.update(regions);
         self.pressed = self.input.captured().map(|id| id.0.clone());
         self.input_changed |= self.refresh_hover();
@@ -415,6 +450,9 @@ impl ControlHost {
     }
     pub fn popup_open(&self) -> bool {
         self.popup.is_some()
+    }
+    pub fn plain_hover(&self) -> bool {
+        self.pressed.is_none() && !self.tooltip && !self.popup_open() && !self.has_modal()
     }
     pub fn dismiss_popup_at(&mut self, point: (f64, f64)) -> bool {
         if self.popup.is_some()
@@ -1369,9 +1407,17 @@ impl ControlHost {
     }
     #[cfg(test)]
     pub fn paint(&self, p: &mut Painter<'_>, media: &Media) {
+        self.paint_with_marks(p, media, || {});
+    }
+
+    #[cfg(test)]
+    pub fn paint_with_marks(&self, p: &mut Painter<'_>, media: &Media, mut mark: impl FnMut()) {
         self.prepare_paint(media);
+        mark();
         self.prepare_rasters(&p.visible_regions());
+        mark();
         self.draw_prepared(p);
+        mark();
     }
 
     pub fn prepare_paint(&self, media: &Media) {
@@ -1391,6 +1437,27 @@ impl ControlHost {
         repair: &retinue_render::damage::Region,
         wake: retinue_render::Wake,
     ) -> Result<retinue_render::PacketJob, String> {
+        self.prepare_packet_with(repair, wake, |key, repair, wake| {
+            self.composition
+                .borrow()
+                .mounts
+                .get(&key)
+                .ok_or("unresolved control paint")?
+                .borrow()
+                .packet(repair, wake)
+        })
+    }
+
+    pub(super) fn prepare_packet_with(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+        child: impl FnMut(
+            retinue_render::Key,
+            &retinue_render::damage::Region,
+            retinue_render::Wake,
+        ) -> Result<retinue_render::PacketJob, String>,
+    ) -> Result<retinue_render::PacketJob, String> {
         let composition = self.composition.borrow();
         retinue_render::PacketJob::prepare(
             composition.renderer.clone(),
@@ -1398,17 +1465,34 @@ impl ControlHost {
             retinue_render::RasterMode::Explicit,
             repair,
             wake,
-            |_, _, _| Err("unresolved control paint".into()),
+            child,
         )
     }
 
     pub fn record_surface(&self, scene: &mut retinue_render::surface::Snapshot) {
+        self.record_surface_with(scene, |key, scene| {
+            self.composition
+                .borrow()
+                .mounts
+                .get(&key)
+                .is_some_and(|mount| {
+                    mount.borrow().record(scene);
+                    true
+                })
+        });
+    }
+
+    pub(super) fn record_surface_with(
+        &self,
+        scene: &mut retinue_render::surface::Snapshot,
+        child: impl FnMut(retinue_render::Key, &mut retinue_render::surface::Snapshot) -> bool,
+    ) {
         let composition = self.composition.borrow();
         scene.record_rendered(
             composition.scene().frame(),
             &composition.renderer.borrow(),
             retinue_render::RasterMode::Explicit,
-            |_, _| false,
+            child,
         );
     }
 

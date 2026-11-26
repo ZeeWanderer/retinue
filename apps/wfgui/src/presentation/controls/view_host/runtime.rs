@@ -16,7 +16,7 @@ pub(super) struct Runtime {
 
 impl Runtime {
     pub fn compiled(view: impl authoring::View, environment: Environment) -> Self {
-        let mut graph = InstanceGraph::default();
+        let mut graph = InstanceGraph::with_host_routed_input();
         let root = graph
             .mount_view(view, environment)
             .expect("valid compiled page");

@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [features]
 profiling = ["retinue-ui/profiling"]
+geometry-census = ["retinue-ui/geometry-census"]
 ir-profiling = ["profiling", "retinue-ui/ir-profiling"]
 layout-profiling = ["profiling", "retinue-ui/layout-profiling"]
 

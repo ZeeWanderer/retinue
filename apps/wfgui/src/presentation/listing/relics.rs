@@ -151,32 +151,73 @@ impl View for RelicCardView {
     }
 }
 
-pub(super) fn bind(ui: &mut ControlHost, id: Key, cell: &Cell) {
-    let item = &cell.item;
-    let index = cell.index;
-    ui.view_hit(id, format!("list:item:{index}:menu"), "", true);
-    for (id, name) in [
+#[derive(PartialEq)]
+pub(super) struct Bindings {
+    menu: String,
+    rewards: Vec<(Key, String, String, bool)>,
+}
+
+impl Bindings {
+    pub(super) fn new(id: Key, index: usize, item: &ListingItem) -> Self {
+        Self {
+            menu: format!("list:item:{index}:menu"),
+            rewards: item
+                .rewards
+                .iter()
+                .take(6)
+                .enumerate()
+                .map(|(i, item)| {
+                    (
+                        reward(id, i),
+                        format!("list:item:{index}:reward:{i}"),
+                        format!(
+                            "{} - {:.2}% - {} ducats",
+                            item.name, item.chance, item.ducats
+                        ),
+                        !item.slug.as_deref().unwrap_or("").is_empty(),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+fn landmarks(id: Key) -> [(Key, &'static str); 3] {
+    [
         (child(id, "relic.image"), "relic.card.image"),
         (child(id, "relic.title"), "relic.card.title"),
         (refinement(id, 0, 0), "relic.card.refinement"),
-    ] {
+    ]
+}
+
+pub(super) fn input_keys(id: Key, cell: &Cell) -> impl Iterator<Item = Key> + '_ {
+    std::iter::once(id)
+        .chain(landmarks(id).map(|(key, _)| key))
+        .chain(
+            cell.relic_bindings
+                .as_ref()
+                .unwrap()
+                .rewards
+                .iter()
+                .map(|r| r.0),
+        )
+}
+
+pub(super) fn bind(ui: &mut ControlHost, id: Key, cell: &Cell) {
+    let bindings = cell
+        .relic_bindings
+        .as_ref()
+        .expect("mounted relic controls");
+    ui.view_hit(id, &bindings.menu, "", true);
+    for (id, name) in landmarks(id) {
         if let Some(r) = ui.view_bounds(id) {
             ui.first_region(name, r);
         }
     }
-    for (i, item) in item.rewards.iter().take(6).enumerate() {
-        let reward = reward(id, i);
-        if let Some(r) = ui.view_bounds(reward) {
+    for (reward, action, label, enabled) in &bindings.rewards {
+        if let Some(r) = ui.view_bounds(*reward) {
             ui.first_region("relic.card.reward", r);
         }
-        ui.view_hit(
-            reward,
-            format!("list:item:{index}:reward:{i}"),
-            format!(
-                "{} - {:.2}% - {} ducats",
-                item.name, item.chance, item.ducats
-            ),
-            !item.slug.as_deref().unwrap_or("").is_empty(),
-        );
+        ui.view_hit(*reward, action, label, *enabled);
     }
 }

@@ -57,8 +57,14 @@ impl Host {
     }
 
     pub fn compiled(view: impl retinue_ui::authoring::View) -> Self {
+        Self::compiled_with_images(view, Default::default())
+    }
+
+    pub fn compiled_with_images(
+        view: impl retinue_ui::authoring::View,
+        images: crate::domain::media::image_store::ImageStore,
+    ) -> Self {
         let paints = PaintSources::default();
-        let images = crate::domain::media::image_store::ImageStore::default();
         let environment = retinue_ui::environment::Environment::default();
         environment.provide(paints.clone());
         environment.provide(images.clone());
@@ -80,6 +86,9 @@ impl Host {
     }
     pub fn is_layout_pending(&self) -> bool {
         self.runtime.pending()
+    }
+    pub(super) fn is_prepared(&self, size: (u32, u32), scale: f32) -> bool {
+        self.viewport == (size, scale) && !self.is_layout_pending() && !self.needs_update()
     }
     pub fn next_deadline(&self) -> Option<std::time::Instant> {
         self.runtime.next_deadline()

@@ -2,8 +2,10 @@ use super::*;
 use retinue_render::damage::AgeRepaintTracker;
 use serde_json::json;
 mod drag;
+mod entry;
 mod execution;
 mod residency;
+mod semantics;
 mod transfer;
 
 #[test]

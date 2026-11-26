@@ -15,6 +15,10 @@ use std::{
 #[path = "../../../../../../tools/benchmarks/support.rs"]
 mod bench;
 
+mod listing_phases;
+#[cfg(feature = "geometry-census")]
+mod solver_trace;
+
 const SIZE: (u32, u32) = (2560, 1440);
 
 #[derive(Clone, Copy, PartialEq)]
@@ -34,11 +38,37 @@ struct Run {
     offsets: Vec<u32>,
     wake: mpsc::Receiver<()>,
     layout_waits: usize,
+    #[cfg(feature = "geometry-census")]
+    geometry_samples: Vec<[usize; 6]>,
+    #[cfg(feature = "geometry-census")]
+    solver: solver_trace::Trace,
     #[cfg(feature = "profiling")]
     detail: Vec<Sample>,
 }
 
+impl Run {
+    fn with_solver_trace<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        #[cfg(feature = "geometry-census")]
+        if let Some(timed) = self.solver.timed {
+            let (out, rows) = retinue_ui::scene::census::solver::capture(timed, || f(self));
+            self.solver.last = rows;
+            return out;
+        }
+        f(self)
+    }
+}
+
 fn setup(page: Page, scale: f32, policy: HostPolicy, mode: Mode) -> Run {
+    setup_with(page, scale, policy, mode, |shell| seed_fixture(shell, page))
+}
+
+fn setup_with(
+    page: Page,
+    scale: f32,
+    policy: HostPolicy,
+    mode: Mode,
+    seed: impl FnOnce(&mut Shell),
+) -> Run {
     let mut shell = Shell::new(Some(Snapshot::fixture()), scale).unwrap();
     let host = RenderHost::new(HostPolicy {
         analysis: if mode == Mode::Desktop {
@@ -51,6 +81,11 @@ fn setup(page: Page, scale: f32, policy: HostPolicy, mode: Mode) -> Run {
     shell.render_host = host.clone();
     shell.settings.set_render_host(host.clone());
     shell.foundry.set_render_host(host.clone());
+    if page == Page::Foundry
+        && let Ok(policy) = std::env::var("GUI_BENCH_MATERIALIZATIONS")
+    {
+        shell.foundry.benchmark_materializations(&policy);
+    }
     shell.pages.ui.set_render_host(host.clone());
     shell.pages.rail.set_render_host(host.clone());
     shell
@@ -59,6 +94,39 @@ fn setup(page: Page, scale: f32, policy: HostPolicy, mode: Mode) -> Run {
         .borrow_mut()
         .set_host(host.clone());
     shell.composition.set_motion_enabled(false);
+    seed(&mut shell);
+    shell.resize(SIZE, 1.0).unwrap();
+    shell.set_page(page);
+    let (send, wake) = mpsc::channel();
+    if matches!(mode, Mode::Layout | Mode::Desktop) {
+        let execution = retinue_ui::runtime::LayoutExecution::new(
+            &host,
+            Arc::new(move || {
+                let _ = send.send(());
+            }),
+        );
+        shell.pages.ui.set_layout_execution(execution.clone());
+        shell.pages.rail.set_layout_execution(execution.clone());
+        shell.foundry.set_layout_execution(execution);
+    }
+    Run {
+        shell,
+        pixels: vec![0; (SIZE.0 * SIZE.1 * 4) as usize],
+        phases: Vec::new(),
+        background_at_submit: Vec::new(),
+        offsets: Vec::new(),
+        wake,
+        layout_waits: 0,
+        #[cfg(feature = "geometry-census")]
+        geometry_samples: Vec::new(),
+        #[cfg(feature = "geometry-census")]
+        solver: solver_trace::Trace::configured(),
+        #[cfg(feature = "profiling")]
+        detail: Vec::new(),
+    }
+}
+
+fn seed_fixture(shell: &mut Shell, page: Page) {
     shell.pages.fixture();
     if page == Page::Relics {
         let source = serde_json::to_value(&shell.pages.relics.items[0]).unwrap();
@@ -82,31 +150,6 @@ fn setup(page: Page, scale: f32, policy: HostPolicy, mode: Mode) -> Run {
     }
     shell.pages.activity = json!({});
     shell.foundry.update(crate::data::foundry::fixture());
-    shell.resize(SIZE, 1.0).unwrap();
-    shell.set_page(page);
-    let (send, wake) = mpsc::channel();
-    if matches!(mode, Mode::Layout | Mode::Desktop) {
-        let execution = retinue_ui::runtime::LayoutExecution::new(
-            &host,
-            Arc::new(move || {
-                let _ = send.send(());
-            }),
-        );
-        shell.pages.ui.set_layout_execution(execution.clone());
-        shell.pages.rail.set_layout_execution(execution.clone());
-        shell.foundry.set_layout_execution(execution);
-    }
-    Run {
-        shell,
-        pixels: vec![0; (SIZE.0 * SIZE.1 * 4) as usize],
-        phases: Vec::new(),
-        background_at_submit: Vec::new(),
-        offsets: Vec::new(),
-        wake,
-        layout_waits: 0,
-        #[cfg(feature = "profiling")]
-        detail: Vec::new(),
-    }
 }
 
 fn native(
@@ -367,7 +410,17 @@ fn shell_execution_benchmark() {
                         threads: bench::render_threads().get(),
                         ..HostPolicy::desktop()
                     }, mode),
-                    |run, index| frame(run, mode, scenario, index),
+                    |run, index| {
+                        #[cfg(not(feature = "geometry-census"))]
+                        frame(run, mode, scenario, index);
+                        #[cfg(feature = "geometry-census")]
+                        {
+                            let (_, c) = retinue_ui::scene::census::measure(|| run.with_solver_trace(|r| frame(r, mode, scenario, index)));
+                            run.solver.record(scenario);
+                            run.geometry_samples.push([c.world_resolves, c.restored_slots, c.paint_placements,
+                                c.bounds_calls, c.bounds_keys.len(), c.slice_requests]);
+                        }
+                    },
                     |run| {
                         verify(run);
                         if matches!(mode, Mode::Layout | Mode::Desktop) && scenario == "foundry-reflow" {
@@ -386,6 +439,17 @@ fn shell_execution_benchmark() {
                             "analysis_submitted": run.shell.render_host().stats().analysis.submitted,
                             "background_at_native_submit": run.background_at_submit.iter().skip(11).collect::<Vec<_>>(),
                             "render_threads": run.shell.render_host().task_threads(bench::render_threads()).get()});
+                        #[cfg(feature = "geometry-census")]
+                        let resources = {
+                            let mut resources = resources;
+                            run.solver.attach(&mut resources, 11);
+                            resources["geometry_census"] = json!({
+                                "columns": ["world_resolves", "restored_slots", "paint_placements",
+                                    "bounds_calls", "distinct_bounds_keys", "slice_requests"],
+                                "rows": &run.geometry_samples[11..],
+                            });
+                            resources
+                        };
                         #[cfg(feature = "profiling")]
                         let resources = {
                             let mut resources = resources;

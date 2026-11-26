@@ -3,6 +3,7 @@ use clap::Parser;
 use rustix::{time::ClockId, time::clock_gettime};
 
 mod replay;
+mod scroll_phases;
 
 impl Pages {
     pub(crate) fn residency_signal(&mut self, key: &str, value: Option<&str>) {
@@ -250,6 +251,39 @@ fn adaptive_motion_benchmark() {
 #[test]
 #[ignore = "opt-in scroll benchmark; GUI_BENCH_LIVE=1 uses cached player data"]
 fn relic_scroll_benchmark() {
+    measure_relic_scroll(false);
+}
+
+#[test]
+#[ignore = "eager-grid control for the historical Relics scroll trace"]
+fn relic_scroll_eager_control() {
+    measure_relic_scroll(true);
+}
+
+pub(super) fn relic_drag_points(
+    track: Rect,
+    frame: usize,
+    frames: usize,
+) -> impl Iterator<Item = (f64, f64)> {
+    (0..8).map(move |event| {
+        let t = (frame * 8 + event) as f64 / (frames * 8) as f64;
+        let fraction = if t < 0.5 { t } else { 1.0 - t };
+        (
+            track.x as f64 + 3.0,
+            track.y as f64 + 3.0 + fraction * (track.height as f64 - 32.0).max(1.0),
+        )
+    })
+}
+
+pub(super) fn listing_digest(pages: &Pages) -> String {
+    use std::hash::Hasher;
+    let mut digest = rustc_hash::FxHasher::default();
+    digest.write(&serde_json::to_vec(&(&pages.relics.items, &pages.relics.visible)).unwrap());
+    format!("{:016x}", digest.finish())
+}
+
+fn measure_relic_scroll(eager: bool) {
+    let probe = scroll_phases::Probe::configured();
     let output = std::env::var("GUI_BENCH_OUTPUT").expect("set GUI_BENCH_OUTPUT");
     let live = std::env::var("GUI_BENCH_LIVE").is_ok_and(|v| v == "1");
     let threads = crate::app::benchmark::threads();
@@ -283,6 +317,7 @@ fn relic_scroll_benchmark() {
         )
         .unwrap();
         shell.resize(size, 1.0).unwrap();
+        shell.pages.relics_view.eager_grid = eager;
         shell.set_page(Page::Relics);
         crate::app::prepare_capture(&mut shell, &args).unwrap();
         let pages = &mut shell.pages;
@@ -310,6 +345,7 @@ fn relic_scroll_benchmark() {
         let width = pages.ui.size.0;
         let height = pages.ui.size.1;
         let mut pixels = vec![0u8; width as usize * height as usize * 4];
+        let listing_digest = listing_digest(pages);
         for mode in ["wheel", "drag"] {
             pages.relics.scroll.to(0.0, false, Instant::now());
             pages.relics.tick(Instant::now());
@@ -322,45 +358,84 @@ fn relic_scroll_benchmark() {
                 pages.tick(Instant::now());
             }
             let mut samples = Vec::new();
+            #[cfg(feature = "layout-profiling")]
+            let mut text = crate::app::benchmark::ParagraphFrames::enabled();
             for frame in 0..frames {
+                #[cfg(feature = "profiling")]
+                let scene_start = pages.ui.view_profile().2;
+                let before = (pages.relic_window(), pages.relics.offset);
                 let process = cpu();
+                #[cfg(all(feature = "geometry-census", feature = "profiling"))]
+                crate::app::benchmark::entry_cost::recurring::start();
                 let start = Instant::now();
+                let mut phases = probe.as_ref().map(scroll_phases::Probe::start);
                 if mode == "drag" {
-                    for event in 0..8 {
-                        let t = (frame * 8 + event) as f64 / (frames * 8) as f64;
-                        let travel = (track.height as f64 - 32.0).max(1.0);
-                        let fraction = if t < 0.5 { t } else { 1.0 - t };
-                        pages.pointer(
-                            false,
-                            (
-                                track.x as f64 + 3.0,
-                                track.y as f64 + 3.0 + fraction * travel,
-                            ),
-                        );
+                    for point in relic_drag_points(track, frame, frames) {
+                        pages.pointer(false, point);
                     }
                 } else {
                     pages.wheel(false, if frame < frames / 2 { 5.0 } else { -5.0 }, false);
                 }
+                #[cfg(feature = "profiling")]
+                let tick_start = Instant::now();
+                if let Some(f) = &mut phases {
+                    f.mark();
+                }
                 pages.tick(Instant::now());
                 let updated = Instant::now();
+                if let Some(f) = &mut phases {
+                    f.mark();
+                }
+                #[cfg(all(feature = "geometry-census", feature = "profiling"))]
+                let mount_work = crate::app::benchmark::entry_cost::recurring::finish();
                 #[cfg(feature = "profiling")]
                 let (view_stats, profile, scene, scene_stats) = pages.ui.view_profile();
                 let mut painter =
                     Painter::with_threads(&mut pixels, width, height, threads).unwrap();
-                pages.paint(&mut painter);
+                if let Some(f) = &mut phases {
+                    f.mark();
+                    pages
+                        .ui
+                        .paint_with_marks(&mut painter, &pages.media, || f.mark());
+                } else {
+                    pages.paint(&mut painter);
+                }
                 painter.finish().unwrap();
+                if let Some(f) = &mut phases {
+                    f.mark();
+                }
+                #[cfg(feature = "layout-profiling")]
+                if let Some(text) = &mut text {
+                    text.finish_frame();
+                }
                 if frame >= 20 {
                     let mut sample = json!({"update_ms":(updated-start).as_secs_f64()*1000.0,
                         "paint_ms":updated.elapsed().as_secs_f64()*1000.0,
                         "total_ms":start.elapsed().as_secs_f64()*1000.0,
                         "process_cpu_ms":cpu()-process});
+                    let after = pages.relic_window();
+                    if let Some(f) = phases {
+                        sample["phase_ns"] = json!(f.finish());
+                    }
+                    #[cfg(all(feature = "geometry-census", feature = "profiling"))]
+                    {
+                        sample["mount_work"] = json!(mount_work);
+                    }
+                    sample["window"] = json!({"before":[before.0.start,before.0.end],
+                        "after":[after.start,after.end],"offset_before":before.1,
+                        "offset_after":pages.relics.offset});
                     #[cfg(feature = "profiling")]
                     {
+                        sample["window"]["pointer_ms"] =
+                            json!((tick_start - start).as_secs_f64() * 1000.0);
+                        sample["window"]["tick_ms"] =
+                            json!((updated - tick_start).as_secs_f64() * 1000.0);
                         let (binding, prepare, draw) = pages.ui.paint_profile();
                         let render = pages.ui.paint_stats();
                         sample["view"] = json!({"bodies":view_stats.bodies,
                             "mounted":view_stats.mounted,"unmounted":view_stats.unmounted,
                             "projected":view_stats.projected,
+                            "existing_nodes_materialized":profile.existing_nodes_materialized,
                             "evaluation_ms":profile.evaluation.as_secs_f64()*1000.0,
                             "lowering_ms":profile.lowering.as_secs_f64()*1000.0,
                             "scene_ms":profile.scene.as_secs_f64()*1000.0,
@@ -369,17 +444,21 @@ fn relic_scroll_benchmark() {
                             "listing_sync_ms":pages.listing_profile[0].as_secs_f64()*1000.0,
                             "listing_project_ms":pages.listing_profile[1].as_secs_f64()*1000.0,
                             "listing_bind_ms":pages.listing_profile[2].as_secs_f64()*1000.0,
-                            "reconcile_ms":scene.reconcile.as_secs_f64()*1000.0,
-                            "layout_ms":scene.layout.as_secs_f64()*1000.0,
-                            "projection_ms":scene.projection.as_secs_f64()*1000.0,
-                            "geometry_ms":scene.geometry.as_secs_f64()*1000.0,
-                            "frame_ms":scene.frame.as_secs_f64()*1000.0,
+                            "reconcile_ms":(scene.reconcile - scene_start.reconcile).as_secs_f64()*1000.0,
+                            "layout_ms":(scene.layout - scene_start.layout).as_secs_f64()*1000.0,
+                            "projection_ms":(scene.projection - scene_start.projection).as_secs_f64()*1000.0,
+                            "geometry_ms":(scene.geometry - scene_start.geometry).as_secs_f64()*1000.0,
+                            "restoration_ms":(scene.restoration - scene_start.restoration).as_secs_f64()*1000.0,
+                            "restored_records":scene.restored_records - scene_start.restored_records,
+                            "recording_ms":(scene.recording - scene_start.recording).as_secs_f64()*1000.0,
+                            "frame_ms":(scene.frame - scene_start.frame).as_secs_f64()*1000.0,
                             "nodes":scene_stats.nodes,"recordings":scene_stats.recordings,
                             "layout_computations":scene_stats.layout_computations,
                             "paint_binding_ms":binding.as_secs_f64()*1000.0,
                             "prepare_ms":prepare.as_secs_f64()*1000.0,
                             "submit_ms":draw.as_secs_f64()*1000.0,
                             "inspected_instances":render.inspected_instances,
+                            "content_visits":render.content_visits,
                             "changed_programs":render.changed_programs,
                             "inspected_groups":render.inspected_groups,
                             "inspected_regions":render.inspected_regions,
@@ -407,7 +486,19 @@ fn relic_scroll_benchmark() {
                 );
             }
             reports.push(json!({"size":[width,height],"scale":scale,"mode":mode,"live":live,
+                "grid_host":if eager {"eager-control"} else {"production"}, "listing_digest":listing_digest,
                 "threads":threads.get(),"items":pages.relics.visible.len(),"summary":summary,"samples":samples}));
+            if let Some(probe) = &probe {
+                reports.last_mut().unwrap()["phase_schema"] = json!({
+                    "stages":scroll_phases::STAGES,
+                    "counters":["wall","owner_cpu","process_cpu","owner_runqueue"],
+                    "owner_runqueue_available":probe.has_scheduler(),
+                });
+            }
+            #[cfg(feature = "layout-profiling")]
+            if let Some(text) = text {
+                text.attach(reports.last_mut().unwrap());
+            }
         }
     }
     std::fs::write(output, serde_json::to_vec_pretty(&reports).unwrap()).unwrap();

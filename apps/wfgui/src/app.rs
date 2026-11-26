@@ -311,7 +311,7 @@ fn start(args: Args) -> Result<(), String> {
                 login: None,
                 page_clipboard: None,
                 images,
-                image_keys: Vec::new(),
+                image_keys: Some(Vec::new()),
                 asset_ids: Vec::new(),
                 refresh: 0,
                 fixture: args.fixture,
@@ -480,8 +480,7 @@ pub(crate) fn prepare_capture(view: &mut Shell, args: &Args) -> Result<(), Strin
             view.pages.capture_hover(key)?;
         }
         if let Some(channel) = &mut channel {
-            let mut desired = view.foundry.desired_assets();
-            desired.extend(view.pages.assets());
+            let desired = resources::assets(view);
             for assets in desired.chunks(32) {
                 channel
                     .send(&serde_json::json!({"op":"asset_resolve","id":4,"assets":assets}))
@@ -493,7 +492,7 @@ pub(crate) fn prepare_capture(view: &mut Shell, args: &Args) -> Result<(), Strin
                         if value["event"] == "asset" {
                             if let Some(asset) = crate::domain::foundry::descriptor(&value["data"])
                             {
-                                view.foundry.assets(vec![asset]);
+                                resources::publish_descriptors(view, vec![asset], &[]);
                             }
                         }
                         if value["id"] == 4 {
@@ -513,8 +512,7 @@ pub(crate) fn prepare_capture(view: &mut Shell, args: &Args) -> Result<(), Strin
                                 .flatten()
                                 .filter_map(crate::domain::foundry::descriptor)
                                 .collect::<Vec<_>>();
-                            view.foundry.assets(descriptors.clone());
-                            view.pages.descriptors(descriptors);
+                            resources::publish_descriptors(view, descriptors, &[]);
                             return Ok(());
                         }
                     }
@@ -528,8 +526,7 @@ pub(crate) fn prepare_capture(view: &mut Shell, args: &Args) -> Result<(), Strin
     let mut cache = foundry::images::cache((!args.fixture).then(data::native_cache_root));
     let mut images = Vec::new();
     let mut errors = Vec::new();
-    let mut requests = view.foundry.image_requests();
-    requests.extend(view.pages.image_requests());
+    let requests = resources::images(view);
     cache.begin_batch(&requests);
     for request in requests {
         match cache.prepare(&request) {
@@ -563,7 +560,7 @@ struct Gui {
     session: Option<session::Worker>,
     login: Option<login::Login>,
     images: Preparation<foundry::images::Input, foundry::images::Batch>,
-    image_keys: Vec<ImageKey>,
+    image_keys: Option<Vec<ImageKey>>,
     asset_ids: Vec<crate::data::foundry::Asset>,
     refresh: u64,
     fixture: bool,
@@ -702,7 +699,7 @@ impl Gui {
             self.view.pages.media.clear();
             self.view.pages.ui.clear_rasters();
             self.view.pages.rail.clear_rasters();
-            self.image_keys.clear();
+            self.image_keys = Some(Vec::new());
             self.images_ready = false;
             if let Err(error) = self.images.request(foundry::images::Input {
                 generation: self.memory_generation,
@@ -744,6 +741,22 @@ impl Gui {
         }
     }
 
+    fn publish_descriptors(&mut self, assets: Vec<crate::data::foundry::Descriptor>) -> Damage {
+        let result = resources::publish_descriptors(
+            &mut self.view,
+            assets,
+            self.image_keys.as_deref().unwrap_or_default(),
+        );
+        if result.retry_submitted {
+            self.image_keys = None;
+        }
+        if result.changed {
+            Damage::Full
+        } else {
+            Damage::None
+        }
+    }
+
     fn prepare_resources(&mut self) {
         let resources::Requests {
             assets,
@@ -759,8 +772,8 @@ impl Gui {
             }
         }
         let keys = requests.iter().map(|r| r.key).collect::<Vec<_>>();
-        if keys != self.image_keys {
-            self.image_keys = keys;
+        if self.image_keys.as_ref() != Some(&keys) {
+            self.image_keys = Some(keys);
             self.images_ready = false;
             self.view.foundry.image_errors.clear();
             self.view.foundry.cache_warnings.clear();
@@ -893,6 +906,10 @@ impl Application for Gui {
                 self.view.pages.login_result(result);
                 Damage::Full
             }
+            Message::Session(session::Update::Event(event)) if event["event"] == "asset" => {
+                crate::domain::foundry::descriptor(&event["data"])
+                    .map_or(Damage::None, |asset| self.publish_descriptors(vec![asset]))
+            }
             Message::Session(update) => {
                 self.view.pages.update(update);
                 Damage::Full
@@ -931,31 +948,23 @@ impl Application for Gui {
                     Damage::None
                 }
             }
-            Message::Foundry(update) => {
-                let damage = match update {
-                    crate::domain::foundry::Update::Snapshot(snapshot) => {
-                        self.view.foundry.update(snapshot)
-                    }
-                    crate::domain::foundry::Update::Assets(assets) => {
-                        self.view.pages.descriptors(assets.clone());
-                        self.view.foundry.assets(assets);
-                        self.image_keys.clear();
-                        Damage::None
-                    }
-                    crate::domain::foundry::Update::AssetErrors(errors) => {
-                        self.view.pages.media.errors.extend(errors.clone());
-                        self.view.foundry.asset_errors.extend(errors);
-                        Damage::None
-                    }
-                    crate::domain::foundry::Update::Error(error) => {
-                        self.view.foundry.error = Some(error);
-                        self.view.foundry.ready = true;
-                        Damage::Full
-                    }
-                };
-                let _ = damage;
-                Damage::Full
-            }
+            Message::Foundry(update) => match update {
+                crate::domain::foundry::Update::Snapshot(snapshot) => {
+                    self.view.foundry.update(snapshot);
+                    Damage::Full
+                }
+                crate::domain::foundry::Update::Assets(assets) => self.publish_descriptors(assets),
+                crate::domain::foundry::Update::AssetErrors(errors) => {
+                    self.view.pages.media.errors.extend(errors.clone());
+                    self.view.foundry.asset_errors.extend(errors);
+                    Damage::Full
+                }
+                crate::domain::foundry::Update::Error(error) => {
+                    self.view.foundry.error = Some(error);
+                    self.view.foundry.ready = true;
+                    Damage::Full
+                }
+            },
             Message::Images => match self.images.poll() {
                 Ok(Some(batch)) => {
                     self.images_ready = batch.done;

@@ -1,4 +1,34 @@
 use std::num::NonZeroU32;
+#[cfg(feature = "geometry-census")]
+pub(crate) mod entry_cost;
+
+#[cfg(feature = "layout-profiling")]
+pub(crate) struct ParagraphFrames {
+    trace: retinue_ui::profiling::layout::paragraphs::ParagraphTrace,
+    frames: Vec<Vec<[usize; 2]>>,
+}
+
+#[cfg(feature = "layout-profiling")]
+impl ParagraphFrames {
+    pub(crate) fn enabled() -> Option<Self> {
+        (std::env::var_os("GUI_BENCH_TEXT_KEYS").is_some()).then(|| Self {
+            trace: retinue_ui::profiling::layout::paragraphs::ParagraphTrace::start(),
+            frames: Vec::new(),
+        })
+    }
+
+    pub(crate) fn finish_frame(&mut self) {
+        self.frames.push(self.trace.take_frame());
+    }
+
+    pub(crate) fn attach(self, report: &mut serde_json::Value) {
+        report["paragraph_keys"] = serde_json::json!(self.frames);
+    }
+}
+
+pub(crate) fn measure_demand(view: &super::Shell) {
+    std::hint::black_box(super::resources::requests(view));
+}
 
 pub fn threads() -> NonZeroU32 {
     std::env::var("GUI_BENCH_THREADS")

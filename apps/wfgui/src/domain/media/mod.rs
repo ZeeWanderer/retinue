@@ -6,6 +6,12 @@ use std::{collections::HashMap, collections::HashSet};
 
 pub mod image_store;
 
+pub enum DescriptorUpdate {
+    Unchanged,
+    Changed,
+    RetrySameDigest,
+}
+
 #[derive(Default)]
 pub struct Media {
     descriptors: HashMap<String, Descriptor>,
@@ -17,19 +23,43 @@ pub struct Media {
 }
 
 impl Media {
+    #[cfg(test)]
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    #[cfg(test)]
     pub fn assets(&mut self, descriptors: Vec<Descriptor>) {
-        if !descriptors.is_empty() {
-            self.revision += 1;
-        }
         for descriptor in descriptors {
-            self.errors.remove(&descriptor.id);
-            if let Some(old) = self
-                .descriptors
-                .insert(descriptor.id.clone(), descriptor.clone())
-                && old.digest != descriptor.digest
-            {
+            self.publish_descriptor(&descriptor);
+        }
+    }
+
+    pub fn publish_descriptor(&mut self, descriptor: &Descriptor) -> DescriptorUpdate {
+        let retry = self.errors.remove(&descriptor.id).is_some()
+            || self.decode_errors.contains_key(&descriptor.id);
+        let previous = self.descriptors.get(&descriptor.id);
+        if previous == Some(descriptor) {
+            return if retry {
+                DescriptorUpdate::RetrySameDigest
+            } else {
+                DescriptorUpdate::Unchanged
+            };
+        }
+        let same_digest = previous.is_some_and(|old| old.digest == descriptor.digest);
+        if let Some(old) = self
+            .descriptors
+            .insert(descriptor.id.clone(), descriptor.clone())
+        {
+            if !same_digest {
                 self.previous.insert(old.id.clone(), old);
             }
+        }
+        self.revision += 1;
+        if same_digest {
+            DescriptorUpdate::RetrySameDigest
+        } else {
+            DescriptorUpdate::Changed
         }
     }
     pub fn request(&self, asset: &Asset, size: u32) -> Option<Request> {
@@ -56,12 +86,19 @@ impl Media {
         self.images.get(&request.key)
     }
     pub fn accept(&mut self, images: &[(Key, Resource<RasterImage>)], wanted: &[Request]) {
-        if !images.is_empty() {
-            self.revision += 1;
-        }
         let mut keys: HashSet<_> = wanted.iter().map(|r| r.key).collect();
-        self.images
-            .extend(images.iter().filter(|(key, _)| keys.contains(key)).cloned());
+        let mut changed = false;
+        for (key, image) in images {
+            if keys.contains(key)
+                && !self
+                    .images
+                    .get(key)
+                    .is_some_and(|old| std::ptr::eq(&**old, &**image))
+            {
+                self.images.insert(*key, image.clone());
+                changed = true;
+            }
+        }
         for descriptor in self.previous.values() {
             if let Some(current) = self.descriptors.get(&descriptor.id) {
                 for request in wanted {
@@ -74,7 +111,9 @@ impl Media {
                 }
             }
         }
+        let before = self.images.len();
         self.images.retain(|key, _| keys.contains(key));
+        self.revision += u64::from(changed || self.images.len() != before);
     }
     pub fn clear(&mut self) {
         self.images.clear();

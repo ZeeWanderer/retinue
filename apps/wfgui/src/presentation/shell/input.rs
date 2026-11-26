@@ -22,9 +22,31 @@ impl Shell {
         }
     }
 
+    pub(super) fn center_wheel(&mut self, delta: MouseScrollDelta, now: Instant) -> Damage {
+        let (delta, smooth) = self.wheel_delta(delta);
+        let damage = match self.page {
+            Page::Settings => {
+                self.settings.wheel(delta, smooth);
+                self.settings.tick(now)
+            }
+            Page::Foundry => {
+                self.foundry.wheel(delta, smooth);
+                self.foundry.tick(now)
+            }
+            _ => {
+                self.pages.wheel(false, delta, smooth);
+                self.pages.tick(now).0
+            }
+        };
+        self.page_damage(damage)
+    }
+
+    fn chrome_blocked(&self) -> bool {
+        self.settings.modal.is_some() || self.foundry.popup_open() || self.pages.ui.modal_open()
+    }
+
     pub(super) fn hit(&self, position: (f64, f64)) -> Option<Control> {
-        if self.settings.modal.is_some() || self.foundry.popup_open() || self.pages.ui.modal_open()
-        {
+        if self.chrome_blocked() {
             return None;
         }
         let key = self.composition.hit_test(position)?;
@@ -256,9 +278,9 @@ impl Shell {
 
     pub(super) fn pointer_move(&mut self, position: (f64, f64)) -> Damage {
         self.pointer = position;
-        self.composition.pointer(position, PointerPhase::Move);
-        let hover = if self.resize_direction(position).is_none() {
-            self.hit(position)
+        let dispatch = self.composition.pointer(position, PointerPhase::Move);
+        let hover = if !self.chrome_blocked() && self.resize_direction(position).is_none() {
+            self.composition.input_control(dispatch.pointer_hit)
         } else {
             None
         };
@@ -273,13 +295,7 @@ impl Shell {
         let page = match self.page {
             Page::Settings => self.settings.pointer_move(self.page_position()),
             Page::Foundry => self.foundry.pointer_move(self.page_position()),
-            _ => {
-                if self.pages.pointer(false, self.page_position()) {
-                    Damage::Full
-                } else {
-                    Damage::None
-                }
-            }
+            _ => self.pages.pointer(false, self.page_position()),
         };
         let rail = self.pages.pointer(true, self.rail_position());
         if changed && was_tooltip {
@@ -304,29 +320,26 @@ impl Shell {
         } else {
             Damage::None
         };
-        chrome.union(self.page_damage(page)).union(if rail {
-            Damage::rect(self.geometry.right)
-        } else {
-            Damage::None
-        })
+        chrome
+            .union(self.page_damage(page))
+            .union(self.composition.invalidate(composition::RIGHT, rail))
     }
 
     pub(super) fn pointer_button(&mut self, down: bool, now: Instant) -> Damage {
         if !down {
             match self.press.take() {
                 Some(PressOwner::Chrome(owner)) => {
-                    let (_, activated) = self
+                    let dispatch = self
                         .composition
                         .pointer(self.pointer, PointerPhase::Up(Button::Primary));
-                    if activated == Some(owner) && self.hit(self.pointer) == Some(owner) {
+                    if !self.chrome_blocked()
+                        && self.composition.input_control(dispatch.activated) == Some(owner)
+                    {
                         self.activate(owner, now);
                     }
                 }
                 Some(PressOwner::Rail) => {
-                    if self.settings.modal.is_some()
-                        || self.pages.ui.modal_open()
-                        || self.foundry.popup_open()
-                    {
+                    if self.chrome_blocked() {
                         self.pages.rail.cancel_pointer();
                     } else {
                         self.pages.pointer(true, self.rail_position());
@@ -374,10 +387,12 @@ impl Shell {
             self.pages.rail.focus = None;
             return self.page_button(true);
         }
-        let (target, _) = self
+        let dispatch = self
             .composition
             .pointer(self.pointer, PointerPhase::Down(Button::Primary));
-        self.press = target
+        self.press = self
+            .composition
+            .input_control(dispatch.target)
             .filter(|control| self.control_enabled(*control))
             .map(PressOwner::Chrome);
         if let Some(PressOwner::Chrome(control)) = self.press {
@@ -620,22 +635,7 @@ impl Shell {
                     .contains(self.pointer.0, self.pointer.1)
                     && !self.geometry.right.contains(self.pointer.0, self.pointer.1) =>
             {
-                let (delta, smooth) = self.wheel_delta(*delta);
-                let damage = match self.page {
-                    Page::Settings => {
-                        self.settings.wheel(delta, smooth);
-                        self.settings.tick(now)
-                    }
-                    Page::Foundry => {
-                        self.foundry.wheel(delta, smooth);
-                        self.foundry.tick(now)
-                    }
-                    _ => {
-                        self.pages.wheel(false, delta, smooth);
-                        self.pages.tick(now).0
-                    }
-                };
-                self.page_damage(damage)
+                self.center_wheel(*delta, now)
             }
             WindowEvent::MouseWheel { delta, .. }
                 if self.geometry.right.contains(self.pointer.0, self.pointer.1) =>

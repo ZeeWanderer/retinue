@@ -141,6 +141,17 @@ impl View for MasteryCardView {
     }
 }
 
+pub(super) fn input_keys(id: Key, cell: &Cell) -> impl Iterator<Item = Key> {
+    [
+        id,
+        child(id, "mastery.image"),
+        child(id, "mastery.title"),
+        child(id, "mastery.favorite"),
+    ]
+    .into_iter()
+    .chain((0..cell.item.components.len().min(6)).map(move |i| part(id, i)))
+}
+
 pub(super) fn bind(ui: &mut ControlHost, id: Key, cell: &Cell) {
     let item = &cell.item;
     let index = cell.index;

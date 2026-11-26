@@ -116,7 +116,7 @@ fn trace(coverage: Coverage, scale: f32, steps: usize) -> Vec<TraceFrame> {
                 });
             }
             let count = items.len();
-            frame
+            let damage = frame
                 .replace(
                     (1800, 1360),
                     scale,
@@ -129,6 +129,7 @@ fn trace(coverage: Coverage, scale: f32, steps: usize) -> Vec<TraceFrame> {
                 )
                 .unwrap();
             TraceFrame {
+                damage,
                 snapshot: frame.snapshot(),
                 motion: retinue_render::relocate::Motion { viewport, origin },
             }

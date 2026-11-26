@@ -1,11 +1,13 @@
 use super::*;
 use retinue_render::{Color, FrameSnapshot, LayerPolicy, PaintFrame, RasterMode, Renderer};
 
+mod publication;
 mod reuse;
 
 struct TraceFrame {
     snapshot: FrameSnapshot,
     motion: retinue_render::relocate::Motion,
+    damage: retinue_render::damage::Damage,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -53,6 +55,8 @@ fn trace(scale: f32, frames: usize) -> Vec<FrameSnapshot> {
 
 fn trace_samples(scale: f32, frames: usize) -> Vec<TraceFrame> {
     let mut pages = Pages::new(Default::default()).unwrap();
+    // This trace replays a single immutable PaintFrame without a page host.
+    pages.relics_view.eager_grid = true;
     pages.fixture();
     let source = serde_json::to_value(&pages.relics.items[0]).unwrap();
     let rows: Vec<_> = (0..120)
@@ -89,10 +93,12 @@ fn trace_samples(scale: f32, frames: usize) -> Vec<TraceFrame> {
         pages.relics.scroll.to(offset, false, time);
         pages.relics.tick(time);
         if step == frames / 3 {
-            pages.relics.items[1].name = "Updated relic".into();
+            pages
+                .relics
+                .edit_fixture_rows(|rows| rows[1].name = "Updated relic".into());
         }
         if step == frames * 2 / 3 {
-            pages.relics.items.swap(1, 4);
+            pages.relics.edit_fixture_rows(|rows| rows.swap(1, 4));
         }
         pages.dirty = true;
         pages.layout();
@@ -106,8 +112,10 @@ fn trace_samples(scale: f32, frames: usize) -> Vec<TraceFrame> {
         pages.paint(&mut painter);
         painter.finish().unwrap();
         let viewport = pages.ui.bounds("page.grid").unwrap();
+        let (snapshot, damage) = pages.ui.paint_snapshot(&mut target, viewport);
         frames_out.push(TraceFrame {
-            snapshot: pages.ui.paint_snapshot(&mut target, viewport),
+            snapshot,
+            damage,
             motion: retinue_render::relocate::Motion {
                 viewport,
                 origin: (0, -(pages.relics.offset as i32)),

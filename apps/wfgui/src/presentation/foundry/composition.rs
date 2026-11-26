@@ -537,7 +537,7 @@ impl Composition {
             id.and_then(|id| self.tree.input_key(id))
                 .and_then(|key| self.action(key))
         };
-        (action(result.target), action(result.activated))
+        (action(result.pointer_hit), action(result.activated))
     }
 
     fn published_controls(&self) -> &[(ElementKey, Rect)] {
@@ -680,7 +680,7 @@ fn mount(model: Model) -> InstanceGraph {
 }
 
 impl Foundry {
-    pub(super) fn input_composition(&self) -> std::cell::Ref<'_, Composition> {
+    fn sync_input_geometry(&self) {
         let layout = LayoutState::new(self);
         let stale = self
             .composition
@@ -691,7 +691,16 @@ impl Foundry {
         if stale && self.active {
             self.composition.borrow_mut().update(self);
         }
+    }
+
+    pub(super) fn input_composition(&self) -> std::cell::Ref<'_, Composition> {
+        self.sync_input_geometry();
         self.composition.borrow()
+    }
+
+    pub(super) fn input_composition_mut(&self) -> std::cell::RefMut<'_, Composition> {
+        self.sync_input_geometry();
+        self.composition.borrow_mut()
     }
 
     pub(super) fn resolved_composition(&self) -> std::cell::Ref<'_, Composition> {

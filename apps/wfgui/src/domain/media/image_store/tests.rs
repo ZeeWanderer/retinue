@@ -49,6 +49,30 @@ fn image_demand_is_shared_and_released_with_the_view() {
 }
 
 #[test]
+fn media_revision_tracks_retained_changes_not_deliveries() {
+    let mut media = Media::default();
+    media.assets(vec![descriptor("ab")]);
+    let descriptors = media.revision();
+    media.assets(vec![descriptor("ab")]);
+    assert_eq!(media.revision(), descriptors);
+    let request = media.request(&asset(), 32).unwrap();
+    let mut cache = ResourceCache::new(1024 * 1024);
+    let image = pixels(&mut cache, &request, 130);
+    let reply = [(request.key, image)];
+    media.accept(&reply, &[]);
+    assert_eq!(media.revision(), descriptors);
+    let wanted = std::slice::from_ref(&request);
+    media.accept(&reply, wanted);
+    let accepted = media.revision();
+    assert_eq!(accepted, descriptors + 1);
+    media.accept(&reply, wanted);
+    assert_eq!(media.revision(), accepted);
+    media.accept(&[], &[]);
+    assert!(media.image_resource(&asset(), 32).is_none());
+    assert_eq!(media.revision(), accepted + 1);
+}
+
+#[test]
 fn asynchronous_renditions_update_only_image_content_and_keep_stale_pixels() {
     let store = ImageStore::default();
     let mut tree = InstanceGraph::default();

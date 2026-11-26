@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod benchmark;
 mod body_view;
+mod chrome;
 mod composition;
 mod dock_layout;
 mod icons;
@@ -160,6 +161,7 @@ pub struct Shell {
     last_title_press: Option<(Instant, (f64, f64))>,
     window_action: Option<Control>,
     icons: Icons,
+    chrome: chrome::RecordingInputs,
     composition: composition::Composition,
     render_host: retinue_render::RenderHost,
     preparation_deadline: Cell<Option<Instant>>,
@@ -217,6 +219,7 @@ impl Shell {
             last_title_press: None,
             window_action: None,
             icons: Icons::default(),
+            chrome: Default::default(),
             composition: composition::Composition::default(),
             render_host: retinue_render::RenderHost::new(retinue_render::HostPolicy::desktop()),
             preparation_deadline: Cell::new(None),
@@ -556,7 +559,7 @@ impl Shell {
         }
         let mut damage = layout.union(self.page_damage(page));
         if rail != Damage::None {
-            damage = damage.union(Damage::rect(self.geometry.right));
+            damage = damage.union(self.composition.invalidate(composition::RIGHT, rail));
         }
         if !matches!(self.page, Page::Foundry | Page::Settings) {
             damage = damage.union(self.page_damage(pages));
@@ -701,6 +704,30 @@ impl Shell {
     pub fn prepare_paint(&self) {
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
+        let paints = self.chrome.changed(self).then(|| self.record_chrome());
+        #[cfg(all(test, feature = "profiling"))]
+        let recorded = Instant::now();
+        if let Some(paints) = paints {
+            self.composition.record(paints);
+        }
+        match self.page {
+            Page::Settings => self.settings.prepare_paint(self.focus_visible),
+            Page::Foundry => self.foundry.prepare_paint(self.focus_visible),
+            _ => self.pages.prepare_paint(),
+        }
+        if !self.geometry.right.is_empty() {
+            self.pages.prepare_rail();
+        }
+        #[cfg(all(test, feature = "profiling"))]
+        self.paint_profile.set([
+            recorded - started,
+            recorded.elapsed(),
+            Duration::ZERO,
+            Duration::ZERO,
+        ]);
+    }
+
+    fn record_chrome(&self) -> Vec<(retinue_render::Key, Vec<retinue_render::Command>)> {
         use composition::*;
         let mut paints = Vec::new();
         for key in [TITLE, LEFT, CENTER, RIGHT, TOOLTIP] {
@@ -744,27 +771,17 @@ impl Shell {
             );
             paints.push((key, canvas.commands));
         }
-        #[cfg(all(test, feature = "profiling"))]
-        let recorded = Instant::now();
-        self.composition.record(paints);
-        match self.page {
-            Page::Settings => self.settings.prepare_paint(self.focus_visible),
-            Page::Foundry => self.foundry.prepare_paint(self.focus_visible),
-            _ => self.pages.prepare_paint(),
-        }
-        if !self.geometry.right.is_empty() {
-            self.pages.prepare_rail();
-        }
-        #[cfg(all(test, feature = "profiling"))]
-        self.paint_profile.set([
-            recorded - started,
-            recorded.elapsed(),
-            Duration::ZERO,
-            Duration::ZERO,
-        ]);
+        paints
     }
 
     pub fn paint_scene(&self) -> retinue_render::surface::Snapshot {
+        self.paint_scene_with(|scene| self.pages.record_surface(scene))
+    }
+
+    pub(super) fn paint_scene_with(
+        &self,
+        mut page: impl FnMut(&mut retinue_render::surface::Snapshot),
+    ) -> retinue_render::surface::Snapshot {
         use composition::*;
         let mut scene = retinue_render::surface::Snapshot::new(
             self.size,
@@ -780,7 +797,7 @@ impl Shell {
                     _ => match page_for_key(key).expect("only page hosts use live shell paint") {
                         Page::Settings => self.settings.record_surface(scene),
                         Page::Foundry => self.foundry.record_surface(scene),
-                        _ => self.pages.record_surface(scene),
+                        _ => page(scene),
                     },
                 }
                 true
@@ -829,6 +846,20 @@ impl Shell {
         repair: &retinue_render::damage::Region,
         wake: retinue_render::Wake,
     ) -> Result<retinue_render::PacketJob, String> {
+        self.prepare_packet_with(repair, wake, |repair, wake| {
+            self.pages.prepare_packet(repair, wake)
+        })
+    }
+
+    pub(super) fn prepare_packet_with(
+        &self,
+        repair: &retinue_render::damage::Region,
+        wake: retinue_render::Wake,
+        mut page_packet: impl FnMut(
+            &retinue_render::damage::Region,
+            retinue_render::Wake,
+        ) -> Result<retinue_render::PacketJob, String>,
+    ) -> Result<retinue_render::PacketJob, String> {
         use composition::*;
         retinue_render::PacketJob::prepare(
             self.composition.renderer.clone(),
@@ -841,7 +872,7 @@ impl Shell {
                 _ => match page_for_key(key).ok_or("unknown shell paint")? {
                     Page::Settings => self.settings.prepare_packet(repair, wake),
                     Page::Foundry => self.foundry.prepare_packet(repair, wake),
-                    _ => self.pages.prepare_packet(repair, wake),
+                    _ => page_packet(repair, wake),
                 },
             },
         )

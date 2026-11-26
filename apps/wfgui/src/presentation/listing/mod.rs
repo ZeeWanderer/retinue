@@ -1,5 +1,6 @@
 mod cards;
 mod filters;
+mod retained_grid;
 
 use super::*;
 use controls::{ACCENT, BAD, MUTED, TEXT};
@@ -172,6 +173,12 @@ impl Listing {
             serde_json::from_value(data).expect("listing fixture"),
             quotes,
         );
+    }
+    #[cfg(test)]
+    pub(super) fn edit_fixture_rows(&mut self, edit: impl FnOnce(&mut [ListingItem])) {
+        // Replay traces prescribe their own order instead of applying a sort.
+        edit(&mut self.items);
+        self.order_revision = self.order_revision.wrapping_add(1);
     }
     pub fn tick(&mut self, now: Instant) -> bool {
         let offset = self.scroll.offset(now).round() as u32;
@@ -1159,6 +1166,7 @@ struct Cell {
     cost: Option<f64>,
     favorite: bool,
     hovered: bool,
+    relic_bindings: Option<std::rc::Rc<relics::Bindings>>,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -1168,31 +1176,62 @@ struct CardContext {
     prices_ready: bool,
 }
 
+type GridInputs =
+    dyn FnMut(&Metrics, &Listing, &ControlHost, &Media) -> retinue_ui::input::PlacedInputGeometry;
+
 pub(in crate::presentation) struct ListingController {
     page: Page,
     model: Model,
     summary: summary::Summary,
     overlays: overlays::Overlays,
+    grid_inputs: Option<Box<GridInputs>>,
+    #[cfg(test)]
+    pub(in crate::presentation) eager_grid: bool,
     revision: Option<u64>,
-    pub installed: bool,
+    relic_cells: Option<(u64, std::ops::Range<usize>, Option<usize>)>,
+    installed: bool,
 }
 
 impl ListingController {
+    pub(super) fn unmount(&mut self) {
+        self.installed = false;
+        self.grid_inputs = None;
+    }
+
     pub fn new(page: Page) -> Self {
         Self {
             page,
             model: Model::default(),
             summary: summary::Summary::new(),
             overlays: overlays::Overlays::new(),
+            grid_inputs: None,
+            #[cfg(test)]
+            eager_grid: false,
             revision: None,
+            relic_cells: None,
             installed: false,
         }
     }
 
     fn view(&self, ui: &ControlHost) -> impl View + use<> {
+        self.view_with_grid(
+            ui,
+            grid_view::GridView {
+                model: self.model.clone(),
+                fonts: Fonts::new(ui),
+            },
+        )
+    }
+
+    fn view_with_grid<G: View + Clone + PartialEq>(
+        &self,
+        ui: &ControlHost,
+        grid: G,
+    ) -> impl View + use<G> {
         let fonts = Fonts::new(ui);
         listing_view::ListingPageView {
             model: self.model.clone(),
+            grid,
             summary: self.summary.view(self.model.metrics.clone(), fonts.clone()),
             overlays: self.overlays.view(fonts.regular.clone()),
             fonts,
@@ -1286,43 +1325,48 @@ impl ListingController {
             .and_then(|key| key.strip_prefix("list:item:"))
             .and_then(|key| key.split(':').next())
             .and_then(|s| s.parse::<usize>().ok());
-        self.model
-            .cells
-            .replace(window.map(|position| {
-                let index = listing.visible[position];
-                let source = &listing.items[index];
-                let item = self
-                    .model
-                    .cells
-                    .item(order.keys()[position])
-                    .and_then(|cell| {
-                        let cell = cell.read();
-                        (cell.item.as_ref() == source).then(|| cell.item.clone())
-                    })
-                    .unwrap_or_else(|| std::rc::Rc::new(source.clone()));
-                let quote = quotes
-                    .get(item.market_name.as_deref().unwrap_or(""))
-                    .cloned()
-                    .unwrap_or_default();
-                let cost = if self.page == Page::Mastery {
-                    cost(&item, quotes)
-                } else {
-                    None
-                };
-                let favorite = self.page == Page::Mastery && preferences.is_favorite(&item.id);
-                (
-                    order.keys()[position],
-                    Cell {
-                        index,
-                        item,
-                        quote,
-                        cost,
-                        favorite,
-                        hovered: hovered == Some(index),
-                    },
-                )
-            }))
-            .expect("mounted listing cells");
+        if self.page == Page::Relics {
+            self.sync_relic_cells(listing, &order, window, hovered);
+        } else {
+            self.model
+                .cells
+                .replace(window.map(|position| {
+                    let index = listing.visible[position];
+                    let source = &listing.items[index];
+                    let item = self
+                        .model
+                        .cells
+                        .item(order.keys()[position])
+                        .and_then(|cell| {
+                            let cell = cell.read();
+                            (cell.item.as_ref() == source).then(|| cell.item.clone())
+                        })
+                        .unwrap_or_else(|| std::rc::Rc::new(source.clone()));
+                    let quote = quotes
+                        .get(item.market_name.as_deref().unwrap_or(""))
+                        .cloned()
+                        .unwrap_or_default();
+                    let cost = if self.page == Page::Mastery {
+                        cost(&item, quotes)
+                    } else {
+                        None
+                    };
+                    let favorite = self.page == Page::Mastery && preferences.is_favorite(&item.id);
+                    (
+                        order.keys()[position],
+                        Cell {
+                            index,
+                            item,
+                            quote,
+                            cost,
+                            favorite,
+                            hovered: hovered == Some(index),
+                            relic_bindings: None,
+                        },
+                    )
+                }))
+                .expect("mounted listing cells");
+        }
         self.model.message.set((
             listing.error.clone().unwrap_or_else(|| {
                 if listing.ready {
@@ -1336,7 +1380,65 @@ impl ListingController {
         ));
     }
 
-    fn bind(&self, ui: &mut ControlHost, listing: &Listing) {
+    fn sync_relic_cells(
+        &mut self,
+        listing: &Listing,
+        order: &KeyedOrder,
+        window: std::ops::Range<usize>,
+        hovered: Option<usize>,
+    ) {
+        let inputs = (listing.order_revision, window.clone(), hovered);
+        if self.relic_cells.as_ref() == Some(&inputs) {
+            return;
+        }
+        let make = |position: usize, key| {
+            let index = listing.visible[position];
+            let item = &listing.items[index];
+            Cell {
+                index,
+                item: std::rc::Rc::new(item.clone()),
+                quote: Quote::default(),
+                cost: None,
+                favorite: false,
+                hovered: hovered == Some(index),
+                relic_bindings: Some(std::rc::Rc::new(relics::Bindings::new(key, index, item))),
+            }
+        };
+        let cells = &self.model.cells;
+        if let Some((_, previous, old_hover)) = self
+            .relic_cells
+            .as_ref()
+            .filter(|(rev, ..)| *rev == listing.order_revision)
+        {
+            if *previous != window {
+                let keys = KeyedOrder::new(order.keys()[window.clone()].iter().copied())
+                    .expect("unique mounted relics");
+                cells.set_order_with(keys, |i, key| make(window.start + i, key));
+            }
+            if old_hover != &hovered {
+                for index in [*old_hover, hovered].into_iter().flatten() {
+                    if let Some(position) = window.clone().find(|&p| listing.visible[p] == index) {
+                        let key = order.keys()[position];
+                        let mut cell = cells.get(key).expect("mounted relic");
+                        cell.hovered = Some(index) == hovered;
+                        cells.set(key, cell);
+                    }
+                }
+            }
+        } else {
+            cells
+                .replace(window.map(|p| (order.keys()[p], make(p, order.keys()[p]))))
+                .expect("unique mounted relics");
+        }
+        self.relic_cells = Some(inputs);
+    }
+
+    fn bind(
+        &self,
+        ui: &mut ControlHost,
+        listing: &Listing,
+        inputs: Option<retinue_ui::input::PlacedInputGeometry>,
+    ) {
         toolbar::bind(self, ui, listing);
         if self.page == Page::Mastery {
             self.summary.bind(ui);
@@ -1349,6 +1451,23 @@ impl ListingController {
                 ui.region(name, bounds);
             }
         }
+        if let Some(inputs) = inputs {
+            ui.bind_placed_hits(inputs, |ui| self.bind_cells(ui));
+        } else {
+            self.bind_cells(ui);
+        }
+        ui.view_control(SCROLL, |ui, r| {
+            ui.scrollbar(
+                "list:scroll",
+                r,
+                listing.scroll.maximum(),
+                listing.offset as f32,
+            )
+        });
+        self.overlays.bind(ui, listing);
+    }
+
+    fn bind_cells(&self, ui: &mut ControlHost) {
         for &id in self.model.cells.order().keys() {
             let source = self.model.cells.item(id).unwrap();
             let cell = source.read();
@@ -1362,20 +1481,16 @@ impl ListingController {
                 _ => unreachable!(),
             }
         }
-        ui.view_control(SCROLL, |ui, r| {
-            ui.scrollbar(
-                "list:scroll",
-                r,
-                listing.scroll.maximum(),
-                listing.offset as f32,
-            )
-        });
-        self.overlays.bind(ui, listing);
     }
 }
 
 impl Pages {
-    pub(in crate::presentation) fn layout_listing(&mut self) {
+    #[cfg(test)]
+    pub(super) fn relic_window(&self) -> std::ops::Range<usize> {
+        self.relics_view.relic_cells.as_ref().unwrap().1.clone()
+    }
+
+    pub(in crate::presentation) fn layout_listing(&mut self, pass: controls::LayoutPass) {
         let time = self.ui.layout_time(FrameTime::now());
         #[cfg(all(test, feature = "profiling"))]
         let started = Instant::now();
@@ -1393,7 +1508,15 @@ impl Pages {
             &self.preferences,
             time.instant,
         );
-        if !view.installed {
+        let retain =
+            matches!(self.page, Page::Relics | Page::Mastery) && listing.scroll.maximum() > 0.;
+        #[cfg(test)]
+        let retain = retain && !view.eager_grid;
+        let fresh = retain && view.grid_inputs.is_none();
+        if fresh {
+            view.mount_grid(&mut self.ui);
+            view.installed = true;
+        } else if !view.installed {
             self.ui.install_compiled(view.view(&self.ui));
             view.installed = true;
         }
@@ -1401,13 +1524,22 @@ impl Pages {
             .sync(&self.ui, listing, &view.model.metrics.get());
         #[cfg(all(test, feature = "profiling"))]
         let synced = Instant::now();
-        if !self.ui.resolve_view(time) {
+        let ready = self.ui.resolve_view_for(time, pass);
+        if !ready {
             return;
         }
         self.ui.begin(self.ui.size, self.ui.scale);
         #[cfg(all(test, feature = "profiling"))]
         let projected = Instant::now();
-        view.bind(&mut self.ui, listing);
+        let inputs = view
+            .grid_inputs
+            .as_mut()
+            .map(|place| place(&view.model.metrics.read(), listing, &self.ui, &self.media));
+        #[cfg(all(test, feature = "geometry-census"))]
+        let _bind = crate::app::benchmark::entry_cost::start(
+            crate::app::benchmark::entry_cost::Stage::Bind,
+        );
+        view.bind(&mut self.ui, listing, inputs);
         #[cfg(all(test, feature = "profiling"))]
         {
             self.listing_profile = [synced - started, projected - synced, projected.elapsed()];

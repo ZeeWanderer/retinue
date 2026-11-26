@@ -288,6 +288,30 @@ fn page_switch_preserves_stationary_chrome_hover_without_capture() {
 }
 
 #[test]
+fn chrome_capture_preserves_physical_hover_but_does_not_activate_on_drag_out() {
+    let mut shell = view(1.0, (1920, 1080));
+    let point = |control| {
+        let (_, r, _) = shell
+            .controls()
+            .into_iter()
+            .find(|(c, _, _)| *c == control)
+            .unwrap();
+        ((r.x + r.width / 2) as f64, (r.y + r.height / 2) as f64)
+    };
+    let (first, second) = (point(Control::Mastery), point(Control::Inventory));
+    let page = shell.page;
+    let now = Instant::now();
+    shell.pointer_move(first);
+    shell.pointer_button(true, now);
+    shell.pointer_move(second);
+    assert_eq!(shell.press, Some(PressOwner::Chrome(Control::Mastery)));
+    assert_eq!(shell.hover, Some(Control::Inventory));
+    shell.pointer_button(false, now);
+    assert_eq!(shell.press, None);
+    assert_eq!(shell.page, page);
+}
+
+#[test]
 fn page_switch_cancels_the_shell_press_owner() {
     let mut shell = view(1.0, (1920, 1080));
     shell.set_page(Page::Foundry);
@@ -631,6 +655,31 @@ fn filter_dismissal_consumes_chrome_press_and_release() {
         assert!(!shell.left_collapsed);
         assert_eq!(shell.scale(), 1.25);
         assert_eq!(shell.focus, Some(Focus::Foundry(foundry::Action::Filters)));
+    }
+}
+
+#[test]
+fn ordinary_listing_hover_invalidates_the_card_not_the_pane() {
+    for page in [Page::Inventory, Page::Mastery, Page::Relics] {
+        let mut shell = view(1.2, (1920, 1080));
+        shell.pages.fixture();
+        shell.set_page(page);
+        let card = shell.pages.ui.bounds("page.card").unwrap();
+        let inside = ((card.x + 5) as f64, (card.y + 5) as f64);
+        let pane = shell.pages.ui.size;
+        shell.pages.pointer(false, (-1.0, -1.0));
+        shell.pages.tick(Instant::now());
+        let hover = shell.pages.pointer(false, inside).regions(pane);
+        assert!(
+            hover.area() > 0 && hover.area() < u64::from(pane.0) * u64::from(pane.1),
+            "{page:?}"
+        );
+        assert_eq!(shell.pages.input_dirty.0.regions(pane), hover);
+        assert_eq!(shell.pages.pointer(false, inside), Damage::None);
+        assert_eq!(
+            shell.pages.pointer(false, (-1.0, -1.0)).regions(pane),
+            hover
+        );
     }
 }
 
@@ -1148,6 +1197,29 @@ fn view(scale: f32, size: (u32, u32)) -> Shell {
     let mut view = Shell::new(Some(Snapshot::fixture()), scale).unwrap();
     view.resize(size, 1.0).unwrap();
     view
+}
+
+#[test]
+fn static_chrome_survives_page_activity_but_not_chrome_or_profile_changes() {
+    let mut shell = view(1.0, (1440, 900));
+    shell.prepare_paint();
+    shell.pages.dirty = true;
+    assert!(!shell.chrome.changed(&shell));
+    shell.hover = Some(Control::Left);
+    assert!(shell.chrome.changed(&shell));
+    assert!(!shell.chrome.changed(&shell));
+    shell.press = Some(PressOwner::Chrome(Control::Left));
+    assert!(shell.chrome.changed(&shell));
+    shell
+        .foundry
+        .snapshot
+        .profile
+        .get_or_insert_default()
+        .player_name
+        .push('!');
+    assert!(shell.chrome.changed(&shell));
+    shell.resize((1280, 720), 1.0).unwrap();
+    assert!(shell.chrome.changed(&shell));
 }
 
 #[test]

@@ -1,15 +1,18 @@
 use super::*;
 
 #[derive(PartialEq)]
-pub(super) struct ListingPageView<S, O> {
+pub(super) struct ListingPageView<S, G, O> {
     pub model: Model,
     pub fonts: Fonts,
     pub summary: S,
+    pub grid: G,
     pub overlays: O,
 }
 
 #[view]
-impl<S: View + Clone + PartialEq, O: View + Clone + PartialEq> View for ListingPageView<S, O> {
+impl<S: View + Clone + PartialEq, G: View + Clone + PartialEq, O: View + Clone + PartialEq> View
+    for ListingPageView<S, G, O>
+{
     fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
         let m = self.model.metrics.get();
         let (message, error) = self.model.message.get();
@@ -21,7 +24,7 @@ impl<S: View + Clone + PartialEq, O: View + Clone + PartialEq> View for ListingP
                 compose(toolbar::ToolbarView { model: self.model.clone(), fonts: self.fonts.clone() })
                 place(empty(), m.bounds(10.0, 12.0, m.width - 20.0, m.grid_y() - 12.0))
                     .named(TOOLBAR).role(retinue_ui::semantics::Role::Toolbar)
-                compose(grid_view::GridView { model: self.model.clone(), fonts: self.fonts.clone() })
+                compose(self.grid.clone())
                 if self.model.order.get().is_empty() {
                     place(label(message, self.fonts.regular.clone(), 16.0,
                         if error { BAD } else { MUTED }, false),

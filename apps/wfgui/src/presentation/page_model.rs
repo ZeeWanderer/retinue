@@ -42,7 +42,7 @@ pub struct Pages {
     pub(super) build_view: build_planner::BuildPlannerController,
     pub(super) fixture: bool,
     pub(super) dirty: bool,
-    pub(super) input_dirty: (bool, bool),
+    pub(super) input_dirty: (Damage, Damage),
     pub(super) preferences: crate::domain::preferences::Preferences,
     pub(super) stale: HashSet<&'static str>,
     #[cfg(all(test, feature = "profiling"))]
@@ -100,7 +100,7 @@ impl Pages {
             build_view: build_planner::BuildPlannerController::new(),
             fixture: false,
             dirty: true,
-            input_dirty: (false, false),
+            input_dirty: Default::default(),
             preferences,
             stale: HashSet::new(),
             #[cfg(all(test, feature = "profiling"))]
@@ -111,9 +111,9 @@ impl Pages {
         if self.page != page {
             self.close_listing_filters();
             self.ui.reset_view();
-            self.inventory_view.installed = false;
-            self.mastery_view.installed = false;
-            self.relics_view.installed = false;
+            self.inventory_view.unmount();
+            self.mastery_view.unmount();
+            self.relics_view.unmount();
             self.market_view.installed = false;
             self.build_view.installed = false;
         }
@@ -233,11 +233,7 @@ impl Pages {
                     .extend(["inventory", "mastery", "relics", "equipment", "market"]);
             }
             Update::Event(event) => {
-                if event["event"] == "asset" {
-                    if let Some(asset) = crate::domain::foundry::descriptor(&event["data"]) {
-                        self.media.assets(vec![asset]);
-                    }
-                } else if event["event"] == "market_presence" {
+                if event["event"] == "market_presence" {
                     self.market.account["presence"] = event["data"].clone();
                 } else if event["event"] == "build_group" {
                     self.build_event(&event);
@@ -345,6 +341,17 @@ impl Pages {
         a.retain(|a| seen.insert(a.id.clone()));
         a
     }
+    pub fn publish_descriptor(
+        &mut self,
+        descriptor: &Descriptor,
+    ) -> crate::domain::media::DescriptorUpdate {
+        use crate::domain::media::DescriptorUpdate;
+        let update = self.media.publish_descriptor(descriptor);
+        self.dirty |= !matches!(update, DescriptorUpdate::Unchanged);
+        update
+    }
+
+    #[cfg(test)]
     pub fn descriptors(&mut self, assets: Vec<Descriptor>) {
         self.media.assets(assets);
         self.dirty = true;
@@ -448,18 +455,28 @@ impl Pages {
         self.rail.record_surface(scene);
     }
     pub(super) fn layout(&mut self) {
+        self.layout_for(controls::LayoutPass::Update);
+    }
+    fn layout_for(&mut self, pass: controls::LayoutPass) {
         if !self.dirty {
             return;
         }
         self.dirty = false;
-        self.layout_center();
+        self.layout_center_for(pass);
+        #[cfg(all(test, feature = "geometry-census"))]
+        let _rail = crate::app::benchmark::entry_cost::start(
+            crate::app::benchmark::entry_cost::Stage::Rail,
+        );
         self.layout_rail();
     }
     pub(super) fn layout_center(&mut self) {
+        self.layout_center_for(controls::LayoutPass::Update);
+    }
+    fn layout_center_for(&mut self, pass: controls::LayoutPass) {
         let size = self.ui.size;
         let scale = self.ui.scale;
         if matches!(self.page, Page::Inventory | Page::Mastery | Page::Relics) {
-            self.layout_listing();
+            self.layout_listing(pass);
             self.finish_center_layout();
             return;
         }
@@ -509,23 +526,38 @@ impl Pages {
         if self.ui.layout_pending() || self.rail.layout_pending() {
             self.dirty = true;
         }
-        self.layout();
+        self.layout_for(controls::LayoutPass::PrepareFrame);
         !self.ui.layout_pending() && !self.rail.layout_pending()
     }
-    pub fn pointer(&mut self, rail: bool, point: (f64, f64)) -> bool {
-        let changed = if rail {
-            self.rail.pointer_move(point)
+    pub fn pointer(&mut self, rail: bool, point: (f64, f64)) -> Damage {
+        let (ui, pending) = if rail {
+            (&mut self.rail, &mut self.input_dirty.1)
         } else {
-            self.ui.pointer_move(point)
+            (&mut self.ui, &mut self.input_dirty.0)
         };
-        if changed {
-            if rail {
-                self.input_dirty.1 = true;
-            } else {
-                self.input_dirty.0 = true;
-            }
+        let local = !rail
+            && matches!(self.page, Page::Relics | Page::Inventory | Page::Mastery)
+            && ui.plain_hover();
+        let old = local.then(|| ui.hover.clone()).flatten();
+        if !ui.pointer_move(point) {
+            return Damage::None;
         }
-        changed
+        let damage = if local {
+            [old.as_deref(), ui.hover.as_deref()]
+                .into_iter()
+                .flatten()
+                .fold(Damage::None, |damage, key| {
+                    let bounds = key
+                        .strip_prefix("list:item:")
+                        .and_then(|s| s.split_once(':'))
+                        .and_then(|(index, _)| ui.bounds(&format!("list:item:{index}:menu")));
+                    damage.union(bounds.map_or(Damage::Full, Damage::rect))
+                })
+        } else {
+            Damage::Full
+        };
+        *pending = std::mem::take(pending).union(damage.clone());
+        damage
     }
     pub fn button(&mut self, rail: bool, down: bool) {
         if rail && self.ui.modal_open() {
@@ -698,17 +730,15 @@ impl Pages {
         self.market_tick(now);
         self.signals();
         let input = std::mem::take(&mut self.input_dirty);
-        changed |= input.0;
-        rail_changed |= input.1;
         if self.dirty {
             changed = true;
             rail_changed = true;
             self.layout();
         } else {
-            if changed {
+            if changed || input.0 != Damage::None {
                 self.layout_center();
             }
-            if rail_changed {
+            if rail_changed || input.1 != Damage::None {
                 self.layout_rail_at(time);
             }
         }
@@ -716,14 +746,16 @@ impl Pages {
             if changed {
                 Damage::Full
             } else {
-                self.ui.animation_damage()
+                input.0.union(self.ui.animation_damage())
             },
             if rail_changed {
                 Damage::Full
             } else {
-                self.rail
-                    .animation_damage()
-                    .union(self.rail.update_view(time))
+                input.1.union(
+                    self.rail
+                        .animation_damage()
+                        .union(self.rail.update_view(time)),
+                )
             },
         )
     }
@@ -767,8 +799,8 @@ impl Pages {
             .collect::<Vec<_>>();
         for signal in signals {
             match signal.key.as_str() {
-                "list:scroll" => self.input_dirty.0 = true,
-                "rail:scroll" => self.input_dirty.1 = true,
+                "list:scroll" => self.input_dirty.0 = Damage::Full,
+                "rail:scroll" => self.input_dirty.1 = Damage::Full,
                 _ => self.dirty = true,
             }
             if signal.key.starts_with("rail:") {

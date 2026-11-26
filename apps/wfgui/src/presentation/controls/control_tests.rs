@@ -1,6 +1,75 @@
 use super::*;
 
 #[test]
+fn independent_children_share_page_order_not_local_key_names() {
+    use retinue_ui::{Bounds, input::LocalInputGeometry, scene::Geometry};
+    let mut ui = ControlHost::new().unwrap();
+    ui.begin((100, 100), 1.);
+    let key = retinue_ui::Key::new("local.action", 1);
+    let hit = Rect {
+        x: 0,
+        y: 0,
+        width: 30,
+        height: 30,
+    };
+    let bounds = Bounds::new(0., 0., 30., 30.);
+    let local: LocalInputGeometry = [(
+        key,
+        Geometry {
+            key,
+            parent: None,
+            layout: bounds,
+            clip: bounds,
+            hit,
+            paint: hit,
+            interactive: true,
+            role: Default::default(),
+            window_action: None,
+        },
+    )]
+    .into_iter()
+    .collect();
+    let slot = |x| {
+        local.placed(
+            (x, 0),
+            1.,
+            Rect {
+                width: 100,
+                height: 100,
+                ..hit
+            },
+            Bounds::new(0., 0., 100., 100.),
+        )
+    };
+    ui.bind_placed_hits(slot(5), |ui| ui.view_hit(key, "back", "", true));
+    ui.hit(
+        "middle",
+        Rect {
+            x: 12,
+            width: 30,
+            ..hit
+        },
+        "",
+        true,
+    );
+    ui.bind_placed_hits(slot(20), |ui| ui.view_hit(key, "front", "", true));
+    ui.finish();
+    for (x, expected) in [
+        (8., "back"),
+        (15., "middle"),
+        (25., "front"),
+        (45., "front"),
+    ] {
+        ui.pointer_move((x, 10.));
+        assert_eq!(ui.hover.as_deref(), Some(expected));
+    }
+    for expected in ["back", "middle", "front"] {
+        ui.focus_next(false);
+        assert_eq!(ui.focus.as_deref(), Some(expected));
+    }
+}
+
+#[test]
 fn accessible_selection_targets_only_the_focused_public_editor() {
     use retinue_ui::desktop::accesskit::{
         Action, ActionData, ActionRequest, Role, TextPosition, TextSelection, TreeId,

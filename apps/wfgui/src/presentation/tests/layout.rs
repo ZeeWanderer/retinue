@@ -122,6 +122,52 @@ fn foundry_layout_keeps_committed_controls_until_worker_completion() {
 }
 
 #[test]
+fn fresh_mount_defers_the_child_until_frame_prepare_and_drops_it_on_reset() {
+    use retinue_ui::{authoring::*, timeline::FrameTime};
+    use std::{cell::Cell, rc::Rc};
+
+    #[derive(PartialEq)]
+    struct Grid;
+    #[view]
+    impl View for Grid {
+        fn body(&self, _: &mut ViewContext<'_>) -> impl Body {
+            ui! {
+                VStack(0.0) {
+                    ForEach(0..64_u64, |id| *id) { |id|
+                        Rectangle(retinue_render::Color::rgb(0x333333))
+                            .frame(Frame::new().height(8.0)).named(id.into())
+                    }
+                }
+            }
+        }
+    }
+    let (host, execution, _) = executor();
+    let mut ui = controls::ControlHost::new().unwrap();
+    ui.size = (400, 500);
+    ui.set_layout_execution(execution);
+    let gate = block(&host);
+    let polls = Rc::new(Cell::new(0));
+    let child = ui.mount_fixed_view(100_u64.into(), Grid, {
+        let polls = polls.clone();
+        move |size| {
+            polls.set(polls.get() + 1);
+            size
+        }
+    });
+    let now = FrameTime::now();
+    assert!(!ui.resolve_view(now));
+    assert_eq!(polls.get(), 0);
+    assert!(ui.layout_pending());
+    assert!(!ui.resolve_view_for(now, controls::LayoutPass::PrepareFrame));
+    assert_eq!(polls.get(), 1);
+    assert!(ui.view_bounds(1_u64.into()).is_none());
+    ui.reset_view();
+    assert!(child.upgrade().is_none());
+    assert!(!ui.layout_pending());
+    drop(gate);
+}
+
+#[test]
 fn animated_layout_publishes_before_sampling_the_next_frame() {
     use retinue_render::Color;
     use retinue_ui::{authoring::*, state::State, timeline::FrameTime};

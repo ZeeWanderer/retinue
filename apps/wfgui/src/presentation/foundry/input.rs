@@ -23,18 +23,29 @@ impl Foundry {
             .filter(|action| self.filter_enabled(*action))
     }
     pub fn pointer_move(&mut self, p: (f64, f64)) -> Damage {
-        self.composition.borrow_mut().pointer(p, PointerPhase::Move);
+        let (old, hit) = if self.drag.is_some()
+            || self.filter_panel.drag.is_some()
+            || (!self.popup_open() && self.pressed == Some(Action::Search))
+        {
+            self.composition.borrow_mut().pointer(p, PointerPhase::Move);
+            (None, None)
+        } else {
+            let mut input = self.input_composition_mut();
+            let old = self.popup_open().then(|| input.hit(self.pointer)).flatten();
+            let (hit, _) = input.pointer(p, PointerPhase::Move);
+            (old, hit)
+        };
+        let old = old.filter(|action| self.filter_enabled(*action));
+        let hit = hit.filter(|action| self.filter_enabled(*action));
         if self.component_open() {
-            let old = self.hit(self.pointer);
             self.pointer = p;
-            return if old != self.hit(p) {
+            return if old != hit {
                 Damage::rect(self.component_panel.popup.bounds)
             } else {
                 Damage::None
             };
         }
         if self.filters_open() {
-            let old = self.filter_hit(self.pointer);
             self.pointer = p;
             if let Some(grab) = self.filter_panel.drag {
                 let v = self.filter_viewport();
@@ -51,13 +62,12 @@ impl Foundry {
                 );
                 return self.tick(now);
             }
-            let damage = if old != self.filter_hit(p) {
+            let damage = if old != hit {
                 Damage::rect(self.filter_panel.popup.bounds)
             } else {
                 Damage::None
             };
-            let hint = (self.filter_hit(p) == Some(Action::CloseFilters))
-                .then(|| "Close filters".to_owned());
+            let hint = (hit == Some(Action::CloseFilters)).then(|| "Close filters".to_owned());
             return damage.union(self.track_hint(hint));
         }
         let before = self.hovered_card();
@@ -89,7 +99,7 @@ impl Foundry {
             self.search.borrow_mut().drag((p.0 - r.x as f64) as f32);
             return Damage::rect(self.search_rect());
         }
-        let hint = self.hint(p);
+        let hint = self.hint(p, hit);
         damage.union(self.track_hint(hint))
     }
     fn track_hint(&mut self, hint: Option<String>) -> Damage {
@@ -104,8 +114,8 @@ impl Foundry {
         }
         Damage::None
     }
-    fn hint(&self, p: (f64, f64)) -> Option<String> {
-        if let Some(action) = self.hit(p) {
+    fn hint(&self, p: (f64, f64), hit: Option<Action>) -> Option<String> {
+        if let Some(action) = hit {
             return Some(match action {
                 Action::Category(i) => CATEGORIES[i].into(),
                 Action::Refresh => "Refresh Foundry".into(),
@@ -181,8 +191,7 @@ impl Foundry {
             self.focus = Some(Action::Filters);
             return Damage::Full;
         }
-        let hit = self.hit(p);
-        let (_, activated) = self.composition.borrow_mut().pointer(
+        let (hit, activated) = self.input_composition_mut().pointer(
             p,
             if down {
                 PointerPhase::Down(Button::Primary)
@@ -191,6 +200,7 @@ impl Foundry {
             },
         );
         if down {
+            let hit = hit.filter(|action| self.filter_enabled(*action));
             self.pressed = hit;
             if !self.popup_open() || hit.is_some() {
                 self.focus_action(hit);
