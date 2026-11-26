@@ -18,7 +18,8 @@ use std::{
 pub(super) struct Fragments {
     pub selected: HashMap<ProgramId, RasterId>,
     nearby: HashSet<ProgramId>,
-    pub awaiting_demand: bool,
+    retry: bool,
+    waiting_on_coverage: Option<crate::damage::Region>,
     observations: HashMap<ProgramId, Observation>,
     epoch: u64,
 }
@@ -54,10 +55,20 @@ impl FragmentCall {
 }
 
 impl Fragments {
+    pub fn needs_preparation(&self, paint: PaintDemand<'_>) -> bool {
+        !paint.is_empty()
+            && (self.retry
+                || self.waiting_on_coverage.as_ref().is_some_and(
+                    |previous| !matches!(paint, PaintDemand::Repair(next) if previous == next),
+                ))
+    }
+
     pub fn begin_frame(&mut self) {
         self.epoch = self.epoch.wrapping_add(1);
     }
 
+    /// Returns the scheduled work and whether an existing raster binding changed
+    /// immediately (warm acquisition or release, neither of which schedules a task).
     pub fn prepare<'a>(
         &mut self,
         roots: impl IntoIterator<Item = (&'a PaintProgram, (i32, i32), Rect)>,
@@ -67,7 +78,7 @@ impl Fragments {
         stable_repaints: u32,
         now: Instant,
         stats: &mut PaintStats,
-    ) -> Vec<(ProgramId, TaskId)> {
+    ) -> (Vec<(ProgramId, TaskId)>, bool) {
         let mut demands = Vec::new();
         let mut indices = HashMap::new();
         for (program, origin, clip) in roots {
@@ -86,10 +97,12 @@ impl Fragments {
         self.observations.retain(|id, _| indices.contains_key(id));
         stats.fragment_candidates = demands.len();
         let mut selected = HashMap::new();
+        let mut bindings_changed = false;
         let mut tasks = Vec::new();
         let mut substituted = HashSet::new();
         self.nearby.clear();
-        self.awaiting_demand = false;
+        self.retry = false;
+        let mut missing_coverage = false;
         for demand in demands {
             let program = demand.program;
             let id = program.id();
@@ -106,7 +119,7 @@ impl Fragments {
                 continue;
             }
             if demand.paint_pixels == 0.0 {
-                self.awaiting_demand = true;
+                missing_coverage = true;
                 continue;
             }
             let area = cost::area(program.bounds());
@@ -117,6 +130,7 @@ impl Fragments {
             };
             let recipe = Recipe::item(&program);
             if let Some(raster) = residency.acquire(Owner::Item(id), &recipe) {
+                bindings_changed = true;
                 plan.bind_fragment(id, Input::Ready(residency.image(raster).clone()));
                 selected.insert(id, raster);
                 substituted.insert(id);
@@ -132,7 +146,7 @@ impl Fragments {
             };
             let horizon = observed.max(if demand.stable { stable_repaints } else { 1 });
             if uses * f64::from(horizon) < required_uses {
-                self.awaiting_demand |= demand.paint_pixels < demand.live_pixels;
+                missing_coverage |= demand.paint_pixels < demand.live_pixels;
                 continue;
             }
             if let Some(task) = plan.admit(residency, recipe, None, Vec::new(), 1) {
@@ -141,24 +155,39 @@ impl Fragments {
                 substituted.insert(id);
             } else {
                 stats.rejected_rasters += 1;
-                self.awaiting_demand = true;
+                self.retry = true;
             }
         }
+        bindings_changed |= !self.selected.is_empty();
         for (_, raster) in self.selected.drain() {
             residency.release(raster, Retention::Discard, now);
         }
         self.selected = selected;
-        tasks
+        self.waiting_on_coverage = match paint {
+            PaintDemand::Repair(region) if missing_coverage => Some(region.clone()),
+            _ => None,
+        };
+        (tasks, bindings_changed)
     }
 
     pub fn replayed(&mut self, program: &PaintProgram) {
-        let Some(observation) = self.observations.get_mut(&program.id()) else {
+        let id = program.id();
+        let Some(observation) = self.observations.get_mut(&id) else {
             return;
         };
         if observation.epoch != self.epoch && observation.paints < observation.required {
             observation.epoch = self.epoch;
             observation.paints += 1;
-            self.awaiting_demand |= observation.paints == observation.required;
+            self.retry |= observation.paints == observation.required;
+        }
+    }
+
+    pub fn completed(&mut self, id: ProgramId, paints: u32) {
+        if let Some(o) = self.observations.get_mut(&id)
+            && o.paints < o.required
+        {
+            o.paints = o.paints.saturating_add(paints).min(o.required);
+            self.retry |= o.paints == o.required;
         }
     }
 

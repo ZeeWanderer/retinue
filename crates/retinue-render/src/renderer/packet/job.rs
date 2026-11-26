@@ -15,6 +15,7 @@ pub enum PacketError {
 
 enum Source {
     Ready(DrawPacket),
+    Placed(Box<PacketJob>, (i32, i32)),
     Stack(Vec<PacketJob>),
     Raster(Box<Raster>),
     Draining(Box<PacketJob>, PacketError),
@@ -45,6 +46,15 @@ impl PacketJob {
 
     pub fn stack(jobs: impl IntoIterator<Item = Self>) -> Self {
         Self(Some(Source::Stack(jobs.into_iter().collect())))
+    }
+
+    /// Place the result without waiting for child preparation on the owner thread.
+    pub fn placed(self, offset: (i32, i32)) -> Self {
+        if offset == (0, 0) {
+            self
+        } else {
+            Self(Some(Source::Placed(Box::new(self), offset)))
+        }
     }
 
     pub fn rasterize(
@@ -109,6 +119,13 @@ impl PacketJob {
                 return Some(Err(error));
             }
             Source::Ready(_) => {}
+            Source::Placed(job, offset) => {
+                let result = job
+                    .poll()?
+                    .map(|packet| DrawPacket::placed(Arc::new(packet), *offset));
+                self.0.take();
+                return Some(result);
+            }
             Source::Raster(raster) => {
                 let result = raster.poll()?;
                 self.0.take();
@@ -154,7 +171,7 @@ impl PacketJob {
         }
         let packet = match self.0.take().unwrap() {
             Source::Ready(packet) => Ok(packet),
-            Source::Raster(_) | Source::Draining(..) => unreachable!(),
+            Source::Raster(_) | Source::Draining(..) | Source::Placed(..) => unreachable!(),
             Source::Stack(mut jobs) => Ok(DrawPacket::stack(jobs.iter_mut().map(|job| {
                 job.poll()
                     .expect("settled packet")
@@ -166,7 +183,7 @@ impl PacketJob {
                 repair,
                 pending,
                 running,
-                mut children,
+                children,
                 ..
             } => {
                 let mut state = renderer.borrow_mut();
@@ -178,14 +195,16 @@ impl PacketJob {
                     state.publish_preparation(Completed { pending, results });
                 }
                 state
-                    .freeze_frame(&frame, &repair, &mut |key, _| match children
-                        .get_mut(&key)
-                        .unwrap()
-                        .poll()
-                        .unwrap()
-                    {
-                        Ok(packet) => Ok(packet),
-                        Err(error) => Err(format!("child preparation: {error:?}")),
+                    .freeze_frame(&frame, &repair, |_| {
+                        children
+                            .into_iter()
+                            .map(|(key, mut job)| {
+                                job.poll()
+                                    .expect("settled child")
+                                    .map(|packet| (key, packet))
+                                    .map_err(|e| format!("child preparation: {e:?}"))
+                            })
+                            .collect()
                     })
                     .map_err(PacketError::Failed)
             }
@@ -225,6 +244,7 @@ impl PacketJob {
             }
             Some(Source::Raster(raster)) => raster.cancel_and_poll(),
             Some(Source::Draining(job, _)) => job.cancel_and_poll(),
+            Some(Source::Placed(job, _)) => job.cancel_and_poll(),
             Some(Source::Ready(_)) | None => true,
         }
     }

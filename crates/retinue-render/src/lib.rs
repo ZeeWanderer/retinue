@@ -76,10 +76,17 @@ pub use renderer::{DrawPacket, PacketError, PacketJob, Renderer, Wake};
 pub use residency::{ResidencyPolicy, ResidencyStats};
 
 impl Bounds {
+    /// Snap a position with half-pixel ties toward +infinity, so an integer
+    /// translation gives the same result before and after crossing the origin.
+    #[inline]
+    pub fn pixel_position(value: f32, scale: f32) -> i32 {
+        (f64::from(value * scale) + 0.5).floor() as i32
+    }
+
     pub fn pixels(self, scale: f32) -> PaintExtent {
         PaintExtent {
-            x: (self.x * scale).round() as i32,
-            y: (self.y * scale).round() as i32,
+            x: Self::pixel_position(self.x, scale),
+            y: Self::pixel_position(self.y, scale),
             width: (self.width * scale).round().max(0.0) as u32,
             height: (self.height * scale).round().max(0.0) as u32,
         }

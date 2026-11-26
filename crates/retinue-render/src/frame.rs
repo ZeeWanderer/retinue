@@ -135,6 +135,14 @@ pub(crate) struct Changes {
     pub topology: bool,
     pub instances: Vec<usize>,
     pub groups: Vec<usize>,
+    pub content: Option<ContentEdits>,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct ContentEdits {
+    // No old program leases: the consumer owns its previous resource bindings.
+    pub removed: Vec<Key>,
+    pub written: Vec<usize>,
 }
 
 impl Default for PaintFrame {
@@ -156,7 +164,7 @@ impl Default for PaintFrame {
 impl PaintFrame {
     pub(crate) fn begin_change(&mut self, topology: bool) {
         const HISTORY: usize = 4;
-        if topology || self.changes.topology {
+        if topology {
             self.history.clear();
         } else if self.generation > 0 {
             let recycled = if self.history.len() == HISTORY {
@@ -171,6 +179,7 @@ impl PaintFrame {
         self.changes.topology = topology;
         self.changes.instances.clear();
         self.changes.groups.clear();
+        self.changes.content = Some(ContentEdits::default());
         self.generation += 1;
     }
 
@@ -186,15 +195,29 @@ impl PaintFrame {
             from: generation,
             ..Changes::default()
         };
+        // A topology change starts a history window. Its writes already use
+        // the new order, so subsequent placement/control patches compose with it.
+        let mut content = Some(ContentEdits::default());
         for change in self.history.iter().skip(first).chain([&self.changes]) {
             merged.topology |= change.topology;
             merged.instances.extend(&change.instances);
             merged.groups.extend(&change.groups);
+            if let (Some(out), Some(edits)) = (&mut content, &change.content) {
+                out.removed.extend_from_slice(&edits.removed);
+                out.written.extend_from_slice(&edits.written);
+            } else {
+                content = None;
+            }
         }
         merged.instances.sort_unstable();
         merged.instances.dedup();
         merged.groups.sort_unstable();
         merged.groups.dedup();
+        if let Some(edits) = &mut content {
+            edits.written.sort_unstable();
+            edits.written.dedup();
+        }
+        merged.content = content;
         Some(Cow::Owned(merged))
     }
 
@@ -255,16 +278,16 @@ impl PaintFrame {
         if !scale.is_finite() || scale <= 0.0 {
             return Err("paint scale must be positive and finite");
         }
-        let mut keys = HashSet::default();
-        for instance in &instances {
-            if !keys.insert(instance.key) {
+        let mut positions = HashMap::with_capacity_and_hasher(instances.len(), Default::default());
+        for (index, instance) in instances.iter().enumerate() {
+            if positions.insert(instance.key, index).is_some() {
                 return Err("duplicate paint instance");
             }
             if instance.program.scale() != scale {
                 return Err("paint program scale differs from frame");
             }
         }
-        keys.clear();
+        let mut keys = HashSet::default();
         for group in &groups {
             if !keys.insert(group.key) {
                 return Err("duplicate paint group");
@@ -324,10 +347,24 @@ impl PaintFrame {
                 .visible(instance.origin, instance.clip);
         }
         let resized = self.size != size || self.scale != scale;
+        let same_order = !resized
+            && self.chunks.len() == instances.len()
+            && self
+                .chunks
+                .iter()
+                .zip(&instances)
+                .all(|(a, b)| a.key == b.key);
+        let mut content = ContentEdits::default();
         let (changed, damage) = if resized {
             (true, Damage::Full)
         } else {
-            difference(&self.chunks, &instances)
+            difference(
+                &self.chunks,
+                &instances,
+                &positions,
+                same_order,
+                &mut content,
+            )
         };
         if resized || changed || *self.groups != groups || properties_changed {
             let topology = resized
@@ -337,13 +374,9 @@ impl PaintFrame {
                     .iter()
                     .zip(&groups)
                     .any(|(a, b)| a.key != b.key || a.instances != b.instances)
-                || self.chunks.len() != instances.len()
-                || self
-                    .chunks
-                    .iter()
-                    .zip(&instances)
-                    .any(|(a, b)| a.key != b.key);
+                || !same_order;
             self.begin_change(topology);
+            self.changes.content = (!resized).then_some(content);
             if !topology {
                 self.changes.groups.extend(
                     self.groups
@@ -539,6 +572,9 @@ impl PaintFrame {
             let mut repaint = false;
             if updates.peek().is_some_and(|update| update.index == index) {
                 let update = updates.next().unwrap();
+                if instance.program.id() != update.program.id() {
+                    self.changes.content.as_mut().unwrap().written.push(index);
+                }
                 repaint = instance.program.signature() != update.program.signature();
                 instance.program = update.program;
                 instance.cache = update.cache;
@@ -617,19 +653,40 @@ impl FrameSnapshot {
     }
 }
 
-pub(crate) fn difference(old: &[PaintInstance], current: &[PaintInstance]) -> (bool, Damage) {
-    let current_keys: HashSet<_> = current.iter().map(|chunk| chunk.key).collect();
-    let mut previous: HashMap<_, _> = old
-        .iter()
-        .filter(|chunk| current_keys.contains(&chunk.key))
-        .enumerate()
-        .map(|(order, chunk)| (chunk.key, (order, chunk)))
-        .collect();
+fn difference(
+    old: &[PaintInstance],
+    current: &[PaintInstance],
+    positions: &HashMap<Key, usize>,
+    same_order: bool,
+    edits: &mut ContentEdits,
+) -> (bool, Damage) {
     let mut damage = Vec::new();
+    // Rank only surviving keys: an insertion before a card is not a reorder.
+    let mut previous = Vec::new();
+    if !same_order {
+        previous.resize(current.len(), None);
+        let mut rank = 0;
+        for chunk in old {
+            if let Some(&index) = positions.get(&chunk.key) {
+                previous[index] = Some((rank, chunk));
+                rank += 1;
+            } else {
+                edits.removed.push(chunk.key);
+                damage.push(chunk.visible);
+            }
+        }
+    }
     let mut order = 0;
-    let mut changed = false;
-    for chunk in current {
-        let before = previous.remove(&chunk.key);
+    let mut changed = !edits.removed.is_empty();
+    for (index, chunk) in current.iter().enumerate() {
+        let before = if same_order {
+            Some((index, &old[index]))
+        } else {
+            previous[index]
+        };
+        if before.is_none_or(|(_, old)| old.program.id() != chunk.program.id()) {
+            edits.written.push(index);
+        }
         let repaint = before.is_none_or(|(old_order, old)| {
             old_order != order
                 || old.origin != chunk.origin
@@ -648,12 +705,6 @@ pub(crate) fn difference(old: &[PaintInstance], current: &[PaintInstance]) -> (b
             if let Some((_, old)) = before {
                 damage.push(old.visible);
             }
-        }
-    }
-    for old in old {
-        if !current_keys.contains(&old.key) {
-            changed = true;
-            damage.push(old.visible);
         }
     }
     (changed, Damage::region(Region::new(damage)))

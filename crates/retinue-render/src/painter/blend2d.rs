@@ -562,6 +562,10 @@ impl<'a> Context<'a> {
         }
     }
 
+    pub(super) fn has_multiple_clips(&self) -> bool {
+        self.clips.len() > 1
+    }
+
     pub(super) fn intersects(&self, rect: [i64; 4]) -> bool {
         let intersects = |r: &crate::Rect| {
             (r.x as i64) < rect[2]

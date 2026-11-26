@@ -48,17 +48,11 @@ impl Plan {
         let Some(old) = previous.filter(|old| current.compatible(old)) else {
             return best;
         };
-        let before: FxHashMap<_, _> = old
-            .paint
-            .iter()
-            .enumerate()
-            .map(|(n, p)| (p.key, (n, p)))
-            .collect();
-        let after: FxHashMap<_, _> = current.paint.iter().map(|p| (p.key, p)).collect();
+        let mut before = old.lookup();
         let mut votes: FxHashMap<_, (u64, Rect, Rect)> = FxHashMap::default();
         let mut last = None;
-        for paint in &current.paint {
-            let Some(&(order, prior)) = before.get(&paint.key) else {
+        for (i, paint) in current.paint.iter().enumerate() {
+            let Some((order, prior)) = before.find(i, paint.key) else {
                 continue;
             };
             if last.is_some_and(|last| order <= last) {
@@ -80,6 +74,10 @@ impl Plan {
             vote.1 = vote.1.union(prior.visible);
             vote.2 = vote.2.union(paint.visible);
         }
+        if votes.is_empty() {
+            return best;
+        }
+        let mut after = current.lookup();
         let mut candidates: Vec<_> = votes.into_iter().collect();
         candidates
             .sort_unstable_by_key(|(delta, (weight, _, _))| (std::cmp::Reverse(*weight), *delta));
@@ -95,8 +93,8 @@ impl Plan {
                 continue;
             }
             let mut holes = Vec::new();
-            for paint in &current.paint {
-                let Some(&(_, prior)) = before.get(&paint.key) else {
+            for (i, paint) in current.paint.iter().enumerate() {
+                let Some((_, prior)) = before.find(i, paint.key) else {
                     holes.push(paint.visible);
                     continue;
                 };
@@ -124,8 +122,8 @@ impl Plan {
                     holes.extend(changed);
                 }
             }
-            for prior in &old.paint {
-                if !after.contains_key(&prior.key) {
+            for (i, prior) in old.paint.iter().enumerate() {
+                if after.find(i, prior.key).is_none() {
                     holes.push(shifted(prior.visible, delta, destination));
                 }
             }

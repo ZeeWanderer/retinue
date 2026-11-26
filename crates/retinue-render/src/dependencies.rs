@@ -1,11 +1,12 @@
-use super::{Key, PaintFrame, PaintProgram, ProgramId, ResourceRead};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use super::{PaintFrame, PaintStats, ProgramId, text::preparation::PreparedFonts};
+use std::{collections::BTreeSet, sync::Arc};
+mod content;
 
 #[derive(Default)]
 pub(super) struct Dependencies {
     frame: Option<(crate::frame::Identity, u64)>,
-    programs: Vec<Instance>,
-    resources: HashMap<ResourceRead, HashSet<Key>>,
+    programs: Vec<ProgramId>,
+    pub content: content::ContentIndex,
     pub changed: Vec<usize>,
     pub groups: Vec<usize>,
     pub fragment_roots: BTreeSet<usize>,
@@ -14,34 +15,24 @@ pub(super) struct Dependencies {
     pub full: bool,
 }
 
-struct Instance {
-    key: Key,
-    program: ProgramId,
-    resources: Vec<ResourceRead>,
-}
-
-impl Instance {
-    fn new(key: Key, program: &PaintProgram) -> Self {
-        Self {
-            key,
-            program: program.id(),
-            resources: program.analysis().resources.clone(),
-        }
-    }
-}
-
 impl Dependencies {
     pub fn has_program(&self, index: usize, program: ProgramId) -> bool {
         self.programs
             .get(index)
-            .is_some_and(|entry| entry.program == program)
+            .is_some_and(|entry| *entry == program)
     }
 
     pub fn clear(&mut self) {
         *self = Self::default();
     }
 
-    pub fn update(&mut self, frame: &PaintFrame) {
+    pub fn update(
+        &mut self,
+        frame: &PaintFrame,
+        fonts: &mut Arc<PreparedFonts>,
+        stats: &mut PaintStats,
+        retry_fonts: bool,
+    ) {
         self.changed.clear();
         self.groups.clear();
         self.visited = 0;
@@ -53,26 +44,31 @@ impl Dependencies {
             .filter(|(id, _)| *id == frame.identity)
             .map(|(_, revision)| *revision);
         if previous == Some(frame.generation) {
+            if retry_fonts && fonts.has_failures() {
+                self.content
+                    .update(frame, Some(&Default::default()), fonts, stats);
+            }
             return;
         }
         let changes = previous.and_then(|generation| frame.changes_since(generation));
         let full = changes.as_ref().is_none_or(|changes| changes.topology)
             || self.programs.len() != frame.chunks.len();
         self.full = full;
+        self.content.update(frame, changes.as_deref(), fonts, stats);
         if full {
             self.programs.clear();
-            self.resources.clear();
             self.fragment_roots.clear();
             for (index, instance) in frame.chunks.iter().enumerate() {
                 if !instance.program.calls().is_empty() {
                     self.fragment_roots.insert(index);
                 }
-                self.add(instance.key, &instance.program);
-                self.programs
-                    .push(Instance::new(instance.key, &instance.program));
+                self.programs.push(instance.program.id());
                 self.changed.push(index);
             }
-            self.paints = frame.chunks.len();
+            self.paints = changes
+                .as_deref()
+                .and_then(|c| c.content.as_ref())
+                .map_or(frame.chunks.len(), |e| e.written.len());
         } else {
             let changes = changes.as_ref().unwrap();
             self.groups.extend(&changes.groups);
@@ -82,41 +78,18 @@ impl Dependencies {
             for n in 0..self.changed.len() {
                 let index = self.changed[n];
                 let instance = &frame.chunks[index];
-                if self.programs[index].program != instance.program.id() {
+                if self.programs[index] != instance.program.id() {
                     if instance.program.calls().is_empty() {
                         self.fragment_roots.remove(&index);
                     } else {
                         self.fragment_roots.insert(index);
                     }
-                    let old = &self.programs[index];
-                    for resource in &old.resources {
-                        if let Some(consumers) = self.resources.get_mut(resource) {
-                            consumers.remove(&old.key);
-                            if consumers.is_empty() {
-                                self.resources.remove(resource);
-                            }
-                        }
-                    }
-                    self.add(instance.key, &instance.program);
-                    self.programs[index] = Instance::new(instance.key, &instance.program);
+                    self.programs[index] = instance.program.id();
                     self.paints += 1;
                 }
             }
         }
         self.visited = self.changed.len();
         self.frame = Some((frame.identity, frame.generation));
-    }
-
-    fn add(&mut self, key: Key, program: &PaintProgram) {
-        for resource in &program.analysis().resources {
-            self.resources.entry(*resource).or_default().insert(key);
-        }
-    }
-
-    pub fn consumers(&self, resource: ResourceRead) -> impl Iterator<Item = Key> + '_ {
-        self.resources
-            .get(&resource)
-            .into_iter()
-            .flat_map(|keys| keys.iter().copied())
     }
 }

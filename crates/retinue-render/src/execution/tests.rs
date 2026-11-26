@@ -1,5 +1,6 @@
 use super::*;
 use crate::{Bounds, Color, Command, PaintProgram, ResidencyPolicy, residency::Owner};
+mod layer_repair;
 
 fn recipe() -> Recipe {
     Recipe::item(

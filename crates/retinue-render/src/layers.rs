@@ -650,13 +650,7 @@ impl Layers {
 
     pub fn drawn(&mut self, repair: &crate::damage::Region, residency: &mut Residency) {
         for candidate in self.candidates.values() {
-            let area = |r: Rect| u64::from(r.width) * u64::from(r.height);
-            let repaired: u64 = repair
-                .rects()
-                .iter()
-                .map(|r| area(candidate.bounds.intersection(*r)))
-                .sum();
-            if repaired * 2 < area(candidate.bounds) {
+            if !Self::counts_as_drawn(candidate.bounds, repair) {
                 continue;
             }
             let entry = self.entries.get_mut(&candidate.key).unwrap();
@@ -664,14 +658,42 @@ impl Layers {
                 continue;
             }
             entry.last_draw = self.frame;
-            entry.repaints = entry.repaints.saturating_add(1);
-            entry.cooldown = entry.cooldown.saturating_sub(1);
-            entry.cached_repaints = entry
-                .cached_repaints
-                .saturating_add(u32::from(entry.raster.is_some() && !entry.dirty));
-            if let Some(id) = entry.raster.filter(|_| !entry.dirty) {
-                residency.drawn(id);
-            }
+            entry.credit(1, residency);
+        }
+    }
+
+    pub fn draw_candidates(&self) -> Vec<(ScopeId, Rect)> {
+        self.candidates
+            .values()
+            .map(|c| (c.key, c.bounds))
+            .collect()
+    }
+
+    pub fn counts_as_drawn(bounds: Rect, repair: &crate::damage::Region) -> bool {
+        let area = |r: Rect| u64::from(r.width) * u64::from(r.height);
+        let repaired = repair
+            .rects()
+            .iter()
+            .map(|r| area(bounds.intersection(*r)))
+            .sum::<u64>();
+        repaired >= area(bounds).div_ceil(2)
+    }
+
+    pub fn completed(&mut self, id: ScopeId, count: u32, residency: &mut Residency) {
+        self.entries
+            .get_mut(&id)
+            .expect("current layer publication")
+            .credit(count, residency);
+    }
+}
+
+impl Entry {
+    fn credit(&mut self, count: u32, residency: &mut Residency) {
+        self.repaints = self.repaints.saturating_add(count);
+        self.cooldown = self.cooldown.saturating_sub(count);
+        if let Some(id) = self.raster.filter(|_| !self.dirty) {
+            self.cached_repaints = self.cached_repaints.saturating_add(count);
+            residency.drawn(id);
         }
     }
 }

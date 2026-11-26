@@ -328,6 +328,24 @@ fn prepare(frame: &mut PaintFrame, store: &mut ProgramStore, step: u32) -> Snaps
     snapshot
 }
 
+#[test]
+fn snapshot_lookup_preserves_insert_remove_and_painter_order_damage() {
+    let mut frame = PaintFrame::default();
+    let mut store = ProgramStore::default();
+    let old = prepare(&mut frame, &mut store, 0);
+    let mut next = prepare(&mut frame, &mut store, 0);
+    assert!(next.damage_since(Some(&old)).regions(SIZE).is_empty());
+    let removed = next.paint.remove(2);
+    for (a, b) in [(&old, &next), (&next, &old)] {
+        assert_eq!(
+            a.damage_since(Some(b)).regions(SIZE),
+            Region::from(removed.visible)
+        );
+    }
+    next.paint.swap(3, 4);
+    assert_eq!(next.damage_since(Some(&old)), Damage::Full);
+}
+
 fn paint(frame: &PaintFrame, pixels: &mut [u8], repair: &Region) -> Result<(), String> {
     let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
     renderer.prepare_for(frame, RasterMode::Replay, repair);
@@ -335,6 +353,28 @@ fn paint(frame: &PaintFrame, pixels: &mut [u8], repair: &Region) -> Result<(), S
     painter.repair(repair);
     renderer.paint(frame, &mut painter, repair.bounds(), BACKGROUND);
     painter.finish().map_err(|e| e.to_string())
+}
+
+// Composite the announced damage onto the previous committed image, not the
+// acquired slot. A missing damage rectangle leaves a visible stale pixel.
+fn assert_commit_damage(previous: &[u8], current: &[u8], announced: &Region) {
+    let mut presented = previous.to_vec();
+    for rect in announced.rects() {
+        for y in rect.y..rect.y + rect.height {
+            let start = ((y * SIZE.0 + rect.x) * 4) as usize;
+            let end = start + rect.width as usize * 4;
+            presented[start..end].copy_from_slice(&current[start..end]);
+        }
+    }
+    let mismatch = presented
+        .chunks_exact(4)
+        .zip(current.chunks_exact(4))
+        .position(|(a, b)| a != b);
+    assert_eq!(
+        mismatch.map(|i| (i % SIZE.0 as usize, i / SIZE.0 as usize)),
+        None,
+        "changed pixel omitted from submitted damage"
+    );
 }
 
 enum Host {
@@ -389,6 +429,7 @@ fn shared_hosts_relocate_actual_acquired_generations_without_changing_present_da
         let mut last = [None; 3];
         let mut frame = PaintFrame::default();
         let mut store = ProgramStore::default();
+        let mut committed = vec![0xa5; buffers[0].len()];
         let mut previous = None;
         let mut copied = 0;
         for (step, slot) in [0, 1, 2, 1, 0, 2, 0, 0, 2].into_iter().enumerate() {
@@ -402,15 +443,64 @@ fn shared_hosts_relocate_actual_acquired_generations_without_changing_present_da
                 })
                 .unwrap()
                 .unwrap();
-            assert_eq!(submission.damage, expected_damage);
             copied += submission.copied_pixels;
             let mut expected = vec![0; buffers[slot].len()];
             paint(&frame, &mut expected, &Damage::Full.regions(SIZE)).unwrap();
             assert!(buffers[slot] == expected, "aged={aged}, step={step}");
+            assert_eq!(submission.damage, expected_damage);
+            assert_commit_damage(&committed, &expected, &submission.damage);
             host.submitted(submission);
+            committed = expected;
             last[slot] = Some(step);
         }
         assert!(copied > 0, "must use the optimization without a view hint");
+    }
+}
+
+#[test]
+fn discarded_and_stationary_frames_keep_committed_damage_across_irregular_slot_ages() {
+    for aged in [true, false] {
+        let mut host = Host::new(aged);
+        let mut buffers = vec![vec![0xcd; (SIZE.0 * SIZE.1 * 4) as usize]; 3];
+        let mut committed = vec![0xa5; buffers[0].len()];
+        let mut last = [None; 3];
+        let mut serial = 0;
+        let mut seed = 92841_u32;
+        let mut frame = PaintFrame::default();
+        let mut store = ProgramStore::default();
+        for step in 0..36 {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            let slot = (seed >> 20) as usize % 3;
+            let age = last[slot].map_or(0, |n: u32| (serial - n + 1) as u8);
+            let snapshot = prepare(&mut frame, &mut store, step / 2 % 8);
+            host.invalidate(Damage::rect(Rect {
+                width: 1,
+                height: 1,
+                ..Default::default()
+            }));
+            let submission = host
+                .render(slot, age, snapshot, &mut buffers[slot], |pixels, repair| {
+                    paint(&frame, pixels, repair)
+                })
+                .unwrap()
+                .unwrap();
+            if step % 7 == 3 {
+                drop(submission);
+                buffers[slot].fill(0xdd);
+                continue;
+            }
+            let mut full = vec![0; committed.len()];
+            paint(&frame, &mut full, &Damage::Full.regions(SIZE)).unwrap();
+            assert!(
+                buffers[slot] == full,
+                "aged={aged}, step={step}, slot={slot}, age={age}"
+            );
+            assert_commit_damage(&committed, &full, &submission.damage);
+            host.submitted(submission);
+            committed = full;
+            serial += 1;
+            last[slot] = Some(serial);
+        }
     }
 }
 

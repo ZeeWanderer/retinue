@@ -37,6 +37,9 @@ impl Pending {
 
 impl Renderer {
     pub(super) fn publish_preparation(&mut self, completed: Completed) {
+        if let Some(leaf) = &mut self.leaf {
+            leaf.invalidate();
+        }
         let Completed { pending, results } = completed;
         let Pending {
             frame,
@@ -65,6 +68,11 @@ impl Renderer {
         for (index, owner, task) in scheduled {
             plan.complete(task);
             if results.deferred(task) {
+                #[cfg(feature = "benchmark")]
+                if !publication::Trial::active() {
+                    self.retry_items.insert(index);
+                }
+                #[cfg(not(feature = "benchmark"))]
                 self.retry_items.insert(index);
             }
             if let Some(result) = results.result(task) {
@@ -83,8 +91,22 @@ impl Renderer {
                     published.insert(task, id);
                     id
                 };
+                #[cfg(feature = "benchmark")]
+                if self.optimizations && publication::Trial::active() {
+                    self.publication
+                        .bind(&frame.chunks[index], id, frame.generation);
+                    continue;
+                }
                 self.prepared[index] = Some(id);
             }
+        }
+        #[cfg(feature = "benchmark")]
+        if self.optimizations && publication::Trial::active() {
+            for (id, retention) in retired {
+                self.residency.release(id, retention, now);
+            }
+            self.finish_publication(&frame, now);
+            return;
         }
         if self.optimizations && !layer_tasks.is_empty() {
             let (promoted, demoted) =

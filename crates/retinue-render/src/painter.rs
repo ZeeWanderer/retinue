@@ -11,6 +11,7 @@ pub use font::{CachedFont, FontFaces};
 /// Blend2D painter borrowing a premultiplied BGRA buffer.
 pub struct Painter<'a> {
     context: blend2d::Context<'a>,
+    receipts: Vec<crate::renderer::PaintReceipt>,
     clip: crate::Rect,
     origin: (i64, i64),
     text_fonts: Option<std::sync::Arc<crate::text::preparation::PreparedFonts>>,
@@ -74,6 +75,7 @@ impl<'a> Painter<'a> {
     ) -> Result<Self, PainterError> {
         Ok(Self {
             context: blend2d::Context::new(pixels, width, height, threads)?,
+            receipts: Vec::new(),
             clip: crate::Rect {
                 x: 0,
                 y: 0,
@@ -182,6 +184,10 @@ impl<'a> Painter<'a> {
     /// Disjoint visible bounds in the current local coordinate system.
     pub fn visible_regions(&self) -> crate::damage::Region {
         self.context.regions(self.clip).local(self.origin)
+    }
+
+    pub(crate) fn has_multiple_clips(&self) -> bool {
+        self.context.has_multiple_clips()
     }
 
     pub fn intersects(&self, rect: crate::Rect) -> bool {
@@ -487,8 +493,20 @@ impl<'a> Painter<'a> {
         );
     }
 
+    pub(crate) fn observed(&mut self, receipt: crate::renderer::PaintReceipt) {
+        if let Some(previous) = self.receipts.iter_mut().find(|r| r.same_owner(&receipt)) {
+            previous.merge(receipt);
+        } else {
+            self.receipts.push(receipt);
+        }
+    }
+
     pub fn finish(self) -> Result<(), PainterError> {
-        self.context.finish()
+        self.context.finish()?;
+        for receipt in self.receipts {
+            receipt.complete();
+        }
+        Ok(())
     }
 
     #[cfg(test)]

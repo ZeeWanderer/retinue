@@ -593,6 +593,8 @@ pub struct PaintStats {
     pub failed_preparations: usize,
     pub deferred_preparations: usize,
     pub inspected_instances: usize,
+    /// Resource and font memberships visited, independent of placement changes.
+    pub content_visits: usize,
     pub changed_programs: usize,
     pub replayed_commands: usize,
     pub culled_commands: usize,

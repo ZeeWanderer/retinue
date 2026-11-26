@@ -17,9 +17,13 @@ use std::{
 
 pub(crate) mod cost;
 mod coverage;
+mod evidence;
 mod packet;
 mod preparation;
+#[cfg(feature = "benchmark")]
+pub(crate) mod publication;
 use coverage::SpatialIndex;
+pub(crate) use evidence::PaintReceipt;
 pub use packet::{DrawPacket, PacketError, PacketJob, Wake};
 use preparation::Pending;
 
@@ -30,6 +34,9 @@ fn instance_order(index: usize) -> DrawOrder {
 }
 
 pub struct Renderer {
+    leaf: Option<packet::LeafPackets>,
+    #[cfg(feature = "benchmark")]
+    publication: publication::Trial,
     dependencies: Dependencies,
     text_fonts: Arc<crate::text::preparation::PreparedFonts>,
     pub(super) residency: Residency,
@@ -59,7 +66,13 @@ impl Renderer {
         #[cfg(feature = "benchmark")]
         let optimizations =
             optimizations && std::env::var_os("RETINUE_BENCH_FULL_REPLAY").is_none();
+        let leaf = Some(Default::default());
+        #[cfg(feature = "benchmark")]
+        let leaf = leaf.filter(|_| std::env::var_os("RETINUE_BENCH_NO_PACKET_REUSE").is_none());
         Self {
+            leaf,
+            #[cfg(feature = "benchmark")]
+            publication: Default::default(),
             dependencies: Default::default(),
             text_fonts: Default::default(),
             residency: Residency::new(policy),
@@ -115,6 +128,23 @@ impl Renderer {
         self.deferred
     }
 
+    /// Override automatic admission for a forced-on or forced-off measurement.
+    #[cfg(any(test, feature = "benchmark"))]
+    pub fn set_leaf_packet_reuse(&mut self, enabled: bool) {
+        self.clear_cache();
+        self.leaf = enabled.then(|| {
+            let mut state = packet::LeafPackets::default();
+            state.forced = true;
+            state
+        });
+    }
+
+    #[cfg(feature = "benchmark")]
+    /// Hits, builds and invalidations of an occupied leaf packet.
+    pub fn leaf_packet_counts(&self) -> Option<[usize; 3]> {
+        self.leaf.as_ref().map(|leaf| leaf.counts)
+    }
+
     pub fn set_materializations(&mut self, enabled: bool) {
         if self.materializations != enabled {
             self.clear_cache();
@@ -123,6 +153,13 @@ impl Renderer {
     }
 
     pub fn clear_cache(&mut self) {
+        if let Some(leaf) = &mut self.leaf {
+            leaf.reset();
+        }
+        #[cfg(feature = "benchmark")]
+        {
+            self.publication = Default::default();
+        }
         self.epoch = self.epoch.wrapping_add(1);
         self.preparing = false;
         self.dependencies.clear();
@@ -142,6 +179,10 @@ impl Renderer {
     }
 
     pub fn trim_inactive(&mut self) {
+        if let Some(leaf) = &mut self.leaf {
+            leaf.apply(&mut self.fragments, &mut self.layers, &mut self.residency);
+            leaf.reset();
+        }
         self.residency.trim_warm();
     }
 
@@ -150,7 +191,7 @@ impl Renderer {
     }
 
     pub fn resource_consumers(&self, resource: ResourceRead) -> impl Iterator<Item = Key> + '_ {
-        self.dependencies.consumers(resource)
+        self.dependencies.content.consumers(resource)
     }
 
     pub fn residency_stats(&self) -> ResidencyStats {
@@ -239,6 +280,9 @@ impl Renderer {
         );
         let host = self.residency.host.clone();
         self.stats = PaintStats::default();
+        if let Some(leaf) = &mut self.leaf {
+            leaf.apply(&mut self.fragments, &mut self.layers, &mut self.residency);
+        }
         let now = Instant::now();
         if self
             .prepared_for
@@ -247,23 +291,22 @@ impl Renderer {
         {
             self.clear_cache();
         }
+        #[cfg(feature = "benchmark")]
+        if self.optimizations && publication::Trial::active() {
+            return self.plan_publication(frame, mode, demand, now);
+        }
         self.residency.maintain(now);
         if self.residency.reclaimed() != self.reclaimed {
             self.retry_items.append(&mut self.blocked_items);
             self.reclaimed = self.residency.reclaimed();
         }
         self.fragments.begin_frame();
-        self.dependencies.update(frame);
-        if self.dependencies.full
-            || self.dependencies.paints != 0
-            || (self.text_fonts.has_failures() && !demand.is_empty())
-        {
-            let (fonts, prepared) = self
-                .text_fonts
-                .update(frame.chunks.iter().map(|chunk| &chunk.program));
-            self.text_fonts = Arc::new(fonts);
-            self.stats.prepared_fonts = prepared;
-        }
+        self.dependencies.update(
+            frame,
+            &mut self.text_fonts,
+            &mut self.stats,
+            !demand.is_empty(),
+        );
         if self.dependencies.full {
             self.analysis_retry.clear();
         }
@@ -335,7 +378,7 @@ impl Renderer {
             .copied()
             .filter(|&index| demand.intersects(frame.chunks[index].visible))
             .collect();
-        let awaiting_fragments = self.fragments.awaiting_demand && !demand.is_empty();
+        let awaiting_fragments = self.fragments.needs_preparation(demand);
         if unchanged
             && pending.is_empty()
             && self.retry_items.is_empty()
@@ -377,7 +420,7 @@ impl Renderer {
         };
         let mut retired = Vec::new();
         let mut scheduled = Vec::new();
-        let fragment_tasks = if self.optimizations && self.materializations {
+        let (fragment_tasks, bindings_changed) = if self.optimizations && self.materializations {
             let roots = self
                 .dependencies
                 .fragment_roots
@@ -404,8 +447,21 @@ impl Renderer {
                 &mut self.stats,
             )
         } else {
-            Vec::new()
+            (Vec::new(), false)
         };
+        // A different repair can reconsider offscreen fragments without changing
+        // any drawable. Keep the current publication (including its in-flight leases).
+        if unchanged
+            && !full
+            && !self.deferred
+            && changed.is_empty()
+            && pending.is_empty()
+            && fragment_tasks.is_empty()
+            && !bindings_changed
+        {
+            self.stats.layer_bytes = self.layers.bytes(&self.residency);
+            return None;
+        }
         let mut tasks: HashMap<_, _> = fragment_tasks.iter().copied().collect();
         for &index in &changed {
             self.blocked_items.remove(&index);
@@ -449,27 +505,12 @@ impl Renderer {
             if pending_coverage.covers(index, chunk.visible) {
                 continue;
             }
-            let task = if let Some(task) = tasks.get(&chunk.program.id()).copied() {
-                Some(task)
-            } else {
-                let previous = old
-                    .map(|id| self.residency.materialization(id))
-                    .filter(|raster| raster.recipe.size == recipe.size)
-                    .or_else(|| self.residency.previous_item(chunk.program.signature().slot));
-                let can_retry = self.residency.eligible(&recipe);
-                let task = plan.admit(&mut self.residency, recipe, previous, Vec::new(), 1);
-                if let Some(task) = task {
-                    tasks.insert(chunk.program.id(), task);
-                } else {
-                    self.stats.rejected_rasters += 1;
-                    if can_retry {
-                        self.blocked_items.insert(index);
-                    }
+            match self.schedule_item(&chunk.program, recipe, old, &mut plan, &mut tasks) {
+                Ok(task) => scheduled.push((index, owner, task)),
+                Err(true) => {
+                    self.blocked_items.insert(index);
                 }
-                task
-            };
-            if let Some(task) = task {
-                scheduled.push((index, owner, task));
+                Err(false) => {}
             }
         }
         let layer_tasks: Vec<_> = pending
@@ -505,6 +546,31 @@ impl Renderer {
             fragment_tasks,
             layer_tasks,
         })
+    }
+
+    fn schedule_item(
+        &mut self,
+        program: &crate::PaintProgram,
+        recipe: Recipe,
+        old: Option<RasterId>,
+        plan: &mut Preparation,
+        tasks: &mut HashMap<crate::ProgramId, crate::execution::TaskId>,
+    ) -> Result<crate::execution::TaskId, bool> {
+        if let Some(&task) = tasks.get(&program.id()) {
+            return Ok(task);
+        }
+        let previous = old
+            .map(|id| self.residency.materialization(id))
+            .filter(|raster| raster.recipe.size == recipe.size)
+            .or_else(|| self.residency.previous_item(program.signature().slot));
+        let can_retry = self.residency.eligible(&recipe);
+        if let Some(task) = plan.admit(&mut self.residency, recipe, previous, Vec::new(), 1) {
+            tasks.insert(program.id(), task);
+            Ok(task)
+        } else {
+            self.stats.rejected_rasters += 1;
+            Err(can_retry)
+        }
     }
 
     pub fn paint(
@@ -555,6 +621,40 @@ impl Renderer {
             "prepare this frame generation before painting"
         );
         let repair = repair.intersection(painter.visible_bounds());
+        #[cfg(feature = "benchmark")]
+        if self.optimizations && publication::Trial::active() {
+            painter.with_text_fonts(&self.text_fonts, |p| {
+                p.viewport(repair, (0, 0), |p| {
+                    publication::draw(
+                        frame.instances(),
+                        p,
+                        &mut self.stats,
+                        &mut external,
+                        &mut |lookup| {
+                            let (program, ctx) = match lookup {
+                                publication::Lookup::Item(c) => {
+                                    let id = self.publication.item(c)?;
+                                    self.residency.drawn(id);
+                                    return Some(self.residency.image(id).clone());
+                                }
+                                publication::Lookup::Fragment(p, ctx) => (p, ctx),
+                            };
+                            if !fragments::allowed(ctx) {
+                                return None;
+                            }
+                            if let Some(&id) = self.fragments.selected.get(&program.id()) {
+                                self.residency.drawn(id);
+                                Some(self.residency.image(id).clone())
+                            } else {
+                                self.fragments.replayed(program);
+                                None
+                            }
+                        },
+                    )
+                })
+            });
+            return;
+        }
         let visible = painter.visible_regions().intersection(repair);
         self.layers.drawn(&visible, &mut self.residency);
         let mut playback = Playback {

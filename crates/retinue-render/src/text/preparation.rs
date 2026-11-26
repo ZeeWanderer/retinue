@@ -1,5 +1,7 @@
 use super::{Font, GlyphRun, PreparedFont};
-use crate::{PaintProgram, painter::PainterError};
+#[cfg(test)]
+use crate::PaintProgram;
+use crate::painter::PainterError;
 use std::{collections::HashMap, sync::Arc};
 
 pub(crate) type FontKey = ((u64, u32), u32);
@@ -31,14 +33,22 @@ pub(crate) struct PreparedFonts {
 }
 
 impl PreparedFonts {
+    #[cfg(test)]
     pub fn update<'a>(
         &self,
         programs: impl IntoIterator<Item = &'a PaintProgram>,
     ) -> (Self, usize) {
+        self.update_requests(programs.into_iter().flat_map(PaintProgram::fonts))
+    }
+
+    pub(crate) fn update_requests<'a>(
+        &self,
+        requests: impl IntoIterator<Item = &'a FontRequest>,
+    ) -> (Self, usize) {
         let mut fonts = HashMap::new();
         let mut prepared = 0;
         let mut failed = false;
-        for request in programs.into_iter().flat_map(PaintProgram::fonts) {
+        for request in requests {
             fonts.entry(request.key()).or_insert_with(|| {
                 if let Some(Ok(font)) = self.fonts.get(&request.key()) {
                     return Ok(font.clone());

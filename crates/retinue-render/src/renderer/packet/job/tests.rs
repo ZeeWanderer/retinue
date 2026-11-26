@@ -247,7 +247,7 @@ fn reset_yields_with_an_occupied_worker_and_keeps_nested_reservations() {
     let Some(Source::Renderer { children, .. }) = parent.0.as_mut() else {
         unreachable!()
     };
-    children.insert(2.into(), PacketJob::stack([raster]));
+    children.insert(2.into(), PacketJob::stack([raster.placed((-8, 3))]));
     renderer.borrow_mut().clear_cache();
     assert!(parent.poll().is_none());
     assert!(host.stats().pending_bytes > 0);

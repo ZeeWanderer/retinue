@@ -94,6 +94,77 @@ fn same_pixels(a: &[u8], b: &[u8]) {
 }
 
 #[test]
+fn publication_tracks_content_separately_from_order_and_handles_skipped_frames() {
+    let a = text(font(), 3);
+    let b = text(font(), 4);
+    let read = |r: &GlyphRun| {
+        let (id, index) = r.font().identity();
+        ResourceRead::OutlineFont(id, index)
+    };
+    let (a_read, b_read) = (read(&a), read(&b));
+    assert_ne!(a_read, b_read);
+    let mut store = ProgramStore::default();
+    let (a, b) = (program(&mut store, &a, 1.0), program(&mut store, &b, 1.0));
+    let publish = |f: &mut PaintFrame, rows: &[(u64, &PaintProgram)]| {
+        f.replace(
+            SIZE,
+            1.0,
+            rows.iter()
+                .enumerate()
+                .map(|(i, (key, p))| {
+                    PaintInstance::new((*key).into(), (*p).clone(), (i as i32 * 8, 0), viewport())
+                })
+                .collect(),
+            vec![],
+        )
+        .unwrap();
+    };
+    let mut frame = PaintFrame::default();
+    let mut renderer = Renderer::new(ResidencyPolicy::desktop(0));
+    let mut oracle = Renderer::new(ResidencyPolicy::desktop(0));
+    oracle.set_optimizations(false);
+    publish(&mut frame, &[(1, &a), (2, &a), (3, &b)]);
+    same_pixels(&draw(&frame, &mut renderer), &draw(&frame, &mut oracle));
+    publish(&mut frame, &[(3, &b), (2, &a), (1, &a)]);
+    same_pixels(&draw(&frame, &mut renderer), &draw(&frame, &mut oracle));
+    assert_eq!(renderer.stats.content_visits, 0, "order is not content");
+    assert_eq!(renderer.stats.prepared_fonts, 0);
+    publish(&mut frame, &[(3, &b), (1, &b), (4, &a)]);
+    // Desktop chrome can submit another patch before this order reaches paint.
+    frame
+        .patch_resolved(
+            [],
+            [crate::PlacementUpdate {
+                index: 1,
+                origin: (9, 3),
+                clip: viewport(),
+            }],
+            [],
+        )
+        .unwrap();
+    same_pixels(&draw(&frame, &mut renderer), &draw(&frame, &mut oracle));
+    assert_eq!(
+        renderer.stats.content_visits, 3,
+        "one release and two writes"
+    );
+    assert_eq!(
+        renderer.resource_consumers(a_read).collect::<Vec<_>>(),
+        [4.into()]
+    );
+    let mut keys: Vec<_> = renderer.resource_consumers(b_read).collect();
+    keys.sort();
+    assert_eq!(keys, [1.into(), 3.into()]);
+    publish(&mut frame, &[(5, &a)]);
+    publish(&mut frame, &[(7, &b)]);
+    same_pixels(&draw(&frame, &mut renderer), &draw(&frame, &mut oracle));
+    assert_eq!(renderer.resource_consumers(a_read).count(), 0);
+    assert_eq!(
+        renderer.resource_consumers(b_read).collect::<Vec<_>>(),
+        [7.into()]
+    );
+}
+
+#[test]
 fn identical_runs_intern_without_sharing_allocation_or_losing_font_identity() {
     let face = font();
     let run = text(face.clone(), 24);

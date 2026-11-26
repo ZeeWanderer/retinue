@@ -19,7 +19,7 @@ enum Compilation {
     Opaque,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProgramId(ResourceId);
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]

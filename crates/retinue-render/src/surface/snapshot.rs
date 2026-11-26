@@ -30,6 +30,31 @@ impl Paint {
     }
 }
 
+/// Matching ordinals are common even during motion. Index only structural changes.
+pub(crate) struct PaintLookup<'a> {
+    paint: &'a [Paint],
+    index: Option<FxHashMap<PaintKey, usize>>,
+}
+
+impl<'a> PaintLookup<'a> {
+    pub(crate) fn find(&mut self, ordinal: usize, key: PaintKey) -> Option<(usize, &'a Paint)> {
+        if let Some(paint) = self.paint.get(ordinal)
+            && paint.key == key
+        {
+            return Some((ordinal, paint));
+        }
+        let index = self.index.get_or_insert_with(|| {
+            self.paint
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (p.key, i))
+                .collect()
+        });
+        let &i = index.get(&key)?;
+        Some((i, &self.paint[i]))
+    }
+}
+
 /// Ordered surface evidence. No paint programs, images or fonts are retained.
 pub struct Snapshot {
     pub(crate) size: (u32, u32),
@@ -62,6 +87,19 @@ impl Snapshot {
 
     pub fn record(&mut self, frame: &PaintFrame, external: impl FnMut(Key, &mut Self) -> bool) {
         self.record_with(frame, None, external);
+    }
+
+    /// Record a placed child in the same local coordinates as its packet.
+    /// The enclosing external slot's surface clip does not move with the child.
+    pub fn translated(&mut self, offset: (i32, i32), record: impl FnOnce(&mut Self)) {
+        let saved = self.origin;
+        let Some(origin) = add(saved, offset) else {
+            self.valid = false;
+            return;
+        };
+        self.origin = origin;
+        record(self);
+        self.origin = saved;
     }
 
     /// Include resident replay costs without preparing or retaining any rasters.
@@ -166,21 +204,23 @@ impl Snapshot {
         }
     }
 
+    pub(crate) fn lookup(&self) -> PaintLookup<'_> {
+        PaintLookup {
+            paint: &self.paint,
+            index: None,
+        }
+    }
+
     pub fn damage_since(&self, previous: Option<&Self>) -> Damage {
         let Some(old) = previous.filter(|old| self.compatible(old)) else {
             return Damage::Full;
         };
-        let before: FxHashMap<_, _> = old
-            .paint
-            .iter()
-            .enumerate()
-            .map(|(n, p)| (p.key, (n, p)))
-            .collect();
-        let after: FxHashMap<_, _> = self.paint.iter().map(|p| (p.key, p)).collect();
+        let mut before = old.lookup();
+        let mut after = self.lookup();
         let mut damage = Vec::new();
         let mut last = None;
-        for paint in &self.paint {
-            let Some(&(order, prior)) = before.get(&paint.key) else {
+        for (i, paint) in self.paint.iter().enumerate() {
+            let Some((order, prior)) = before.find(i, paint.key) else {
                 damage.push(paint.visible);
                 continue;
             };
@@ -198,8 +238,8 @@ impl Snapshot {
         damage.extend(
             old.paint
                 .iter()
-                .filter(|p| !after.contains_key(&p.key))
-                .map(|p| p.visible),
+                .enumerate()
+                .filter_map(|(i, p)| after.find(i, p.key).is_none().then_some(p.visible)),
         );
         Damage::region(Region::new(damage))
     }
