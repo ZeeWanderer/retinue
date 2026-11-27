@@ -4,7 +4,6 @@ TrueType conversion by Charles Dye.
 https://www.exljbris.com/fontin.html
 https://www.exljbris.com/eula.html
 
-Downloaded directly from the author under the exljbris Free Font License
-Agreement, which permits embedding in programs. The standalone font is not
-distributed with Retinue's source or installation. It remains the intellectual
-property of Jos Buivenga and is not covered by Retinue's Apache license.
+Included in Retinue's source with permission and embedded in the PoE2
+companion. Fontin remains the intellectual property of Jos Buivenga and is
+not covered by Retinue's Apache license.

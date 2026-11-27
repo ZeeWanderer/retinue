@@ -92,9 +92,6 @@ def prepare(suite_id, destination, features=""):
         "submodules": output(["git", "submodule", "status"]),
         "binary_sha256": digest(destination / "benchmark"),
         "dirty": bool(output(["git", "status", "--porcelain"])),
-        "external_assets": {str(p.relative_to(ROOT)): digest(p)
-                            for p in (ROOT / ".cache/fonts/fontin").glob("*.ttf")}
-                           if spec["package"] == "poe2companion" else {},
     }
     settings = {k: os.environ.get(k, "") for k in BUILD_ENV}
     settings["rustc"] = output(["rustc", "-Vv"])

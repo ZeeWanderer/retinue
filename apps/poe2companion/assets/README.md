@@ -5,11 +5,9 @@ Regular/Bold come from Google Fonts (`ofl/lato`). Semibold is Lato 2.010,
 decoded from the reference's WOFF to TrueType under the same license; it matches
 the table's 600 weight and font version.
 
-Item text uses Fontin SmallCaps by Jos Buivenga. The build fetches and verifies
-the author's archive into `.cache/fonts/fontin`, then embeds the font. The
-standalone font is not checked in or installed. See
-[Fontin](https://www.exljbris.com/fontin.html) and the
-[free-font license](https://www.exljbris.com/eula.html).
+Item text uses the bundled Fontin SmallCaps by Jos Buivenga. The companion
+embeds it directly; no system font installation or download is needed.
+See the [Fontin notice](Fontin-NOTICE.txt).
 
 `frames/` contains item-header plaques, separators, window glyphs and search-button
 ornaments and profile radios. Caps keep their aspect ratio; plaque centers repeat horizontally.

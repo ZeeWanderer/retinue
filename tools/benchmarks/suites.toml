@@ -190,7 +190,7 @@ adapter = "overlay"
 raw = "poe2.json"
 cases = ["warm-repaint-inline", "warm-repaint-queued", "hover-inline", "hover-queued", "hover-partial-inline", "hover-partial-queued", "listing-scroll-inline", "listing-scroll-queued", "scale-change-inline", "scale-change-queued"]
 workload = 2
-fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "apps/poe2companion/assets/Fontin-SmallCaps.ttf", "assets/fonts/roboto/*"]
 
 [suite.poe2-frozen-replay]
 description = "Separates full-target clearing from replay of a frozen Evaluate packet on mapped memory."
@@ -203,7 +203,7 @@ adapter = "overlay"
 raw = "poe2-frozen-replay.json"
 cases = ["clear", "panel", "combined"]
 workload = 1
-fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "apps/poe2companion/assets/Fontin-SmallCaps.ttf", "assets/fonts/roboto/*"]
 
 [suite.gui-execution]
 description = "Compares execution paths for painting, reflowing and scrolling GUI fixtures, through native paint completion."
@@ -319,7 +319,7 @@ adapter = "overlay"
 raw = "poe2-drag.json"
 cases = ["window-drag-full", "window-drag", "window-drag-relocate", "window-drag-native", "window-drag-regions", "window-drag-cpu", "window-drag-cpu-parallel"]
 workload = 4
-fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "assets/fonts/roboto/*"]
+fixtures = ["apps/poe2companion/tests/fixtures/evaluate-reference.json", "apps/poe2companion/assets/Fontin-SmallCaps.ttf", "assets/fonts/roboto/*"]
 
 [suite.gui-foundry]
 description = "Scrolls a populated Foundry fixture at fixed window sizes and UI scales. Compares painting the full window with repairing only the viewport. Excludes desktop presentation."

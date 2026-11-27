@@ -10,15 +10,6 @@ fn build_guard_rejects_version_and_protocol_drift() {
     let protocol_dir = dir.path().join("apps/retinue_daemon/src/runtime");
     fs::create_dir_all(&manifest).unwrap();
     fs::create_dir_all(&protocol_dir).unwrap();
-    let scripts = dir.path().join("scripts");
-    fs::create_dir(&scripts).unwrap();
-    let font = dir.path().join("fixture.ttf");
-    fs::write(&font, "font fixture").unwrap();
-    fs::write(
-        scripts.join("setup-fontin.py"),
-        format!("print({:?})\n", font.to_str().unwrap()),
-    )
-    .unwrap();
     for (version, envelope, session, trade, expected_error) in [
         (env!("CARGO_PKG_VERSION"), 2, 2, 5, None),
         ("999.0.0", 2, 2, 5, Some("version must match root VERSION")),
@@ -53,8 +44,7 @@ fn build_guard_rejects_version_and_protocol_drift() {
             ),
         )
         .unwrap();
-        let result =
-            catch_unwind(|| support::prepare(&manifest, env!("CARGO_PKG_VERSION"), dir.path()));
+        let result = catch_unwind(|| support::prepare(&manifest, env!("CARGO_PKG_VERSION")));
         if let Some(message) = expected_error {
             let error = result.expect_err("build guard accepted drift");
             let error = error
@@ -65,10 +55,6 @@ fn build_guard_rejects_version_and_protocol_drift() {
             assert!(error.contains(message), "{error}");
         } else {
             result.unwrap();
-            assert_eq!(
-                fs::read(dir.path().join("Fontin-SmallCaps.ttf")).unwrap(),
-                b"font fixture"
-            );
         }
     }
 }

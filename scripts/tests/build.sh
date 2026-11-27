@@ -8,7 +8,6 @@ fixture="$(mktemp -d "$root/_build/build-test.XXXXXX")"
 trap 'rm -rf "$fixture"' EXIT
 fail() { printf 'build: %s\n' "$*" >&2; exit 1; }
 
-python3 "$root/scripts/tests/fontin.py"
 
 proto="$fixture/protobuf"
 mkdir -p "$proto/scripts"

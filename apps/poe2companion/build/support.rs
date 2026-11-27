@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{fs, path::Path};
 
 fn protocol_define(source: &str, name: &str) -> u32 {
     source
@@ -18,7 +14,7 @@ fn protocol_define(source: &str, name: &str) -> u32 {
         .unwrap_or_else(|| panic!("missing or invalid daemon protocol define {name}"))
 }
 
-pub fn prepare(manifest: &Path, package_version: &str, out_dir: &Path) {
+pub fn prepare(manifest: &Path, package_version: &str) {
     let version_file = manifest.join("../../VERSION");
     println!("cargo:rerun-if-changed={}", version_file.display());
     let version = fs::read_to_string(version_file).expect("read root VERSION");
@@ -46,19 +42,4 @@ pub fn prepare(manifest: &Path, package_version: &str, out_dir: &Path) {
         5,
         "poe2companion supports trade 5; review the client before changing its contract"
     );
-
-    let setup = manifest.join("../../scripts/setup-fontin.py");
-    println!("cargo:rerun-if-changed={}", setup.display());
-    let output = Command::new("python3")
-        .arg(setup)
-        .output()
-        .expect("run Fontin setup with Python 3");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let font = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
-    println!("cargo:rerun-if-changed={}", font.display());
-    fs::copy(font, out_dir.join("Fontin-SmallCaps.ttf")).expect("stage Fontin for embedding");
 }

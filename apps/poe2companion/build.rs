@@ -51,6 +51,6 @@ fn chrome_digests(manifest: &Path, output: &Path) {
 fn main() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    support::prepare(&manifest, &env::var("CARGO_PKG_VERSION").unwrap(), &out_dir);
+    support::prepare(&manifest, &env::var("CARGO_PKG_VERSION").unwrap());
     chrome_digests(&manifest, &out_dir);
 }

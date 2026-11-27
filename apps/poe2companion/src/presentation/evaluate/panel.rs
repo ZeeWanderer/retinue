@@ -355,7 +355,11 @@ impl EvaluatePanel {
             ),
             item: Rc::new(
                 CachedFont::from_bytes(
-                    include_bytes!(concat!(env!("OUT_DIR"), "/Fontin-SmallCaps.ttf")).as_slice(),
+                    include_bytes!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/assets/Fontin-SmallCaps.ttf"
+                    ))
+                    .as_slice(),
                 )
                 .map_err(|e| e.to_string())?,
             ),
