@@ -203,7 +203,7 @@ extensible typed hints; unknown annotations do not affect pixels. Group hint edi
 update the planning journal without inspecting every paint instance. Nested hint
 changes participate in source reconciliation, but recipe repair compares actual
 paint separately so unchanged pixels need no redraw. See the
-[context contract](render-pipeline.md#optimization-context).
+[optimizer ownership](render-pipeline.md#optimizer-ownership).
 
 `TileHint` lets the renderer propose spatial coverage without replacing the
 collection's paint order. Ready tiles mask only their own output regions from
