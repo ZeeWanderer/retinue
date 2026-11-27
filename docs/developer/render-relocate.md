@@ -244,11 +244,11 @@ case from relocate skipping this frame's painting. Re-evaluate representation ut
 when coverage, source dependencies or motion context change; do not restrict caches
 to repeated decorations if a larger isolated representation demonstrably wins.
 
-The Warframe glow is explicitly authored as a named `Command::Fragment` with a
-`Stable` hint in `presentation/style.rs`. Program interning shares identical source;
-the renderer counts live and currently required uses separately. Cost thresholds
-and allocation admission can reject the hint. Arbitrary repeated command-sequence
-discovery is not implemented, and cost weights are heuristics rather than live timers.
+The [Warframe component glow](../../apps/wfgui/src/presentation/style.rs) records a
+translated inset shadow, with no cache hint. The renderer can discover and share
+this expensive primitive; its admission decision distinguishes live uses from
+uses that need painting in this repair. See [render residency](render-residency.md)
+for the limits of automatic discovery.
 
 Retain small shared fragments when they make edge/dirty-hole painting cheaper.
 Compare an already-built row/viewport raster against target reuse without charging

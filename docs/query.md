@@ -25,7 +25,8 @@ wfcli query 'dataset=incidents application=companion timestamp>=now-1h'
 wfcli query 'dataset=captures source=capture_result'
 ```
 
-The daemon manages and periodically refreshes `enemies` and `drops` data.
+The daemon checks `enemies` and `drops` for freshness
+[on demand](data-sources.md#automatic-refresh).
 `wfcli update --wfcd` requests an immediate refresh. `player` is local-only and
 is empty until a companion or another owner-only local client publishes observations.
 `market` loads the public item manifest and attaches quotes already present in daemon cache.

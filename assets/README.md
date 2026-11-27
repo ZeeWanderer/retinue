@@ -1,7 +1,7 @@
 # Shared Assets
 
-Framework-neutral assets used by multiple applications live here. Qt resources
-and Rust embeds consume the same source files. Game-specific assets stay with
+Framework-neutral assets used by multiple applications live here. The desktop
+app and companions can embed the same source files. Game-specific assets stay with
 their game namespace; downloaded content belongs to the daemon's asset cache.
 
 `warframe/ui/` contains status glyphs shared by the Warframe GUI and companion.

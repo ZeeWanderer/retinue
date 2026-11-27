@@ -36,7 +36,8 @@ overrides and the complete option list.
 
 ## Automatic Refresh
 
-`retinue-daemon` checks managed metadata hourly and refreshes sources older than 24 hours. Missing or
+`retinue-daemon` checks managed metadata on demand and hourly while a Warframe source client is
+connected. By default it refreshes sources older than 24 hours. Missing or
 invalid managed files are fetched when first needed. Refreshes share a serialized source queue and
 publish completed files by atomic rename, so active readers retain a complete old version until a
 new version is ready.

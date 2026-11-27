@@ -23,7 +23,9 @@ and categories require no application update; incompatible schemas fail validati
 references resolve within the fetched snapshot. Invalid downloads leave existing caches intact.
 Each cache records the source, content hash, package version and fetch time.
 
-The daemon checks source age hourly and refreshes data older than 24 hours. Refresh failures and
+Managed catalog requests trigger a rate-limited freshness check. A connected Warframe source
+client keeps an hourly check active; without one there is no periodic refresh. The default
+maximum source age is 24 hours. Refresh failures and
 mirror failures are recorded in the [daemon incident log](../daemon.md#logs).
 
 Recheck [upstream schemas](https://github.com/WFCD/warframe-items) before expanding a projection:

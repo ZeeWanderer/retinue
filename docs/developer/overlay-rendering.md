@@ -155,9 +155,9 @@ not a whole-process cap.
 
 ## Reusable Fragments
 
-No generic fragment renderer is implemented yet. Direct drawing helpers already
-submit Blend2D operations to the current target; they do not open child contexts.
-Before adding a cache, compare those operations against a prepared native image.
+The renderer can [discover reusable fragments](render-residency.md) in ordinary
+drawing. Compare direct replay with a prepared native image before adding a
+cache hint; direct drawing does not need a child context.
 
 Blend2D has one target per context, not a public replayable command list or a
 multi-target render graph. A compound cache miss can render directly into a tight

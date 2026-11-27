@@ -51,9 +51,9 @@ blocks without cache annotations. Equivalent candidates share weakly interned
 programs across independent view IDs. Original commands remain available; discovery
 does not search arbitrary overlapping subsequences or rasterize during compilation.
 Cheap fills, images and sparse blocks stay direct. The work/covered-area estimate
-is deliberately coarse, not a native timing model. Text stays in its existing glyph
-mask path: caching another colored alpha raster changes rounding and is not yet
-eligible for automatic discovery. Explicitly authored raster policies are unchanged.
+is deliberately coarse, not a native timing model. Text is recorded as positioned
+glyph runs. [Candidate discovery](../../crates/retinue-render/src/program/discovery.rs)
+does not by itself allocate a raster or establish that caching beats replay.
 
 Automatic candidates need repeated visible paint consumers or several actual
 repaints of an unchanged program. Idle preparation and relocation-only updates do
